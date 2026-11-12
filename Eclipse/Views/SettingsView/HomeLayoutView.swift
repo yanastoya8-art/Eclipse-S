@@ -182,6 +182,20 @@ struct HomeLayoutView: View {
                 }
                 .pickerStyle(.menu)
             }
+
+            NavigationLink {
+                HomeHeroSelectionView()
+            } label: {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Choose Hero Shows")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    Text("Pick the exact movies and TV shows that can appear in the home banner. A custom selection overrides the catalogue above.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
         } header: {
             Text("Hero")
         }
@@ -461,5 +475,170 @@ private struct CatalogLayoutEditorView: View {
             get: { layoutStore.override(for: catalog.id).sizeScale ?? effectiveGlobalCardScale },
             set: { layoutStore.setSizeScale($0, for: catalog.id) }
         )
+    }
+}
+
+
+private struct HomeHeroSelectionView: View {
+    @StateObject private var tmdbService = TMDBService.shared
+    @State private var searchText = ""
+    @State private var searchResults: [TMDBSearchResult] = []
+    @State private var selectedTitles: [TMDBSearchResult] = []
+    @State private var isSearching = false
+    @State private var errorMessage: String?
+    @State private var searchTask: Task<Void, Never>?
+
+    var body: some View {
+        List {
+            Section {
+                HStack(spacing: 10) {
+                    TextField("Search movies and TV shows", text: $searchText)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .onSubmit { search() }
+                    Button {
+                        search()
+                    } label: {
+                        Image(systemName: "magnifyingglass")
+                    }
+                    .disabled(searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSearching)
+                    .accessibilityLabel("Search titles")
+                }
+
+                if isSearching {
+                    HStack {
+                        Spacer()
+                        ProgressView("Searching…")
+                        Spacer()
+                    }
+                }
+
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.caption)
+                        .foregroundColor(.red)
+                }
+            } header: {
+                Text("Find Titles")
+            }
+
+            Section {
+                if selectedTitles.isEmpty {
+                    Text("No custom titles selected. The Home Banner catalogue setting will be used.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else {
+                    ForEach(selectedTitles, id: \.stableIdentity) { title in
+                        HStack(spacing: 10) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(title.displayTitle)
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                Text(titleKindAndYear(title))
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            Button(role: .destructive) {
+                                remove(title)
+                            } label: {
+                                Image(systemName: "minus.circle.fill")
+                            }
+                            .buttonStyle(.borderless)
+                            .accessibilityLabel("Remove \(title.displayTitle) from hero selection")
+                        }
+                    }
+
+                    Button("Clear Custom Selection", role: .destructive) {
+                        selectedTitles = []
+                        persistSelection()
+                    }
+                }
+            } header: {
+                Text("Selected for Hero (\(selectedTitles.count))")
+            } footer: {
+                Text("The order shown here is the order used by the carousel. Choose Static to show the first title, or Carousel to rotate through all selected titles.")
+            }
+
+            if !searchResults.isEmpty {
+                Section("Search Results") {
+                    ForEach(searchResults, id: \.stableIdentity) { title in
+                        let isSelected = selectedTitles.contains { $0.stableIdentity == title.stableIdentity }
+                        Button {
+                            toggle(title)
+                        } label: {
+                            HStack(spacing: 10) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(title.displayTitle)
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(.primary)
+                                    Text(titleKindAndYear(title))
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                Spacer()
+                                Image(systemName: isSelected ? "checkmark.circle.fill" : "plus.circle")
+                                    .foregroundColor(isSelected ? .accentColor : .secondary)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .eclipsePageTitle("Choose Hero Shows")
+        .eclipseSettingsStyle()
+        .onAppear {
+            selectedTitles = HomeHeroSelectionSettings.load()
+        }
+        .onDisappear {
+            searchTask?.cancel()
+        }
+    }
+
+    private func titleKindAndYear(_ title: TMDBSearchResult) -> String {
+        let kind = title.isMovie ? "Movie" : "TV Show"
+        let year = title.displayDate.isEmpty ? nil : String(title.displayDate.prefix(4))
+        return [kind, year].compactMap { $0 }.joined(separator: " · ")
+    }
+
+    private func search() {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return }
+        searchTask?.cancel()
+        searchTask = Task { @MainActor in
+            isSearching = true
+            errorMessage = nil
+            defer { isSearching = false }
+            do {
+                let results = try await tmdbService.searchMulti(query: query, maxPages: 1)
+                guard !Task.isCancelled else { return }
+                searchResults = results.filter { $0.isMovie || $0.isTVShow }
+            } catch {
+                guard !Task.isCancelled else { return }
+                errorMessage = error.localizedDescription
+                searchResults = []
+            }
+        }
+    }
+
+    private func toggle(_ title: TMDBSearchResult) {
+        if let index = selectedTitles.firstIndex(where: { $0.stableIdentity == title.stableIdentity }) {
+            selectedTitles.remove(at: index)
+        } else {
+            selectedTitles.append(title)
+        }
+        persistSelection()
+    }
+
+    private func remove(_ title: TMDBSearchResult) {
+        selectedTitles.removeAll { $0.stableIdentity == title.stableIdentity }
+        persistSelection()
+    }
+
+    private func persistSelection() {
+        HomeHeroSelectionSettings.save(selectedTitles)
     }
 }
