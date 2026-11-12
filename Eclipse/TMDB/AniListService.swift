@@ -9784,7 +9784,7 @@ final class AniListService {
                         kitsuId: anime.kitsuId,
                         format: anime.format
                     )
-                )
+                ).withAnimeArtworkURL(anime.coverImage?.preferredURL())
                 return (anime.id, seededResult, nil)
             }
 
@@ -9879,7 +9879,7 @@ final class AniListService {
         var dict: [Int: TMDBSearchResult] = [:]
         var cacheRecords: [AnimeTMDBMatchCacheRecord] = []
         for (anilistId, match, cacheRecord) in matches {
-            if let match = match {
+            if let match = match, MyDubListDubFilter.shared.shouldInclude(match) {
                 dict[anilistId] = match
             }
             if let cacheRecord {
