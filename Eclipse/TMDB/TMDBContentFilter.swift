@@ -316,7 +316,7 @@ class TMDBContentFilter: ObservableObject {
 
     private init() {
         self.filterHorror = ProfileSettingsStore.active.bool(forKey: "filterHorror")
-        Task { await MyDubListDubFilter.shared.refresh() }
+        Task { _ = await MyDubListDubFilter.shared.refresh() }
         TMDBMaturityRatingStore.shared.$revision
             .receive(on: DispatchQueue.main)
             .sink { [weak self] revision in
