@@ -2472,7 +2472,8 @@ struct MediaDetailContentView: View {
                 minHeaderHeight: minHeaderHeight,
                 onAmbientColorExtracted: { color in
                     ambientColor = color
-                }
+                },
+                placeholderColor: shouldAnalyzeAlternatePoster ? .clear : Color.gray.opacity(0.3)
             )
 #if DEBUG
             if ProcessInfo.processInfo.environment["ECLIPSE_UI_POSTER_AUDIT"] == "1" {
@@ -2567,9 +2568,7 @@ struct MediaDetailContentView: View {
 
     private var detailHeroImageURL: String? {
 #if !os(tvOS) && !os(macOS)
-
-        if !usesWideDetailLayout, mediaDetailTitleArtworkEnabled, mediaDetailAlternatePosterEnabled,
-           let alternatePosterURL {
+        if !usesWideDetailLayout, mediaDetailTitleArtworkEnabled, mediaDetailAlternatePosterEnabled {
             return alternatePosterURL
         }
 
@@ -6832,11 +6831,17 @@ struct MediaDetailContentView: View {
 
     @MainActor
     private func resumeOptionalPresentationIfNeeded() {
+#if os(iOS)
+        guard isDetailVisible, errorMessage == nil,
+              optionalPresentationTask == nil,
+              !optionalPresentationIsComplete || (shouldAnalyzeAlternatePoster && !alternatePosterWasResolved) else { return }
+#else
         guard hasLoadedContent, !isLoading, isDetailVisible, errorMessage == nil,
               detailLoadedLanguage == selectedLanguage, detailLoadedIdentity == searchResult.stableIdentity,
               searchResult.isMovie ? movieDetail?.id == searchResult.id : tvShowDetail?.id == searchResult.id,
               optionalPresentationTask == nil,
               !optionalPresentationIsComplete || (shouldAnalyzeAlternatePoster && !alternatePosterWasResolved) else { return }
+#endif
         let generation = UUID()
         optionalPresentationGeneration = generation
         let identity = searchResult.stableIdentity
@@ -7082,6 +7087,11 @@ struct MediaDetailContentView: View {
         }
 
         isLoading = true
+#if os(iOS)
+        romajiTitle = nil
+        logoURL = nil
+        castMembers = []
+#endif
         seasonDetail = nil
         selectedEpisodeForSearch = nil
         animeRating = nil
@@ -7091,6 +7101,9 @@ struct MediaDetailContentView: View {
         animeProviderAliases = [:]
         animeSpecialEntries = []
         alternatePosterURL = nil
+#if os(iOS)
+        resumeOptionalPresentationIfNeeded()
+#endif
         isLoadingAnimeSpecials = false
         traktComments = []
         traktRating = nil
@@ -7118,9 +7131,11 @@ struct MediaDetailContentView: View {
                         self.optionalPresentationCacheWritable = true
                         self.movieDetail = detail
                         self.synopsis = detail.overview ?? ""
+#if !os(iOS)
                         self.romajiTitle = nil
                         self.logoURL = nil
                         self.alternatePosterURL = nil
+#endif
                         self.castMembers = []
                         self.animeRating = nil
                         self.animeSpecialEntries = []
@@ -7298,12 +7313,16 @@ struct MediaDetailContentView: View {
                               self.searchResult.stableIdentity == routeIdentity,
                               self.selectedLanguage == detailLanguage else { return }
                         self.synopsis = detail.overview ?? ""
+#if !os(iOS)
                         self.romajiTitle = romaji
+#endif
                         self.isAnimeShow = detectedAsAnime
                         self.animeRating = resolvedAnimeRating
                         self.animeSpecialEntries = resolvedAnimeSpecials
                         self.isLoadingAnimeSpecials = shouldLoadAnimeSpecialsAfterReveal
+#if !os(iOS)
                         self.castMembers = credits?.cast ?? []
+#endif
 
                         if let animeData = animeData {
                             Logger.shared.log("MediaDetailView: Using AniList structure - \(animeData.seasons.count) seasons", type: "AniList")
@@ -7560,8 +7579,10 @@ struct MediaDetailContentView: View {
                             }
                         }
 
+#if !os(iOS)
                         self.logoURL = nil
                         self.alternatePosterURL = nil
+#endif
 
                         self.optionalPresentationCacheWritable = self.initialNotificationSelection == nil
                             && !animeMetadata.needsBackgroundRevalidation

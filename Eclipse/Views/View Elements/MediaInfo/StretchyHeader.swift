@@ -22,6 +22,7 @@ struct StretchyHeaderView: View {
     let minHeaderHeight: CGFloat
     let onAmbientColorExtracted: ((Color) -> Void)?
     var imageDecodeSize: CGSize? = nil
+    var placeholderColor: Color = Color.gray.opacity(0.3)
 
     @State private var localAmbientColor: Color = Color.black
 
@@ -46,7 +47,7 @@ struct StretchyHeaderView: View {
                             .setProcessor(DownsamplingImageProcessor(size: resolvedImageDecodeSize))
                             .placeholder {
                                 Rectangle()
-                                    .fill(Color.gray.opacity(0.3))
+                                    .fill(placeholderColor)
                             }
                             .onSuccess { result in
                                 updateAmbientColor(from: result.image)
