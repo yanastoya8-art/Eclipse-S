@@ -46,7 +46,7 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Validate immutable MPVKit revision
         env:
-          MPVKIT_SOURCE_REVISION: 7f44364bd24eed90e72887fc846482fbf3f791a9
+          MPVKIT_SOURCE_REVISION: c41b09a1fdc48a78234333d670a9ca0ddb97b04e
         run: |
           set -euo pipefail
 
@@ -58,11 +58,11 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           repository: Soupy-dev/MPVKit
-          ref: 7f44364bd24eed90e72887fc846482fbf3f791a9
+          ref: c41b09a1fdc48a78234333d670a9ca0ddb97b04e
           path: MPVKit
       - name: Verify immutable MPVKit checkout
         env:
-          MPVKIT_SOURCE_REVISION: 7f44364bd24eed90e72887fc846482fbf3f791a9
+          MPVKIT_SOURCE_REVISION: c41b09a1fdc48a78234333d670a9ca0ddb97b04e
         run: test "$(git -C MPVKit rev-parse HEAD)" = "$MPVKIT_SOURCE_REVISION"
       - name: Expose sibling MPVKit package
         run: ln -sfn "$GITHUB_WORKSPACE/MPVKit" "$GITHUB_WORKSPACE/../MPVKit"
