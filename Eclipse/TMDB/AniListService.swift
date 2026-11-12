@@ -9745,7 +9745,7 @@ final class AniListService {
                     results.append(match)
                 }
             }
-            return results
+            return results.filter { MyDubListDubFilter.shared.shouldInclude($0) }
         }
     }
 
