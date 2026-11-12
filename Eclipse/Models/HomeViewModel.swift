@@ -688,7 +688,7 @@ final class HomeViewModel: ObservableObject {
             heroCarouselIndex = 0
             heroCarouselGeneration = nil
             heroContent = nil
-            heroLaunchSelectionCatalogId = nil
+            heroLaunchSelectionKey = nil
             return
         }
         heroCarouselGeneration = loadGeneration
@@ -696,13 +696,13 @@ final class HomeViewModel: ObservableObject {
         switch behavior {
         case .static:
             heroCarouselItems = candidates
-            heroLaunchSelectionCatalogId = nil
+            heroLaunchSelectionKey = nil
             heroCarouselIndex = 0
             heroContent = candidates.first
         case .carousel:
 
             heroCarouselItems = Array(candidates.prefix(Self.maxHeroCarouselItems))
-            heroLaunchSelectionCatalogId = nil
+            heroLaunchSelectionKey = nil
             if let current = heroContent,
                let currentIndex = heroCarouselItems.firstIndex(where: { $0.stableIdentity == current.stableIdentity }) {
                 heroCarouselIndex = currentIndex
@@ -781,7 +781,7 @@ final class HomeViewModel: ObservableObject {
             widgetData = [:]
             isLoading = true
             heroContent = nil
-            heroLaunchSelectionCatalogId = nil
+            heroLaunchSelectionKey = nil
             featuredGenreName = ""
             becauseYouWatchedTitle = ""
             hasRenderableStartupContent = false
