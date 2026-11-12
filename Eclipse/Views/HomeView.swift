@@ -1720,8 +1720,14 @@ struct HomeView: View {
         if shouldAnalyzeHeroAlternatePoster {
             // Match the detail page: keep the artwork blank until the verified
             // alternate poster has finished resolving instead of flashing the
-            // original poster or backdrop first.
-            return currentHeroAlternatePosterURL(for: hero)
+            // original poster or backdrop first. If no textless TMDB alternative
+            // exists, use AniList's large cover as a secondary artwork source.
+            if let alternate = currentHeroAlternatePosterURL(for: hero) {
+                return alternate
+            }
+            let cacheKey = heroAlternatePosterCacheKey(hero.stableIdentity, language: selectedLanguage)
+            guard resolvedHeroAlternatePosterKeys.contains(cacheKey) else { return nil }
+            return hero.fullPosterURL ?? hero.fullBackdropURL
         }
 #endif
         return hero.fullBackdropURL ?? hero.fullPosterURL
