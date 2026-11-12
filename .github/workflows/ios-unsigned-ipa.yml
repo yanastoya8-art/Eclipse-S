@@ -15,11 +15,6 @@ on:
         description: "GitHub updater release version stamped into the app. Empty uses Build.xcconfig."
         required: false
         default: ""
-      app_store_release_confirmed:
-        description: "I confirm the App Store release is live and intend to expose an unsigned IPA artifact."
-        required: true
-        type: boolean
-        default: false
 
 concurrency:
   group: ios-unsigned-ipa-${{ github.ref }}
@@ -35,20 +30,15 @@ jobs:
     timeout-minutes: 90
 
     steps:
-      - name: Authorize public unsigned distribution
+      - name: Validate default branch
         env:
-          APP_STORE_RELEASE_CONFIRMED: ${{ inputs.app_store_release_confirmed }}
           RELEASE_REF: ${{ github.ref }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
 
-          if [[ "$APP_STORE_RELEASE_CONFIRMED" != "true" ]]; then
-            echo "::error::Unsigned IPA distribution is disabled until the App Store release is live and app_store_release_confirmed is checked."
-            exit 1
-          fi
           if [[ "$RELEASE_REF" != "refs/heads/$DEFAULT_BRANCH" ]]; then
-            echo "::error::Unsigned IPA distribution is allowed only from the default branch 'refs/heads/$DEFAULT_BRANCH'; received '$RELEASE_REF'."
+            echo "::error::Unsigned IPA builds are allowed only from the default branch 'refs/heads/$DEFAULT_BRANCH'; received '$RELEASE_REF'."
             exit 1
           fi
 
@@ -56,7 +46,7 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Validate immutable MPVKit revision
         env:
-          MPVKIT_SOURCE_REVISION: ${{ vars.MPVKIT_SOURCE_REVISION }}
+          MPVKIT_SOURCE_REVISION: 7f44364bd24eed90e72887fc846482fbf3f791a9
         run: |
           set -euo pipefail
 
@@ -68,11 +58,11 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           repository: Soupy-dev/MPVKit
-          ref: ${{ vars.MPVKIT_SOURCE_REVISION }}
+          ref: 7f44364bd24eed90e72887fc846482fbf3f791a9
           path: MPVKit
       - name: Verify immutable MPVKit checkout
         env:
-          MPVKIT_SOURCE_REVISION: ${{ vars.MPVKIT_SOURCE_REVISION }}
+          MPVKIT_SOURCE_REVISION: 7f44364bd24eed90e72887fc846482fbf3f791a9
         run: test "$(git -C MPVKit rev-parse HEAD)" = "$MPVKIT_SOURCE_REVISION"
       - name: Expose sibling MPVKit package
         run: ln -sfn "$GITHUB_WORKSPACE/MPVKit" "$GITHUB_WORKSPACE/../MPVKit"
