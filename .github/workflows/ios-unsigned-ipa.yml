@@ -188,7 +188,7 @@ jobs:
           for symbol in symbols:
               if f"MPVKIT_WEAK_FALLBACK" not in source or symbol not in source:
                   raise SystemExit(f"Missing reviewed MPVKit weak fallback: {symbol}")
-              provider = f"mpvkit_{symbol}_symbol"
+              provider = f"mpvkit_{symbol.removeprefix('mpv_')}_symbol"
               if provider not in source or provider not in header:
                   raise SystemExit(f"Missing linker-visible MPVKit symbol provider: {provider}")
           print("Reviewed MPVKit Apple PiP weak bridge validated.")
