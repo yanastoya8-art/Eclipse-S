@@ -89,12 +89,7 @@ final class MyDubListDubFilter: @unchecked Sendable {
     func refresh() async {
         let languages = selectedLanguages
         guard !languages.isEmpty else {
-            lock.lock()
-            allowedMALIDs = []
-            allowedAniListIDs = []
-            loadedLanguages = []
-            isLoaded = true
-            lock.unlock()
+            clearSnapshot()
             NotificationCenter.default.post(name: Self.didRefreshNotification, object: nil)
             return
         }
@@ -126,12 +121,7 @@ final class MyDubListDubFilter: @unchecked Sendable {
             }
 
             guard languages == selectedLanguages else { return }
-            lock.lock()
-            allowedMALIDs = malIDs
-            allowedAniListIDs = aniListIDs
-            loadedLanguages = languages
-            isLoaded = true
-            lock.unlock()
+            publishSnapshot(malIDs: malIDs, aniListIDs: aniListIDs, languages: languages)
             let defaults = ProfileSettingsStore.active
             defaults.set(languages.sorted(), forKey: Self.cachedLanguagesKey)
             defaults.set(malIDs.sorted(), forKey: Self.cachedMALIDsKey)
@@ -166,6 +156,24 @@ final class MyDubListDubFilter: @unchecked Sendable {
         if let anilistID, anilistID > 0, allowedAniListIDs.contains(anilistID) { return true }
         if let malID, malID > 0, allowedMALIDs.contains(malID) { return true }
         return false
+    }
+
+    private func clearSnapshot() {
+        lock.lock()
+        allowedMALIDs = []
+        allowedAniListIDs = []
+        loadedLanguages = []
+        isLoaded = true
+        lock.unlock()
+    }
+
+    private func publishSnapshot(malIDs: Set<Int>, aniListIDs: Set<Int>, languages: Set<String>) {
+        lock.lock()
+        allowedMALIDs = malIDs
+        allowedAniListIDs = aniListIDs
+        loadedLanguages = languages
+        isLoaded = true
+        lock.unlock()
     }
 
     private func loadCachedSnapshot(for languages: Set<String>) {
