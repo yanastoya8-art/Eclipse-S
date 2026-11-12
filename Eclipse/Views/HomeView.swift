@@ -1410,8 +1410,8 @@ struct HomeView: View {
                     guard homeViewModel.heroContent?.stableIdentity == heroIdentity else { return }
                     homeViewModel.ambientColor = color
                 },
-                placeholderColor: shouldAnalyzeHeroAlternatePoster ? .clear : Color.gray.opacity(0.3),
-                imageDecodeSize: heroImageDecodeSize
+                imageDecodeSize: heroImageDecodeSize,
+                placeholderColor: shouldAnalyzeHeroAlternatePoster ? .clear : Color.gray.opacity(0.3)
             )
             .id("hero-image-\(heroIdentity)")
 
