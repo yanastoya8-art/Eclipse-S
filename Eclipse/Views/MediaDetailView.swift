@@ -2472,7 +2472,8 @@ struct MediaDetailContentView: View {
                 minHeaderHeight: minHeaderHeight,
                 onAmbientColorExtracted: { color in
                     ambientColor = color
-                }
+                },
+                placeholderColor: shouldAnalyzeAlternatePoster ? .clear : Color.gray.opacity(0.3)
             )
 #if DEBUG
             if ProcessInfo.processInfo.environment["ECLIPSE_UI_POSTER_AUDIT"] == "1" {
