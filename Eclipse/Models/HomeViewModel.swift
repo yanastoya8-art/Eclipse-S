@@ -673,12 +673,12 @@ final class HomeViewModel: ObservableObject {
         let rawCandidates = usesCustomSelection ? selectedTitles : heroCandidates(for: catalogId)
 #if os(iOS)
         let iPadBackdropCandidates = rawCandidates.filter { $0.fullBackdropURL != nil }
-        let candidates = UIDevice.current.userInterfaceIdiom == .pad && !iPadBackdropCandidates.isEmpty
+        let candidates = !usesCustomSelection && UIDevice.current.userInterfaceIdiom == .pad && !iPadBackdropCandidates.isEmpty
             ? iPadBackdropCandidates
             : rawCandidates
 #elseif os(tvOS)
         let tvBackdropCandidates = rawCandidates.filter { $0.fullBackdropURL != nil }
-        let candidates = tvBackdropCandidates.isEmpty ? rawCandidates : tvBackdropCandidates
+        let candidates = !usesCustomSelection && !tvBackdropCandidates.isEmpty ? tvBackdropCandidates : rawCandidates
 #else
         let candidates = rawCandidates
 #endif
@@ -701,7 +701,7 @@ final class HomeViewModel: ObservableObject {
             heroContent = candidates.first
         case .carousel:
 
-            heroCarouselItems = Array(candidates.prefix(Self.maxHeroCarouselItems))
+            heroCarouselItems = usesCustomSelection ? candidates : Array(candidates.prefix(Self.maxHeroCarouselItems))
             heroLaunchSelectionKey = nil
             if let current = heroContent,
                let currentIndex = heroCarouselItems.firstIndex(where: { $0.stableIdentity == current.stableIdentity }) {
