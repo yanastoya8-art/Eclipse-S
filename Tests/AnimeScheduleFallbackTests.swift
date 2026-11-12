@@ -87,6 +87,7 @@ final class AnimeScheduleFallbackTests: XCTestCase {
         AnimeScheduleURLProtocol.configure { request in
             guard request.value(forHTTPHeaderField: "Authorization") == "Bearer fixture-token" else { return (401, Data(), [:]) }
             if request.url?.path.contains("timetables") == true {
+                guard request.url?.path.hasSuffix("/timetables/dub") == true else { return (404, Data(), [:]) }
                 let week = URLComponents(url: request.url ?? URL(fileURLWithPath: "/"), resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "week" }?.value
                 if missingWeek, week != firstWeek.map(String.init) { return (404, Data(), [:]) }
                 return (200, timetable, [:])
@@ -185,6 +186,13 @@ final class AnimeScheduleFallbackTests: XCTestCase {
         XCTAssertEqual(entries.first?.animeMediaIDs, [101, -202])
         XCTAssertEqual(entries.first?.format, "TV")
         XCTAssertTrue(entries.allSatisfy(\.hasKnownAiringTime))
+    }
+
+    func testMapsOnlyEnglishDubRowsAndMarksDubOnlyProvider() throws {
+        let entry = try XCTUnwrap(mapped().first)
+        XCTAssertEqual(entry.scheduleProvider, .dubOnly)
+        XCTAssertEqual(entry.malID, 202)
+        XCTAssertTrue(try mapped(["airType": "sub"]).isEmpty)
     }
 
     func testRejectsInvalidEpisodesWrongAirTypeAndAdultRows() throws {
