@@ -3761,6 +3761,21 @@ struct ScheduleSettingsView: View {
 #else
                 GlassSectionFooter("Performance warning: This range also controls automatic episode notification checks and delayed startup warming. Longer ranges—especially 21 or 30 days—can load more slowly and use more data, particularly during provider fallback. Eclipse still schedules only the nearest 48 managed reminders. \(ScheduleWindow.defaultValue.rawValue) days remains the recommended default.")
 #endif
+
+                GlassSection(header: "Anime Dub Schedule") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("The anime and combined schedules now use the English-dub timetable shown by DubOnly. The schedule data is credited by DubOnly to AnimeSchedule.net.")
+                            .font(.subheadline)
+                            .foregroundColor(.white.opacity(0.75))
+                            .fixedSize(horizontal: false, vertical: true)
+                        Link("Open DubOnly Schedule", destination: URL(string: "https://dubonly.com/schedule/")!)
+                            .font(.subheadline)
+                        Link("AnimeSchedule.net data source", destination: URL(string: "https://animeschedule.net/")!)
+                            .font(.subheadline)
+                    }
+                    .padding(14)
+                }
+                GlassSectionFooter("DubOnly currently publishes English-dub release times only. If you select Spanish or another language without English in Anime Dub Languages, the schedule will show a notice instead of presenting English release times as that language's schedule.")
             }
             .padding(.top, 16)
             .padding(.bottom, 32)
