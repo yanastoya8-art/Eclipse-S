@@ -8,10 +8,10 @@ enum AnimeScheduleError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .unconfigured: return "AnimeSchedule is not configured in this build."
-        case .invalidResponse: return "AnimeSchedule returned an invalid schedule."
-        case .http(let status): return "AnimeSchedule request failed (HTTP \(status))."
-        case .unavailable: return "AnimeSchedule has no available timetable for these dates."
+        case .unconfigured: return "DubOnly English dub schedule is not configured in this build."
+        case .invalidResponse: return "The DubOnly English dub schedule returned an invalid response."
+        case .http(let status): return "DubOnly English dub schedule request failed (HTTP \(status))."
+        case .unavailable: return "DubOnly has no available English dub timetable for these dates."
         }
     }
 }
@@ -113,7 +113,7 @@ enum AnimeScheduleEntryMapper {
         preferredLanguageCode: String,
         stale: Bool = false
     ) -> [AniListAiringScheduleEntry] {
-        guard row.airType == "raw", validRoute(row.route), anime?.route == row.route,
+        guard row.airType == "dub", validRoute(row.route), anime?.route == row.route,
               anime?.isAdult != true,
               !row.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               row.title.utf8.count <= 1024,
@@ -158,7 +158,7 @@ enum AnimeScheduleEntryMapper {
                 nativeTitle: row.native,
                 format: format,
                 hasKnownAiringTime: knownTime,
-                scheduleProvider: .animeSchedule,
+                scheduleProvider: .dubOnly,
                 malID: anime?.malID,
                 airingTimeWithdrawn: delayed && !stale
             )
@@ -204,7 +204,7 @@ actor AnimeScheduleService {
         let configured = token ?? Bundle.main.object(forInfoDictionaryKey: "AnimeScheduleAPIToken") as? String ?? ""
         let trimmed = configured.trimmingCharacters(in: .whitespacesAndNewlines)
         self.token = trimmed.contains("$(") || trimmed.utf8.count > 512 ? "" : trimmed
-        self.cacheURL = cacheURL ?? (token == nil ? FileManager.default.eclipseCachesDirectories.first?.appendingPathComponent("animeschedule-v1.json") : nil)
+        self.cacheURL = cacheURL ?? (token == nil ? FileManager.default.eclipseCachesDirectories.first?.appendingPathComponent("dubonly-english-schedule-v1.json") : nil)
         self.requestSpacing = requestSpacing
     }
 
@@ -230,7 +230,7 @@ actor AnimeScheduleService {
             }
             do {
                 guard !requestsUnavailable else { throw AnimeScheduleError.unavailable }
-                let data = try await request(path: "timetables/raw", query: [
+                let data = try await request(path: "timetables/dub", query: [
                     URLQueryItem(name: "year", value: String(week.year)),
                     URLQueryItem(name: "week", value: String(week.week)),
                     URLQueryItem(name: "tz", value: "UTC")
@@ -303,9 +303,9 @@ actor AnimeScheduleService {
         persistCache(now: now)
         guard !entriesByID.isEmpty || complete else { throw AnimeScheduleError.unavailable }
         let notice = usedStale
-            ? "AnimeSchedule fallback · Saved schedule; refresh unavailable."
-            : complete ? "Schedule provided by AnimeSchedule.net."
-            : "AnimeSchedule fallback · Some dates or shows are unavailable."
+            ? "DubOnly fallback · Saved English dub schedule; refresh unavailable."
+            : complete ? "English dub schedule via DubOnly · Data credited to AnimeSchedule.net."
+            : "DubOnly fallback · Some English dub dates or shows are unavailable."
         return AnimeAiringScheduleResult(
             entries: entriesByID.values.sorted { $0.airingAt == $1.airingAt ? $0.mediaId < $1.mediaId : $0.airingAt < $1.airingAt },
             isAuthoritativeForNotifications: false,
