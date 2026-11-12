@@ -1941,8 +1941,8 @@ class TMDBService: ObservableObject {
             let lhsRank = languageRank(lhs)
             let rhsRank = languageRank(rhs)
             if lhsRank != rhsRank { return lhsRank < rhsRank }
-            let lhsPixels = (lhs.width ?? 0) * (lhs.height ?? 0)
-            let rhsPixels = (rhs.width ?? 0) * (rhs.height ?? 0)
+            let lhsPixels = lhs.width * lhs.height
+            let rhsPixels = rhs.width * rhs.height
             if lhsPixels != rhsPixels { return lhsPixels > rhsPixels }
             return lhs.filePath < rhs.filePath
         }.first
