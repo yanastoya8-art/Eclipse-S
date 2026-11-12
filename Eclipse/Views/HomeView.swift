@@ -858,6 +858,10 @@ struct HomeView: View {
                 reportStartupReadyIfNeeded()
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: MyDubListDubFilter.didRefreshNotification)) { _ in
+            guard effectiveIsActive else { return }
+            loadContent(showLoading: false)
+        }
         .onReceive(NotificationCenter.default.publisher(for: EclipseLifecycle.foregroundNotification)) { _ in
             guard effectiveIsActive else { return }
             refreshContinueWatchingItems()
