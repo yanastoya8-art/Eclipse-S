@@ -2567,6 +2567,19 @@ struct MediaDetailContentView: View {
     }
 
     private var detailHeroImageURL: String? {
+        let isAnimeTitle = searchResult.animeIdentitySeed != nil || searchResult.isAnimeHint == true
+        if isAnimeTitle {
+#if !os(tvOS) && !os(macOS)
+            if !usesWideDetailLayout, mediaDetailTitleArtworkEnabled, mediaDetailAlternatePosterEnabled,
+               let alternatePosterURL {
+                return alternatePosterURL
+            }
+#endif
+            return searchResult.fullPosterURL
+                ?? tvShowDetail?.fullPosterURL
+                ?? tvShowDetail?.fullBackdropURL
+                ?? searchResult.fullBackdropURL
+        }
 #if !os(tvOS) && !os(macOS)
         if !usesWideDetailLayout, mediaDetailTitleArtworkEnabled, mediaDetailAlternatePosterEnabled {
             return alternatePosterURL
