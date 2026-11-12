@@ -101,6 +101,7 @@ enum ScheduleDateWindow {
 enum ScheduleProvider: String, Codable, Sendable {
     case aniList
     case animeSchedule
+    case dubOnly
     case trakt
     case tvMaze
 
