@@ -139,7 +139,12 @@ final class MyDubListDubFilter: @unchecked Sendable {
     func shouldInclude(_ result: TMDBSearchResult) -> Bool {
         let languages = selectedLanguages
         guard !languages.isEmpty else { return true }
-        guard result.animeIdentitySeed != nil || result.isAnimeHint == true else { return true }
+        let isLikelyAnime = result.animeIdentitySeed != nil
+            || result.isAnimeHint == true
+            || (result.genreIds?.contains(16) == true
+                && (result.originalLanguage?.lowercased() == "ja"
+                    || result.originCountry?.contains("JP") == true))
+        guard isLikelyAnime else { return true }
         guard let seed = result.animeIdentitySeed else { return false }
 
         lock.lock()
