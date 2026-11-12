@@ -3877,11 +3877,15 @@ struct MyDubListDubsSettingsView: View {
     private func refresh() async {
         isRefreshing = true
         defer { isRefreshing = false }
-        await MyDubListDubFilter.shared.refresh()
+        let didLoad = await MyDubListDubFilter.shared.refresh()
         selectedLanguages = MyDubListDubFilter.shared.selectedLanguages
-        refreshMessage = selectedLanguages.isEmpty
-            ? "Dub filtering is disabled."
-            : "MyDubList language data is loaded for the selected languages."
+        if selectedLanguages.isEmpty {
+            refreshMessage = "Dub filtering is disabled."
+        } else if didLoad {
+            refreshMessage = "MyDubList language data is ready for the selected languages."
+        } else {
+            refreshMessage = "MyDubList could not be reached and no matching offline cache is available. Anime results will remain hidden until the selected language data can be loaded."
+        }
     }
 }
 
