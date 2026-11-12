@@ -579,6 +579,7 @@ struct HomeView: View {
     @State private var heroAlternatePosterURL: String?
     @State private var heroArtworkIdentity: String?
     @State private var prefetchedHeroAlternatePosterURLs: [String: String] = [:]
+    @State private var resolvedHeroAlternatePosterKeys: Set<String> = []
 #if os(macOS)
     @State private var macHeroAmbientImageURL: String?
     @State private var macHeroIsHovered = false
@@ -598,6 +599,7 @@ struct HomeView: View {
     @StateObject private var tmdbService = TMDBService.shared
     @StateObject private var contentFilter = TMDBContentFilter.shared
     @ObservedObject private var theme = EclipseTheme.shared
+    @AppStorage(MediaDetailTitleArtworkSettings.enabledKey) private var mediaDetailTitleArtworkEnabled = MediaDetailTitleArtworkSettings.defaultEnabled
     @AppStorage(MediaDetailAlternatePosterSettings.enabledKey) private var mediaDetailAlternatePosterEnabled = MediaDetailAlternatePosterSettings.defaultEnabled
     @AppStorage("heroBannerCatalogId") private var heroBannerCatalogId = "trending"
     @AppStorage("heroBannerBehavior") private var heroBannerBehavior = HeroBannerBehavior.defaultValue.rawValue
@@ -663,7 +665,7 @@ struct HomeView: View {
 
     private var shouldAnalyzeHeroAlternatePoster: Bool {
 #if os(iOS)
-        ExperimentalFeatureState.isEnabledAtLaunch && !usesWideHomeLayout && mediaDetailAlternatePosterEnabled
+        !usesWideHomeLayout && mediaDetailTitleArtworkEnabled && mediaDetailAlternatePosterEnabled
 #else
         false
 #endif
@@ -1405,6 +1407,7 @@ struct HomeView: View {
                     guard homeViewModel.heroContent?.stableIdentity == heroIdentity else { return }
                     homeViewModel.ambientColor = color
                 },
+                placeholderColor: shouldAnalyzeHeroAlternatePoster ? .clear : Color.gray.opacity(0.3),
                 imageDecodeSize: heroImageDecodeSize
             )
             .id("hero-image-\(heroIdentity)")
@@ -1706,18 +1709,14 @@ struct HomeView: View {
     }
 
     private func heroImageURL(for hero: TMDBSearchResult) -> String? {
-        if ExperimentalFeatureState.isEnabledAtLaunch {
-#if os(tvOS) || os(macOS)
-            return hero.fullBackdropURL ?? hero.fullPosterURL
-#else
-            if usesWideHomeLayout {
-                return hero.fullBackdropURL ?? hero.fullPosterURL
-            }
+#if os(iOS)
+        if shouldAnalyzeHeroAlternatePoster {
+            // Match the detail page: keep the artwork blank until the verified
+            // alternate poster has finished resolving instead of flashing the
+            // original poster or backdrop first.
             return currentHeroAlternatePosterURL(for: hero)
-                ?? hero.fullPosterURL
-                ?? hero.fullBackdropURL
-#endif
         }
+#endif
         return hero.fullBackdropURL ?? hero.fullPosterURL
     }
 
@@ -2111,16 +2110,20 @@ struct HomeView: View {
             guard !Task.isCancelled, analyzesAlternate, shouldAnalyzeHeroAlternatePoster, heroArtworkIsActive,
                   homeViewModel.heroContent?.stableIdentity == identity,
                   selectedLanguage == language else { return }
-            let alternatePosterURL = await tmdbService.bestAlternatePoster(
+            let alternateResolution = await tmdbService.resolveAlternatePoster(
                 from: images, excluding: [hero.posterPath], matching: hero.posterPath,
                 mediaType: hero.isMovie ? .movie : .tv
-            )?.fullURL
+            )
             guard !Task.isCancelled else { return }
+            let alternatePosterURL = alternateResolution.poster?.fullURL
             await MainActor.run {
                 guard !Task.isCancelled, heroArtworkIsActive, shouldAnalyzeHeroAlternatePoster,
                       homeViewModel.heroContent?.stableIdentity == identity,
                       selectedLanguage == language else { return }
                 heroAlternatePosterURL = alternatePosterURL
+                if alternateResolution.isComplete {
+                    resolvedHeroAlternatePosterKeys.insert(cacheKey)
+                }
                 if let alternatePosterURL {
                     prefetchedHeroAlternatePosterURLs[cacheKey] = alternatePosterURL
                 }
@@ -2162,24 +2165,32 @@ struct HomeView: View {
         for hero in upcomingHeroes {
             let cacheKey = heroAlternatePosterCacheKey(hero.stableIdentity, language: language)
             guard !Task.isCancelled, selectedLanguage == language,
-                  prefetchedHeroAlternatePosterURLs[cacheKey] == nil else { continue }
+                  prefetchedHeroAlternatePosterURLs[cacheKey] == nil,
+                  !resolvedHeroAlternatePosterKeys.contains(cacheKey) else { continue }
             do {
                 let images = hero.isMovie
                     ? try await tmdbService.getMovieImages(id: hero.id, preferredLanguage: language)
                     : try await tmdbService.getTVShowImages(id: hero.id, preferredLanguage: language)
                 guard !Task.isCancelled, heroArtworkIsActive, shouldAnalyzeHeroAlternatePoster,
                       selectedLanguage == language else { return }
-                guard let alternatePosterURL = await tmdbService.bestAlternatePoster(
+                let alternateResolution = await tmdbService.resolveAlternatePoster(
                     from: images,
                     excluding: [hero.posterPath],
                     matching: hero.posterPath,
                     mediaType: hero.isMovie ? .movie : .tv
-                )?.fullURL,
-                      await prefetchHeroImage(alternatePosterURL, processor: processor),
-                      !Task.isCancelled else { continue }
+                )
+                guard !Task.isCancelled else { continue }
+                if let alternatePosterURL = alternateResolution.poster?.fullURL {
+                    guard await prefetchHeroImage(alternatePosterURL, processor: processor) else { continue }
+                }
                 guard heroArtworkIsActive, shouldAnalyzeHeroAlternatePoster,
                       selectedLanguage == language else { return }
-                prefetchedHeroAlternatePosterURLs[cacheKey] = alternatePosterURL
+                if alternateResolution.isComplete {
+                    resolvedHeroAlternatePosterKeys.insert(cacheKey)
+                }
+                if let alternatePosterURL = alternateResolution.poster?.fullURL {
+                    prefetchedHeroAlternatePosterURLs[cacheKey] = alternatePosterURL
+                }
             } catch {
                 continue
             }
