@@ -50,6 +50,9 @@ final class MyDubListDubFilter: @unchecked Sendable {
     static let shared = MyDubListDubFilter()
     static let selectedLanguagesKey = "myDubListSelectedLanguagesV1"
     static let didRefreshNotification = Notification.Name("myDubListDubFilterDidRefresh")
+    private static let cachedLanguagesKey = "myDubListCachedLanguagesV1"
+    private static let cachedMALIDsKey = "myDubListCachedMALIDsV1"
+    private static let cachedAniListIDsKey = "myDubListCachedAniListIDsV1"
 
     private struct DubDataset: Decodable {
         let dubbed: [Int]
@@ -96,6 +99,8 @@ final class MyDubListDubFilter: @unchecked Sendable {
             return
         }
 
+        loadCachedSnapshot(for: languages)
+
         do {
             var malIDs = Set<Int>()
             for language in languages.sorted() {
@@ -127,6 +132,10 @@ final class MyDubListDubFilter: @unchecked Sendable {
             loadedLanguages = languages
             isLoaded = true
             lock.unlock()
+            let defaults = ProfileSettingsStore.active
+            defaults.set(languages.sorted(), forKey: Self.cachedLanguagesKey)
+            defaults.set(malIDs.sorted(), forKey: Self.cachedMALIDsKey)
+            defaults.set(aniListIDs.sorted(), forKey: Self.cachedAniListIDsKey)
             NotificationCenter.default.post(name: Self.didRefreshNotification, object: nil)
             Logger.shared.log("MyDubList: loaded languages=\(languages.sorted().joined(separator: ",")) MAL=\(malIDs.count) AniList=\(aniListIDs.count)", type: "Anime")
         } catch {
@@ -157,6 +166,21 @@ final class MyDubListDubFilter: @unchecked Sendable {
         if let anilistID, anilistID > 0, allowedAniListIDs.contains(anilistID) { return true }
         if let malID, malID > 0, allowedMALIDs.contains(malID) { return true }
         return false
+    }
+
+    private func loadCachedSnapshot(for languages: Set<String>) {
+        let defaults = ProfileSettingsStore.active
+        let cachedLanguages = Set(defaults.stringArray(forKey: Self.cachedLanguagesKey) ?? [])
+        guard cachedLanguages == languages else { return }
+        let malIDs = Set((defaults.array(forKey: Self.cachedMALIDsKey) as? [Int] ?? []).filter { $0 > 0 })
+        let aniListIDs = Set((defaults.array(forKey: Self.cachedAniListIDsKey) as? [Int] ?? []).filter { $0 > 0 })
+        guard !malIDs.isEmpty, !aniListIDs.isEmpty else { return }
+        lock.lock()
+        allowedMALIDs = malIDs
+        allowedAniListIDs = aniListIDs
+        loadedLanguages = languages
+        isLoaded = true
+        lock.unlock()
     }
 
     private static func download(_ url: URL, maximumBytes: Int) async throws -> Data {
