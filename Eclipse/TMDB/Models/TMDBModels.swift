@@ -219,6 +219,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
     let isAnimeHint: Bool?
 
     let animeIdentitySeed: AnimeMediaIdentitySeed?
+    let animeArtworkURL: String?
 
     enum CodingKeys: String, CodingKey {
         case id, overview, popularity, adult
@@ -235,6 +236,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
         case voteCount = "vote_count"
         case isAnimeHint = "is_anime_hint"
         case animeIdentitySeed = "anime_identity_seed"
+        case animeArtworkURL = "anime_artwork_url"
     }
 
     init(
@@ -255,7 +257,8 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
         originCountry: [String]? = nil,
         voteCount: Int? = nil,
         isAnimeHint: Bool? = nil,
-        animeIdentitySeed: AnimeMediaIdentitySeed? = nil
+        animeIdentitySeed: AnimeMediaIdentitySeed? = nil,
+        animeArtworkURL: String? = nil
     ) {
         self.id = id
         self.mediaType = mediaType
@@ -275,6 +278,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
         self.voteCount = voteCount
         self.isAnimeHint = isAnimeHint
         self.animeIdentitySeed = animeIdentitySeed?.sanitizedForPersistence
+        self.animeArtworkURL = Self.sanitizedAnimeArtworkURL(animeArtworkURL)
     }
 
     init(from decoder: Decoder) throws {
@@ -344,6 +348,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
         animeIdentitySeed = try container
             .decodeIfPresent(AnimeMediaIdentitySeed.self, forKey: .animeIdentitySeed)?
             .sanitizedForPersistence
+        animeArtworkURL = Self.sanitizedAnimeArtworkURL(try container.decodeIfPresent(String.self, forKey: .animeArtworkURL))
     }
 
     var displayTitle: String {
@@ -363,8 +368,10 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
     }
 
     var fullPosterURL: String? {
-        guard let posterPath else { return nil }
-        return TMDBImageRequestPolicy.urlString(for: posterPath, kind: .poster)
+        if let posterPath, let url = TMDBImageRequestPolicy.urlString(for: posterPath, kind: .poster) {
+            return url
+        }
+        return animeArtworkURL
     }
 
     var fullBackdropURL: String? {
@@ -414,7 +421,42 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             originCountry: originCountry,
             voteCount: voteCount,
             isAnimeHint: isAnimeHint,
-            animeIdentitySeed: animeIdentitySeed?.sanitizedForPersistence
+            animeIdentitySeed: animeIdentitySeed?.sanitizedForPersistence,
+            animeArtworkURL: animeArtworkURL
+        )
+    }
+
+    private static func sanitizedAnimeArtworkURL(_ rawValue: String?) -> String? {
+        guard let rawValue, rawValue.utf8.count <= 2048,
+              let components = URLComponents(string: rawValue),
+              components.scheme?.lowercased() == "https",
+              let host = components.host?.lowercased(),
+              host == "anilist.co" || host.hasSuffix(".anilist.co"),
+              components.user == nil, components.password == nil else { return nil }
+        return components.url?.absoluteString
+    }
+
+    func withAnimeArtworkURL(_ url: String?) -> TMDBSearchResult {
+        TMDBSearchResult(
+            id: id,
+            mediaType: mediaType,
+            title: title,
+            name: name,
+            overview: overview,
+            posterPath: posterPath,
+            backdropPath: backdropPath,
+            releaseDate: releaseDate,
+            firstAirDate: firstAirDate,
+            voteAverage: voteAverage,
+            popularity: popularity,
+            adult: adult,
+            genreIds: genreIds,
+            originalLanguage: originalLanguage,
+            originCountry: originCountry,
+            voteCount: voteCount,
+            isAnimeHint: isAnimeHint,
+            animeIdentitySeed: animeIdentitySeed,
+            animeArtworkURL: url
         )
     }
 
@@ -437,7 +479,8 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             originCountry: originCountry,
             voteCount: voteCount,
             isAnimeHint: isAnimeHint,
-            animeIdentitySeed: seed?.sanitizedForPersistence
+            animeIdentitySeed: seed?.sanitizedForPersistence,
+            animeArtworkURL: animeArtworkURL
         )
     }
 }
