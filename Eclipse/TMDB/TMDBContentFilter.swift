@@ -8,6 +8,170 @@
 import Combine
 import Foundation
 
+enum MyDubListLanguage: String, CaseIterable, Identifiable, Sendable {
+    case english, spanish, german, french, italian, chinese, portuguese, korean
+    case tagalog, arabic, polish, hindi, hungarian, hebrew, swedish, norwegian
+    case dutch, thai, indonesian, russian, danish, finnish, turkish, catalan, vietnamese
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .english: return "English"
+        case .spanish: return "Spanish"
+        case .german: return "German"
+        case .french: return "French"
+        case .italian: return "Italian"
+        case .chinese: return "Chinese"
+        case .portuguese: return "Portuguese"
+        case .korean: return "Korean"
+        case .tagalog: return "Tagalog"
+        case .arabic: return "Arabic"
+        case .polish: return "Polish"
+        case .hindi: return "Hindi"
+        case .hungarian: return "Hungarian"
+        case .hebrew: return "Hebrew"
+        case .swedish: return "Swedish"
+        case .norwegian: return "Norwegian"
+        case .dutch: return "Dutch"
+        case .thai: return "Thai"
+        case .indonesian: return "Indonesian"
+        case .russian: return "Russian"
+        case .danish: return "Danish"
+        case .finnish: return "Finnish"
+        case .turkish: return "Turkish"
+        case .catalan: return "Catalan"
+        case .vietnamese: return "Vietnamese"
+        }
+    }
+}
+
+final class MyDubListDubFilter: @unchecked Sendable {
+    static let shared = MyDubListDubFilter()
+    static let selectedLanguagesKey = "myDubListSelectedLanguagesV1"
+    static let didRefreshNotification = Notification.Name("myDubListDubFilterDidRefresh")
+
+    private struct DubDataset: Decodable {
+        let dubbed: [Int]
+    }
+
+    private struct AniListMapping: Decodable {
+        let malID: Int
+        let aniListID: Int
+        enum CodingKeys: String, CodingKey {
+            case malID = "mal_id"
+            case aniListID = "anilist_id"
+        }
+    }
+
+    private let lock = NSLock()
+    private var allowedMALIDs: Set<Int> = []
+    private var allowedAniListIDs: Set<Int> = []
+    private var loadedLanguages: Set<String> = []
+    private var isLoaded = false
+
+    var selectedLanguages: Set<String> {
+        Set((ProfileSettingsStore.active.stringArray(forKey: Self.selectedLanguagesKey) ?? [])
+            .filter { MyDubListLanguage(rawValue: $0) != nil })
+    }
+
+    func setSelectedLanguages(_ languages: Set<String>) {
+        let valid = languages.filter { MyDubListLanguage(rawValue: $0) != nil }
+        ProfileSettingsStore.active.set(valid.sorted(), forKey: Self.selectedLanguagesKey)
+        lock.lock()
+        isLoaded = false
+        lock.unlock()
+    }
+
+    func refresh() async {
+        let languages = selectedLanguages
+        guard !languages.isEmpty else {
+            lock.lock()
+            allowedMALIDs = []
+            allowedAniListIDs = []
+            loadedLanguages = []
+            isLoaded = true
+            lock.unlock()
+            NotificationCenter.default.post(name: Self.didRefreshNotification, object: nil)
+            return
+        }
+
+        do {
+            var malIDs = Set<Int>()
+            for language in languages.sorted() {
+                let url = URL(string: "https://raw.githubusercontent.com/Joelis57/MyDubList/main/dubs/confidence/low/dubbed_\(language).json")!
+                let data = try await Self.download(url, maximumBytes: 1_000_000)
+                let dataset = try JSONDecoder().decode(DubDataset.self, from: data)
+                guard dataset.dubbed.count <= 250_000 else { throw URLError(.dataLengthExceedsMaximum) }
+                malIDs.formUnion(dataset.dubbed.filter { $0 > 0 && $0 <= 100_000_000 })
+            }
+
+            let mappingURL = URL(string: "https://raw.githubusercontent.com/Joelis57/MyDubList/main/dubs/mappings/mappings_anilist.jsonl")!
+            let mappingData = try await Self.download(mappingURL, maximumBytes: 4_000_000)
+            guard let mappingText = String(data: mappingData, encoding: .utf8) else {
+                throw URLError(.cannotDecodeContentData)
+            }
+
+            var aniListIDs = Set<Int>()
+            let decoder = JSONDecoder()
+            for line in mappingText.split(whereSeparator: \.isNewline) {
+                guard let row = try? decoder.decode(AniListMapping.self, from: Data(line.utf8)),
+                      malIDs.contains(row.malID), row.aniListID > 0 else { continue }
+                aniListIDs.insert(row.aniListID)
+            }
+
+            guard languages == selectedLanguages else { return }
+            lock.lock()
+            allowedMALIDs = malIDs
+            allowedAniListIDs = aniListIDs
+            loadedLanguages = languages
+            isLoaded = true
+            lock.unlock()
+            NotificationCenter.default.post(name: Self.didRefreshNotification, object: nil)
+            Logger.shared.log("MyDubList: loaded languages=\(languages.sorted().joined(separator: ",")) MAL=\(malIDs.count) AniList=\(aniListIDs.count)", type: "Anime")
+        } catch {
+            Logger.shared.log("MyDubList: dub filter refresh failed: \(error.localizedDescription)", type: "Anime")
+        }
+    }
+
+    func shouldInclude(_ result: TMDBSearchResult) -> Bool {
+        let languages = selectedLanguages
+        guard !languages.isEmpty else { return true }
+        guard result.animeIdentitySeed != nil || result.isAnimeHint == true else { return true }
+        guard let seed = result.animeIdentitySeed else { return false }
+
+        lock.lock()
+        defer { lock.unlock() }
+        guard isLoaded, loadedLanguages == languages else { return false }
+        if allowedAniListIDs.contains(seed.anilistId) { return true }
+        if let malID = seed.malId, allowedMALIDs.contains(malID) { return true }
+        return false
+    }
+
+    func shouldInclude(anilistID: Int?, malID: Int?) -> Bool {
+        let languages = selectedLanguages
+        guard !languages.isEmpty else { return true }
+        lock.lock()
+        defer { lock.unlock() }
+        guard isLoaded, loadedLanguages == languages else { return false }
+        if let anilistID, anilistID > 0, allowedAniListIDs.contains(anilistID) { return true }
+        if let malID, malID > 0, allowedMALIDs.contains(malID) { return true }
+        return false
+    }
+
+    private static func download(_ url: URL, maximumBytes: Int) async throws -> Data {
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 30
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let response = response as? HTTPURLResponse, response.statusCode == 200,
+              data.count <= maximumBytes else {
+            throw URLError(.badServerResponse)
+        }
+        return data
+    }
+}
+
 struct KidsPolicyDetails: Codable, Hashable {
     let isAdult: Bool
     let genreIds: [Int]
@@ -104,6 +268,7 @@ class TMDBContentFilter: ObservableObject {
 
     private init() {
         self.filterHorror = ProfileSettingsStore.active.bool(forKey: "filterHorror")
+        Task { await MyDubListDubFilter.shared.refresh() }
         TMDBMaturityRatingStore.shared.$revision
             .receive(on: DispatchQueue.main)
             .sink { [weak self] revision in
@@ -114,6 +279,7 @@ class TMDBContentFilter: ObservableObject {
     }
 
     func activeProfileDidChange() {
+        Task { await MyDubListDubFilter.shared.refresh() }
 
         let storedFilterHorror = ProfileSettingsStore.active.bool(forKey: "filterHorror")
         if storedFilterHorror != filterHorror {
@@ -218,6 +384,7 @@ class TMDBContentFilter: ObservableObject {
     }
 
     private func shouldIncludeCatalogResult(_ result: TMDBSearchResult) -> Bool {
+        guard MyDubListDubFilter.shared.shouldInclude(result) else { return false }
         guard result.adult != true else { return false }
         guard shouldIncludeCatalogTitle(result.displayTitle) else { return false }
         guard shouldIncludeForKids(
