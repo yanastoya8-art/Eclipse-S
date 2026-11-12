@@ -87,12 +87,12 @@ final class MyDubListDubFilter: @unchecked Sendable {
         lock.unlock()
     }
 
-    func refresh() async {
+    func refresh() async -> Bool {
         let languages = selectedLanguages
         guard !languages.isEmpty else {
             clearSnapshot()
             NotificationCenter.default.post(name: Self.didRefreshNotification, object: nil)
-            return
+            return true
         }
 
         loadCachedSnapshot(for: languages)
@@ -129,8 +129,10 @@ final class MyDubListDubFilter: @unchecked Sendable {
             defaults.set(aniListIDs.sorted(), forKey: Self.cachedAniListIDsKey)
             NotificationCenter.default.post(name: Self.didRefreshNotification, object: nil)
             Logger.shared.log("MyDubList: loaded languages=\(languages.sorted().joined(separator: ",")) MAL=\(malIDs.count) AniList=\(aniListIDs.count)", type: "Anime")
+            return true
         } catch {
             Logger.shared.log("MyDubList: dub filter refresh failed: \(error.localizedDescription)", type: "Anime")
+            return hasSnapshot(for: languages)
         }
     }
 
@@ -165,6 +167,12 @@ final class MyDubListDubFilter: @unchecked Sendable {
         if let anilistID, anilistID > 0, allowedAniListIDs.contains(anilistID) { return true }
         if let malID, malID > 0, allowedMALIDs.contains(malID) { return true }
         return false
+    }
+
+    private func hasSnapshot(for languages: Set<String>) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return isLoaded && loadedLanguages == languages
     }
 
     private func clearSnapshot() {
