@@ -104,21 +104,22 @@ final class HLSBackgroundDownloadCoordinator: HLSBackgroundDownloadScheduling {
         log("requested", request: request, slot: slot)
         let taskRequest = BGContinuedProcessingTaskRequest(identifier: slot.identifier, title: "Downloading video", subtitle: "Preparing download")
         taskRequest.strategy = .fail
-        if #available(iOS 27.0, *) {
-            let token = request.token
-            DispatchQueue.global(qos: .utility).async { [weak self, weak slot] in
-                BGTaskScheduler.shared.submitTaskRequest(taskRequest) { error in
-                    DispatchQueue.main.async {
-                        guard let self, let slot else { return }
-                        self.submissionFinished(in: slot, token: token, error: error)
-                    }
-                }
-            }
-        } else {
+        let token = request.token
+        DispatchQueue.global(qos: .utility).async { [weak self, weak slot] in
             do {
+                // Keep using the throwing API supported by the repository's Xcode SDK.
+                // The newer submitTaskRequest completion-handler overload is not present
+                // in every SDK used by the CI runner.
                 try BGTaskScheduler.shared.submit(taskRequest)
+                DispatchQueue.main.async {
+                    guard let self, let slot else { return }
+                    self.submissionFinished(in: slot, token: token, error: nil)
+                }
             } catch {
-                submissionFinished(in: slot, token: request.token, error: error)
+                DispatchQueue.main.async {
+                    guard let self, let slot else { return }
+                    self.submissionFinished(in: slot, token: token, error: error)
+                }
             }
         }
     }
