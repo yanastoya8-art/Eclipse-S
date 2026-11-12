@@ -5407,16 +5407,17 @@ final class AniListService {
         perPage: Int = 50
     ) async throws -> AnimeAiringScheduleResult {
         let result = try await AnimeScheduleFallback.load(aniList: {
-            let result = try await self.fetchAiringScheduleFromAniList(daysAhead: daysAhead, perPage: perPage)
-            AnimeProviderHealthCenter.shared.recordAniListSuccess()
-            return result
-        }, animeSchedule: {
-            let result = try await AnimeScheduleService.shared.fetchSchedule(
+            let dubSchedule = try await AnimeScheduleService.shared.fetchSchedule(
                 daysAhead: daysAhead,
                 preferredLanguageCode: self.preferredLanguageCode
             )
-            Logger.shared.log("AnimeSchedule: fallback loaded entries=\(result.entries.count)", type: "Schedule")
-            return result
+            Logger.shared.log("DubOnly: loaded English dub schedule entries=\(dubSchedule.entries.count)", type: "Schedule")
+            return dubSchedule
+        }, animeSchedule: {
+            let fallback = try await self.fetchAiringScheduleFromAniList(daysAhead: daysAhead, perPage: perPage)
+            AnimeProviderHealthCenter.shared.recordAniListSuccess()
+            Logger.shared.log("AnimeSchedule: AniList fallback loaded entries=\(fallback.entries.count)", type: "Schedule")
+            return fallback
         }, mal: {
             AnimeProviderHealthCenter.shared.notifyMALFallbackIfNeeded(reason: "schedule")
             do {
@@ -5427,20 +5428,23 @@ final class AniListService {
                 AnimeProviderHealthCenter.shared.recordMALFailure(error)
                 throw error
             }
-        }, permitsFallback: { error in
-            let reason = AnimeProviderHealthCenter.shared.recordAniListFailure(error)
-            return AnimeProviderHealthCenter.shared.shouldUseMALFallback(for: reason)
-        })
+        }, permitsFallback: { _ in true })
 
         let filteredEntries = result.entries.filter { entry in
             let anilistID = entry.mediaId > 0 ? entry.mediaId : nil
             let malID = entry.malID ?? (entry.mediaId < 0 ? -entry.mediaId : nil)
-            return MyDubListDubFilter.shared.shouldInclude(anilistID: anilistID, malID: malID)
+            return MyDubListDubFilter.shared.shouldIncludeEnglishSchedule(anilistID: anilistID, malID: malID)
         }
         return AnimeAiringScheduleResult(
             entries: filteredEntries,
             isAuthoritativeForNotifications: result.isAuthoritativeForNotifications,
-            notice: result.notice
+            notice: {
+                let selectedLanguages = MyDubListDubFilter.shared.selectedLanguages
+                if !selectedLanguages.isEmpty && !selectedLanguages.contains("english") {
+                    return "DubOnly currently publishes an English-dub schedule only. Select English to display upcoming dub releases."
+                }
+                return result.notice
+            }()
         )
     }
 
