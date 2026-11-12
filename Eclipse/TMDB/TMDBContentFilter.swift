@@ -191,7 +191,6 @@ final class MyDubListDubFilter: @unchecked Sendable {
         guard cachedLanguages == languages else { return }
         let malIDs = Set((defaults.array(forKey: Self.cachedMALIDsKey) as? [Int] ?? []).filter { $0 > 0 })
         let aniListIDs = Set((defaults.array(forKey: Self.cachedAniListIDsKey) as? [Int] ?? []).filter { $0 > 0 })
-        guard !malIDs.isEmpty, !aniListIDs.isEmpty else { return }
         lock.lock()
         allowedMALIDs = malIDs
         allowedAniListIDs = aniListIDs
