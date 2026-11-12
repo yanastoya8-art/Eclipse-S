@@ -668,8 +668,8 @@ final class HomeViewModel: ObservableObject {
         let selectedTitles = HomeHeroSelectionSettings.load()
         let usesCustomSelection = !selectedTitles.isEmpty
         let selectionKey = usesCustomSelection
-            ? "custom:" + selectedTitles.map(\\.stableIdentity).joined(separator: "|")
-            : "catalog:\\(catalogId)"
+            ? "custom:" + selectedTitles.map(\.stableIdentity).joined(separator: "|")
+            : "catalog:\(catalogId)"
         let rawCandidates = usesCustomSelection ? selectedTitles : heroCandidates(for: catalogId)
 #if os(iOS)
         let iPadBackdropCandidates = rawCandidates.filter { $0.fullBackdropURL != nil }
