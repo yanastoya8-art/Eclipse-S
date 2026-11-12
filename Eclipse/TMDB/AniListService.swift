@@ -5406,7 +5406,7 @@ final class AniListService {
         daysAhead: Int = 7,
         perPage: Int = 50
     ) async throws -> AnimeAiringScheduleResult {
-        return try await AnimeScheduleFallback.load(aniList: {
+        let result = try await AnimeScheduleFallback.load(aniList: {
             let result = try await self.fetchAiringScheduleFromAniList(daysAhead: daysAhead, perPage: perPage)
             AnimeProviderHealthCenter.shared.recordAniListSuccess()
             return result
@@ -5431,6 +5431,17 @@ final class AniListService {
             let reason = AnimeProviderHealthCenter.shared.recordAniListFailure(error)
             return AnimeProviderHealthCenter.shared.shouldUseMALFallback(for: reason)
         })
+
+        let filteredEntries = result.entries.filter { entry in
+            let anilistID = entry.mediaId > 0 ? entry.mediaId : nil
+            let malID = entry.malID ?? (entry.mediaId < 0 ? -entry.mediaId : nil)
+            return MyDubListDubFilter.shared.shouldInclude(anilistID: anilistID, malID: malID)
+        }
+        return AnimeAiringScheduleResult(
+            entries: filteredEntries,
+            isAuthoritativeForNotifications: result.isAuthoritativeForNotifications,
+            notice: result.notice
+        )
     }
 
     private func fetchAiringScheduleFromAniList(
