@@ -9725,7 +9725,7 @@ final class AniListService {
                             kitsuId: anime.kitsuId,
                             format: anime.format
                         )
-                    )
+                    ).withAnimeArtworkURL(anime.coverImage?.preferredURL())
                 }
             }
 
@@ -9861,7 +9861,7 @@ final class AniListService {
                     kitsuId: anime.kitsuId,
                     format: anime.format
                 )
-            )
+            ).withAnimeArtworkURL(anime.coverImage?.preferredURL())
             let cacheRecord = result != nil || lookupCompleted
                 ? AnimeTMDBMatchCacheRecord(key: cacheKey, result: result)
                 : nil
