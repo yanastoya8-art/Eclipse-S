@@ -592,6 +592,19 @@ struct SettingsView: View {
 
                         GlassDivider()
 
+                        NavigationLink(destination: settingsSearchableContent(MyDubListDubsSettingsView())) {
+                            GlassSettingsRow(icon: "character.bubble", iconColor: .purple, title: "Anime Dub Languages") {
+                                Text(MyDubListDubFilter.shared.selectedLanguages.count == 0
+                                     ? "Disabled"
+                                     : "\(MyDubListDubFilter.shared.selectedLanguages.count) selected")
+                                    .font(.subheadline)
+                                    .foregroundColor(.white.opacity(0.5))
+                            }
+                        }
+                        .buttonStyle(.plain)
+
+                        GlassDivider()
+
                         NavigationLink(destination: settingsSearchableContent(NotificationSettingsView())) {
                             GlassSettingsRow(icon: "bell.badge.fill", iconColor: .orange, title: "Notifications") {
                                 HStack(spacing: 4) {
@@ -3755,6 +3768,105 @@ struct ScheduleSettingsView: View {
         .eclipsePageTitle("Schedule")
         .background(SettingsGradientBackground().ignoresSafeArea())
         .eclipseDarkToolbar()
+    }
+}
+
+struct MyDubListDubsSettingsView: View {
+    @State private var selectedLanguages = MyDubListDubFilter.shared.selectedLanguages
+    @State private var isRefreshing = false
+    @State private var refreshMessage = "Dub data is refreshed from MyDubList when these settings change."
+
+    @StateObject private var accentColorManager = AccentColorManager.shared
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 22) {
+                GlassSection(header: "Anime Dub Filter") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Select one or more dub languages. An anime remains visible if it has a dub in at least one selected language. Anime with no matching dub is hidden from anime catalog sections and schedules.")
+                            .font(.subheadline)
+                            .foregroundColor(.white.opacity(0.75))
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        HStack {
+                            Text(selectedLanguages.isEmpty ? "Filter disabled" : "\(selectedLanguages.count) languages selected")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            if isRefreshing {
+                                ProgressView()
+                                    .controlSize(.small)
+                            }
+                        }
+                    }
+                    .padding(14)
+                }
+
+                GlassSection(header: "Available Dub Languages") {
+                    VStack(spacing: 0) {
+                        ForEach(Array(MyDubListLanguage.allCases.enumerated()), id: \.element.id) { index, language in
+                            GlassSelectionRow(
+                                title: language.displayName,
+                                subtitle: language.rawValue.capitalized,
+                                isSelected: selectedLanguages.contains(language.rawValue),
+                                accent: accentColorManager.currentAccentColor
+                            ) {
+                                toggle(language)
+                            }
+                            if index < MyDubListLanguage.allCases.count - 1 {
+                                GlassDivider(leadingInset: 16)
+                            }
+                        }
+                    }
+                }
+
+                GlassSectionFooter("Multiple languages use OR logic: English + Spanish means either dub qualifies. With no languages selected, no dub filtering is applied. Data: MyDubList, confidence tier low (at least one reported source).")
+
+                GlassSection(header: "Data & Attribution") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(refreshMessage)
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.65))
+                        Link("Powered by MyDubList", destination: URL(string: "https://mydublist.com")!)
+                            .font(.subheadline)
+                        Link("Dataset license: CC BY 4.0", destination: URL(string: "https://creativecommons.org/licenses/by/4.0/")!)
+                            .font(.subheadline)
+                        Link("Report inaccurate dub data", destination: URL(string: "https://github.com/Joelis57/MyDubList/issues/new/choose")!)
+                            .font(.subheadline)
+                    }
+                    .padding(14)
+                }
+            }
+            .padding(.top, 16)
+            .padding(.bottom, 32)
+        }
+        .eclipsePageTitle("Anime Dub Languages")
+        .background(SettingsGradientBackground().ignoresSafeArea())
+        .eclipseDarkToolbar()
+        .task {
+            await refresh()
+        }
+    }
+
+    private func toggle(_ language: MyDubListLanguage) {
+        if selectedLanguages.contains(language.rawValue) {
+            selectedLanguages.remove(language.rawValue)
+        } else {
+            selectedLanguages.insert(language.rawValue)
+        }
+        MyDubListDubFilter.shared.setSelectedLanguages(selectedLanguages)
+        Task { await refresh() }
+    }
+
+    @MainActor
+    private func refresh() async {
+        isRefreshing = true
+        defer { isRefreshing = false }
+        await MyDubListDubFilter.shared.refresh()
+        selectedLanguages = MyDubListDubFilter.shared.selectedLanguages
+        refreshMessage = selectedLanguages.isEmpty
+            ? "Dub filtering is disabled."
+            : "MyDubList language data is loaded for the selected languages."
     }
 }
 
