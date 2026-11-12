@@ -55,7 +55,7 @@ final class AnimeScheduleFallbackTests: XCTestCase {
         var result: [String: Any] = [
             "title": "Example Season 2", "route": "example-2", "english": "Example Second Season",
             "romaji": "Example 2", "native": "例", "episodeDate": ISO8601DateFormatter().string(from: now.addingTimeInterval(3600)),
-            "episodeNumber": 5, "airType": "raw", "airingStatus": "unaired",
+            "episodeNumber": 5, "airType": "dub", "airingStatus": "unaired",
             "delayedFrom": "0001-01-01T00:00:00Z", "delayedUntil": "0001-01-01T00:00:00Z",
             "mediaTypes": [["route": "tv", "name": "TV"]], "imageVersionRoute": "anime/jpg/example.jpg"
         ]
@@ -191,7 +191,7 @@ final class AnimeScheduleFallbackTests: XCTestCase {
         for change: [String: Any] in [
             ["episodeNumber": 0], ["episodeNumber": 100_001], ["subtractedEpisodeNumber": 0],
             ["subtractedEpisodeNumber": 6], ["episodeNumber": 500, "subtractedEpisodeNumber": 1],
-            ["episodeDate": "0001-01-01T00:00:00Z"], ["airType": "dub"], ["route": "../example-2"]
+            ["episodeDate": "0001-01-01T00:00:00Z"], ["airType": "raw"], ["route": "../example-2"]
         ] { XCTAssertTrue(try mapped(change).isEmpty) }
         XCTAssertTrue(try mapped(animeChanges: ["genres": [["route": "hentai"]]]).isEmpty)
         XCTAssertTrue(try mapped(animeChanges: ["websites": [:]]).isEmpty)
@@ -375,14 +375,14 @@ final class AnimeScheduleFallbackTests: XCTestCase {
             let result = try await AnimeScheduleFallback.load(
                 aniList: { throw NSError(domain: "AniList", code: 503) },
                 animeSchedule: { try await service.fetchSchedule(daysAhead: days) },
-                mal: { XCTFail("Live AnimeSchedule should serve the fallback"); throw AnimeScheduleError.unavailable },
+                mal: { XCTFail("Live DubOnly English schedule should serve the primary feed"); throw AnimeScheduleError.unavailable },
                 permitsFallback: { error in
                     let health = AnimeProviderHealthCenter.shared
                     return health.shouldUseMALFallback(for: health.classifyAniListFailure(error))
                 }
             )
             XCTAssertFalse(result.entries.isEmpty)
-            XCTAssertTrue(result.entries.allSatisfy { $0.scheduleProvider == .animeSchedule && $0.mediaId != 0 })
+            XCTAssertTrue(result.entries.allSatisfy { $0.scheduleProvider == .dubOnly && $0.mediaId != 0 })
             XCTAssertEqual(Set(result.entries.map(\.id)).count, result.entries.count)
             let entries = result.entries.map(ScheduleEntry.init(animeEntry:))
             XCTAssertEqual(Set(entries.map(\.id)).count, entries.count)
@@ -391,7 +391,7 @@ final class AnimeScheduleFallbackTests: XCTestCase {
             let entry = try XCTUnwrap(entries.first)
             XCTAssertTrue(AnimeScheduleNotificationPolicy.matches(entry, knownIDs: entry.animeMediaIDs, aliases: []))
 #endif
-            print("AnimeSchedule live: days=\(days) entries=\(entries.count) confirmed=\(entries.filter(\.hasKnownAiringTime).count) elapsed=\(Int(Date().timeIntervalSince(started)))s notice=\(result.notice ?? "")")
+            print("DubOnly live: days=\(days) entries=\(entries.count) confirmed=\(entries.filter(\.hasKnownAiringTime).count) elapsed=\(Int(Date().timeIntervalSince(started)))s notice=\(result.notice ?? "")")
         }
         let result = try await AniListService.shared.fetchAiringScheduleResult(daysAhead: 7)
         XCTAssertFalse(result.entries.isEmpty)
@@ -406,7 +406,7 @@ final class AnimeScheduleFallbackTests: XCTestCase {
         let snapshot = await model.notificationScheduleSnapshot(dayCount: 7, requiredSources: [.anime])
         XCTAssertTrue(snapshot.successfulSources.contains(.anime))
         XCTAssertFalse(snapshot.entries.isEmpty)
-        if snapshot.entries.contains(where: { $0.provider == .animeSchedule }) {
+        if snapshot.entries.contains(where: { $0.provider == .dubOnly }) {
             XCTAssertFalse(snapshot.authoritativeSources.contains(.anime))
             XCTAssertNotNil(model.scheduleNotice)
         }
