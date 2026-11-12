@@ -155,6 +155,16 @@ struct ScheduleView: View {
         .onChangeComp(of: viewModel.scheduleEntriesRevision) { _, _ in
             refreshKidsScheduleFilter(viewModel.scheduleEntries)
         }
+        .onReceive(NotificationCenter.default.publisher(for: MyDubListDubFilter.didRefreshNotification)) { _ in
+            guard isActive else { return }
+            Task {
+                await viewModel.loadSchedule(
+                    mode: selectedScheduleMode,
+                    localTimeZone: showLocalScheduleTime,
+                    forceRefresh: true
+                )
+            }
+        }
 
         .onAppear {
             refreshKidsScheduleFilter(viewModel.scheduleEntries)
