@@ -1832,7 +1832,7 @@ class TMDBService: ObservableObject {
             return cached
         }
 
-        let urlString = "\(baseURL)/movie/\(id)/images?api_key=\(apiKey)"
+        let urlString = "\(baseURL)/movie/\(id)/images?api_key=\(apiKey)&include_image_language=\(langCode),en,null"
 
         guard let url = URL(string: urlString) else {
             throw TMDBError.invalidURL
@@ -1856,7 +1856,7 @@ class TMDBService: ObservableObject {
             return cached
         }
 
-        let urlString = "\(baseURL)/tv/\(id)/images?api_key=\(apiKey)"
+        let urlString = "\(baseURL)/tv/\(id)/images?api_key=\(apiKey)&include_image_language=\(langCode),en,null"
 
         guard let url = URL(string: urlString) else {
             throw TMDBError.invalidURL
@@ -1931,17 +1931,21 @@ class TMDBService: ObservableObject {
         guard let logos = images.logos, !logos.isEmpty else { return nil }
 
         let langCode = (preferredLanguage ?? currentLanguage).components(separatedBy: "-").first ?? "en"
-
-        if let logo = logos.first(where: { $0.iso6391 == langCode }) {
-            return logo
+        func languageRank(_ logo: TMDBImage) -> Int {
+            if logo.iso6391 == langCode { return 0 }
+            if logo.iso6391 == "en" { return 1 }
+            if logo.iso6391 == nil { return 2 }
+            return 3
         }
-        if let logo = logos.first(where: { $0.iso6391 == "en" }) {
-            return logo
-        }
-        if let logo = logos.first(where: { $0.iso6391 == nil }) {
-            return logo
-        }
-        return logos.first
+        return logos.sorted { lhs, rhs in
+            let lhsRank = languageRank(lhs)
+            let rhsRank = languageRank(rhs)
+            if lhsRank != rhsRank { return lhsRank < rhsRank }
+            let lhsPixels = (lhs.width ?? 0) * (lhs.height ?? 0)
+            let rhsPixels = (rhs.width ?? 0) * (rhs.height ?? 0)
+            if lhsPixels != rhsPixels { return lhsPixels > rhsPixels }
+            return lhs.filePath < rhs.filePath
+        }.first
     }
 
     static let minimumAlternatePosterScore = 2.0
