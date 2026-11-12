@@ -670,7 +670,8 @@ final class HomeViewModel: ObservableObject {
         let selectionKey = usesCustomSelection
             ? "custom:" + selectedTitles.map(\.stableIdentity).joined(separator: "|")
             : "catalog:\(catalogId)"
-        let rawCandidates = usesCustomSelection ? selectedTitles : heroCandidates(for: catalogId)
+        let rawCandidates = (usesCustomSelection ? selectedTitles : heroCandidates(for: catalogId))
+            .filter { MyDubListDubFilter.shared.shouldInclude($0) }
 #if os(iOS)
         let iPadBackdropCandidates = rawCandidates.filter { $0.fullBackdropURL != nil }
         let candidates = !usesCustomSelection && UIDevice.current.userInterfaceIdiom == .pad && !iPadBackdropCandidates.isEmpty
