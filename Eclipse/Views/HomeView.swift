@@ -907,6 +907,9 @@ struct HomeView: View {
         .onChangeComp(of: heroBannerBehavior) { _, _ in
             homeViewModel.refreshHeroContentForSettingsChange()
         }
+        .onReceive(NotificationCenter.default.publisher(for: HomeHeroSelectionSettings.didChangeNotification)) { _ in
+            homeViewModel.refreshHeroContentForSettingsChange()
+        }
         .onChangeComp(of: showingHeroDetail) { _, isPresented in
             if !isPresented {
                 selectedHeroForDetail = nil
@@ -2109,7 +2112,8 @@ struct HomeView: View {
             }
             guard !Task.isCancelled, analyzesAlternate, shouldAnalyzeHeroAlternatePoster, heroArtworkIsActive,
                   homeViewModel.heroContent?.stableIdentity == identity,
-                  selectedLanguage == language else { return }
+                  selectedLanguage == language,
+                  !resolvedHeroAlternatePosterKeys.contains(cacheKey) else { return }
             let alternateResolution = await tmdbService.resolveAlternatePoster(
                 from: images, excluding: [hero.posterPath], matching: hero.posterPath,
                 mediaType: hero.isMovie ? .movie : .tv
