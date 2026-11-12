@@ -368,6 +368,12 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
     }
 
     var fullPosterURL: String? {
+        // AniList's large cover is a second high-resolution source for anime.
+        // Prefer it for identified anime so TMDB's text-heavy default poster
+        // does not win when a clean alternate poster was unavailable.
+        if (animeIdentitySeed != nil || isAnimeHint == true), let animeArtworkURL {
+            return animeArtworkURL
+        }
         if let posterPath, let url = TMDBImageRequestPolicy.urlString(for: posterPath, kind: .poster) {
             return url
         }
