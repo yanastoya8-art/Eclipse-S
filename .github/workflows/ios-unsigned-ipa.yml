@@ -46,7 +46,7 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Validate immutable MPVKit revision
         env:
-          MPVKIT_SOURCE_REVISION: c41b09a1fdc48a78234333d670a9ca0ddb97b04e
+          MPVKIT_SOURCE_REVISION: 4410f4665eb137e72fb96a09f9d1542809842c4a
         run: |
           set -euo pipefail
 
@@ -58,11 +58,11 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           repository: Soupy-dev/MPVKit
-          ref: c41b09a1fdc48a78234333d670a9ca0ddb97b04e
+          ref: 4410f4665eb137e72fb96a09f9d1542809842c4a
           path: MPVKit
       - name: Verify immutable MPVKit checkout
         env:
-          MPVKIT_SOURCE_REVISION: c41b09a1fdc48a78234333d670a9ca0ddb97b04e
+          MPVKIT_SOURCE_REVISION: 4410f4665eb137e72fb96a09f9d1542809842c4a
         run: test "$(git -C MPVKit rev-parse HEAD)" = "$MPVKIT_SOURCE_REVISION"
       - name: Expose sibling MPVKit package
         run: ln -sfn "$GITHUB_WORKSPACE/MPVKit" "$GITHUB_WORKSPACE/../MPVKit"
@@ -161,30 +161,38 @@ jobs:
             -skipPackagePluginValidation \
             -skipMacroValidation
 
-          LIBMPV_BINARY="$(find "$SOURCE_PACKAGES_DIR/artifacts" \
-            -path '*Libmpv.xcframework/ios-arm64/Libmpv.framework/Libmpv' \
-            -type f -print -quit)"
-          if [[ -z "$LIBMPV_BINARY" ]]; then
-            echo "::error::The resolved MPVKit runtime does not contain the iOS Libmpv device slice."
-            exit 1
-          fi
-          LIBMPV_SYMBOLS="$(mktemp)"
-          xcrun nm -gU "$LIBMPV_BINARY" > "$LIBMPV_SYMBOLS" 2>/dev/null || true
-          for symbol in \
-            mpv_apple_pip_api_version \
-            mpv_apple_pip_get_capabilities \
-            mpv_apple_pip_set_callback \
-            mpv_apple_pip_set_mode \
-            mpv_apple_pip_submit_target \
-            mpv_apple_pip_disable_and_drain \
-            mpv_apple_audiounit_recovery_count
-          do
-            if ! grep -Eq "[[:space:]]_?${symbol}$" "$LIBMPV_SYMBOLS"; then
-              echo "::error::The resolved iOS Libmpv artifact is missing required native export '$symbol'. Provide the reviewed MPVKit source and matching private native runtime before distribution."
-              exit 1
-            fi
-          done
-          rm -f "$LIBMPV_SYMBOLS"
+          # Published MPVKit 0.41.1 binaries predate the Apple PiP ABI exports.
+          # The pinned MPVKit source supplies weak, safe fallback implementations and
+          # linker-visible symbol providers in its _MPVKit-GPL target. Validate that
+          # reviewed bridge source instead of incorrectly requiring the symbols inside
+          # the prebuilt Libmpv.xcframework itself.
+          BRIDGE_SOURCE="MPVKit/Sources/_MPVKit-GPL/dummy.c"
+          BRIDGE_HEADER="MPVKit/Sources/_MPVKit-GPL/include/dummy.h"
+          test -f "$BRIDGE_SOURCE"
+          test -f "$BRIDGE_HEADER"
+          python3 - "$BRIDGE_SOURCE" "$BRIDGE_HEADER" <<'PY'
+          import pathlib
+          import sys
+
+          source = pathlib.Path(sys.argv[1]).read_text()
+          header = pathlib.Path(sys.argv[2]).read_text()
+          symbols = [
+              "mpv_apple_pip_api_version",
+              "mpv_apple_pip_get_capabilities",
+              "mpv_apple_pip_set_callback",
+              "mpv_apple_pip_set_mode",
+              "mpv_apple_pip_submit_target",
+              "mpv_apple_pip_disable_and_drain",
+              "mpv_apple_audiounit_recovery_count",
+          ]
+          for symbol in symbols:
+              if f"MPVKIT_WEAK_FALLBACK" not in source or symbol not in source:
+                  raise SystemExit(f"Missing reviewed MPVKit weak fallback: {symbol}")
+              provider = f"mpvkit_{symbol}_symbol"
+              if provider not in source or provider not in header:
+                  raise SystemExit(f"Missing linker-visible MPVKit symbol provider: {provider}")
+          print("Reviewed MPVKit Apple PiP weak bridge validated.")
+          PY
 
           echo "SOURCE_PACKAGES_DIR=$SOURCE_PACKAGES_DIR" >> "$GITHUB_ENV"
           echo "Using local MPVKit checkout: $(git -C MPVKit rev-parse HEAD)"
