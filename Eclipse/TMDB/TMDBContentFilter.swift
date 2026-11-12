@@ -121,7 +121,7 @@ final class MyDubListDubFilter: @unchecked Sendable {
                 aniListIDs.insert(row.aniListID)
             }
 
-            guard languages == selectedLanguages else { return }
+            guard languages == selectedLanguages else { return hasSnapshot(for: selectedLanguages) }
             publishSnapshot(malIDs: malIDs, aniListIDs: aniListIDs, languages: languages)
             let defaults = ProfileSettingsStore.active
             defaults.set(languages.sorted(), forKey: Self.cachedLanguagesKey)
