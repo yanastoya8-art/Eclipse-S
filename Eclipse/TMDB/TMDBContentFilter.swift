@@ -147,6 +147,14 @@ final class MyDubListDubFilter: @unchecked Sendable {
         return false
     }
 
+    func shouldIncludeEnglishSchedule(anilistID: Int?, malID: Int?) -> Bool {
+        let languages = selectedLanguages
+        guard languages.isEmpty || languages.contains(MyDubListLanguage.english.rawValue) else {
+            return false
+        }
+        return shouldInclude(anilistID: anilistID, malID: malID)
+    }
+
     func shouldInclude(anilistID: Int?, malID: Int?) -> Bool {
         let languages = selectedLanguages
         guard !languages.isEmpty else { return true }
