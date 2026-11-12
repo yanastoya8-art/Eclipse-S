@@ -5416,8 +5416,12 @@ final class AniListService {
         }, animeSchedule: {
             let fallback = try await self.fetchAiringScheduleFromAniList(daysAhead: daysAhead, perPage: perPage)
             AnimeProviderHealthCenter.shared.recordAniListSuccess()
-            Logger.shared.log("AnimeSchedule: AniList fallback loaded entries=\(fallback.entries.count)", type: "Schedule")
-            return fallback
+            Logger.shared.log("DubOnly: AniList broadcast fallback loaded entries=\(fallback.entries.count)", type: "Schedule")
+            return AnimeAiringScheduleResult(
+                entries: fallback.entries,
+                isAuthoritativeForNotifications: fallback.isAuthoritativeForNotifications,
+                notice: "DubOnly English dub timetable unavailable · Showing AniList broadcast schedule fallback."
+            )
         }, mal: {
             AnimeProviderHealthCenter.shared.notifyMALFallbackIfNeeded(reason: "schedule")
             do {
