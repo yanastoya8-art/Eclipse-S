@@ -11,7 +11,7 @@ import Foundation
 enum MyDubListLanguage: String, CaseIterable, Identifiable, Sendable {
     case english, spanish, german, french, italian, chinese, portuguese, korean
     case tagalog, arabic, polish, hindi, hungarian, hebrew, swedish, norwegian
-    case dutch, thai, indonesian, russian, danish, finnish, turkish, catalan, vietnamese
+    case dutch, thai, indonesian, russian, danish, finnish, turkish, catalan, vietnamese, lithuanian
 
     var id: String { rawValue }
 
@@ -42,6 +42,7 @@ enum MyDubListLanguage: String, CaseIterable, Identifiable, Sendable {
         case .turkish: return "Turkish"
         case .catalan: return "Catalan"
         case .vietnamese: return "Vietnamese"
+        case .lithuanian: return "Lithuanian"
         }
     }
 }
