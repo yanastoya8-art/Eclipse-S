@@ -11,6 +11,31 @@ import SwiftUI
 import UIKit
 #endif
 
+enum HomeHeroSelectionSettings {
+    static let storageKey = "homeHeroSelectedTitlesV1"
+    static let didChangeNotification = Notification.Name("homeHeroSelectionDidChange")
+
+    static func load(defaults: UserDefaults = ProfileSettingsStore.active) -> [TMDBSearchResult] {
+        guard let data = defaults.data(forKey: storageKey),
+              let decoded = try? JSONDecoder().decode([TMDBSearchResult].self, from: data) else {
+            return []
+        }
+        var seen: Set<String> = []
+        return decoded.filter { seen.insert($0.stableIdentity).inserted }
+    }
+
+    static func save(_ titles: [TMDBSearchResult], defaults: UserDefaults = ProfileSettingsStore.active) {
+        var seen: Set<String> = []
+        let uniqueTitles = titles.filter { seen.insert($0.stableIdentity).inserted }
+        if let data = try? JSONEncoder().encode(uniqueTitles) {
+            defaults.set(data, forKey: storageKey)
+        } else {
+            defaults.removeObject(forKey: storageKey)
+        }
+        NotificationCenter.default.post(name: didChangeNotification, object: nil)
+    }
+}
+
 final class HomeViewModel: ObservableObject {
     @Published var catalogResults: [String: [TMDBSearchResult]] = [:]
     @Published var isLoading = true
@@ -25,7 +50,7 @@ final class HomeViewModel: ObservableObject {
     private var heroCarouselItems: [TMDBSearchResult] = []
     private var heroCarouselIndex = 0
     private var heroCarouselGeneration: UUID?
-    private var heroLaunchSelectionCatalogId: String?
+    private var heroLaunchSelectionKey: String?
     private static let maxHeroCarouselItems = 12
 
     var heroCarouselCount: Int { heroCarouselItems.count }
@@ -87,7 +112,7 @@ final class HomeViewModel: ObservableObject {
                     self.heroContent = nil
                     self.heroCarouselItems = []
                     self.heroCarouselIndex = 0
-                    self.heroLaunchSelectionCatalogId = nil
+                    self.heroLaunchSelectionKey = nil
                     self.isLoading = false
                     self.hasLoadedContent = true
                     self.hasCompletedInitialLoad = true
@@ -640,7 +665,12 @@ final class HomeViewModel: ObservableObject {
         let catalogId = ProfileSettingsStore.active.string(forKey: "heroBannerCatalogId") ?? "trending"
         let behaviorRaw = ProfileSettingsStore.active.string(forKey: "heroBannerBehavior") ?? HeroBannerBehavior.defaultValue.rawValue
         let behavior = HeroBannerBehavior(rawValue: behaviorRaw) ?? .defaultValue
-        let rawCandidates = heroCandidates(for: catalogId)
+        let selectedTitles = HomeHeroSelectionSettings.load()
+        let usesCustomSelection = !selectedTitles.isEmpty
+        let selectionKey = usesCustomSelection
+            ? "custom:" + selectedTitles.map(\\.stableIdentity).joined(separator: "|")
+            : "catalog:\\(catalogId)"
+        let rawCandidates = usesCustomSelection ? selectedTitles : heroCandidates(for: catalogId)
 #if os(iOS)
         let iPadBackdropCandidates = rawCandidates.filter { $0.fullBackdropURL != nil }
         let candidates = UIDevice.current.userInterfaceIdiom == .pad && !iPadBackdropCandidates.isEmpty
@@ -682,14 +712,14 @@ final class HomeViewModel: ObservableObject {
             }
         case .launch:
             heroCarouselItems = candidates
-            if heroLaunchSelectionCatalogId == catalogId,
+            if heroLaunchSelectionKey == selectionKey,
                let current = heroContent,
                let currentIndex = candidates.firstIndex(where: { $0.stableIdentity == current.stableIdentity }) {
                 heroCarouselIndex = currentIndex
                 return
             }
             let selectedIndex = candidates.indices.randomElement() ?? candidates.startIndex
-            heroLaunchSelectionCatalogId = catalogId
+            heroLaunchSelectionKey = selectionKey
             heroCarouselIndex = selectedIndex
             heroContent = candidates[selectedIndex]
         }
