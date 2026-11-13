@@ -576,7 +576,6 @@ struct HomeView: View {
     @State private var selectedHeroForDetail: TMDBSearchResult?
     @State private var showingHeroDetail = false
     @State private var heroLogoURL: String?
-    @State private var failedHeroLogoURL: String?
     @State private var heroLogoLookupComplete = false
     @State private var heroAlternatePosterURL: String?
     @State private var heroTVMazePosterURLs: [String: String] = [:]
@@ -584,7 +583,6 @@ struct HomeView: View {
     @State private var prefetchedHeroAlternatePosterURLs: [String: String] = [:]
     @State private var resolvedHeroAlternatePosterKeys: Set<String> = []
 #if os(macOS)
-    @State private var macHeroAmbientImageURL: String?
     @State private var macHeroIsHovered = false
 #endif
 #if os(tvOS)
@@ -1884,7 +1882,7 @@ struct HomeView: View {
         if heroArtworkIdentity != hero.stableIdentity || !heroLogoLookupComplete {
             Color.clear
                 .frame(maxWidth: heroLogoMaxWidth, maxHeight: heroLogoMaxHeight)
-        } else if let logoURL = currentHeroLogoURL(for: hero), failedHeroLogoURL != logoURL {
+        } else if let logoURL = currentHeroLogoURL(for: hero) {
             ResilientArtworkImage(
                 urls: [logoURL],
                 decodeSize: heroLogoDecodeSize,
@@ -2109,7 +2107,6 @@ struct HomeView: View {
                       selectedLanguage == language else { return }
                 heroArtworkIdentity = nil
                 heroLogoURL = nil
-                failedHeroLogoURL = nil
                 heroLogoLookupComplete = true
                 heroAlternatePosterURL = nil
             }
