@@ -54,9 +54,15 @@ struct ResilientArtworkImage<Placeholder: View>: View {
                     .setProcessor(DownsamplingImageProcessor(size: decodeSize))
                     .placeholder { placeholder() }
 #if canImport(UIKit)
-                    .onSuccess { result in onImageLoaded?(Color.ambientColor(from: result.image)) }
+                    .onSuccess { result in
+                        guard currentURL == imageURL else { return }
+                        onImageLoaded?(Color.ambientColor(from: result.image))
+                    }
 #endif
-                    .onFailure { _ in failedURLs.insert(imageURL) }
+                    .onFailure { _ in
+                        guard currentURL == imageURL else { return }
+                        failedURLs.insert(imageURL)
+                    }
                     .resizable()
                     .aspectRatio(contentMode: contentMode)
             } else {
@@ -115,8 +121,14 @@ struct StretchyHeaderView: View {
                             KFImage(URL(string: imageURL))
                                 .setProcessor(DownsamplingImageProcessor(size: resolvedImageDecodeSize))
                                 .placeholder { Rectangle().fill(placeholderColor) }
-                                .onSuccess { result in updateAmbientColor(from: result.image, url: imageURL) }
-                                .onFailure { _ in failedImageURLs.insert(imageURL) }
+                                .onSuccess { result in
+                                    guard resolvedBackdropURL == imageURL else { return }
+                                    updateAmbientColor(from: result.image, url: imageURL)
+                                }
+                                .onFailure { _ in
+                                    guard resolvedBackdropURL == imageURL else { return }
+                                    failedImageURLs.insert(imageURL)
+                                }
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
                         } else {
