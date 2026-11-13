@@ -945,6 +945,17 @@ actor AnidubAnimeDubMetadataService {
               let http = response as? HTTPURLResponse else {
             throw AnidubAnimeDubMetadataError.invalidResponse
         }
+        if http.statusCode == 404 {
+            // anidub imports new titles over time; cache "not indexed yet"
+            // briefly so repeatedly opening the same season does not burn
+            // the anonymous daily request allowance.
+            let empty = CachedCounts(fetchedAt: Date(), counts: [:])
+            cache[anilistID] = empty
+            if let encoded = try? JSONEncoder().encode(empty) {
+                UserDefaults.standard.set(encoded, forKey: cacheKeyPrefix + String(anilistID))
+            }
+            return [:]
+        }
         guard http.statusCode == 200 else {
             throw AnidubAnimeDubMetadataError.http(http.statusCode)
         }
