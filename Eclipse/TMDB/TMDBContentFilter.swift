@@ -352,6 +352,10 @@ class TMDBContentFilter: ObservableObject {
     private var animeAudioEligibleIDs: Set<Int> = []
     private var animeAudioCheckedIDs: Set<Int> = []
     private var animeAudioLoadingIDs: Set<Int> = []
+    private let runtimeMetadataLock = NSLock()
+    private var runtimeMinutesByKey: [String: Int] = [:]
+    private var runtimeCheckedKeys = Set<String>()
+    private var runtimeLoadingKeys = Set<String>()
 
     private var cancellables = Set<AnyCancellable>()
 
@@ -476,6 +480,9 @@ class TMDBContentFilter: ObservableObject {
 
     func prepareMaturityRatings(for results: [TMDBSearchResult]) async {
         let defaults = UserDefaults.standard
+        if defaults.bool(forKey: "catalogHideUnder20MinuteContent") {
+            await resolveRuntimeMetadata(for: results)
+        }
         let needsTMDBRatings = kidsModeEnabled
             || defaults.bool(forKey: "catalogHideBelowPG13Movies")
             || defaults.bool(forKey: "catalogHideBelowTV14Shows")
@@ -657,6 +664,9 @@ class TMDBContentFilter: ObservableObject {
     }
 
     func filterSearchResults(_ results: [TMDBSearchResult]) -> [TMDBSearchResult] {
+        if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
+            Task(priority: .utility) { await self.resolveRuntimeMetadata(for: results) }
+        }
         return results.filter { result in
             shouldIncludeCatalogResult(result)
         }
@@ -669,9 +679,16 @@ class TMDBContentFilter: ObservableObject {
     }
 
     func filterMovies(_ movies: [TMDBMovie]) -> [TMDBMovie] {
+        if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
+            Task(priority: .utility) { await self.resolveRuntimeMetadata(for: movies.map(\.asSearchResult)) }
+        }
         return movies.filter { movie in
             guard movie.adult != true else { return false }
             guard shouldIncludeCatalogTitle(movie.title) else { return false }
+            let movieAnime = Self.isAnimeResult(movie.asSearchResult)
+            if UserDefaults.standard.bool(forKey: "catalogHideAnime"), movieAnime { return false }
+            if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent"),
+               let runtime = cachedRuntimeMinutes(for: "movie-\(movie.id)"), runtime < 20 { return false }
             guard !Self.shouldHideForReleaseDate(
                 rawDate: movie.releaseDate,
                 isAnime: false,
@@ -699,6 +716,9 @@ class TMDBContentFilter: ObservableObject {
     }
 
     func filterTVShows(_ tvShows: [TMDBTVShow]) -> [TMDBTVShow] {
+        if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
+            Task(priority: .utility) { await self.resolveRuntimeMetadata(for: tvShows.map(\.asSearchResult)) }
+        }
         return tvShows.filter { tvShow in
             guard tvShow.adult != true else { return false }
             guard shouldIncludeCatalogTitle(tvShow.name) else { return false }
@@ -707,6 +727,9 @@ class TMDBContentFilter: ObservableObject {
             let isAnime = tvShow.genreIds?.contains(16) == true
                 && (animeLanguages.contains(tvShow.originalLanguage?.lowercased() ?? "")
                     || tvShow.originCountry?.contains(where: { animeCountries.contains($0) }) == true)
+            if UserDefaults.standard.bool(forKey: "catalogHideAnime"), isAnime { return false }
+            if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent"),
+               let runtime = cachedRuntimeMinutes(for: "tv-\(tvShow.id)"), runtime < 20 { return false }
             guard !Self.shouldHideForReleaseDate(
                 rawDate: tvShow.firstAirDate,
                 isAnime: isAnime,
@@ -922,9 +945,87 @@ class TMDBContentFilter: ObservableObject {
         return rating == .unknown || rating >= .teen
     }
 
+    private func runtimeCacheKey(for result: TMDBSearchResult) -> String {
+        "\(result.isMovie ? "movie" : "tv")-\(result.id)"
+    }
+
+    private func cachedRuntimeMinutes(for key: String) -> Int? {
+        runtimeMetadataLock.lock()
+        defer { runtimeMetadataLock.unlock() }
+        return runtimeMinutesByKey[key]
+    }
+
+    private func resolveRuntimeMetadata(for results: [TMDBSearchResult]) async {
+        let candidates = results.filter { $0.id > 0 && ($0.isMovie || $0.isTVShow) }
+        var pending: [TMDBSearchResult] = []
+        runtimeMetadataLock.lock()
+        for result in candidates {
+            let key = runtimeCacheKey(for: result)
+            if runtimeCheckedKeys.contains(key) || runtimeLoadingKeys.contains(key) { continue }
+            runtimeLoadingKeys.insert(key)
+            pending.append(result)
+        }
+        runtimeMetadataLock.unlock()
+        guard !pending.isEmpty else { return }
+
+        await withTaskGroup(of: (String, Int?, Bool).self) { group in
+            for result in pending {
+                let key = runtimeCacheKey(for: result)
+                group.addTask {
+                    if result.isMovie {
+                        do {
+                            let detail = try await TMDBService.shared.getMovieDetails(id: result.id)
+                            return (key, detail.runtime, true)
+                        } catch {
+                            return (key, nil, false)
+                        }
+                    }
+                    do {
+                        let detail = try await TMDBService.shared.getTVShowDetails(id: result.id)
+                        let values = (detail.episodeRunTime ?? []).filter { $0 > 0 }.sorted()
+                        guard !values.isEmpty else { return (key, nil, true) }
+                        let middle = values.count / 2
+                        let median = values.count.isMultiple(of: 2)
+                            ? (values[middle - 1] + values[middle]) / 2
+                            : values[middle]
+                        return (key, median, true)
+                    } catch {
+                        return (key, nil, false)
+                    }
+                }
+            }
+
+            var didResolveAny = false
+            for await (key, runtime, succeeded) in group {
+                runtimeMetadataLock.lock()
+                runtimeLoadingKeys.remove(key)
+                if succeeded {
+                    runtimeCheckedKeys.insert(key)
+                    if let runtime, runtime > 0 {
+                        runtimeMinutesByKey[key] = runtime
+                    }
+                    didResolveAny = true
+                }
+                runtimeMetadataLock.unlock()
+            }
+            if didResolveAny {
+                NotificationCenter.default.post(
+                    name: TMDBContentFilter.catalogFiltersDidChangeNotification,
+                    object: nil
+                )
+            }
+        }
+    }
+
     private func shouldIncludeForConfiguredAgeAndAudio(_ result: TMDBSearchResult) -> Bool {
         let defaults = UserDefaults.standard
         let isAnime = Self.isAnimeResult(result)
+        if defaults.bool(forKey: "catalogHideAnime"), isAnime { return false }
+        if defaults.bool(forKey: "catalogHideUnder20MinuteContent"),
+           let runtime = cachedRuntimeMinutes(for: runtimeCacheKey(for: result)),
+           runtime < 20 {
+            return false
+        }
 
         if isAnime, defaults.bool(forKey: "catalogHideBelowPG13Anime") {
             guard let anilistID = result.animeIdentitySeed?.anilistId else { return true }
