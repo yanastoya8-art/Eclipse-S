@@ -344,24 +344,41 @@ final class ScheduleViewModel: ObservableObject {
         defaults.set(now, forKey: attemptKey)
         let revisionBeforeRefresh = scheduleEntriesRevision
         let mode = loadedScheduleMode ?? .anime
+        let requiredSources: Set<ScheduleSource> = [.anime, .western]
         await MyDubListDubFilter.shared.refresh()
+        let refreshedSnapshot = await notificationScheduleSnapshot(
+            dayCount: ScheduleWindow.current.rawValue,
+            requiredSources: requiredSources,
+            forceRefreshSources: requiredSources
+        )
         await loadSchedule(
             mode: mode,
             localTimeZone: currentLocalTimeZone,
-            forceRefresh: true
+            forceRefresh: false
         )
 
-        let didPublishFreshSchedule = scheduleEntriesRevision != revisionBeforeRefresh
+        let allSourcesAvailable = refreshedSnapshot.successfulSources.isSuperset(of: requiredSources)
+        let didPublishFreshSchedule = allSourcesAvailable
+            && scheduleEntriesRevision != revisionBeforeRefresh
             && !isLoading
             && errorMessage == nil
         if didPublishFreshSchedule {
             defaults.set(now, forKey: successKey)
-            Logger.shared.log("Schedule calendar: completed daily automatic refresh", type: "Anime")
+            Logger.shared.log(
+                "Schedule calendar: completed daily automatic refresh for anime and western sources",
+                type: "Anime"
+            )
             return true
         }
 
+        let missingSources = requiredSources.subtracting(refreshedSnapshot.successfulSources)
+            .map(\.displayName)
+            .sorted()
+            .joined(separator: ", ")
+        let reason = errorMessage
+            ?? (missingSources.isEmpty ? "No fresh schedule was published." : "Unavailable sources: \(missingSources).")
         Logger.shared.log(
-            "Schedule calendar: automatic refresh failed; it will retry after the cooldown. \(errorMessage ?? "No fresh schedule was published.")",
+            "Schedule calendar: automatic refresh failed; it will retry after the cooldown. \(reason)",
             type: "Anime"
         )
         return false
