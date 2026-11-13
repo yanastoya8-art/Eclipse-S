@@ -569,6 +569,31 @@ class TMDBContentFilter: ObservableObject {
         }
     }
 
+    private nonisolated static func resolveAnimeDubEligibility(anilistID: Int, malID: Int?) async -> Bool? {
+        var counts = (try? await TaizenAnimeDubMetadataService.shared.episodeDubCounts(
+            anilistID: anilistID,
+            malID: malID
+        )) ?? [:]
+
+        // Taizen groups regional Spanish into "es". Anidub supplements it with
+        // explicit es-419 / es-ES records and is also the fallback when Taizen
+        // has no usable record. Its response is cached for six hours.
+        if MyDubListDubFilter.shared.selectedLanguages.contains(MyDubListLanguage.spanish.rawValue)
+            || counts.isEmpty {
+            if let anidubCounts = try? await AnidubAnimeDubMetadataService.shared.episodeDubCounts(anilistID: anilistID) {
+                for (language, count) in anidubCounts {
+                    counts[language] = max(counts[language] ?? 0, count)
+                }
+            }
+        }
+
+        guard !counts.isEmpty else { return nil }
+        return (counts["en"] ?? 0) > 0
+            || (counts["es"] ?? 0) > 0
+            || (counts["es-419"] ?? 0) > 0
+            || (counts["es-es"] ?? 0) > 0
+    }
+
     private func resolveAnimeAudioMetadata(for results: [TMDBSearchResult]) async {
         let candidates = results.filter { result in
             guard let id = result.animeIdentitySeed?.anilistId, id > 0 else { return false }
@@ -587,12 +612,10 @@ class TMDBContentFilter: ObservableObject {
                 guard let result = iterator.next(),
                       let id = result.animeIdentitySeed?.anilistId else { continue }
                 group.addTask {
-                    guard let counts = try? await TaizenAnimeDubMetadataService.shared.episodeDubCounts(
+                    let eligible = await Self.resolveAnimeDubEligibility(
                         anilistID: id,
                         malID: result.animeIdentitySeed?.malId
-                    ) else { return (id, nil) }
-                    let eligible = (counts["en"] ?? 0) > 0 || (counts["es"] ?? 0) > 0
-                        || (counts["es-419"] ?? 0) > 0 || (counts["es-es"] ?? 0) > 0
+                    )
                     return (id, eligible)
                 }
             }
@@ -611,12 +634,10 @@ class TMDBContentFilter: ObservableObject {
                 if let result = iterator.next(),
                    let nextID = result.animeIdentitySeed?.anilistId {
                     group.addTask {
-                        guard let counts = try? await TaizenAnimeDubMetadataService.shared.episodeDubCounts(
+                        let eligible = await Self.resolveAnimeDubEligibility(
                             anilistID: nextID,
                             malID: result.animeIdentitySeed?.malId
-                        ) else { return (nextID, nil) }
-                        let eligible = (counts["en"] ?? 0) > 0 || (counts["es"] ?? 0) > 0
-                            || (counts["es-419"] ?? 0) > 0 || (counts["es-es"] ?? 0) > 0
+                        )
                         return (nextID, eligible)
                     }
                 }
