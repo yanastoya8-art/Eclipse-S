@@ -222,6 +222,9 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
     @State private var hydratedAnimeEpisodePageKeys = Set<String>()
     @State private var episodeClassificationsBySeason: [Int: AnimeEpisodeClassifications] = [:]
     @State private var episodeClassificationProviderIDs: [Int: Int] = [:]
+    @State private var animeDubEpisodeCountsBySeason: [Int: [String: Int]] = [:]
+    @State private var animeDubPremiereDatesBySeason: [Int: Date] = [:]
+    @State private var animeDubFilterRevision = 0
 
     @StateObject private var serviceManager = ServiceManager.shared
     @StateObject private var stremioManager = StremioAddonManager.shared
@@ -314,11 +317,23 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
     private let episodePageSize = 100
 
     private func visibleEpisodes(for detail: TMDBSeasonDetail) -> [TMDBEpisode] {
-        Self.visibleEpisodes(
+        let airedEpisodes = Self.visibleEpisodes(
             detail.episodes,
             showUnairedEpisodes: showUnairedEpisodes,
             today: currentAirDateString()
         )
+        guard isAnime, specialEpisodeContext == nil else { return airedEpisodes }
+
+        let selectedLanguages = MyDubListDubFilter.shared.selectedLanguages
+        guard !selectedLanguages.isEmpty else { return airedEpisodes }
+        let counts = animeDubEpisodeCountsBySeason[detail.seasonNumber] ?? [:]
+        return airedEpisodes.filter { episode in
+            AnimeDubEpisodeVisibilityPolicy.includes(
+                episodeNumber: episode.episodeNumber,
+                selectedLanguages: selectedLanguages,
+                dubCountsByLanguage: counts
+            )
+        }
     }
 
     nonisolated static func visibleEpisodes(_ episodes: [TMDBEpisode], showUnairedEpisodes: Bool, today: String) -> [TMDBEpisode] {
@@ -594,7 +609,12 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
         .onChangeComp(of: activeSeasonDetail?.id) { _, _ in
             revealSelectedEpisodePageIfNeeded()
         }
+        .onReceive(NotificationCenter.default.publisher(for: MyDubListDubFilter.didRefreshNotification)) { _ in
+            animeDubFilterRevision += 1
+        }
         .onReceive(NotificationCenter.default.publisher(for: .activeProfileDidChange)) { _ in
+            animeDubEpisodeCountsBySeason.removeAll()
+            animeDubPremiereDatesBySeason.removeAll()
             seasonLoadGeneration += 1
             seasonLoadTask?.cancel()
             seasonLoadTask = nil
@@ -614,6 +634,9 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
         }
         .task(id: animeFillerRequestKey) {
             await loadFillerMarkersForSelectedSeason()
+        }
+        .task(id: animeDubMetadataRequestKey) {
+            await loadDubMetadataForSelectedSeason()
         }
         .sheet(isPresented: $showingSearchResults) {
             let featureMovieID = selectedEpisodePlaybackContext?.hasTrustedUnitProjection(showID: tvShow?.id ?? 0) == true
@@ -1050,13 +1073,19 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
     private var episodeListSection: some View {
         Group {
             if let detail = activeSeasonDetail {
+                if shouldShowDubPremiereNotice(for: detail) {
+                    dubPremiereNotice(for: detail)
+                        .padding(.horizontal)
+                }
                 let episodeItems = visibleEpisodeRenderItems(for: detail)
                 if episodeItems.isEmpty {
                     VStack(spacing: 8) {
                         Image(systemName: "calendar.badge.clock")
                             .font(.title2)
                             .foregroundColor(.secondary)
-                        Text("No aired episodes yet")
+                        Text(shouldShowDubPremiereNotice(for: detail)
+                            ? "No episodes have a selected dub yet"
+                            : "No aired episodes yet")
                             .font(.subheadline.weight(.semibold))
                             .foregroundColor(.secondary)
                             .accessibilityIdentifier("mediaDetail.noAiredEpisodes")
@@ -1176,6 +1205,130 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
         }
         return episodeClassificationsBySeason[episode.seasonNumber]?
             .classification(for: episode.episodeNumber) ?? .unknown
+    }
+
+    private var animeDubMetadataRequestKey: String {
+        guard isAnime,
+              specialEpisodeContext == nil,
+              let seasonNumber = selectedSeason?.seasonNumber,
+              let providerID = animeSeasonAniListIds[seasonNumber] else { return "none" }
+        let languages = MyDubListDubFilter.shared.selectedLanguages.sorted().joined(separator: ",")
+        guard !languages.isEmpty else { return "none" }
+        return "\(seasonNumber):\(providerID):\(languages):\(animeDubFilterRevision)"
+    }
+
+    private func shouldShowDubPremiereNotice(for detail: TMDBSeasonDetail) -> Bool {
+        guard isAnime, specialEpisodeContext == nil else { return false }
+        let selectedLanguages = MyDubListDubFilter.shared.selectedLanguages
+        guard !selectedLanguages.isEmpty else { return false }
+        let counts = animeDubEpisodeCountsBySeason[detail.seasonNumber] ?? [:]
+        return (AnimeDubEpisodeVisibilityPolicy.availableEpisodeLimit(
+            selectedLanguages: selectedLanguages,
+            dubCountsByLanguage: counts
+        ) ?? 0) == 0
+    }
+
+    @ViewBuilder
+    private func dubPremiereNotice(for detail: TMDBSeasonDetail) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("No selected-language dub episodes are available for this season yet.")
+                .font(.subheadline)
+                .foregroundColor(.white.opacity(0.82))
+            HStack {
+                Text("Official dub premiere")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(.white.opacity(0.65))
+                Spacer()
+                if let premiere = animeDubPremiereDatesBySeason[detail.seasonNumber] {
+                    if premiere > Date() {
+                        TimelineView(.periodic(from: .now, by: 1)) { timeline in
+                            let remaining = max(0, Int(premiere.timeIntervalSince(timeline.date)))
+                            let days = remaining / 86_400
+                            let hours = (remaining % 86_400) / 3_600
+                            let minutes = (remaining % 3_600) / 60
+                            let seconds = remaining % 60
+                            Text(String(format: "%d days %02d:%02d:%02d", days, hours, minutes, seconds))
+                                .font(.system(.caption, design: .monospaced).weight(.semibold))
+                                .foregroundColor(.white)
+                                .monospacedDigit()
+                        }
+                    } else {
+                        Text("Premiere date passed · awaiting dub data")
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(.secondary)
+                    }
+                } else {
+                    Text("TBA")
+                        .font(.caption.weight(.bold))
+                        .foregroundColor(.white)
+                        .accessibilityIdentifier("mediaDetail.dubPremiereTBA")
+                }
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .accessibilityIdentifier("mediaDetail.dubPremiereNotice")
+    }
+
+    @MainActor
+    private func loadDubMetadataForSelectedSeason() async {
+        guard isAnime,
+              specialEpisodeContext == nil,
+              let seasonNumber = selectedSeason?.seasonNumber,
+              let providerID = animeSeasonAniListIds[seasonNumber] else { return }
+        let selectedLanguages = MyDubListDubFilter.shared.selectedLanguages
+        guard !selectedLanguages.isEmpty else { return }
+
+        let canonicalID = providerID > 0 ? (animeProviderAliases[providerID] ?? providerID) : nil
+        let malID = providerID < 0 ? RemoteMediaNumericBoundary.positiveMagnitude(providerID) : nil
+        do {
+            let counts = try await TaizenAnimeDubMetadataService.shared.episodeDubCounts(
+                anilistID: canonicalID,
+                malID: malID
+            )
+            try Task.checkCancellation()
+
+            var premiereDate: Date?
+            if selectedLanguages.contains(MyDubListLanguage.english.rawValue) {
+                if let schedule = try? await AnimeScheduleService.shared.fetchSchedule(daysAhead: 30) {
+                    premiereDate = schedule.entries
+                        .filter { entry in
+                            let normalizedID = animeProviderAliases[entry.mediaId] ?? entry.mediaId
+                            let matchesAniList = canonicalID.map { normalizedID == $0 } ?? false
+                            let matchesMAL = malID.map { entry.mediaId == -$0 } ?? false
+                            return (matchesAniList || matchesMAL) && entry.airingAt > Date()
+                        }
+                        .map(\.airingAt)
+                        .min()
+                }
+            }
+
+            try Task.checkCancellation()
+            guard selectedSeason?.seasonNumber == seasonNumber,
+                  animeSeasonAniListIds[seasonNumber] == providerID else { return }
+            animeDubEpisodeCountsBySeason[seasonNumber] = counts
+            animeDubPremiereDatesBySeason[seasonNumber] = premiereDate
+
+            if let detail = activeSeasonDetail, detail.seasonNumber == seasonNumber {
+                let visible = visibleEpisodes(for: detail)
+                if !visible.contains(where: { $0.id == selectedEpisodeForSearch?.id }) {
+                    selectedEpisodeForSearch = visible.first
+                }
+                selectedEpisodePageStartByKey[episodePageKey(for: detail)] = 0
+            }
+        } catch is CancellationError {
+            return
+        } catch {
+            guard selectedSeason?.seasonNumber == seasonNumber,
+                  animeSeasonAniListIds[seasonNumber] == providerID else { return }
+            animeDubEpisodeCountsBySeason[seasonNumber] = [:]
+            animeDubPremiereDatesBySeason[seasonNumber] = nil
+            Logger.shared.log(
+                "AnimeDub: failed to load episode availability season=\(seasonNumber) providerID=\(providerID): \(error.localizedDescription)",
+                type: "Error"
+            )
+        }
     }
 
     private var animeFillerRequestKey: String {
@@ -1391,7 +1544,10 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
 #endif
 
     private func pageSourceEpisodes(for detail: TMDBSeasonDetail) -> [TMDBEpisode] {
-        isAnime && specialEpisodeContext == nil ? detail.episodes : visibleEpisodes(for: detail)
+        let hasDubFilter = !MyDubListDubFilter.shared.selectedLanguages.isEmpty
+        return isAnime && specialEpisodeContext == nil && !hasDubFilter
+            ? detail.episodes
+            : visibleEpisodes(for: detail)
     }
 
     private func episodePages(for detail: TMDBSeasonDetail) -> [EpisodePage] {
