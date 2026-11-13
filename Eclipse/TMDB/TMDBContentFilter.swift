@@ -474,9 +474,7 @@ class TMDBContentFilter: ObservableObject {
             if defaults.bool(forKey: "catalogHideBelowPG13Anime") {
                 let rating = try? await TaizenAnimeAgeRatingService.shared.rating(anilistID: anilistID)
                 if let rating {
-                    animeEligibilityLock.lock()
-                    animeAgeRatingsByID[anilistID] = rating
-                    animeEligibilityLock.unlock()
+                    storeAnimeAgeRating(rating, for: anilistID)
                 }
             }
             if defaults.bool(forKey: "catalogRequireEnglishSpanishAudio") {
@@ -486,13 +484,7 @@ class TMDBContentFilter: ObservableObject {
                 )) ?? [:]
                 let eligible = (counts["en"] ?? 0) > 0 || (counts["es"] ?? 0) > 0
                     || (counts["es-419"] ?? 0) > 0 || (counts["es-es"] ?? 0) > 0
-                animeEligibilityLock.lock()
-                if eligible {
-                    animeAudioEligibleIDs.insert(anilistID)
-                } else {
-                    animeAudioEligibleIDs.remove(anilistID)
-                }
-                animeEligibilityLock.unlock()
+                storeAnimeAudioEligibility(eligible, for: anilistID)
             }
         }
     }
@@ -545,6 +537,11 @@ class TMDBContentFilter: ObservableObject {
         return movies.filter { movie in
             guard movie.adult != true else { return false }
             guard shouldIncludeCatalogTitle(movie.title) else { return false }
+            guard shouldIncludeTMDBAgeRating(
+                isMovie: true,
+                id: movie.id,
+                enabled: UserDefaults.standard.bool(forKey: "catalogHideBelowPG13Movies")
+            ) else { return false }
             guard shouldIncludeForKids(
                 title: movie.title,
                 overview: movie.overview,
@@ -559,6 +556,11 @@ class TMDBContentFilter: ObservableObject {
         return tvShows.filter { tvShow in
             guard tvShow.adult != true else { return false }
             guard shouldIncludeCatalogTitle(tvShow.name) else { return false }
+            guard shouldIncludeTMDBAgeRating(
+                isMovie: false,
+                id: tvShow.id,
+                enabled: UserDefaults.standard.bool(forKey: "catalogHideBelowTV14Shows")
+            ) else { return false }
             guard shouldIncludeForKids(
                 title: tvShow.name,
                 overview: tvShow.overview,
@@ -728,6 +730,29 @@ class TMDBContentFilter: ObservableObject {
     static func hasExplicitAnimeMetadata(_ result: TMDBSearchResult) -> Bool {
         let metadataText = [result.displayTitle, result.overview ?? ""].joined(separator: " ")
         return containsBlockedCatalogText(metadataText, blockedTerms: adultAnimeMetadataDenylist)
+    }
+
+    private func storeAnimeAgeRating(_ rating: MaturityRating, for id: Int) {
+        animeEligibilityLock.lock()
+        animeAgeRatingsByID[id] = rating
+        animeEligibilityLock.unlock()
+    }
+
+    private func storeAnimeAudioEligibility(_ isEligible: Bool, for id: Int) {
+        animeEligibilityLock.lock()
+        if isEligible {
+            animeAudioEligibleIDs.insert(id)
+        } else {
+            animeAudioEligibleIDs.remove(id)
+        }
+        animeEligibilityLock.unlock()
+    }
+
+    private func shouldIncludeTMDBAgeRating(isMovie: Bool, id: Int, enabled: Bool) -> Bool {
+        guard enabled else { return true }
+        guard let rating = TMDBMaturityRatingStore.shared.rating(isMovie: isMovie, id: id),
+              rating != .unknown, rating >= .teen else { return false }
+        return true
     }
 
     private func shouldIncludeForConfiguredAgeAndAudio(_ result: TMDBSearchResult) -> Bool {
