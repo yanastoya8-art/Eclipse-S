@@ -481,7 +481,7 @@ class TMDBContentFilter: ObservableObject {
     func prepareMaturityRatings(for results: [TMDBSearchResult]) async {
         let defaults = UserDefaults.standard
         if defaults.bool(forKey: "catalogHideUnder20MinuteContent") {
-            await resolveRuntimeMetadata(for: results)
+            Task(priority: .utility) { await self.resolveRuntimeMetadata(for: results) }
         }
         let needsTMDBRatings = kidsModeEnabled
             || defaults.bool(forKey: "catalogHideBelowPG13Movies")
