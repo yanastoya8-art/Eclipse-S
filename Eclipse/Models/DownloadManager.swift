@@ -5301,6 +5301,22 @@ final class DownloadManager: NSObject, ObservableObject {
         return String(data: data, encoding: .utf8) ?? ""
     }
 
+    private func stremioResponseIsHLSPlaylist(_ response: HTTPURLResponse, body: String) -> Bool {
+        let mimeType = (response.mimeType ?? "").lowercased()
+        if [
+            "application/vnd.apple.mpegurl",
+            "application/x-mpegurl",
+            "audio/mpegurl",
+            "audio/x-mpegurl"
+        ].contains(mimeType) {
+            return true
+        }
+        let normalizedBody = body
+            .replacingOccurrences(of: "\u{feff}", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return normalizedBody.hasPrefix("#EXTM3U")
+    }
+
     private func challengeFailureMessage(for response: HTTPURLResponse, body: String) -> String? {
         let headers = CloudflareBypassManager.headersDictionary(from: response)
         if CloudflareBypassManager.isChallengeResponse(status: response.statusCode, body: body, headers: headers) {
@@ -9819,6 +9835,61 @@ extension DownloadManager: URLSessionDownloadDelegate {
                 self.markFailed(id: downloadId, error: message)
                 return
             }
+
+#if (os(iOS) && !targetEnvironment(macCatalyst)) || os(macOS)
+            // Some Stremio addons expose HLS playlists through opaque URLs
+            // that do not contain ".m3u8". Do not save that tiny manifest as
+            // a completed video; hand it to the HLS segment downloader instead.
+            if let item = self.downloads.first(where: { $0.id == downloadId }),
+               item.lastContentReference?.kind == .stremio,
+               !item.isHLS,
+               self.stremioResponseIsHLSPlaylist(httpResponse, body: body) {
+                guard let attempt = self.protectedProviderAttempts[downloadId],
+                      attempt.providerKind == .stremio,
+                      attempt.attemptID == protectedNuvioAttemptID else {
+                    self.markFailed(
+                        id: downloadId,
+                        error: "The Stremio addon returned an HLS playlist, but its protected download route expired. Resume the download to try again."
+                    )
+                    return
+                }
+
+                self.activeTasks.removeValue(forKey: downloadId)
+                if let partialURL = self.directPartialURL(id: downloadId) {
+                    try? self.fileManager.removeItem(at: partialURL)
+                }
+                if let index = self.downloads.firstIndex(where: { $0.id == downloadId }) {
+                    self.downloads[index].protectedTransportKind = .hls
+                    self.downloads[index].directResumeCheckpoint = nil
+                    self.downloads[index].directRangeUnsupported = nil
+                    self.downloads[index].hlsResumeSegmentIndex = nil
+                    self.downloads[index].hlsResumeByteCount = nil
+                    self.downloads[index].hlsResumeManifestSHA256 = nil
+                    self.downloads[index].hlsDurableCheckpoint = nil
+                    self.downloads[index].hlsVariantURL = nil
+                    self.downloads[index].hlsTotalSegments = nil
+                    self.downloads[index].progress = 0
+                    self.downloads[index].downloadedBytes = 0
+                    self.downloads[index].totalBytes = 0
+                    self.downloads[index].error = nil
+                    self.downloads[index].status = .downloading
+                    let hlsItem = self.downloads[index]
+                    self.saveDownloads()
+                    self.startHLSDownload(
+                        hlsItem,
+                        streamURLOverride: attempt.mainProxyURL,
+                        headersOverride: [:],
+                        persistResolvedVariant: false,
+                        protectedNuvioAttemptID: attempt.attemptID
+                    )
+                    Logger.shared.log(
+                        "Stremio: detected HLS playlist from response; continuing with segment download id=\(downloadId)",
+                        type: "Download"
+                    )
+                    return
+                }
+            }
+#endif
             }
 
             let completedLocation: URL

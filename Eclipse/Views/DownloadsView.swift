@@ -2,6 +2,31 @@ import SwiftUI
 import AVKit
 import Kingfisher
 
+enum DownloadLibraryPosterSize: String, CaseIterable, Identifiable {
+    case compact
+    case standard
+    case large
+
+    static let storageKey = "downloadLibraryPosterSize"
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .compact: return "Small"
+        case .standard: return "Medium"
+        case .large: return "Large"
+        }
+    }
+    var width: CGFloat {
+        switch self {
+        case .compact: return 52
+        case .standard: return 64
+        case .large: return 78
+        }
+    }
+    var height: CGFloat { width * 1.5 }
+}
+
 struct DownloadsView: View {
     @StateObject private var downloadManager: DownloadManager
 
@@ -16,6 +41,11 @@ struct DownloadsView: View {
     @State private var showingDeleteSeriesConfirmation = false
     @State private var seriesToDelete: (tmdbId: Int, title: String)? = nil
     @State private var selectedTab: DownloadsTab = .downloads
+    @AppStorage(DownloadLibraryPosterSize.storageKey) private var libraryPosterSizeRaw = DownloadLibraryPosterSize.standard.rawValue
+
+    private var libraryPosterSize: DownloadLibraryPosterSize {
+        DownloadLibraryPosterSize(rawValue: libraryPosterSizeRaw) ?? .standard
+    }
 #if os(iOS)
     @Environment(\.eclipseWindowSceneSessionIdentifier) private var presentationSceneIdentifier
 #endif
@@ -576,7 +606,10 @@ struct DownloadsView: View {
         }
     }
 
-    private func posterImage(url: String?) -> some View {
+    private func posterImage(
+        url: String?,
+        size: DownloadLibraryPosterSize = .compact
+    ) -> some View {
         KFImage(URL(string: url ?? ""))
             .placeholder {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -589,7 +622,7 @@ struct DownloadsView: View {
             }
             .resizable()
             .aspectRatio(2/3, contentMode: .fill)
-            .frame(width: 60 * iPadScaleSmall, height: 90 * iPadScaleSmall)
+            .frame(width: size.width * iPadScaleSmall, height: size.height * iPadScaleSmall)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -682,7 +715,7 @@ struct DownloadsView: View {
                                 }
                             )) {
                                 HStack(spacing: 12) {
-                                    posterImage(url: show.posterURL)
+                                    posterImage(url: show.posterURL, size: libraryPosterSize)
 
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(show.title)

@@ -205,6 +205,8 @@ struct StorageView: View {
 
     @AppStorage("autoClearCacheEnabled", store: .standard) private var autoClearCacheEnabled = false
     @AppStorage("autoClearCacheThresholdMB", store: .standard) private var autoClearCacheThresholdMB: Double = 500
+    @AppStorage(DownloadLibraryPosterSize.storageKey, store: .standard)
+    private var downloadLibraryPosterSize = DownloadLibraryPosterSize.standard.rawValue
 
 #if !os(tvOS)
     @AppStorage(DownloadConcurrencySettings.videoLimitKey, store: .standard) private var concurrentVideoDownloads = 2
@@ -290,6 +292,17 @@ struct StorageView: View {
                     }
                 }
 #endif
+                GlassDivider()
+                GlassDetailRow(icon: "photo", iconColor: .purple, title: "Downloaded Show Poster Size", subtitle: "Choose the poster size for series cards in Downloads > Library.") {
+                    Picker("Downloaded Show Poster Size", selection: $downloadLibraryPosterSize) {
+                        ForEach(DownloadLibraryPosterSize.allCases) { size in
+                            Text(size.title).tag(size.rawValue)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .accessibilityIdentifier("settings.storage.downloadLibraryPosterSize")
+                }
                 GlassDivider()
                 GlassDetailRow(icon: "forward.end", iconColor: .orange, title: "Skip Filler in Download All", subtitle: "Skip only episodes explicitly marked as filler. Mixed, unknown, and unavailable classifications are included. Individual downloads stay available.") {
                     Toggle("Skip Filler in Download All", isOn: Binding(
