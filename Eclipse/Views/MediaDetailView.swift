@@ -2586,7 +2586,7 @@ struct MediaDetailContentView: View {
                 ?? searchResult.fullBackdropURL
         }
 #if !os(tvOS) && !os(macOS)
-        if !usesWideDetailLayout, mediaDetailTitleArtworkEnabled, mediaDetailAlternatePosterEnabled {
+        if !usesWideDetailLayout, mediaDetailAlternatePosterEnabled {
             if let alternatePosterURL { return alternatePosterURL }
             if !searchResult.isMovie, let tvMazePosterURL { return tvMazePosterURL }
         }
