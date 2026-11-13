@@ -400,6 +400,10 @@ actor AnimeScheduleService {
 }
 
 enum AnimeScheduleFallback {
+    static func permitsBroadcastFallback(selectedDubLanguages: Set<String>) -> Bool {
+        selectedDubLanguages.isEmpty
+    }
+
     static func load(
         aniList: () async throws -> AnimeAiringScheduleResult,
         animeSchedule: () async throws -> AnimeAiringScheduleResult,
