@@ -302,18 +302,18 @@ struct AlternativeUIView: View {
 
             settingRow(
                 title: "Background Style",
-                description: "Multi-gradient blends smoothly; Classic uses a single-color gradient; Solid is flat."
+                description: "Choose a palette-aware classic gradient, a flat solid colour, a blended multi-gradient, or the Aurora and Ember atmospheres."
             ) {
                 Picker("", selection: backgroundStyleBinding) {
-                    Text("Multi Gradient").tag(AtmosphereStyle.multiGradient)
-                    Text("Classic Gradient").tag(AtmosphereStyle.gradient)
-                    Text("Solid Color").tag(AtmosphereStyle.solid)
+                    ForEach(AtmosphereStyle.allCases) { style in
+                        Text(style.displayName).tag(style)
+                    }
                 }
                 .pickerStyle(.menu)
                 .id(AppearanceSettingsSearchTarget.backgroundStyle.anchorID)
             }
 
-            if theme.atmosphereStyle == .solid {
+            if backgroundStyleBinding.wrappedValue == .solid {
                 settingRow(
                     title: "Solid Color Source",
                     description: "Use the poster's color where available, or a custom color everywhere."
@@ -654,13 +654,7 @@ struct AlternativeUIView: View {
 
     private var backgroundStyleBinding: Binding<AtmosphereStyle> {
         Binding(
-            get: {
-                switch theme.atmosphereStyle {
-                case .gradient: return .gradient
-                case .solid: return .solid
-                default: return .multiGradient
-                }
-            },
+            get: { theme.atmosphereStyle },
             set: { theme.atmosphereStyle = $0 }
         )
     }
