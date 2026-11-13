@@ -1420,3 +1420,52 @@ final class CastMediaPolicyTests: XCTestCase {
     }
 }
 #endif
+
+
+final class MPVDolbyPlaybackSettingsTests: XCTestCase {
+    func testTrueHDAtmosAddsTrueHDAlongsideEAC3Passthrough() throws {
+        let suite = "Eclipse.TrueHDAtmos.\\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(true, forKey: "mpvDolbyAtmosEnabled")
+        defaults.set(true, forKey: "mpvTrueHDAtmosEnabled")
+        defaults.set(true, forKey: "mpvSurroundSoundEnabled")
+
+        let settings = MPVDolbyPlaybackSettings(defaults: defaults)
+        XCTAssertEqual(settings.options["audio-spdif"], "eac3,truehd")
+        XCTAssertEqual(settings.options["audio-channels"], "auto")
+    }
+
+    func testTrueHDAtmosDisabledRetainsExistingEAC3AtmosPassthrough() throws {
+        let suite = "Eclipse.TrueHDAtmosDisabled.\\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(true, forKey: "mpvDolbyAtmosEnabled")
+        defaults.set(false, forKey: "mpvTrueHDAtmosEnabled")
+        defaults.set(true, forKey: "mpvSurroundSoundEnabled")
+
+        XCTAssertEqual(MPVDolbyPlaybackSettings(defaults: defaults).options["audio-spdif"], "eac3")
+    }
+
+    func testTrueHDAtmosCannotOverrideDisabledSurroundSound() throws {
+        let suite = "Eclipse.TrueHDAtmosStereo.\\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(true, forKey: "mpvDolbyAtmosEnabled")
+        defaults.set(true, forKey: "mpvTrueHDAtmosEnabled")
+        defaults.set(false, forKey: "mpvSurroundSoundEnabled")
+
+        let options = MPVDolbyPlaybackSettings(defaults: defaults).options
+        XCTAssertEqual(options["audio-spdif"], "")
+        XCTAssertEqual(options["audio-channels"], "stereo")
+    }
+
+    func testStremioStreamDisplayNamePreservesAddonFormattingVerbatim() throws {
+        let rawName = "  1080p\\n\\nDolby Vision  "
+        let json = """
+        {"url":"https://media.example/stream.m3u8","name":"  1080p\\n\\nDolby Vision  ","title":"Fallback title"}
+        """
+        let stream = try JSONDecoder().decode(StremioStream.self, from: Data(json.utf8))
+        XCTAssertEqual(stream.displayName, rawName)
+    }
+}
