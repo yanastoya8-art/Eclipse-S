@@ -13256,7 +13256,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         castButton.isEnabled = !candidates.isEmpty
         castButton.accessibilityHint = candidates.isEmpty
             ? "No stream URL is available to cast."
-            : "Automatically use LG webOS for MKV streams and Chromecast for other streams."
+            : "Automatically use LG webOS for MKV, local files, and streams requiring provider headers; use Chromecast for other streams."
         let castTint = activePlayerSkinAppearance.primary
         castButton.tintColor = castButton.isEnabled ? castTint : castTint.withAlphaComponent(0.35)
     }
