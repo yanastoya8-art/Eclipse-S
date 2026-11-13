@@ -94,6 +94,7 @@
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER).hls-download.1</string>
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER).hls-download.2</string>
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER).hls-download.3</string>
+		<string>$(PRODUCT_BUNDLE_IDENTIFIER).anime-schedule-refresh</string>
 	</array>
 	<key>UIFileSharingEnabled</key>
 	<true/>
