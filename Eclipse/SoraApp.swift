@@ -406,12 +406,14 @@ struct SoraApp: App {
                         await LocalNotificationManager.shared.refreshAuthorizationStatus()
                         await LocalNotificationManager.shared.syncDeliveredNotificationHistory()
                         guard scheduleWarmupComplete else { return }
+                        await ScheduleViewModel.shared.refreshCalendarIfNeeded()
                         await LocalNotificationManager.shared.refreshSchedulesIfNeeded()
                     }
                 }
             }
             .onReceive(notificationMaintenanceTimer) { _ in
                 guard scenePhase == .active, scheduleWarmupComplete else { return }
+                Task { await ScheduleViewModel.shared.refreshCalendarIfNeeded() }
                 let today = AppCalendar.current.startOfDay(for: Date())
                 guard today != lastNotificationMaintenanceDay else { return }
                 lastNotificationMaintenanceDay = today
@@ -499,6 +501,7 @@ struct SoraApp: App {
 
             try? await Task.sleep(nanoseconds: 750_000_000)
             guard !Task.isCancelled else { return }
+            await ScheduleViewModel.shared.refreshCalendarIfNeeded()
 #if os(tvOS)
             let requestedDayCount = ScheduleWindow.current.rawValue
             _ = await ScheduleViewModel.shared.notificationScheduleSnapshot(
