@@ -1311,10 +1311,20 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
         let canonicalID = animeProviderAliases[providerID] ?? (providerID > 0 ? providerID : nil)
         let malID = providerID < 0 ? RemoteMediaNumericBoundary.positiveMagnitude(providerID) : nil
         do {
-            let counts = try await TaizenAnimeDubMetadataService.shared.episodeDubCounts(
+            var counts: [String: Int] = [:]
+            if let taizenCounts = try? await TaizenAnimeDubMetadataService.shared.episodeDubCounts(
                 anilistID: canonicalID,
                 malID: malID
-            )
+            ) {
+                counts.merge(taizenCounts) { max($0, $1) }
+            }
+            if selectedLanguages.contains(MyDubListLanguage.spanish.rawValue),
+               let canonicalID,
+               let anidubCounts = try? await AnidubAnimeDubMetadataService.shared.episodeDubCounts(
+                    anilistID: canonicalID
+               ) {
+                counts.merge(anidubCounts) { max($0, $1) }
+            }
             try Task.checkCancellation()
 
             var premiereDate: Date?
