@@ -1117,15 +1117,12 @@ struct StremioStream: Codable, Identifiable, Hashable {
         return !ytId.isEmpty
     }
 
+    /// The addon-provided display text, preserved verbatim (including line breaks
+    /// and intentional spacing) instead of being normalized by Eclipse.
     var displayName: String {
-        for value in [name, title] {
-            if let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty {
-                return value
-            }
-        }
-        if let description = description?.trimmingCharacters(in: .whitespacesAndNewlines), !description.isEmpty {
-            return description.components(separatedBy: .newlines).first ?? description
-        }
+        if let name, !name.isEmpty { return name }
+        if let title, !title.isEmpty { return title }
+        if let description, !description.isEmpty { return description }
         return "Stream"
     }
 
