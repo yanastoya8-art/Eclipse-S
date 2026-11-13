@@ -2684,7 +2684,7 @@
 			repositoryURL = "https://github.com/yanastoya8-art/MPVKit-S.git";
 			requirement = {
 				kind = revision;
-				revision = "5c648a7e9430946694c0f5bd3666f2c164b82101";
+				revision = "fee7aa27869ed4775ff2984de4438484d902e67b";
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
