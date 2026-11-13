@@ -456,9 +456,10 @@ final class ScheduleViewModel: ObservableObject {
             cachedDayCount: animeScheduleDayCount,
             requiredDayCount: requestedDayCount
         ), let animeResult = cachedAnimeResult(for: requestedDayCount) {
-            entries.append(contentsOf: animeResult.entries)
+            let filteredAnimeResult = filteredAnimeScheduleResult(animeResult)
+            entries.append(contentsOf: filteredAnimeResult.entries)
             successfulSources.insert(.anime)
-            if animeResult.isAuthoritativeForNotifications {
+            if filteredAnimeResult.isAuthoritativeForNotifications {
                 authoritativeSources.insert(.anime)
             }
         }
