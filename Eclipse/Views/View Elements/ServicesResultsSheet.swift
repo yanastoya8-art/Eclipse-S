@@ -15,6 +15,7 @@ private func copyProviderDownloadURL(_ rawURL: String, headers: [String: String]
     guard let sourceURL = URL(string: rawURL),
           let scheme = sourceURL.scheme?.lowercased(),
           scheme == "http" || scheme == "https",
+          !["m3u8", "mpd"].contains(sourceURL.pathExtension.lowercased()),
           let downloadURL = MPVHeaderProxy.shared.makeLANProxyURL(
             for: sourceURL,
             headers: headers ?? [:],
