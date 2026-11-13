@@ -456,7 +456,7 @@ final class ScheduleViewModel: ObservableObject {
             cachedDayCount: animeScheduleDayCount,
             requiredDayCount: requestedDayCount
         ), let animeResult = cachedAnimeResult(for: requestedDayCount) {
-            entries.append(contentsOf: animeResult.entries)
+            entries.append(contentsOf: filteredAnimeScheduleEntries(animeResult.entries))
             successfulSources.insert(.anime)
             if animeResult.isAuthoritativeForNotifications {
                 authoritativeSources.insert(.anime)
@@ -492,6 +492,21 @@ final class ScheduleViewModel: ObservableObject {
         _ = try? await westernEntries(dayCount: dayCount, forceRefresh: forceRefresh)
     }
 
+    private func filteredAnimeScheduleEntries(_ entries: [ScheduleEntry]) -> [ScheduleEntry] {
+        let selectedLanguages = MyDubListDubFilter.shared.selectedLanguages
+        guard !selectedLanguages.isEmpty else { return entries }
+
+        return entries.filter { entry in
+            guard entry.source == .anime else { return true }
+            let aniListID = entry.sourceMediaId > 0 ? entry.sourceMediaId : nil
+            let malID = entry.animeMALID ?? (entry.sourceMediaId < 0 ? -entry.sourceMediaId : nil)
+            return MyDubListDubFilter.shared.shouldInclude(
+                anilistID: aniListID,
+                malID: malID
+            )
+        }
+    }
+
     @MainActor
     private func entries(
         for mode: ScheduleMode,
@@ -502,7 +517,7 @@ final class ScheduleViewModel: ObservableObject {
         case .anime:
             let result = try await animeEntries(dayCount: dayCount, forceRefresh: forceRefresh)
             return ScheduleLoadResult(
-                entries: result.entries,
+                entries: filteredAnimeScheduleEntries(result.entries),
                 successfulSources: [.anime],
                 authoritativeSources: result.isAuthoritativeForNotifications ? [.anime] : []
             )
@@ -529,7 +544,7 @@ final class ScheduleViewModel: ObservableObject {
 
             switch sourceResults.0 {
             case .success(let result):
-                combinedEntries += result.entries
+                combinedEntries += filteredAnimeScheduleEntries(result.entries)
                 loadedAnySource = true
                 successfulSources.insert(.anime)
                 if result.isAuthoritativeForNotifications {
