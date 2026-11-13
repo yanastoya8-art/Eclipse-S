@@ -46,7 +46,7 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Validate immutable MPVKit revision
         env:
-          MPVKIT_SOURCE_REVISION: 0c3a83ef916fc11159d060079d315aa07c856078
+          MPVKIT_SOURCE_REVISION: 0c70f09fe9307eff8d972f824eeb58caf1381953
         run: |
           set -euo pipefail
 
@@ -58,11 +58,11 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           repository: yanastoya8-art/MPVKit-S
-          ref: 0c3a83ef916fc11159d060079d315aa07c856078
+          ref: 0c70f09fe9307eff8d972f824eeb58caf1381953
           path: MPVKit
       - name: Verify immutable MPVKit checkout
         env:
-          MPVKIT_SOURCE_REVISION: 0c3a83ef916fc11159d060079d315aa07c856078
+          MPVKIT_SOURCE_REVISION: 0c70f09fe9307eff8d972f824eeb58caf1381953
         run: test "$(git -C MPVKit rev-parse HEAD)" = "$MPVKIT_SOURCE_REVISION"
       - name: Expose sibling MPVKit package
         run: ln -sfn "$GITHUB_WORKSPACE/MPVKit" "$GITHUB_WORKSPACE/../MPVKit"
