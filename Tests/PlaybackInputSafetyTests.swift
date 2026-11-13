@@ -1460,6 +1460,17 @@ final class MPVDolbyPlaybackSettingsTests: XCTestCase {
         XCTAssertEqual(options["audio-channels"], "stereo")
     }
 
+    func testTrueHDAtmosCannotOverrideDisabledDolbyAtmos() throws {
+        let suite = "Eclipse.TrueHDAtmosWithoutAtmos.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(false, forKey: "mpvDolbyAtmosEnabled")
+        defaults.set(true, forKey: "mpvTrueHDAtmosEnabled")
+        defaults.set(true, forKey: "mpvSurroundSoundEnabled")
+
+        XCTAssertEqual(MPVDolbyPlaybackSettings(defaults: defaults).options["audio-spdif"], "")
+    }
+
     func testStremioStreamDisplayNamePreservesAddonFormattingVerbatim() throws {
         let rawName = "  1080p\n\nDolby Vision  "
         let json = """
