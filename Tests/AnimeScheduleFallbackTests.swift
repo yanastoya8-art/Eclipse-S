@@ -43,6 +43,27 @@ private final class AnimeScheduleURLProtocol: URLProtocol {
 }
 
 final class AnimeScheduleFallbackTests: XCTestCase {
+    func testJustWatchScheduleCacheExpiresAndRejectsFutureTimestamps() {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let lifetime: TimeInterval = 12 * 60 * 60
+
+        XCTAssertTrue(JustWatchScheduleCachePolicy.isFresh(
+            fetchedAt: now.addingTimeInterval(-lifetime + 1),
+            now: now,
+            lifetime: lifetime
+        ))
+        XCTAssertFalse(JustWatchScheduleCachePolicy.isFresh(
+            fetchedAt: now.addingTimeInterval(-lifetime),
+            now: now,
+            lifetime: lifetime
+        ))
+        XCTAssertFalse(JustWatchScheduleCachePolicy.isFresh(
+            fetchedAt: now.addingTimeInterval(1),
+            now: now,
+            lifetime: lifetime
+        ))
+    }
+
     private var now: Date { Date(timeIntervalSince1970: 1_788_998_400) }
 
     private func session() -> URLSession {
