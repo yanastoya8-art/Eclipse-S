@@ -13252,9 +13252,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         guard isViewLoaded else { return }
         let headers = playbackLaunchContext?.headers ?? initialHeaders ?? [:]
         let candidates = [playbackLaunchContext?.streamURL.flatMap { URL(string: $0) }, initialURL].compactMap { $0 }
-        let url = candidates.first(where: { CastMediaPolicy.rejectionReason(for: $0, headers: headers) == nil })
-            ?? candidates.first
-        let rejection = url.flatMap { CastMediaPolicy.rejectionReason(for: $0, headers: headers) }
         castButton.isHidden = !isMPVRenderer
         castButton.isEnabled = !candidates.isEmpty
         castButton.accessibilityHint = candidates.isEmpty
@@ -13273,6 +13270,18 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         if url.pathExtension.lowercased() == "mkv" {
             prepareLGWebOSCastForCurrentStream()
         } else {
+            let headers = playbackLaunchContext?.headers ?? initialHeaders ?? [:]
+            guard let castableURL = candidates.first(where: {
+                CastMediaPolicy.rejectionReason(for: $0, headers: headers) == nil
+            }) else {
+                let reason = candidates.first.flatMap {
+                    CastMediaPolicy.rejectionReason(for: $0, headers: headers)
+                } ?? "This stream cannot be cast to Chromecast."
+                showPlayerNotice(reason)
+                return
+            }
+            _ = castableURL
+            prepareCastForCurrentStream()
             GCKCastContext.sharedInstance().presentCastDialog()
         }
     }
