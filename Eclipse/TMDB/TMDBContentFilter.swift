@@ -599,6 +599,12 @@ class TMDBContentFilter: ObservableObject {
         return movies.filter { movie in
             guard movie.adult != true else { return false }
             guard shouldIncludeCatalogTitle(movie.title) else { return false }
+            guard !Self.shouldHideForReleaseDate(
+                rawDate: movie.releaseDate,
+                isAnime: false,
+                isMovie: true,
+                defaults: .standard
+            ) else { return false }
             guard shouldIncludeTMDBAgeRating(
                 isMovie: true,
                 id: movie.id,
@@ -618,6 +624,14 @@ class TMDBContentFilter: ObservableObject {
         return tvShows.filter { tvShow in
             guard tvShow.adult != true else { return false }
             guard shouldIncludeCatalogTitle(tvShow.name) else { return false }
+            let isAnime = tvShow.genreIds?.contains(16) == true
+                && (tvShow.originalLanguage?.lowercased() == "ja" || tvShow.originCountry?.contains("JP") == true)
+            guard !Self.shouldHideForReleaseDate(
+                rawDate: tvShow.firstAirDate,
+                isAnime: isAnime,
+                isMovie: false,
+                defaults: .standard
+            ) else { return false }
             guard shouldIncludeTMDBAgeRating(
                 isMovie: false,
                 id: tvShow.id,
@@ -888,13 +902,28 @@ class TMDBContentFilter: ObservableObject {
         _ result: TMDBSearchResult,
         defaults: UserDefaults
     ) -> Bool {
-        let isAnime = isAnimeResult(result)
-        let isMovie = result.isMovie
+        shouldHideForReleaseDate(
+            rawDate: result.isMovie ? result.releaseDate : (result.firstAirDate ?? result.releaseDate),
+            isAnime: isAnimeResult(result),
+            isMovie: result.isMovie,
+            defaults: defaults
+        )
+    }
+
+    private static func shouldHideForReleaseDate(
+        rawDate: String?,
+        isAnime: Bool,
+        isMovie: Bool,
+        defaults: UserDefaults
+    ) -> Bool {
+        guard let rawDate, rawDate.count >= 10, !rawDate.hasPrefix("0001-") else { return false }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withFullDate]
+        guard let releaseDate = formatter.date(from: String(rawDate.prefix(10))) else { return false }
         let before1994Key = isAnime ? "catalogHidePre1994Anime"
             : (isMovie ? "catalogHidePre1994Movies" : "catalogHidePre1994TVShows")
         let unreleasedKey = isAnime ? "catalogHideUnreleasedAnime"
             : (isMovie ? "catalogHideUnreleasedMovies" : "catalogHideUnreleasedTVShows")
-        guard let releaseDate = announcedReleaseDate(for: result) else { return false }
         if defaults.bool(forKey: before1994Key),
            Calendar(identifier: .gregorian).component(.year, from: releaseDate) < 1994 {
             return true
