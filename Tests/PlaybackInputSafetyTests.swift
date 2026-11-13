@@ -1386,7 +1386,8 @@ final class CastMediaPolicyTests: XCTestCase {
             ("https://media.example/video/master.m3u8", "application/x-mpegURL"),
             ("https://media.example/video/manifest.mpd", "application/dash+xml"),
             ("https://media.example/video/movie.mp4", "video/mp4"),
-            ("https://media.example/video/movie.webm", "video/webm")
+            ("https://media.example/video/movie.webm", "video/webm"),
+            ("https://media.example/video/movie.ts", "video/mp2t")
         ]
         for (rawURL, expectedType) in cases {
             let url = try XCTUnwrap(URL(string: rawURL))
