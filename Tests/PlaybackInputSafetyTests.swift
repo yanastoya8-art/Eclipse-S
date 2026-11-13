@@ -1471,6 +1471,14 @@ final class MPVDolbyPlaybackSettingsTests: XCTestCase {
         XCTAssertEqual(MPVDolbyPlaybackSettings(defaults: defaults).options["audio-spdif"], "")
     }
 
+    func testWhitespaceOnlyAddonNameFallsBackWithoutTrimmingTitle() throws {
+        let json = """
+        {"url":"https://media.example/file.mkv","name":"   ","title":"  4K HDR\\nProvider formatted"}
+        """
+        let stream = try JSONDecoder().decode(StremioStream.self, from: Data(json.utf8))
+        XCTAssertEqual(stream.displayName, "  4K HDR\\nProvider formatted")
+    }
+
     func testAddonDescriptionFallbackKeepsAllOriginalLines() throws {
         let json = """
         {"url":"https://media.example/file.mkv","description":"  Provider heading  \nSecond formatted line\nThird line"}
