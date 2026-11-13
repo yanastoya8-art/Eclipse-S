@@ -20,6 +20,7 @@ struct KanzenGeneralSettingsView: View {
     @AppStorage("readerLineSpacing") private var readerLineSpacing: Double = 1.6
     @AppStorage("readerMargin") private var readerMargin: Double = 4
     @AppStorage("readerReadThresholdPercent") private var readerReadThresholdPercent: Double = 80
+    @AppStorage("readerDetailHeroBlur") private var readerDetailHeroBlur: Double = 18
     @State private var readerDetailElements = ReaderDetailElement.orderedElements()
     @State private var hiddenReaderDetailElements = ReaderDetailElement.hiddenElements()
 
@@ -37,6 +38,10 @@ struct KanzenGeneralSettingsView: View {
 
     private var sanitizedReaderReadThresholdPercent: Double {
         Self.sanitizedSetting(readerReadThresholdPercent, default: 80, range: 50...100)
+    }
+
+    private var sanitizedReaderDetailHeroBlur: Double {
+        Self.sanitizedSetting(readerDetailHeroBlur, default: 18, range: 0...30)
     }
 
     private func sanitizedBinding(
@@ -226,6 +231,25 @@ struct KanzenGeneralSettingsView: View {
                 header: Text("Reader Detail Page"),
                 footer: Text("Drag rows to change their order. Hidden rows will not appear on manga, manhwa, or light novel detail pages.")
             ) {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Hero Background Blur")
+                        Spacer()
+                        Text("\(Int(sanitizedReaderDetailHeroBlur))")
+                            .foregroundColor(.secondary)
+                            .monospacedDigit()
+                    }
+                    Slider(
+                        value: sanitizedBinding($readerDetailHeroBlur, default: 18, range: 0...30),
+                        in: 0...30,
+                        step: 1
+                    )
+                    Text("Choose how softly the cover image is blurred behind the title on reader detail pages.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.vertical, 8)
+
                 ForEach(readerDetailElements) { element in
                     readerDetailElementRow(element)
                 }
