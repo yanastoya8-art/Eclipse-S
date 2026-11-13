@@ -10,8 +10,11 @@ on:
 permissions:
   contents: read
 
+# Give each commit its own slot. GitHub otherwise replaces the single pending
+# run for a branch when another push arrives, marking the previous build
+# cancelled before its runner has even started.
 concurrency:
-  group: ios-pr-build-${{ github.ref }}
+  group: ios-pr-build-${{ github.run_id }}
   cancel-in-progress: false
 
 jobs:
