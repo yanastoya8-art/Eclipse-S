@@ -566,6 +566,7 @@ enum PlayerSettingsSearchTarget: String, Hashable {
     case hdrOutput
     case dolbyVision
     case dolbyAtmos
+    case trueHDAtmos
     case surroundSound
     case comfortAudio
     case comfortAudioApplyToAll
@@ -584,7 +585,7 @@ enum PlayerSettingsSearchTarget: String, Hashable {
         switch self {
         case .moltenVKQuality, .upscaling, .neuralUpscaling, .hdrOutput:
             return compatibility.supportsEnhancedMPVRendering
-        case .dolbyAtmos:
+        case .dolbyAtmos, .trueHDAtmos:
             return compatibility.supportsAtmosPassthrough
         case .pictureInPicture, .pipWhenLeavingApp:
             let selection: PlaybackEngine
@@ -710,6 +711,7 @@ enum PlayerSettingsSearchTarget: String, Hashable {
              .hdrOutput,
              .dolbyVision,
              .dolbyAtmos,
+             .trueHDAtmos,
              .surroundSound,
              .comfortAudio,
              .comfortAudioApplyToAll,
@@ -2547,7 +2549,7 @@ private struct MPVPlayerSettingsPage: View {
                     detail: "Experimental TrueHD bitstream passthrough. Requires Dolby Atmos and Surround Sound to be enabled, plus an HDMI audio route and receiver that explicitly support Dolby TrueHD. Unsupported routes may fall back to decoded audio or reject passthrough. Applies on next MPV playback.",
                     binding: $store.mpvTrueHDAtmosEnabled
                 )
-                .id("player-settings-search-trueHDAtmos")
+                .id(PlayerSettingsSearchTarget.trueHDAtmos.anchorID)
             }
 
             GlassDivider(leadingInset: 16)
