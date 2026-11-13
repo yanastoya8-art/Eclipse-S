@@ -239,6 +239,7 @@
 		1324E7C12E940BD70036B5F5 /* PiPController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1324E7BA2E940BD70036B5F5 /* PiPController.swift */; };
 		13631B322E4F1A200035C39F /* ServiceSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13631B312E4F1A200035C39F /* ServiceSettingsView.swift */; };
 		136C25C62EFE950300E37A6E /* MPVKit-GPL in Frameworks */ = {isa = PBXBuildFile; productRef = 136C25C52EFE950300E37A6E /* MPVKit-GPL */; };
+		GCSTBF000000000000000001 /* GoogleCastDynamic in Frameworks */ = {isa = PBXBuildFile; productRef = GCSTPROD0000000000000001 /* GoogleCastDynamic */; };
 		136D3E5C2EB75D7E0094210C /* LiquidGlassBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 136D3E5B2EB75D7E0094210C /* LiquidGlassBackground.swift */; };
 		13830AEC2E55BD9200B3CDE4 /* AlgorithmManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13830AEB2E55BD9200B3CDE4 /* AlgorithmManager.swift */; };
 		13830AEE2E55BEDD00B3CDE4 /* JaroWinklerSimilarity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13830AED2E55BEDD00B3CDE4 /* JaroWinklerSimilarity.swift */; };
@@ -1172,6 +1173,7 @@
 				SKYSOUPBF000000000000001 /* SwiftSoup in Frameworks */,
 				13A46D002EF5944C00423BC6 /* Kingfisher in Frameworks */,
 				136C25C62EFE950300E37A6E /* MPVKit-GPL in Frameworks */,
+				GCSTBF000000000000000001 /* GoogleCastDynamic in Frameworks */,
 				C0A5A0052FD1000000C0A505 /* CrashReporter in Frameworks */,
 				AD0000072FD9000000AD0007 /* ZIPFoundation in Frameworks */,
 				AD0000332FDA000000AD0033 /* Nuke in Frameworks */,
@@ -2101,6 +2103,7 @@
 			packageProductDependencies = (
 				13A46CFF2EF5944C00423BC6 /* Kingfisher */,
 				136C25C52EFE950300E37A6E /* MPVKit-GPL */,
+				GCSTPROD0000000000000001 /* GoogleCastDynamic */,
 				C0A5A0042FD1000000C0A504 /* CrashReporter */,
 				AD0000232FD9000000AD0023 /* ZIPFoundation */,
 				SKYSOUPPROD0000000000001 /* SwiftSoup */,
@@ -2188,6 +2191,7 @@
 				AD0000312FDA000000AD0031 /* XCRemoteSwiftPackageReference "Nuke" */,
 				AD0000412FDB000000AD0041 /* XCRemoteSwiftPackageReference "Texture" */,
 				SKYSOUPPKG00000000000001 /* XCRemoteSwiftPackageReference "SwiftSoup" */,
+				GCSTPKG00000000000000001 /* XCRemoteSwiftPackageReference "google-cast-ios-sdk" */,
 			);
 			productRefGroup = 13F0725C2E4B2D3300EF90EB /* Products */;
 			projectDirPath = "";
@@ -2840,7 +2844,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "${DEVELOPMENT_TEAM}";
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = "${BUNDLE_IDENTIFIER}.Tests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -2861,7 +2865,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "${DEVELOPMENT_TEAM}";
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = "${BUNDLE_IDENTIFIER}.Tests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -2951,7 +2955,7 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = Eclipse;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 			};
 			name = Debug;
 		};
@@ -2991,7 +2995,7 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = Eclipse;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 			};
 			name = Release;
 		};
@@ -3225,7 +3229,7 @@
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_UISupportsDocumentBrowser = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				/* Do not change or else TestFlight will have issues. Use ECLIPSE_RELEASE_VERSION for GitHub updater releases. */
 				MARKETING_VERSION = 2.3.0;
@@ -3286,7 +3290,7 @@
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_UISupportsDocumentBrowser = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				/* Do not change or else TestFlight will have issues. Use ECLIPSE_RELEASE_VERSION for GitHub updater releases. */
 				MARKETING_VERSION = 2.3.0;
@@ -3427,6 +3431,14 @@
 				minimumVersion = 2.11.1;
 			};
 		};
+		GCSTPKG00000000000000001 /* XCRemoteSwiftPackageReference "google-cast-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/googlecast/google-cast-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.8.6;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -3464,6 +3476,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = SKYSOUPPKG00000000000001 /* XCRemoteSwiftPackageReference "SwiftSoup" */;
 			productName = SwiftSoup;
+		};
+		GCSTPROD0000000000000001 /* GoogleCastDynamic */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = GCSTPKG00000000000000001 /* XCRemoteSwiftPackageReference "google-cast-ios-sdk" */;
+			productName = GoogleCastDynamic;
 		};
 /* End XCSwiftPackageProductDependency section */
 
