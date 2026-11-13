@@ -283,7 +283,7 @@ actor AnimeScheduleService {
         }
         var entriesByID: [String: AniListAiringScheduleEntry] = [:]
         for (row, stale) in rows {
-            if row.airType != "raw" || !AnimeScheduleEntryMapper.validRoute(row.route) || AnimeScheduleEntryMapper.date(row.episodeDate) == nil {
+            if row.airType != "dub" || !AnimeScheduleEntryMapper.validRoute(row.route) || AnimeScheduleEntryMapper.date(row.episodeDate) == nil {
                 complete = false
             }
             let anime = cachedAnime(row.route, now: now)
