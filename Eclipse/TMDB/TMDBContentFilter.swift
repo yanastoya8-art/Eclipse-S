@@ -53,6 +53,8 @@ final class MyDubListDubFilter: @unchecked Sendable {
     private static let cachedLanguagesKey = "myDubListCachedLanguagesV1"
     private static let cachedMALIDsKey = "myDubListCachedMALIDsV1"
     private static let cachedAniListIDsKey = "myDubListCachedAniListIDsV1"
+    private static let cachedEnglishMALIDsKey = "myDubListCachedEnglishMALIDsV1"
+    private static let cachedEnglishAniListIDsKey = "myDubListCachedEnglishAniListIDsV1"
 
     private struct DubDataset: Decodable {
         let dubbed: [Int]
@@ -70,6 +72,8 @@ final class MyDubListDubFilter: @unchecked Sendable {
     private let lock = NSLock()
     private var allowedMALIDs: Set<Int> = []
     private var allowedAniListIDs: Set<Int> = []
+    private var allowedEnglishMALIDs: Set<Int> = []
+    private var allowedEnglishAniListIDs: Set<Int> = []
     private var loadedLanguages: Set<String> = []
     private var isLoaded = false
 
@@ -98,12 +102,17 @@ final class MyDubListDubFilter: @unchecked Sendable {
 
         do {
             var malIDs = Set<Int>()
+            var englishMALIDs = Set<Int>()
             for language in languages.sorted() {
                 let url = URL(string: "https://raw.githubusercontent.com/Joelis57/MyDubList/main/dubs/confidence/low/dubbed_\(language).json")!
                 let data = try await Self.download(url, maximumBytes: 1_000_000)
                 let dataset = try JSONDecoder().decode(DubDataset.self, from: data)
                 guard dataset.dubbed.count <= 250_000 else { throw URLError(.dataLengthExceedsMaximum) }
-                malIDs.formUnion(dataset.dubbed.filter { $0 > 0 && $0 <= 100_000_000 })
+                let validIDs = Set(dataset.dubbed.filter { $0 > 0 && $0 <= 100_000_000 })
+                malIDs.formUnion(validIDs)
+                if language == MyDubListLanguage.english.rawValue {
+                    englishMALIDs = validIDs
+                }
             }
 
             let mappingURL = URL(string: "https://raw.githubusercontent.com/Joelis57/MyDubList/main/dubs/mappings/mappings_anilist.jsonl")!
@@ -113,19 +122,31 @@ final class MyDubListDubFilter: @unchecked Sendable {
             }
 
             var aniListIDs = Set<Int>()
+            var englishAniListIDs = Set<Int>()
             let decoder = JSONDecoder()
             for line in mappingText.split(whereSeparator: \.isNewline) {
                 guard let row = try? decoder.decode(AniListMapping.self, from: Data(line.utf8)),
                       malIDs.contains(row.malID), row.aniListID > 0 else { continue }
                 aniListIDs.insert(row.aniListID)
+                if englishMALIDs.contains(row.malID) {
+                    englishAniListIDs.insert(row.aniListID)
+                }
             }
 
             guard languages == selectedLanguages else { return hasSnapshot(for: selectedLanguages) }
-            publishSnapshot(malIDs: malIDs, aniListIDs: aniListIDs, languages: languages)
+            publishSnapshot(
+                malIDs: malIDs,
+                aniListIDs: aniListIDs,
+                englishMALIDs: englishMALIDs,
+                englishAniListIDs: englishAniListIDs,
+                languages: languages
+            )
             let defaults = ProfileSettingsStore.active
             defaults.set(languages.sorted(), forKey: Self.cachedLanguagesKey)
             defaults.set(malIDs.sorted(), forKey: Self.cachedMALIDsKey)
             defaults.set(aniListIDs.sorted(), forKey: Self.cachedAniListIDsKey)
+            defaults.set(englishMALIDs.sorted(), forKey: Self.cachedEnglishMALIDsKey)
+            defaults.set(englishAniListIDs.sorted(), forKey: Self.cachedEnglishAniListIDsKey)
             NotificationCenter.default.post(name: Self.didRefreshNotification, object: nil)
             Logger.shared.log("MyDubList: loaded languages=\(languages.sorted().joined(separator: ",")) MAL=\(malIDs.count) AniList=\(aniListIDs.count)", type: "Anime")
             return true
@@ -159,7 +180,12 @@ final class MyDubListDubFilter: @unchecked Sendable {
         guard languages.isEmpty || languages.contains(MyDubListLanguage.english.rawValue) else {
             return false
         }
-        return shouldInclude(anilistID: anilistID, malID: malID)
+        lock.lock()
+        defer { lock.unlock() }
+        guard isLoaded, loadedLanguages == languages else { return false }
+        if let anilistID, anilistID > 0, allowedEnglishAniListIDs.contains(anilistID) { return true }
+        if let malID, malID > 0, allowedEnglishMALIDs.contains(malID) { return true }
+        return false
     }
 
     func shouldInclude(anilistID: Int?, malID: Int?) -> Bool {
@@ -183,15 +209,25 @@ final class MyDubListDubFilter: @unchecked Sendable {
         lock.lock()
         allowedMALIDs = []
         allowedAniListIDs = []
+        allowedEnglishMALIDs = []
+        allowedEnglishAniListIDs = []
         loadedLanguages = []
         isLoaded = true
         lock.unlock()
     }
 
-    private func publishSnapshot(malIDs: Set<Int>, aniListIDs: Set<Int>, languages: Set<String>) {
+    private func publishSnapshot(
+        malIDs: Set<Int>,
+        aniListIDs: Set<Int>,
+        englishMALIDs: Set<Int>,
+        englishAniListIDs: Set<Int>,
+        languages: Set<String>
+    ) {
         lock.lock()
         allowedMALIDs = malIDs
         allowedAniListIDs = aniListIDs
+        allowedEnglishMALIDs = englishMALIDs
+        allowedEnglishAniListIDs = englishAniListIDs
         loadedLanguages = languages
         isLoaded = true
         lock.unlock()
@@ -203,9 +239,13 @@ final class MyDubListDubFilter: @unchecked Sendable {
         guard cachedLanguages == languages else { return }
         let malIDs = Set((defaults.array(forKey: Self.cachedMALIDsKey) as? [Int] ?? []).filter { $0 > 0 })
         let aniListIDs = Set((defaults.array(forKey: Self.cachedAniListIDsKey) as? [Int] ?? []).filter { $0 > 0 })
+        let englishMALIDs = Set((defaults.array(forKey: Self.cachedEnglishMALIDsKey) as? [Int] ?? []).filter { $0 > 0 })
+        let englishAniListIDs = Set((defaults.array(forKey: Self.cachedEnglishAniListIDsKey) as? [Int] ?? []).filter { $0 > 0 })
         lock.lock()
         allowedMALIDs = malIDs
         allowedAniListIDs = aniListIDs
+        allowedEnglishMALIDs = englishMALIDs
+        allowedEnglishAniListIDs = englishAniListIDs
         loadedLanguages = languages
         isLoaded = true
         lock.unlock()
