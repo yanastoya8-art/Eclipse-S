@@ -453,7 +453,6 @@ struct MediaDetailContentView: View {
     @State private var trackerPlaybackPresentationGeneration = UUID()
     @State private var romajiTitle: String?
     @State private var logoURL: String?
-    @State private var failedTitleLogoURL: String?
     @State private var alternatePosterURL: String?
     @State private var tvMazePosterURL: String?
     @State private var isAnimeShow = false
@@ -1986,7 +1985,7 @@ struct MediaDetailContentView: View {
     private func macDetailTitle(compact: Bool) -> some View {
         if mediaDetailTitleArtworkEnabled && !titleArtworkLookupComplete {
             Color.clear.frame(width: compact ? 330 : 480, height: compact ? 88 : 112)
-        } else if mediaDetailTitleArtworkEnabled, let logoURL, failedTitleLogoURL != logoURL {
+        } else if mediaDetailTitleArtworkEnabled, let logoURL {
             ResilientArtworkImage(
                 urls: [logoURL],
                 decodeSize: homeImageDecodeSize(width: 480, height: 112),
@@ -2742,7 +2741,7 @@ struct MediaDetailContentView: View {
                     width: ExperimentalFeatureState.isEnabledAtLaunch ? (isTvOS ? 720 : (usesWideDetailLayout ? 420 : 334)) : (usesWideDetailLayout ? 400 : 280),
                     height: ExperimentalFeatureState.isEnabledAtLaunch ? (isTvOS ? 250 : 132) : (usesWideDetailLayout ? 140 : 100)
                 )
-        } else if let logoURL = logoURL, failedTitleLogoURL != logoURL {
+        } else if let logoURL = logoURL {
             ResilientArtworkImage(
                 urls: [logoURL],
                 decodeSize: homeImageDecodeSize(width: isTvOS ? 720 : (usesWideDetailLayout ? 420 : 334), height: isTvOS ? 250 : 140),
@@ -6914,7 +6913,6 @@ struct MediaDetailContentView: View {
             titleArtworkLookupComplete = true
             if let images {
                 logoURL = tmdbService.getBestLogo(from: images, preferredLanguage: language)?.fullURL
-                failedTitleLogoURL = nil
             }
             cacheOptionalPresentation(key: cacheKey)
             if analyzeAlternate, shouldAnalyzeAlternatePoster, let images {
@@ -7079,7 +7077,6 @@ struct MediaDetailContentView: View {
                 self.synopsis = cached.synopsis
                 self.romajiTitle = cached.romajiTitle
                 self.logoURL = cached.logoURL
-                self.failedTitleLogoURL = nil
                 self.alternatePosterURL = cached.alternatePosterURL
                 self.optionalPresentationIsComplete = cached.optionalPresentationIsComplete
                 self.titleArtworkLookupComplete = cached.logoURL != nil || cached.optionalPresentationIsComplete
@@ -7153,7 +7150,6 @@ struct MediaDetailContentView: View {
 #if os(iOS)
         romajiTitle = nil
         logoURL = nil
-        failedTitleLogoURL = nil
         castMembers = []
 #endif
         seasonDetail = nil
