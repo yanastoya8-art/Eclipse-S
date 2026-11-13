@@ -11,10 +11,10 @@ permissions:
   actions: write
   contents: read
 
-# Let an active build finish, but keep only the newest pending build
-# for each branch/PR. This prevents stale commits from filling the macOS queue.
+# Every run gets a slot for its lightweight queue-cleanup job. That job
+# cancels only older queued builds after verifying it belongs to the branch HEAD.
 concurrency:
-  group: ios-pr-build-${{ github.workflow }}-${{ github.ref }}
+  group: ios-pr-build-${{ github.run_id }}
   cancel-in-progress: false
 
 jobs:
@@ -28,9 +28,23 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           BRANCH_NAME: ${{ github.ref_name }}
           CURRENT_RUN_ID: ${{ github.run_id }}
+          EVENT_NAME: ${{ github.event_name }}
+          CURRENT_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          if ! queued_runs="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow .github/workflows/ios-pr-build.yml --branch "$BRANCH_NAME" --status queued --limit 100 --json databaseId --jq '.[].databaseId')"; then
+          if [[ "$EVENT_NAME" != "push" && "$EVENT_NAME" != "workflow_dispatch" ]]; then
+            echo "Queue cleanup is limited to direct branch builds."
+            exit 0
+          fi
+          if ! branch_head_sha="$(gh api "repos/$GITHUB_REPOSITORY/commits" -f sha="$BRANCH_NAME" -F per_page=1 --jq '.[0].sha')"; then
+            echo "::warning::Could not verify branch HEAD; continuing without queue cleanup."
+            exit 0
+          fi
+          if [[ "$branch_head_sha" != "$CURRENT_SHA" ]]; then
+            echo "This run is stale; only the latest branch commit may prune queued builds."
+            exit 0
+          fi
+          if ! queued_runs="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow .github/workflows/ios-pr-build.yml --branch "$BRANCH_NAME" --limit 100 --json databaseId,status --jq '.[] | select(.status == "queued" or .status == "pending") | .databaseId')"; then
             echo "::warning::Could not list queued runs; continuing with the current build."
             exit 0
           fi
