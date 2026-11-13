@@ -2,7 +2,7 @@ name: iOS Build and Tests
 
 on:
   push:
-    branches: ["feature/**"]
+    branches: ["main", "feature/**"]
   pull_request:
     branches: [main, feature/background-downloads-ios-cast-liquid-glass]
   workflow_dispatch:
