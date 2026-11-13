@@ -452,6 +452,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     private var activePlayerSkinTintControlsOnly = false
     private var activePlayerSkinAnimationsEnabled = MPVPlayerSkinSettings.defaultAnimationsEnabled
     private var activePlayerSkinAnimationStyle: MPVPlayerSkinAnimationStyle = .glow
+    private var activePlayerLiquidGlassEnabled = false
 
     private let controlsOverlayView: UIView = {
         let v = UIView()
@@ -461,6 +462,26 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         v.isUserInteractionEnabled = false
         v.isHidden = true
         return v
+    }()
+
+    private let topControlsGlassView: UIVisualEffectView = {
+        let view = UIVisualEffectView(effect: nil)
+        view.translatesAutoresizingMaskIntoConstraints = false
+        view.isUserInteractionEnabled = false
+        view.clipsToBounds = true
+        view.layer.cornerRadius = 23
+        view.isHidden = true
+        return view
+    }()
+
+    private let progressGlassView: UIVisualEffectView = {
+        let view = UIVisualEffectView(effect: nil)
+        view.translatesAutoresizingMaskIntoConstraints = false
+        view.isUserInteractionEnabled = false
+        view.clipsToBounds = true
+        view.layer.cornerRadius = 22
+        view.isHidden = true
+        return view
     }()
 
     private let metalPerformanceOverlayLabel: PlayerPerformanceOverlayLabel = {
@@ -5345,21 +5366,26 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         let secondaryDataHash = defaults.data(forKey: MPVPlayerSkinSettings.customSecondaryColorKey)?.hashValue ?? 0
         let animationsEnabled = MPVPlayerSkinSettings.animationsEnabled(defaults: defaults)
         let tintControlsOnly = selectedSkin != .defaultSkin && MPVPlayerSkinSettings.tintControlsOnly(defaults: defaults)
+        let liquidGlassEnabled = isMPVRenderer && MPVPlayerSkinSettings.liquidGlassControlsEnabled(defaults: defaults)
         let animationStyle = MPVPlayerSkinSettings.animationStyle(for: selectedSkin, defaults: defaults)
-        let signature = "\(selectedSkin.rawValue)|\(primaryDataHash)|\(secondaryDataHash)|\(animationsEnabled)|\(tintControlsOnly)|\(animationStyle.rawValue)"
+        let signature = "\(selectedSkin.rawValue)|\(primaryDataHash)|\(secondaryDataHash)|\(animationsEnabled)|\(tintControlsOnly)|\(liquidGlassEnabled)|\(animationStyle.rawValue)"
         guard force || signature != activePlayerSkinSignature else { return }
 
         activePlayerSkinSignature = signature
         activePlayerSkin = selectedSkin
         activePlayerSkinTintControlsOnly = tintControlsOnly
         activePlayerSkinAnimationsEnabled = animationsEnabled
+        activePlayerLiquidGlassEnabled = liquidGlassEnabled
         activePlayerSkinAnimationStyle = animationStyle
         activePlayerSkinAppearance = resolvedPlayerSkinAppearance(for: selectedSkin)
         let appearance = activePlayerSkinAppearance
 
-        controlsOverlayView.backgroundColor = tintControlsOnly
-            ? PlayerSkinAppearance.defaultAppearance.overlayBackground
-            : appearance.overlayBackground
+        controlsOverlayView.backgroundColor = liquidGlassEnabled
+            ? UIColor.black.withAlphaComponent(0.16)
+            : (tintControlsOnly
+                ? PlayerSkinAppearance.defaultAppearance.overlayBackground
+                : appearance.overlayBackground)
+        updatePlayerLiquidGlassEffects()
         centerPlayPauseButton.tintColor = appearance.primary
         centerPlayPauseButton.backgroundColor = appearance.centerButtonBackground
         centerPlayPauseButton.layer.shadowColor = appearance.primary.cgColor
@@ -5428,6 +5454,29 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             progressHostingController = nil
             updateProgressHostingController()
         }
+    }
+
+    private func updatePlayerLiquidGlassEffects() {
+        guard activePlayerLiquidGlassEnabled else {
+            topControlsGlassView.effect = nil
+            progressGlassView.effect = nil
+            topControlsGlassView.isHidden = true
+            progressGlassView.isHidden = true
+            return
+        }
+
+        let effect: UIVisualEffect
+        if #available(iOS 26.0, *) {
+            let glass = UIGlassEffect(style: .regular)
+            glass.tintColor = UIColor.black.withAlphaComponent(0.12)
+            effect = glass
+        } else {
+            effect = UIBlurEffect(style: .systemUltraThinMaterialDark)
+        }
+        topControlsGlassView.effect = effect
+        progressGlassView.effect = effect
+        topControlsGlassView.isHidden = false
+        progressGlassView.isHidden = false
     }
 
     private func configurePlayerSkinDecoration(animationsEnabled: Bool) {
@@ -5620,12 +5669,14 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         view.addSubview(errorBanner)
         view.addSubview(playerNoticeBanner)
         videoContainer.addSubview(centerPlayPauseButton)
+        videoContainer.addSubview(progressGlassView)
         videoContainer.addSubview(progressContainer)
         videoContainer.addSubview(overlayMenuDismissView)
         videoContainer.addSubview(overlayMenuPanelView)
         overlayMenuPanelView.addSubview(overlayMenuTitleLabel)
         overlayMenuPanelView.addSubview(overlayMenuScrollView)
         overlayMenuScrollView.addSubview(overlayMenuStackView)
+        videoContainer.addSubview(topControlsGlassView)
         videoContainer.addSubview(closeButton)
 #if os(iOS)
         videoContainer.addSubview(playbackLockButton)
@@ -5741,6 +5792,16 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 #endif
 
         NSLayoutConstraint.activate([
+            topControlsGlassView.topAnchor.constraint(equalTo: closeButton.topAnchor, constant: -7),
+            topControlsGlassView.leadingAnchor.constraint(equalTo: closeButton.leadingAnchor, constant: -8),
+            topControlsGlassView.trailingAnchor.constraint(equalTo: pipButton.trailingAnchor, constant: 8),
+            topControlsGlassView.bottomAnchor.constraint(equalTo: closeButton.bottomAnchor, constant: 7),
+
+            progressGlassView.leadingAnchor.constraint(equalTo: progressContainer.leadingAnchor, constant: -8),
+            progressGlassView.trailingAnchor.constraint(equalTo: progressContainer.trailingAnchor, constant: 8),
+            progressGlassView.topAnchor.constraint(equalTo: progressContainer.topAnchor),
+            progressGlassView.bottomAnchor.constraint(equalTo: progressContainer.bottomAnchor),
+
             errorBanner.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
             errorBanner.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             errorBanner.widthAnchor.constraint(lessThanOrEqualTo: view.widthAnchor, multiplier: 0.92),
