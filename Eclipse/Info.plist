@@ -51,7 +51,7 @@
 		<true/>
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Eclipse connects to Google Cast and LG webOS TVs and communicates with media add-ons on your local network.</string>
+	<string>Eclipse shares authenticated streams and downloaded media with TVs and browsers on your local network.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_googlecast._tcp</string>
