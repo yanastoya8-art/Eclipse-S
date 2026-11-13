@@ -664,7 +664,7 @@ struct DownloadsView: View {
 
     private var libraryView: some View {
         Group {
-            if completedDownloads.isEmpty {
+            if completedDownloads.isEmpty && activeDownloads.isEmpty {
                 EclipseEmptyState(
                     icon: "rectangle.stack",
                     title: "No Downloaded Content",
