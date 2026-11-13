@@ -84,7 +84,7 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           repository: yanastoya8-art/MPVKit-S
-          ref: fee7aa27869ed4775ff2984de4438484d902e67b
+          ref: 5c648a7e9430946694c0f5bd3666f2c164b82101
           path: MPVKit
 
       - name: Build patched MPVKit for iPhone and iPad
@@ -103,7 +103,7 @@ jobs:
       - name: Verify patched MPVKit source and local frameworks
         run: |
           set -euo pipefail
-          test "$(git -C MPVKit rev-parse HEAD)" = "fee7aa27869ed4775ff2984de4438484d902e67b"
+          test "$(git -C MPVKit rev-parse HEAD)" = "5c648a7e9430946694c0f5bd3666f2c164b82101"
           grep -q 'dovi_metadata' MPVKit/Sources/BuildScripts/patch/libmpv/0017-expose-decoded-dolby-vision-rpu.patch
           grep -q 'videoHasDolbyVisionRPU' MPVKit/Sources/MPVKitSampleBufferGPL/MPVGPUPlayerRenderer.swift
 
