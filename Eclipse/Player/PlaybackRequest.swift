@@ -1163,3 +1163,26 @@ struct PlaybackRequest {
         )
     }
 }
+
+
+enum MPVDolbyVisionDetectionPolicy {
+    static func isDetected(
+        streamName: String?,
+        streamURL: String?,
+        dynamicRange: String?,
+        videoCodec: String?
+    ) -> Bool {
+        let metadata = [
+            streamName,
+            streamURL,
+            dynamicRange,
+            videoCodec
+        ]
+        .compactMap { $0 }
+        .joined(separator: " ")
+        .lowercased()
+
+        return ["dolby vision", "dolbyvision", "dovi", "dvhe", "dvh1"]
+            .contains { metadata.contains($0) }
+    }
+}
