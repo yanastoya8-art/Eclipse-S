@@ -2350,10 +2350,12 @@ struct ModulesSearchResultsSheet: View {
             } label: {
                 Label("Copy Stream URL", systemImage: "doc.on.doc")
             }
-            Button {
-                copyProviderDownloadURL(resolved.option.url, headers: resolved.option.headers)
-            } label: {
-                Label("Copy Download URL", systemImage: "arrow.down.doc")
+            if !["m3u8", "mpd"].contains(URL(string: resolved.option.url)?.pathExtension.lowercased() ?? "") {
+                Button {
+                    copyProviderDownloadURL(resolved.option.url, headers: resolved.option.headers)
+                } label: {
+                    Label("Copy Download URL", systemImage: "arrow.down.doc")
+                }
             }
         }
 #endif
@@ -2484,10 +2486,12 @@ struct ModulesSearchResultsSheet: View {
                 } label: {
                     Label("Copy Stream URL", systemImage: "doc.on.doc")
                 }
-                Button {
-                    copyProviderDownloadURL(url)
-                } label: {
-                    Label("Copy Download URL", systemImage: "arrow.down.doc")
+                if !["m3u8", "mpd"].contains(URL(string: url)?.pathExtension.lowercased() ?? "") {
+                    Button {
+                        copyProviderDownloadURL(url)
+                    } label: {
+                        Label("Copy Download URL", systemImage: "arrow.down.doc")
+                    }
                 }
             }
         }
@@ -8008,10 +8012,12 @@ struct ModulesSearchResultsSheet: View {
             } label: {
                 Label("Copy Stream URL", systemImage: "doc.on.doc")
             }
-            Button {
-                copyProviderDownloadURL(stream.option.url, headers: stream.option.headers)
-            } label: {
-                Label("Copy Download URL", systemImage: "arrow.down.doc")
+            if !["m3u8", "mpd"].contains(URL(string: stream.option.url)?.pathExtension.lowercased() ?? "") {
+                Button {
+                    copyProviderDownloadURL(stream.option.url, headers: stream.option.headers)
+                } label: {
+                    Label("Copy Download URL", systemImage: "arrow.down.doc")
+                }
             }
         }
 #endif
@@ -8373,10 +8379,12 @@ struct ModulesSearchResultsSheet: View {
             } label: {
                 Label("Copy Stream URL", systemImage: "doc.on.doc")
             }
-            Button {
-                copyProviderDownloadURL(stream.option.url, headers: stream.option.headers)
-            } label: {
-                Label("Copy Download URL", systemImage: "arrow.down.doc")
+            if !["m3u8", "mpd"].contains(URL(string: stream.option.url)?.pathExtension.lowercased() ?? "") {
+                Button {
+                    copyProviderDownloadURL(stream.option.url, headers: stream.option.headers)
+                } label: {
+                    Label("Copy Download URL", systemImage: "arrow.down.doc")
+                }
             }
         }
 #endif
