@@ -24,6 +24,11 @@ jobs:
       - name: Checkout Eclipse
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
+      - name: Set up Xcode
+        uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
+        with:
+          xcode-version: latest-stable
+
       - name: Checkout pinned MPVKit
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -44,14 +49,9 @@ jobs:
       - name: Verify patched MPVKit source and local frameworks
         run: |
           set -euo pipefail
-          test "$(git -C MPVKit rev-parse HEAD)" = "f4a23223936e0260dd992dbcc92caf8e492a2be7"
+          test "$(git -C MPVKit rev-parse HEAD)" = "4b8d18313de5f17afeaa7accb31ed86c871cf952"
           grep -q 'dovi_metadata' MPVKit/Sources/BuildScripts/patch/libmpv/0017-expose-decoded-dolby-vision-rpu.patch
           grep -q 'videoHasDolbyVisionRPU' MPVKit/Sources/MPVKitSampleBufferGPL/MPVGPUPlayerRenderer.swift
-
-      - name: Set up Xcode
-        uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
-        with:
-          xcode-version: latest-stable
 
       - name: Resolve Swift packages
         run: |
