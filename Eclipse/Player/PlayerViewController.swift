@@ -6,6 +6,7 @@
 //
 
 import UIKit
+import GoogleCast
 import UIKit.UIGestureRecognizerSubclass
 import SwiftUI
 import AVFoundation
@@ -452,6 +453,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     private var activePlayerSkinTintControlsOnly = false
     private var activePlayerSkinAnimationsEnabled = MPVPlayerSkinSettings.defaultAnimationsEnabled
     private var activePlayerSkinAnimationStyle: MPVPlayerSkinAnimationStyle = .glow
+    private var activePlayerLiquidGlassEnabled = false
 
     private let controlsOverlayView: UIView = {
         let v = UIView()
@@ -461,6 +463,39 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         v.isUserInteractionEnabled = false
         v.isHidden = true
         return v
+    }()
+
+    private let centerPlayPauseGlassView: UIVisualEffectView = {
+        let view = UIVisualEffectView(effect: nil)
+        view.translatesAutoresizingMaskIntoConstraints = false
+        view.isUserInteractionEnabled = false
+        view.clipsToBounds = true
+        view.layer.cornerRadius = 41
+        view.alpha = 0
+        view.isHidden = true
+        return view
+    }()
+
+    private let topControlsGlassView: UIVisualEffectView = {
+        let view = UIVisualEffectView(effect: nil)
+        view.translatesAutoresizingMaskIntoConstraints = false
+        view.isUserInteractionEnabled = false
+        view.clipsToBounds = true
+        view.layer.cornerRadius = 23
+        view.alpha = 0
+        view.isHidden = true
+        return view
+    }()
+
+    private let progressGlassView: UIVisualEffectView = {
+        let view = UIVisualEffectView(effect: nil)
+        view.translatesAutoresizingMaskIntoConstraints = false
+        view.isUserInteractionEnabled = false
+        view.clipsToBounds = true
+        view.layer.cornerRadius = 22
+        view.alpha = 0
+        view.isHidden = true
+        return view
     }()
 
     private let metalPerformanceOverlayLabel: PlayerPerformanceOverlayLabel = {
@@ -639,6 +674,16 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         return b
     }()
 
+    private let castButton: GCKUICastButton = {
+        let button = GCKUICastButton(frame: .zero)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.tintColor = .white
+        button.accessibilityLabel = "Cast to TV"
+        button.accessibilityIdentifier = "player.cast"
+        button.alpha = 0
+        return button
+    }()
+
 #if os(iOS)
     private let playbackLockButton: UIButton = {
         let button = UIButton(type: .system)
@@ -744,6 +789,20 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         button.accessibilityLabel = "Choose another source"
         button.accessibilityHint = "Opens Services for the current media"
         button.accessibilityIdentifier = "Player.Services"
+        return button
+    }()
+
+    private let performanceOverlayButton: UIButton = {
+        let button = UIButton(type: .system)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        let configuration = UIImage.SymbolConfiguration(pointSize: 16, weight: .semibold)
+        button.setImage(UIImage(systemName: "chart.xyaxis.line", withConfiguration: configuration), for: .normal)
+        button.tintColor = .white
+        button.alpha = 0.0
+        button.isHidden = true
+        button.accessibilityLabel = "Performance overlay"
+        button.accessibilityHint = "Shows or hides playback performance and Dolby Vision detection"
+        button.accessibilityIdentifier = "player.performanceOverlay"
         return button
     }()
 
@@ -3892,11 +3951,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         return enabled
     }
     private var isMetalPerformanceOverlayActive: Bool {
-#if os(iOS) && ECLIPSE_MPVKIT_MOLTENVK_INLINE_RENDERER && ECLIPSE_MPVKIT_SAMPLE_BUFFER_PIP_BRIDGE
-        return (metalMPVRenderer != nil || gpuMPVRenderer != nil) && Settings.shared.mpvPerformanceOverlayEnabled
-#else
-        return false
-#endif
+        isMPVRenderer && Settings.shared.mpvPerformanceOverlayEnabled
     }
 
     private var originalSpeed: Double = 1.0
@@ -3944,6 +3999,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         applyPlayerSkinIfNeeded(force: true)
         updatePlayerTitle()
 
+        castButton.addTarget(self, action: #selector(prepareCastForCurrentStream), for: .touchDown)
+        updateCastButtonAvailability()
+
         setupActions()
 #if os(iOS)
         applyPlaybackLockState(capturingOrientationIfNeeded: false)
@@ -3971,6 +4029,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         updateEpisodeBrowserButtonVisibility()
 
         NotificationCenter.default.addObserver(self, selector: #selector(handleLoggerNotification(_:)), name: NSNotification.Name("LoggerNotification"), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleCastMediaLoaded), name: EclipseCastCoordinator.didLoadMediaNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleCastSessionEnded), name: EclipseCastCoordinator.didEndSessionNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleCastMediaFailed(_:)), name: EclipseCastCoordinator.didFailMediaNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(invalidateSkipDataForProfileChange), name: .activeProfileDidChange, object: nil)
         NotificationCenter.default.addObserver(
             self,
@@ -4632,6 +4693,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         logMPV("load target={\(playbackURLSummary(url))} preset=\(preset.id.rawValue) headers=\(headers?.count ?? 0)")
         initialURL = url
         initialHeaders = headers
+        updateCastButtonAvailability()
 #if os(iOS) && !targetEnvironment(macCatalyst)
         configureSkyStreamRouteRejectionRecovery(
             for: url,
@@ -5345,30 +5407,35 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         let secondaryDataHash = defaults.data(forKey: MPVPlayerSkinSettings.customSecondaryColorKey)?.hashValue ?? 0
         let animationsEnabled = MPVPlayerSkinSettings.animationsEnabled(defaults: defaults)
         let tintControlsOnly = selectedSkin != .defaultSkin && MPVPlayerSkinSettings.tintControlsOnly(defaults: defaults)
+        let liquidGlassEnabled = isMPVRenderer && MPVPlayerSkinSettings.liquidGlassControlsEnabled(defaults: defaults)
         let animationStyle = MPVPlayerSkinSettings.animationStyle(for: selectedSkin, defaults: defaults)
-        let signature = "\(selectedSkin.rawValue)|\(primaryDataHash)|\(secondaryDataHash)|\(animationsEnabled)|\(tintControlsOnly)|\(animationStyle.rawValue)"
+        let signature = "\(selectedSkin.rawValue)|\(primaryDataHash)|\(secondaryDataHash)|\(animationsEnabled)|\(tintControlsOnly)|\(liquidGlassEnabled)|\(animationStyle.rawValue)"
         guard force || signature != activePlayerSkinSignature else { return }
 
         activePlayerSkinSignature = signature
         activePlayerSkin = selectedSkin
         activePlayerSkinTintControlsOnly = tintControlsOnly
         activePlayerSkinAnimationsEnabled = animationsEnabled
+        activePlayerLiquidGlassEnabled = liquidGlassEnabled
         activePlayerSkinAnimationStyle = animationStyle
         activePlayerSkinAppearance = resolvedPlayerSkinAppearance(for: selectedSkin)
         let appearance = activePlayerSkinAppearance
 
-        controlsOverlayView.backgroundColor = tintControlsOnly
-            ? PlayerSkinAppearance.defaultAppearance.overlayBackground
-            : appearance.overlayBackground
+        controlsOverlayView.backgroundColor = liquidGlassEnabled
+            ? UIColor.black.withAlphaComponent(0.16)
+            : (tintControlsOnly
+                ? PlayerSkinAppearance.defaultAppearance.overlayBackground
+                : appearance.overlayBackground)
+        updatePlayerLiquidGlassEffects()
         centerPlayPauseButton.tintColor = appearance.primary
-        centerPlayPauseButton.backgroundColor = appearance.centerButtonBackground
+        centerPlayPauseButton.backgroundColor = liquidGlassEnabled ? .clear : appearance.centerButtonBackground
         centerPlayPauseButton.layer.shadowColor = appearance.primary.cgColor
         centerPlayPauseButton.layer.shadowOpacity = selectedSkin == .defaultSkin ? 0 : 0.38
         centerPlayPauseButton.layer.shadowRadius = selectedSkin == .defaultSkin ? 0 : 10
         centerPlayPauseButton.layer.shadowOffset = .zero
 
         var themedButtons = [
-            closeButton, pipButton, skipBackwardButton, skipForwardButton,
+            closeButton, pipButton, castButton, skipBackwardButton, skipForwardButton,
             subtitleButton, servicesButton, episodeBrowserButton, speedButton, audioButton
         ]
 #if os(iOS)
@@ -5381,6 +5448,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
                 button.configuration = configuration
             }
         }
+        castButton.tintColor = castButton.isEnabled
+            ? appearance.primary
+            : appearance.primary.withAlphaComponent(0.35)
 #if !os(tvOS)
         if var configuration = skipButton.configuration {
             configuration.baseBackgroundColor = selectedSkin == .defaultSkin ? .systemYellow : appearance.secondary
@@ -5428,6 +5498,36 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             progressHostingController = nil
             updateProgressHostingController()
         }
+    }
+
+    private func updatePlayerLiquidGlassEffects() {
+        guard activePlayerLiquidGlassEnabled else {
+            centerPlayPauseGlassView.effect = nil
+            topControlsGlassView.effect = nil
+            progressGlassView.effect = nil
+            centerPlayPauseGlassView.isHidden = true
+            topControlsGlassView.isHidden = true
+            progressGlassView.isHidden = true
+            return
+        }
+
+        let effect: UIVisualEffect
+        if #available(iOS 26.0, *) {
+            let glass = UIGlassEffect(style: .regular)
+            glass.tintColor = UIColor.black.withAlphaComponent(0.12)
+            effect = glass
+        } else {
+            effect = UIBlurEffect(style: .systemUltraThinMaterialDark)
+        }
+        centerPlayPauseGlassView.effect = effect
+        topControlsGlassView.effect = effect
+        progressGlassView.effect = effect
+        centerPlayPauseGlassView.isHidden = false
+        topControlsGlassView.isHidden = false
+        progressGlassView.isHidden = false
+        centerPlayPauseGlassView.alpha = controlsVisible ? 1 : 0
+        topControlsGlassView.alpha = controlsVisible ? 1 : 0
+        progressGlassView.alpha = controlsVisible ? 1 : 0
     }
 
     private func configurePlayerSkinDecoration(animationsEnabled: Bool) {
@@ -5619,18 +5719,22 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         videoContainer.addSubview(loadingIndicator)
         view.addSubview(errorBanner)
         view.addSubview(playerNoticeBanner)
+        videoContainer.addSubview(centerPlayPauseGlassView)
         videoContainer.addSubview(centerPlayPauseButton)
+        videoContainer.addSubview(progressGlassView)
         videoContainer.addSubview(progressContainer)
         videoContainer.addSubview(overlayMenuDismissView)
         videoContainer.addSubview(overlayMenuPanelView)
         overlayMenuPanelView.addSubview(overlayMenuTitleLabel)
         overlayMenuPanelView.addSubview(overlayMenuScrollView)
         overlayMenuScrollView.addSubview(overlayMenuStackView)
+        videoContainer.addSubview(topControlsGlassView)
         videoContainer.addSubview(closeButton)
 #if os(iOS)
         videoContainer.addSubview(playbackLockButton)
 #endif
         videoContainer.addSubview(pipButton)
+        videoContainer.addSubview(castButton)
         videoContainer.addSubview(playerTitleLabel)
         videoContainer.addSubview(skipBackwardButton)
         videoContainer.addSubview(skipForwardButton)
@@ -5642,6 +5746,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             videoContainer.addSubview(playerSourceButtonsStackView)
             playerSourceButtonsStackView.addArrangedSubview(episodeBrowserButton)
             playerSourceButtonsStackView.addArrangedSubview(servicesButton)
+            playerSourceButtonsStackView.addArrangedSubview(performanceOverlayButton)
             videoContainer.addSubview(speedButton)
             videoContainer.addSubview(audioButton)
         }
@@ -5741,6 +5846,21 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 #endif
 
         NSLayoutConstraint.activate([
+            centerPlayPauseGlassView.centerXAnchor.constraint(equalTo: centerPlayPauseButton.centerXAnchor),
+            centerPlayPauseGlassView.centerYAnchor.constraint(equalTo: centerPlayPauseButton.centerYAnchor),
+            centerPlayPauseGlassView.widthAnchor.constraint(equalTo: centerPlayPauseButton.widthAnchor, constant: 12),
+            centerPlayPauseGlassView.heightAnchor.constraint(equalTo: centerPlayPauseButton.heightAnchor, constant: 12),
+
+            topControlsGlassView.topAnchor.constraint(equalTo: closeButton.topAnchor, constant: -7),
+            topControlsGlassView.leadingAnchor.constraint(equalTo: closeButton.leadingAnchor, constant: -8),
+            topControlsGlassView.trailingAnchor.constraint(equalTo: castButton.trailingAnchor, constant: 8),
+            topControlsGlassView.bottomAnchor.constraint(equalTo: closeButton.bottomAnchor, constant: 7),
+
+            progressGlassView.leadingAnchor.constraint(equalTo: progressContainer.leadingAnchor, constant: -8),
+            progressGlassView.trailingAnchor.constraint(equalTo: progressContainer.trailingAnchor, constant: 8),
+            progressGlassView.topAnchor.constraint(equalTo: progressContainer.topAnchor),
+            progressGlassView.bottomAnchor.constraint(equalTo: progressContainer.bottomAnchor),
+
             errorBanner.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
             errorBanner.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             errorBanner.widthAnchor.constraint(lessThanOrEqualTo: view.widthAnchor, multiplier: 0.92),
@@ -5770,6 +5890,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             pipLeadingConstraint,
             pipButton.widthAnchor.constraint(equalToConstant: 36),
             pipButton.heightAnchor.constraint(equalToConstant: 36),
+
+            castButton.centerYAnchor.constraint(equalTo: closeButton.centerYAnchor),
+            castButton.leadingAnchor.constraint(equalTo: pipButton.trailingAnchor, constant: 8),
+            castButton.widthAnchor.constraint(equalToConstant: 36),
+            castButton.heightAnchor.constraint(equalToConstant: 36),
 
             playerTitleLabel.centerYAnchor.constraint(equalTo: closeButton.centerYAnchor),
             playerTitleCenterConstraint,
@@ -5819,6 +5944,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             servicesWidth.priority = .init(999)
             let episodeBrowserWidth = episodeBrowserButton.widthAnchor.constraint(equalToConstant: 32)
             episodeBrowserWidth.priority = .init(999)
+            let performanceOverlayWidth = performanceOverlayButton.widthAnchor.constraint(equalToConstant: 32)
+            performanceOverlayWidth.priority = .init(999)
             NSLayoutConstraint.activate([
                 playerSourceButtonsStackView.trailingAnchor.constraint(equalTo: progressContainer.trailingAnchor),
                 playerSourceButtonsStackView.centerYAnchor.constraint(equalTo: subtitleButton.centerYAnchor),
@@ -5828,6 +5955,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
                 episodeBrowserWidth,
                 episodeBrowserButton.heightAnchor.constraint(equalToConstant: 32),
+                performanceOverlayWidth,
+                performanceOverlayButton.heightAnchor.constraint(equalToConstant: 32),
 
                 speedButton.trailingAnchor.constraint(equalTo: subtitleButton.leadingAnchor, constant: -8),
                 speedButton.centerYAnchor.constraint(equalTo: subtitleButton.centerYAnchor),
@@ -6033,8 +6162,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             text.append(metalPerformanceOverlayRow(label: "Stream", value: clipped, valueColor: .white))
         }
 
+        var bitstreamHasDolbyVisionRPU: Bool?
         #if os(iOS) && ECLIPSE_MPVKIT_MOLTENVK_INLINE_RENDERER && ECLIPSE_MPVKIT_SAMPLE_BUFFER_PIP_BRIDGE
         if let diag = metalPerformanceDiagnostics() {
+            bitstreamHasDolbyVisionRPU = diag.videoHasDolbyVisionRPU
             text.append(NSAttributedString(string: "\n"))
             text.append(metalPerformanceOverlayRow(
                 label: "PiP",
@@ -6073,6 +6204,31 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             text.append(metalPerformanceOverlayRow(label: "Subs", value: subValue, valueColor: diag.subtitleCodec == "ass" ? .systemYellow : .white))
         }
         #endif
+
+        // This flag comes from FFmpeg decoded-frame Dolby Vision side data (RPU/metadata),
+        // never from addon labels, URLs, codec names, or container metadata.
+        let dolbyVisionStatus = MPVDolbyVisionDetectionPolicy.status(
+            bitstreamHasDolbyVisionRPU: bitstreamHasDolbyVisionRPU
+        )
+        let dolbyVisionLabel: String
+        let dolbyVisionColor: UIColor
+        switch dolbyVisionStatus {
+        case .detected:
+            dolbyVisionLabel = "Detected"
+            dolbyVisionColor = .systemGreen
+        case .notDetected:
+            dolbyVisionLabel = "Not detected"
+            dolbyVisionColor = .white
+        case .unavailable:
+            dolbyVisionLabel = "Stream inspection unavailable"
+            dolbyVisionColor = .secondaryLabel
+        }
+        text.append(NSAttributedString(string: "\n"))
+        text.append(metalPerformanceOverlayRow(
+            label: "Dolby Vision",
+            value: dolbyVisionLabel,
+            valueColor: dolbyVisionColor
+        ))
 
         return text
     }
@@ -6360,6 +6516,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             subtitleButton.addTarget(self, action: #selector(subtitleButtonTapped), for: .touchUpInside)
             subtitleButton.addTarget(self, action: #selector(playerMenuButtonTouchDown(_:)), for: .touchDown)
             servicesButton.addTarget(self, action: #selector(servicesButtonTapped), for: .touchUpInside)
+            performanceOverlayButton.addTarget(self, action: #selector(performanceOverlayButtonTapped), for: .touchUpInside)
             episodeBrowserButton.addTarget(self, action: #selector(episodeBrowserButtonTapped), for: .touchUpInside)
             speedButton.addTarget(self, action: #selector(speedButtonTapped), for: .touchUpInside)
             speedButton.addTarget(self, action: #selector(playerMenuButtonTouchDown(_:)), for: .touchDown)
@@ -6374,7 +6531,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
         if supportsSharedPlayerControls {
             [centerPlayPauseButton, closeButton, pipButton, skipBackwardButton,
-             skipForwardButton, subtitleButton, servicesButton, episodeBrowserButton, speedButton, audioButton].forEach {
+             skipForwardButton, subtitleButton, servicesButton, episodeBrowserButton, performanceOverlayButton, speedButton, audioButton].forEach {
                 $0.isUserInteractionEnabled = true
             }
 #if os(iOS)
@@ -7072,6 +7229,12 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             && PlayerServicesButtonSettings.isEnabled()
             && servicesSelectionContext != nil
 
+        let shouldShowPerformanceOverlay = supportsSharedPlayerControls && isMPVRenderer
+        performanceOverlayButton.isHidden = !shouldShowPerformanceOverlay
+        performanceOverlayButton.alpha = shouldShowPerformanceOverlay && controlsVisible ? 1.0 : 0.0
+        performanceOverlayButton.isSelected = Settings.shared.mpvPerformanceOverlayEnabled
+        performanceOverlayButton.tintColor = performanceOverlayButton.isSelected ? .systemGreen : .white
+
         episodeBrowserButton.isHidden = !shouldShowEpisodeBrowser
         servicesButton.isHidden = !shouldShowServices
         if !shouldShowEpisodeBrowser {
@@ -7082,7 +7245,16 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         episodeBrowserButton.alpha = shouldShowEpisodeBrowser && controlsVisible ? 1.0 : 0.0
         servicesButton.alpha = shouldShowServices && controlsVisible ? 1.0 : 0.0
 
-        subtitleTrailingToSourceButtonsConstraint?.constant = shouldShowEpisodeBrowser || shouldShowServices ? -8 : 0
+        subtitleTrailingToSourceButtonsConstraint?.constant = shouldShowEpisodeBrowser || shouldShowServices || shouldShowPerformanceOverlay ? -8 : 0
+    }
+
+    @objc private func performanceOverlayButtonTapped() {
+        guard isMPVRenderer else { return }
+        Settings.shared.mpvPerformanceOverlayEnabled.toggle()
+        performanceOverlayButton.isSelected = Settings.shared.mpvPerformanceOverlayEnabled
+        performanceOverlayButton.tintColor = performanceOverlayButton.isSelected ? .systemGreen : .white
+        updateMetalPerformanceOverlayVisibility()
+        showControlsTemporarily()
     }
 
     @objc private func servicesButtonTapped() {
@@ -7443,6 +7615,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             self.originalTMDBEpisodeNumber = request.originalTMDBEpisodeNumber
             self.episodePlaybackContext = request.episodePlaybackContext
             self.playbackLaunchContext = transport.launchContext
+            self.updateCastButtonAvailability()
             let replacementTitle: String = {
                 switch request.mediaInfo {
                 case .movie(_, let title, _, _): return title
@@ -11245,6 +11418,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             }
             retainEphemeralProxyOwnership(transport.launchContext?.ephemeralProxyOwnership)
             playbackLaunchContext = transport.launchContext
+            updateCastButtonAvailability()
             initialSubtitles = resolution.subtitles
             initialSubtitleNames = resolution.subtitleNames
             initialSubtitleHeadersByURL = resolution.subtitleHeadersByURL
@@ -13070,6 +13244,53 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 #endif
     }
 
+    private func updateCastButtonAvailability() {
+        guard isViewLoaded else { return }
+        let headers = playbackLaunchContext?.headers ?? initialHeaders ?? [:]
+        let candidates = [playbackLaunchContext?.streamURL.flatMap { URL(string: $0) }, initialURL].compactMap { $0 }
+        let url = candidates.first(where: { CastMediaPolicy.rejectionReason(for: $0, headers: headers) == nil })
+            ?? candidates.first
+        let rejection = url.flatMap { CastMediaPolicy.rejectionReason(for: $0, headers: headers) }
+        castButton.isHidden = !isMPVRenderer
+        castButton.isEnabled = url != nil && rejection == nil
+        castButton.accessibilityHint = rejection ?? "Cast the current stream to a compatible Chromecast or Cast-enabled TV."
+        let castTint = activePlayerSkinAppearance.primary
+        castButton.tintColor = castButton.isEnabled ? castTint : castTint.withAlphaComponent(0.35)
+    }
+
+    @objc private func prepareCastForCurrentStream() {
+        let headers = playbackLaunchContext?.headers ?? initialHeaders ?? [:]
+        let candidates = [playbackLaunchContext?.streamURL.flatMap { URL(string: $0) }, initialURL].compactMap { $0 }
+        guard let url = candidates.first(where: { CastMediaPolicy.rejectionReason(for: $0, headers: headers) == nil }) else {
+            let reason = candidates.first.flatMap { CastMediaPolicy.rejectionReason(for: $0, headers: headers) }
+                ?? "This playback does not have a TV-accessible stream URL."
+            showPlayerNotice(reason)
+            return
+        }
+        let title = playerTitleLabel.text?.trimmingCharacters(in: .whitespacesAndNewlines)
+            .flatMap { $0.isEmpty ? nil : $0 } ?? "Eclipse"
+        if let reason = EclipseCastCoordinator.shared.prepareForCasting(
+            url: url,
+            title: title,
+            headers: headers
+        ) {
+            showPlayerNotice(reason)
+        }
+    }
+
+    @objc private func handleCastMediaLoaded() {
+        rendererPausePlayback()
+        showPlayerNotice("Casting to TV. Use the Cast controls to control playback.")
+    }
+
+    @objc private func handleCastSessionEnded() {
+        showPlayerNotice("Casting ended. Tap Play to continue on this device.")
+    }
+
+    @objc private func handleCastMediaFailed(_ notification: Notification) {
+        showPlayerNotice(notification.object as? String ?? "The TV could not start this stream.")
+    }
+
     private func applyVLCSubtitleModeSettingIfNeeded() {
         let customOverlayEnabled = isVLCCustomSubtitleOverlayEnabled
         if lastKnownVLCCustomSubtitleOverlayEnabled == customOverlayEnabled {
@@ -13807,6 +14028,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         controlsVisibilityGeneration += 1
         let visibilityGeneration = controlsVisibilityGeneration
         controlsVisible = true
+        updateEpisodeBrowserButtonVisibility()
 
         warmMPVPictureInPictureForForegroundPlaybackIfNeeded(source: "controls-shown-track", minInterval: 10.0)
         updateBrightnessControlVisibility()
@@ -13814,6 +14036,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
         restorePlayerInteractionHierarchy()
         videoContainer.bringSubviewToFront(controlsOverlayView)
+        videoContainer.bringSubviewToFront(topControlsGlassView)
+        videoContainer.bringSubviewToFront(progressGlassView)
+        videoContainer.bringSubviewToFront(centerPlayPauseGlassView)
         videoContainer.bringSubviewToFront(overlayMenuDismissView)
         videoContainer.bringSubviewToFront(overlayMenuPanelView)
         videoContainer.bringSubviewToFront(centerPlayPauseButton)
@@ -13823,6 +14048,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         videoContainer.bringSubviewToFront(playbackLockButton)
 #endif
         videoContainer.bringSubviewToFront(pipButton)
+        videoContainer.bringSubviewToFront(castButton)
         videoContainer.bringSubviewToFront(playerTitleLabel)
         videoContainer.bringSubviewToFront(skipBackwardButton)
         videoContainer.bringSubviewToFront(skipForwardButton)
@@ -13850,6 +14076,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             UIView.animate(withDuration: 0.25, delay: 0, options: [.beginFromCurrentState, .curveEaseOut]) {
                 self.centerPlayPauseButton.alpha = 1.0
                 self.controlsOverlayView.alpha = 1.0
+                self.topControlsGlassView.alpha = self.activePlayerLiquidGlassEnabled ? 1.0 : 0.0
+                self.progressGlassView.alpha = self.activePlayerLiquidGlassEnabled ? 1.0 : 0.0
+                self.centerPlayPauseGlassView.alpha = self.activePlayerLiquidGlassEnabled ? 1.0 : 0.0
                 self.progressContainer.alpha = 1.0
 #if os(iOS)
                 self.closeButton.alpha = PlayerPlaybackLockSettings.isLocked() ? 0.35 : 1.0
@@ -13858,6 +14087,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
                 self.closeButton.alpha = 1.0
 #endif
                 self.pipButton.alpha = self.pipButton.isHidden ? 0.0 : 1.0
+                self.castButton.alpha = self.castButton.isHidden ? 0.0 : 1.0
                 self.playerTitleLabel.alpha = self.playerTitleLabel.text?.isEmpty == false ? 1.0 : 0.0
                 self.skipBackwardButton.alpha = 1.0
                 self.skipForwardButton.alpha = 1.0
@@ -13905,6 +14135,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         controlsVisibilityGeneration += 1
         let visibilityGeneration = controlsVisibilityGeneration
         controlsVisible = false
+        updateEpisodeBrowserButtonVisibility()
         hideOverlayMenu(animated: false)
 #if !os(tvOS)
         isBrightnessControlActive = false
@@ -13917,12 +14148,16 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             UIView.animate(withDuration: 0.25, delay: 0, options: [.beginFromCurrentState, .curveEaseIn]) {
                 self.centerPlayPauseButton.alpha = 0.0
                 self.controlsOverlayView.alpha = 0.0
+                self.topControlsGlassView.alpha = 0.0
+                self.progressGlassView.alpha = 0.0
+                self.centerPlayPauseGlassView.alpha = 0.0
                 self.progressContainer.alpha = 0.0
                 self.closeButton.alpha = 0.0
 #if os(iOS)
                 self.playbackLockButton.alpha = 0.0
 #endif
                 self.pipButton.alpha = 0.0
+                self.castButton.alpha = 0.0
                 self.playerTitleLabel.alpha = 0.0
                 self.skipBackwardButton.alpha = 0.0
                 self.skipForwardButton.alpha = 0.0

@@ -1377,3 +1377,140 @@ final class MediaLanguageCatalogTests: XCTestCase {
         return (name, try XCTUnwrap(UserDefaults(suiteName: name)))
     }
 }
+
+
+#if os(iOS)
+final class CastMediaPolicyTests: XCTestCase {
+    func testCastPolicyAcceptsSupportedStreamContainers() throws {
+        let cases: [(String, String)] = [
+            ("https://media.example/video/master.m3u8", "application/x-mpegURL"),
+            ("https://media.example/video/manifest.mpd", "application/dash+xml"),
+            ("https://media.example/video/movie.mp4", "video/mp4"),
+            ("https://media.example/video/movie.webm", "video/webm"),
+            ("https://media.example/video/movie.ts", "video/mp2t")
+        ]
+        for (rawURL, expectedType) in cases {
+            let url = try XCTUnwrap(URL(string: rawURL))
+            XCTAssertNil(CastMediaPolicy.rejectionReason(for: url, headers: [:]))
+            XCTAssertEqual(CastMediaPolicy.contentType(for: url), expectedType)
+        }
+    }
+
+    func testCastPolicyRejectsMKVAndOtherUnsupportedContainers() throws {
+        for ext in ["mkv", "avi", "mov", "m4a"] {
+            let url = try XCTUnwrap(URL(string: "https://media.example/video/movie.\(ext)"))
+            XCTAssertNotNil(CastMediaPolicy.rejectionReason(for: url, headers: [:]))
+        }
+    }
+
+    func testCastPolicyRejectsHeadersTheDefaultReceiverCannotForward() throws {
+        let url = try XCTUnwrap(URL(string: "https://media.example/video/movie.mp4"))
+        XCTAssertNil(CastMediaPolicy.rejectionReason(for: url, headers: ["User-Agent": "Eclipse"]))
+        XCTAssertNil(CastMediaPolicy.rejectionReason(for: url, headers: ["Accept": "video/*"]))
+        XCTAssertNotNil(CastMediaPolicy.rejectionReason(for: url, headers: ["Authorization": "Bearer token"]))
+        XCTAssertNotNil(CastMediaPolicy.rejectionReason(for: url, headers: ["X-API-Key": "secret"]))
+        XCTAssertNotNil(CastMediaPolicy.rejectionReason(for: url, headers: ["Referer": "https://provider.example"]))
+    }
+
+    func testCastPolicyRejectsDeviceLocalProxyAddresses() throws {
+        for host in ["localhost", "127.0.0.1", "local.localhost", "[::1]"] {
+            let url = try XCTUnwrap(URL(string: "http://\(host)/video.mp4"))
+            XCTAssertNotNil(CastMediaPolicy.rejectionReason(for: url, headers: [:]), host)
+        }
+    }
+}
+#endif
+
+
+final class MPVDolbyPlaybackSettingsTests: XCTestCase {
+    func testTrueHDAtmosAddsTrueHDAlongsideEAC3Passthrough() throws {
+        let suite = "Eclipse.TrueHDAtmos.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(true, forKey: "mpvDolbyAtmosEnabled")
+        defaults.set(true, forKey: "mpvTrueHDAtmosEnabled")
+        defaults.set(true, forKey: "mpvSurroundSoundEnabled")
+
+        let settings = MPVDolbyPlaybackSettings(defaults: defaults)
+        XCTAssertEqual(settings.options["audio-spdif"], "eac3,truehd")
+        XCTAssertEqual(settings.options["audio-channels"], "auto")
+    }
+
+    func testTrueHDAtmosDisabledRetainsExistingEAC3AtmosPassthrough() throws {
+        let suite = "Eclipse.TrueHDAtmosDisabled.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(true, forKey: "mpvDolbyAtmosEnabled")
+        defaults.set(false, forKey: "mpvTrueHDAtmosEnabled")
+        defaults.set(true, forKey: "mpvSurroundSoundEnabled")
+
+        XCTAssertEqual(MPVDolbyPlaybackSettings(defaults: defaults).options["audio-spdif"], "eac3")
+    }
+
+    func testTrueHDAtmosCannotOverrideDisabledSurroundSound() throws {
+        let suite = "Eclipse.TrueHDAtmosStereo.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(true, forKey: "mpvDolbyAtmosEnabled")
+        defaults.set(true, forKey: "mpvTrueHDAtmosEnabled")
+        defaults.set(false, forKey: "mpvSurroundSoundEnabled")
+
+        let options = MPVDolbyPlaybackSettings(defaults: defaults).options
+        XCTAssertEqual(options["audio-spdif"], "")
+        XCTAssertEqual(options["audio-channels"], "stereo")
+    }
+
+    func testTrueHDAtmosCannotOverrideDisabledDolbyAtmos() throws {
+        let suite = "Eclipse.TrueHDAtmosWithoutAtmos.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(false, forKey: "mpvDolbyAtmosEnabled")
+        defaults.set(true, forKey: "mpvTrueHDAtmosEnabled")
+        defaults.set(true, forKey: "mpvSurroundSoundEnabled")
+
+        XCTAssertEqual(MPVDolbyPlaybackSettings(defaults: defaults).options["audio-spdif"], "")
+    }
+
+    func testWhitespaceOnlyAddonNameFallsBackWithoutTrimmingTitle() throws {
+        let json = """
+        {"url":"https://media.example/file.mkv","name":"   ","title":"  4K HDR\\nProvider formatted"}
+        """
+        let stream = try JSONDecoder().decode(StremioStream.self, from: Data(json.utf8))
+        XCTAssertEqual(stream.displayName, "  4K HDR\nProvider formatted")
+    }
+
+    func testAddonDescriptionFallbackKeepsAllOriginalLines() throws {
+        let json = """
+        {"url":"https://media.example/file.mkv","description":"  Provider heading  \\nSecond formatted line\\nThird line"}
+        """
+        let stream = try JSONDecoder().decode(StremioStream.self, from: Data(json.utf8))
+        XCTAssertEqual(stream.displayName, "  Provider heading  \nSecond formatted line\nThird line")
+    }
+
+    func testStremioStreamDisplayNamePreservesAddonFormattingVerbatim() throws {
+        let rawName = "  1080p\n\nDolby Vision  "
+        let json = """
+        {"url":"https://media.example/stream.m3u8","name":"  1080p\\n\\nDolby Vision  ","title":"Fallback title"}
+        """
+        let stream = try JSONDecoder().decode(StremioStream.self, from: Data(json.utf8))
+        XCTAssertEqual(stream.displayName, rawName)
+    }
+}
+
+
+final class MPVDolbyVisionDetectionPolicyTests: XCTestCase {
+    func testOnlyBitstreamRPUResultCanConfirmDolbyVision() {
+        XCTAssertEqual(
+            MPVDolbyVisionDetectionPolicy.status(bitstreamHasDolbyVisionRPU: true),
+            .detected
+        )
+        XCTAssertEqual(
+            MPVDolbyVisionDetectionPolicy.status(bitstreamHasDolbyVisionRPU: false),
+            .notDetected
+        )
+        XCTAssertEqual(
+            MPVDolbyVisionDetectionPolicy.status(bitstreamHasDolbyVisionRPU: nil),
+            .unavailable
+        )
+    }
+}

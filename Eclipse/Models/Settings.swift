@@ -286,6 +286,7 @@ enum MPVPlayerSkinSettings {
     static let animationsEnabledKey = "mpvPlayerSkinAnimationsEnabled"
     static let defaultAnimationsEnabled = true
     static let tintControlsOnlyKey = "mpvPlayerSkinTintControlsOnly"
+    static let liquidGlassControlsKey = "mpvLiquidGlassControlsEnabled"
     static let defaultTintControlsOnly = false
     static let animationStyleKeyPrefix = "mpvPlayerSkinAnimationStyle."
 
@@ -307,6 +308,10 @@ enum MPVPlayerSkinSettings {
             return defaultTintControlsOnly
         }
         return defaults.bool(forKey: tintControlsOnlyKey)
+    }
+
+    static func liquidGlassControlsEnabled(defaults: UserDefaults = ProfileSettingsStore.active) -> Bool {
+        defaults.bool(forKey: liquidGlassControlsKey)
     }
 
     static func animationStyle(for skin: MPVPlayerSkin, defaults: UserDefaults = ProfileSettingsStore.active) -> MPVPlayerSkinAnimationStyle {
@@ -8646,6 +8651,11 @@ class Settings: ObservableObject {
     var mpvDolbyAtmosEnabled: Bool {
         get { ProfileSettingsStore.active.object(forKey: "mpvDolbyAtmosEnabled") as? Bool ?? true }
         set { ProfileSettingsStore.active.set(newValue, forKey: "mpvDolbyAtmosEnabled") }
+    }
+
+    var mpvTrueHDAtmosEnabled: Bool {
+        get { ProfileSettingsStore.active.object(forKey: "mpvTrueHDAtmosEnabled") as? Bool ?? false }
+        set { ProfileSettingsStore.active.set(newValue, forKey: "mpvTrueHDAtmosEnabled") }
     }
 
     var mpvHDRMode: MPVHDRMode {

@@ -1016,15 +1016,15 @@ struct StremioStream: Codable, Identifiable, Hashable {
             try? container.decodeIfPresent(String.self, forKey: .ytId),
             maximumUTF8Bytes: 128
         )
-        title = StremioDecodedFieldBoundary.optionalString(
+        title = StremioDecodedFieldBoundary.boundedVerbatimString(
             try container.decodeIfPresent(String.self, forKey: .title),
             maximumUTF8Bytes: 1_024
         )
-        name = StremioDecodedFieldBoundary.optionalString(
+        name = StremioDecodedFieldBoundary.boundedVerbatimString(
             try container.decodeIfPresent(String.self, forKey: .name),
             maximumUTF8Bytes: 1_024
         )
-        description = StremioDecodedFieldBoundary.optionalString(
+        description = StremioDecodedFieldBoundary.boundedVerbatimString(
             try container.decodeIfPresent(String.self, forKey: .description),
             maximumUTF8Bytes: 2 * 1_024
         )
@@ -1117,15 +1117,12 @@ struct StremioStream: Codable, Identifiable, Hashable {
         return !ytId.isEmpty
     }
 
+    /// The addon-provided display text, preserved verbatim (including line breaks
+    /// and intentional spacing) instead of being normalized by Eclipse.
     var displayName: String {
-        for value in [name, title] {
-            if let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty {
-                return value
-            }
-        }
-        if let description = description?.trimmingCharacters(in: .whitespacesAndNewlines), !description.isEmpty {
-            return description.components(separatedBy: .newlines).first ?? description
-        }
+        if let name, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return name }
+        if let title, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return title }
+        if let description, !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return description }
         return "Stream"
     }
 
@@ -1593,6 +1590,15 @@ private enum StremioDecodedFieldBoundary {
             cap: maximumUTF8Bytes
         )
         return truncated
+    }
+
+    static func boundedVerbatimString(
+        _ rawValue: String?,
+        maximumUTF8Bytes: Int
+    ) -> String? {
+        guard let rawValue, !rawValue.isEmpty,
+              rawValue.utf8.count <= maximumUTF8Bytes else { return nil }
+        return rawValue
     }
 
     static func optionalString(

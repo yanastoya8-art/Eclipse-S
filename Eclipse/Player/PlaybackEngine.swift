@@ -1,6 +1,156 @@
 import Foundation
 #if os(iOS)
+import GoogleCast
 import UIKit
+#endif
+
+
+#if os(iOS)
+enum CastMediaPolicy {
+    static func contentType(for url: URL) -> String? {
+        switch url.pathExtension.lowercased() {
+        case "m3u8":
+            return "application/x-mpegURL"
+        case "mpd":
+            return "application/dash+xml"
+        case "mp4", "m4v":
+            return "video/mp4"
+        case "webm":
+            return "video/webm"
+        case "ts":
+            return "video/mp2t"
+        default:
+            return nil
+        }
+    }
+
+    static func rejectionReason(for url: URL, headers: [String: String]) -> String? {
+        guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
+              url.host?.isEmpty == false, url.user == nil, url.password == nil else {
+            return "This stream does not have a TV-accessible HTTP or HTTPS address."
+        }
+        guard contentType(for: url) != nil else {
+            return "This TV does not support this stream format. Cast supports HLS, DASH, MP4, and WebM; MKV requires a compatible receiver or transcoding."
+        }
+        let receiverSafeHeaders: Set<String> = ["user-agent", "accept", "accept-encoding"]
+        if headers.keys.contains(where: { !receiverSafeHeaders.contains($0.lowercased()) }) {
+            return "This source requires custom request headers that the standard Cast receiver cannot send. A custom receiver is required."
+        }
+        let host = (url.host ?? "").lowercased()
+        if host == "localhost" || host.hasSuffix(".localhost") || host == "127.0.0.1" || host == "::1" || host == "[::1]" {
+            return "This stream is hosted on this iPhone or iPad and cannot be reached by a TV."
+        }
+        return nil
+    }
+
+    static func mediaInformation(url: URL, title: String, headers: [String: String]) -> GCKMediaInformation? {
+        guard rejectionReason(for: url, headers: headers) == nil,
+              let contentType = contentType(for: url) else { return nil }
+
+        let metadata = GCKMediaMetadata()
+        let cleanedTitle = String(title.trimmingCharacters(in: .whitespacesAndNewlines).prefix(180))
+        metadata.setString(cleanedTitle.isEmpty ? "Eclipse" : cleanedTitle, forKey: kGCKMetadataKeyTitle)
+
+        let builder = GCKMediaInformationBuilder(contentURL: url)
+        builder.contentType = contentType
+        builder.streamType = .none
+        builder.metadata = metadata
+        return builder.build()
+    }
+}
+
+@MainActor
+final class EclipseCastCoordinator: NSObject, GCKSessionManagerListener, GCKRequestDelegate {
+    static let shared = EclipseCastCoordinator()
+    static let didLoadMediaNotification = Notification.Name("EclipseCastDidLoadMedia")
+    static let didEndSessionNotification = Notification.Name("EclipseCastDidEndSession")
+    static let didFailMediaNotification = Notification.Name("EclipseCastDidFailMedia")
+
+    private var isConfigured = false
+    private var pendingMediaInformation: GCKMediaInformation?
+    private var activeLoadRequest: GCKRequest?
+
+    func configure() {
+        guard !isConfigured else { return }
+        let criteria = GCKDiscoveryCriteria(applicationID: kGCKDefaultMediaReceiverApplicationID)
+        let options = GCKCastOptions(discoveryCriteria: criteria)
+        GCKCastContext.setSharedInstanceWith(options)
+        let context = GCKCastContext.sharedInstance()
+        context.useDefaultExpandedMediaControls = true
+        context.sessionManager.add(self)
+        isConfigured = true
+    }
+
+    func prepareForCasting(url: URL, title: String, headers: [String: String]) -> String? {
+        if let reason = CastMediaPolicy.rejectionReason(for: url, headers: headers) {
+            pendingMediaInformation = nil
+            return reason
+        }
+        guard let mediaInformation = CastMediaPolicy.mediaInformation(url: url, title: title, headers: headers) else {
+            pendingMediaInformation = nil
+            return "Eclipse could not prepare this stream for casting."
+        }
+        pendingMediaInformation = mediaInformation
+        if GCKCastContext.sharedInstance().sessionManager.currentSession != nil {
+            loadPendingMediaIfConnected()
+        }
+        return nil
+    }
+
+    private func loadPendingMediaIfConnected() {
+        guard let mediaInformation = pendingMediaInformation,
+              let remoteClient = GCKCastContext.sharedInstance().sessionManager.currentSession?.remoteMediaClient else {
+            return
+        }
+        pendingMediaInformation = nil
+        let request = remoteClient.loadMedia(mediaInformation)
+        activeLoadRequest = request
+        request.delegate = self
+    }
+
+    func sessionManager(_ sessionManager: GCKSessionManager, didStart session: GCKSession) {
+        loadPendingMediaIfConnected()
+    }
+
+    func sessionManager(_ sessionManager: GCKSessionManager, didResumeSession session: GCKSession) {
+        loadPendingMediaIfConnected()
+    }
+
+    func sessionManager(_ sessionManager: GCKSessionManager, didEnd session: GCKSession, withError error: Error?) {
+        pendingMediaInformation = nil
+        activeLoadRequest = nil
+        NotificationCenter.default.post(name: Self.didEndSessionNotification, object: nil)
+    }
+
+    func sessionManager(_ sessionManager: GCKSessionManager, didFailToStartSessionWithError error: Error?) {
+        pendingMediaInformation = nil
+        NotificationCenter.default.post(
+            name: Self.didFailMediaNotification,
+            object: error?.localizedDescription ?? "Could not connect to the TV."
+        )
+    }
+
+    func sessionManager(_ sessionManager: GCKSessionManager, didFailToResumeSession session: GCKSession, withError error: Error?) {
+        pendingMediaInformation = nil
+        NotificationCenter.default.post(
+            name: Self.didFailMediaNotification,
+            object: error?.localizedDescription ?? "Could not reconnect to the TV."
+        )
+    }
+
+    func requestDidComplete(_ request: GCKRequest) {
+        guard activeLoadRequest === request else { return }
+        activeLoadRequest = nil
+        NotificationCenter.default.post(name: Self.didLoadMediaNotification, object: nil)
+        GCKCastContext.sharedInstance().presentDefaultExpandedMediaControls()
+    }
+
+    func request(_ request: GCKRequest, didFailWithError error: GCKError) {
+        guard activeLoadRequest === request else { return }
+        activeLoadRequest = nil
+        NotificationCenter.default.post(name: Self.didFailMediaNotification, object: error.localizedDescription)
+    }
+}
 #endif
 
 enum PlaybackEngine: String, CaseIterable, Codable, Identifiable {

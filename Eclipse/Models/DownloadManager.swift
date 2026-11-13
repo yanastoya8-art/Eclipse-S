@@ -1998,6 +1998,11 @@ final class DownloadManager: NSObject, ObservableObject {
         #if os(macOS)
         let config = URLSessionConfiguration.default
         #else
+        // Every non-HLS stream (including MP4, MKV, and WebM files) uses this
+        // OS-managed background session. iOS continues the transfer after the
+        // app is suspended and relaunches the app for delegate completion events.
+        // HLS uses the segment downloader plus the iOS 26 continued-processing
+        // coordinator because it is not a single URLSession download task.
         let config = URLSessionConfiguration.background(withIdentifier: "app.eclipse.soupy.downloads")
         config.isDiscretionary = false
         config.sessionSendsLaunchEvents = true
@@ -2536,7 +2541,7 @@ final class DownloadManager: NSObject, ObservableObject {
     private var hlsBackgroundDownloadsEnabled: Bool {
         if let hlsBackgroundEnabledOverride { return hlsBackgroundEnabledOverride() }
         guard isolatedDownloadsDirectory == nil, PlatformCapabilities.current.supportsHLSBackgroundDownloads else { return false }
-        if #available(iOS 26.0, *) { return HLSBackgroundDownloadSettings.isEnabled() }
+        if #available(iOS 26.0, *) { return BackgroundDownloadSettings.isEnabled() }
         return false
     }
 

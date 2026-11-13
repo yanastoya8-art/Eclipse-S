@@ -1,0 +1,94 @@
+name: iOS Build and Tests
+
+on:
+  push:
+    branches: ["feature/**"]
+  pull_request:
+    branches: [main, feature/background-downloads-ios-cast-liquid-glass]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-pr-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios-build-and-tests:
+    name: Build and test iPhone/iPad app
+    runs-on: macos-26
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout Eclipse
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Set up Xcode
+        uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Checkout pinned MPVKit
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          repository: yanastoya8-art/MPVKit-S
+          ref: 9f9a68f841aefe247bb0c670e997a04702f5e247
+          path: MPVKit
+
+      - name: Build patched MPVKit for iOS and Apple platforms
+        run: |
+          set -euo pipefail
+          brew install autoconf automake libtool ninja nasm
+          python3 -m pip install meson==1.4.2
+          make -C MPVKit build enable-gpl version=0.41.0
+          test -f MPVKit/dist/release/Package.swift
+          echo "MPVKIT_LOCAL_ARTIFACTS_DIR=$GITHUB_WORKSPACE/MPVKit/dist/release" >> "$GITHUB_ENV"
+          ln -sfn "$GITHUB_WORKSPACE/MPVKit" "$GITHUB_WORKSPACE/../MPVKit"
+
+      - name: Verify patched MPVKit source and local frameworks
+        run: |
+          set -euo pipefail
+          test "$(git -C MPVKit rev-parse HEAD)" = "9f9a68f841aefe247bb0c670e997a04702f5e247"
+          grep -q 'dovi_metadata' MPVKit/Sources/BuildScripts/patch/libmpv/0017-expose-decoded-dolby-vision-rpu.patch
+          grep -q 'videoHasDolbyVisionRPU' MPVKit/Sources/MPVKitSampleBufferGPL/MPVGPUPlayerRenderer.swift
+
+      - name: Resolve Swift packages
+        run: |
+          set -euo pipefail
+          SOURCE_PACKAGES_DIR="$RUNNER_TEMP/SourcePackages"
+          xcodebuild -resolvePackageDependencies \
+            -project Eclipse.xcodeproj \
+            -scheme Eclipse \
+            -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" \
+            -skipPackagePluginValidation \
+            -skipMacroValidation
+          echo "SOURCE_PACKAGES_DIR=$SOURCE_PACKAGES_DIR" >> "$GITHUB_ENV"
+
+      - name: Select an available iPhone simulator
+        run: |
+          set -euo pipefail
+          DEVICE_ID="$(xcrun simctl list devices available -j | python3 -c 'import json,sys; data=json.load(sys.stdin); devices=[d for group in data["devices"].values() for d in group if d["isAvailable"] and d["name"].startswith("iPhone")]; print(devices[0]["udid"] if devices else "")')"
+          if [ -z "$DEVICE_ID" ]; then
+            echo "::error::No available iPhone simulator was found."
+            exit 1
+          fi
+          echo "SIMULATOR_UDID=$DEVICE_ID" >> "$GITHUB_ENV"
+          xcrun simctl boot "$DEVICE_ID" || true
+
+      - name: Build and run iOS unit tests
+        run: |
+          set -euo pipefail
+          xcodebuild test \
+            -project Eclipse.xcodeproj \
+            -scheme Eclipse \
+            -configuration Debug \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" \
+            -disableAutomaticPackageResolution \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
+            -parallel-testing-enabled NO \
+            CODE_SIGNING_ALLOWED=NO \
+            ENABLE_USER_SCRIPT_SANDBOXING=NO

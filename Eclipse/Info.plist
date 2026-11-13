@@ -51,7 +51,12 @@
 		<true/>
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Eclipse connects to media add-ons you configure on your local network.</string>
+	<string>Eclipse discovers Google Cast devices and connects to media add-ons on your local network.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_googlecast._tcp</string>
+		<string>_CC1AD845._googlecast._tcp</string>
+	</array>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Eclipse can save images you choose, including reader images and media stills, to your photo library.</string>
 	<key>NSFaceIDUsageDescription</key>
