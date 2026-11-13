@@ -619,3 +619,48 @@ final class AnimeSpecialDubFilterPolicyTests: XCTestCase {
         ))
     }
 }
+
+
+final class UnifiedSpanishAndDubSchedulePolicyTests: XCTestCase {
+    func testSpanishRegionalVariantsShareOneFilterLanguage() {
+        for variant in ["es", "es-ES", "es-419", "es-MX", "Castellano", "Español latino", "Spanish"] {
+            XCTAssertEqual(MediaLanguageCatalog.filterCanonicalID(for: variant), "es", "Expected \(variant) to normalize to Spanish")
+        }
+        XCTAssertTrue(MediaLanguageCatalog.matches(ruleID: "es", languageID: "es-419"))
+        XCTAssertTrue(MediaLanguageCatalog.matches(ruleID: "es", languageID: "es-ES"))
+    }
+
+    func testDuplicateEpisodeKeepsEarlierDubRelease() {
+        let earlier = AniListAiringScheduleEntry(
+            id: 1, mediaId: 101, title: "Example", airingAt: Date(timeIntervalSince1970: 100),
+            episode: 4, coverImage: nil, englishTitle: "Example", romajiTitle: nil,
+            nativeTitle: nil, format: "TV", hasKnownAiringTime: true,
+            scheduleProvider: .dubOnly, malID: nil, airingTimeWithdrawn: false
+        )
+        let later = AniListAiringScheduleEntry(
+            id: 2, mediaId: 101, title: "Example", airingAt: Date(timeIntervalSince1970: 200),
+            episode: 4, coverImage: nil, englishTitle: "Example", romajiTitle: nil,
+            nativeTitle: nil, format: "TV", hasKnownAiringTime: true,
+            scheduleProvider: .dubOnly, malID: nil, airingTimeWithdrawn: false
+        )
+        XCTAssertFalse(AnimeScheduleEntryMapper.shouldReplaceDuplicate(existing: earlier, candidate: later))
+        XCTAssertTrue(AnimeScheduleEntryMapper.shouldReplaceDuplicate(existing: later, candidate: earlier))
+    }
+
+    func testConfirmedDuplicateWinsWhenAiringDatesMatch() {
+        let withdrawn = AniListAiringScheduleEntry(
+            id: 1, mediaId: 101, title: "Example", airingAt: Date(timeIntervalSince1970: 100),
+            episode: 4, coverImage: nil, englishTitle: nil, romajiTitle: nil,
+            nativeTitle: nil, format: "TV", hasKnownAiringTime: false,
+            scheduleProvider: .dubOnly, malID: nil, airingTimeWithdrawn: true
+        )
+        let confirmed = AniListAiringScheduleEntry(
+            id: 2, mediaId: 101, title: "Example", airingAt: Date(timeIntervalSince1970: 100),
+            episode: 4, coverImage: nil, englishTitle: nil, romajiTitle: nil,
+            nativeTitle: nil, format: "TV", hasKnownAiringTime: true,
+            scheduleProvider: .dubOnly, malID: nil, airingTimeWithdrawn: false
+        )
+        XCTAssertTrue(AnimeScheduleEntryMapper.shouldReplaceDuplicate(existing: withdrawn, candidate: confirmed))
+        XCTAssertFalse(AnimeScheduleEntryMapper.shouldReplaceDuplicate(existing: confirmed, candidate: withdrawn))
+    }
+}
