@@ -505,10 +505,10 @@ struct SettingsView: View {
                         Toggle("Hide anime below PG-13", isOn: $hideBelowPG13Anime)
                     .onChange(of: hideBelowPG13Anime) { _ in NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil) }
                             .accessibilityIdentifier("settings.contentFilters.animePG13")
-                        Toggle("Require English or Spanish audio", isOn: $requireEnglishSpanishAudio)
+                        Toggle("Require English/Spanish original audio or verified anime dub", isOn: $requireEnglishSpanishAudio)
                     .onChange(of: requireEnglishSpanishAudio) { _ in NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil) }
                             .accessibilityIdentifier("settings.contentFilters.audioLanguages")
-                        Text("Age filters hide titles with lower or unknown ratings. Audio eligibility uses verified original-language metadata for movies and non-anime TV; anime additionally uses episode-level dub counts. Dub tracks for non-anime titles require a licensed partner metadata feed.")
+                        Text("Age filters hide titles with lower or unknown ratings. For movies and non-anime TV, the current public metadata verifies original language only. Anime can also qualify through episode-level English or Spanish dub counts. Dubbed audio and individual dubbed episodes for general movies and TV require a JustWatch partner feed and token.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -973,7 +973,7 @@ struct SettingsView: View {
                 Toggle("Hide anime below PG-13", isOn: $hideBelowPG13Anime)
                     .onChange(of: hideBelowPG13Anime) { _ in NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil) }
                     .accessibilityIdentifier("settings.contentFilters.animePG13")
-                Toggle("Require English or Spanish audio", isOn: $requireEnglishSpanishAudio)
+                Toggle("Require English/Spanish original audio or verified anime dub", isOn: $requireEnglishSpanishAudio)
                     .onChange(of: requireEnglishSpanishAudio) { _ in NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil) }
                     .accessibilityIdentifier("settings.contentFilters.audioLanguages")
             }
