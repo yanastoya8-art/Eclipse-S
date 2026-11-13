@@ -10,6 +10,18 @@ import CloudKit
 import Combine
 import SwiftUI
 import Kingfisher
+
+private func copyProviderDownloadURL(_ rawURL: String, headers: [String: String]? = nil) {
+    guard let sourceURL = URL(string: rawURL),
+          let scheme = sourceURL.scheme?.lowercased(),
+          scheme == "http" || scheme == "https",
+          let downloadURL = MPVHeaderProxy.shared.makeLANProxyURL(
+            for: sourceURL,
+            headers: headers ?? [:],
+            asDownload: true
+          ) else { return }
+    ProviderExternalApplication.copy(downloadURL.absoluteString)
+}
 #if os(macOS)
 import AppKit
 typealias ServicesPresentationController = NSViewController
@@ -2337,6 +2349,11 @@ struct ModulesSearchResultsSheet: View {
             } label: {
                 Label("Copy Stream URL", systemImage: "doc.on.doc")
             }
+            Button {
+                copyProviderDownloadURL(resolved.option.url, headers: resolved.option.headers)
+            } label: {
+                Label("Copy Download URL", systemImage: "arrow.down.doc")
+            }
         }
 #endif
     }
@@ -2465,6 +2482,11 @@ struct ModulesSearchResultsSheet: View {
                     ProviderExternalApplication.copy(url)
                 } label: {
                     Label("Copy Stream URL", systemImage: "doc.on.doc")
+                }
+                Button {
+                    copyProviderDownloadURL(url)
+                } label: {
+                    Label("Copy Download URL", systemImage: "arrow.down.doc")
                 }
             }
         }
@@ -7984,6 +8006,11 @@ struct ModulesSearchResultsSheet: View {
                 ProviderExternalApplication.copy(stream.option.url)
             } label: {
                 Label("Copy Stream URL", systemImage: "doc.on.doc")
+            }
+            Button {
+                copyProviderDownloadURL(stream.option.url, headers: stream.option.headers)
+            } label: {
+                Label("Copy Download URL", systemImage: "arrow.down.doc")
             }
         }
 #endif
