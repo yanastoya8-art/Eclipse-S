@@ -482,8 +482,12 @@ final class AnimeDubEpisodeVisibilityTests: XCTestCase {
         ))
     }
 
-    func testSpanishOptionUsesCombinedSpanishMetadataTag() {
+    func testSpanishOptionUsesRegionalAndGenericSpanishMetadataTags() {
         XCTAssertEqual(MyDubListLanguage.spanish.taizenLanguageCode, "es")
-        XCTAssertEqual(MyDubListLanguage.english.taizenLanguageCode, "en")
+        XCTAssertEqual(
+            MyDubListLanguage.spanish.episodeMetadataLanguageCodes,
+            ["es-419", "es-es", "es"]
+        )
+        XCTAssertEqual(MyDubListLanguage.english.episodeMetadataLanguageCodes, ["en"])
     }
 }
