@@ -576,6 +576,7 @@ struct HomeView: View {
     @State private var selectedHeroForDetail: TMDBSearchResult?
     @State private var showingHeroDetail = false
     @State private var heroLogoURL: String?
+    @State private var failedHeroLogoURL: String?
     @State private var heroLogoLookupComplete = false
     @State private var heroAlternatePosterURL: String?
     @State private var heroTVMazePosterURLs: [String: String] = [:]
@@ -1419,7 +1420,8 @@ struct HomeView: View {
                     homeViewModel.ambientColor = color
                 },
                 imageDecodeSize: heroImageDecodeSize,
-                placeholderColor: shouldAnalyzeHeroAlternatePoster ? .clear : Color.gray.opacity(0.3)
+                placeholderColor: shouldAnalyzeHeroAlternatePoster ? .clear : Color.gray.opacity(0.3),
+                fallbackImageURLs: homeViewModel.heroContent.map(heroImageFallbackURLs(for:)) ?? []
             )
             .id("hero-image-\(heroIdentity)")
 
@@ -1737,6 +1739,15 @@ struct HomeView: View {
         return hero.fullBackdropURL ?? hero.fullPosterURL ?? hero.animeArtworkURL
     }
 
+    private func heroImageFallbackURLs(for hero: TMDBSearchResult) -> [String] {
+        guard let primary = heroImageURL(for: hero) else { return [] }
+        return [
+            hero.fullPosterURL, hero.fullBackdropURL, hero.animeArtworkURL,
+            heroTVMazePosterURLs[hero.stableIdentity],
+            currentHeroAlternatePosterURL(for: hero)
+        ].compactMap { $0 }.filter { $0 != primary }
+    }
+
     private func currentHeroAlternatePosterURL(for hero: TMDBSearchResult) -> String? {
         guard shouldAnalyzeHeroAlternatePoster else { return nil }
         let cacheKey = heroAlternatePosterCacheKey(hero.stableIdentity, language: selectedLanguage)
@@ -1872,10 +1883,14 @@ struct HomeView: View {
         if heroArtworkIdentity != hero.stableIdentity || !heroLogoLookupComplete {
             Color.clear
                 .frame(maxWidth: heroLogoMaxWidth, maxHeight: heroLogoMaxHeight)
-        } else if let logoURL = currentHeroLogoURL(for: hero) {
+        } else if let logoURL = currentHeroLogoURL(for: hero), failedHeroLogoURL != logoURL {
             KFImage(URL(string: logoURL))
                 .setProcessor(DownsamplingImageProcessor(size: heroLogoDecodeSize))
                 .placeholder { Color.clear }
+                .onFailure { _ in
+                    guard heroArtworkIdentity == hero.stableIdentity else { return }
+                    failedHeroLogoURL = logoURL
+                }
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(maxWidth: heroLogoMaxWidth, maxHeight: heroLogoMaxHeight)
@@ -2095,6 +2110,7 @@ struct HomeView: View {
                       selectedLanguage == language else { return }
                 heroArtworkIdentity = nil
                 heroLogoURL = nil
+                failedHeroLogoURL = nil
                 heroLogoLookupComplete = true
                 heroAlternatePosterURL = nil
             }
@@ -2110,6 +2126,7 @@ struct HomeView: View {
                   selectedLanguage == language else { return }
             heroArtworkIdentity = identity
             heroLogoURL = nil
+            failedHeroLogoURL = nil
             heroLogoLookupComplete = false
             heroAlternatePosterURL = nil
         }
