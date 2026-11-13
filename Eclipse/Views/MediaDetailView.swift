@@ -2574,7 +2574,7 @@ struct MediaDetailContentView: View {
         let isAnimeTitle = searchResult.animeIdentitySeed != nil || searchResult.isAnimeHint == true
         if isAnimeTitle {
 #if !os(tvOS) && !os(macOS)
-            if !usesWideDetailLayout, mediaDetailTitleArtworkEnabled, mediaDetailAlternatePosterEnabled,
+            if !usesWideDetailLayout, mediaDetailAlternatePosterEnabled,
                let alternatePosterURL {
                 return alternatePosterURL
             }
