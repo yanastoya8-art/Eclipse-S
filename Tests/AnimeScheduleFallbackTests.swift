@@ -693,3 +693,22 @@ final class ScheduleReleaseDatePolicyTests: XCTestCase {
         XCTAssertFalse(ScheduleReleaseDatePolicy.usesDubbedDate(native: nil, dubbed: nil))
     }
 }
+
+
+final class NonAnimeMovieSchedulePolicyTests: XCTestCase {
+    func testJapaneseAnimationIsExcludedFromMovieSchedule() {
+        XCTAssertTrue(MovieSchedulePolicy.isAnime(language: "ja", genres: ["animation"]))
+    }
+
+    func testAnimeGenreIsExcludedEvenWhenLanguageIsNotJapanese() {
+        XCTAssertTrue(MovieSchedulePolicy.isAnime(language: "es", genres: ["anime"]))
+    }
+
+    func testWesternAnimationRemainsInMovieSchedule() {
+        XCTAssertFalse(MovieSchedulePolicy.isAnime(language: "en", genres: ["animation"]))
+    }
+
+    func testLiveActionMoviesRemainInMovieSchedule() {
+        XCTAssertFalse(MovieSchedulePolicy.isAnime(language: "ko", genres: ["drama", "thriller"]))
+    }
+}
