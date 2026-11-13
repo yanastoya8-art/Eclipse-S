@@ -678,9 +678,10 @@ class TMDBContentFilter: ObservableObject {
                 isMovie: true,
                 defaults: .standard
             ) else { return false }
-            if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
-                guard let language = movie.originalLanguage?.lowercased() else { return true }
-                guard language.hasPrefix("en") || language.hasPrefix("es") else { return false }
+            if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio"),
+               let language = movie.originalLanguage?.lowercased(),
+               !language.hasPrefix("en"), !language.hasPrefix("es") {
+                return false
             }
             guard shouldIncludeTMDBAgeRating(
                 isMovie: true,
@@ -712,8 +713,8 @@ class TMDBContentFilter: ObservableObject {
                 isMovie: false,
                 defaults: .standard
             ) else { return false }
-            if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
-                let language = tvShow.originalLanguage?.lowercased() ?? ""
+            if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio"),
+               let language = tvShow.originalLanguage?.lowercased() {
                 let hasNativeAudio = language.hasPrefix("en") || language.hasPrefix("es")
                 if !hasNativeAudio && !isAnime { return false }
             }
