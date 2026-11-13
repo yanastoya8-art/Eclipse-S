@@ -1944,7 +1944,7 @@ private actor JustWatchScheduleService {
         }
         let offers = episode["offers"] as? [[String: Any]] ?? []
         for offer in offers where languages(offer["audio_languages"], match: selectedCodes) {
-            if let date = date(in: offer) ?? date(in: episode) {
+            if let date = date(in: offer) {
                 dates.append(date)
             }
         }
