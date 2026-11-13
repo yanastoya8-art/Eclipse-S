@@ -6159,6 +6159,7 @@ final class LocalFileLANServer {
     }
 
     private let queue = DispatchQueue(label: "eclipse.local-file-server")
+    private let startLock = NSLock()
     private let lock = NSLock()
     private var listener: NWListener?
     private var port: UInt16?
@@ -6219,12 +6220,12 @@ final class LocalFileLANServer {
     }
 
     private func ensureStarted() -> Bool {
+        startLock.lock()
+        defer { startLock.unlock() }
         lock.lock()
-        if listener != nil {
-            lock.unlock()
-            return true
-        }
+        let alreadyStarted = listener != nil
         lock.unlock()
+        if alreadyStarted { return true }
 
         do {
             let parameters = NWParameters.tcp
@@ -6330,22 +6331,40 @@ final class LocalFileLANServer {
         var status = 200
         if let rangeLine {
             let value = rangeLine.dropFirst("range:".count).trimmingCharacters(in: .whitespaces)
-            if value.hasPrefix("bytes=") {
-                let bounds = value.dropFirst(6).split(separator: "-", omittingEmptySubsequences: false)
-                if bounds.count == 2 {
-                    if bounds[0].isEmpty, let suffix = Int64(bounds[1]), suffix > 0 {
-                        start = max(0, fileSize - suffix)
-                    } else if let lower = Int64(bounds[0]) {
-                        start = lower
-                        if !bounds[1].isEmpty, let upper = Int64(bounds[1]) { end = min(end, upper) }
-                    }
-                    guard start < fileSize, end >= start else {
+            guard value.hasPrefix("bytes=") else {
+                sendRangeError(fileSize, on: connection)
+                return
+            }
+            let bounds = value.dropFirst(6).split(separator: "-", omittingEmptySubsequences: false)
+            guard bounds.count == 2 else {
+                sendRangeError(fileSize, on: connection)
+                return
+            }
+            if bounds[0].isEmpty {
+                guard let suffix = Int64(bounds[1]), suffix > 0 else {
+                    sendRangeError(fileSize, on: connection)
+                    return
+                }
+                start = max(0, fileSize - suffix)
+            } else {
+                guard let lower = Int64(bounds[0]) else {
+                    sendRangeError(fileSize, on: connection)
+                    return
+                }
+                start = lower
+                if !bounds[1].isEmpty {
+                    guard let upper = Int64(bounds[1]) else {
                         sendRangeError(fileSize, on: connection)
                         return
                     }
-                    status = 206
+                    end = min(end, upper)
                 }
             }
+            guard start < fileSize, end >= start else {
+                sendRangeError(fileSize, on: connection)
+                return
+            }
+            status = 206
         }
         let length = end - start + 1
         let mime = Self.mimeType(for: entry.url)
