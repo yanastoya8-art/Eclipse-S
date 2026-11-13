@@ -345,6 +345,14 @@ enum TMDBDiscoverFilterPolicy {
     }
 }
 
+private struct TVMazeShowLookupResponse: Decodable {
+    struct Artwork: Decodable {
+        let original: String?
+        let medium: String?
+    }
+    let image: Artwork?
+}
+
 class TMDBService: ObservableObject {
     static let shared = TMDBService()
 
@@ -1832,7 +1840,7 @@ class TMDBService: ObservableObject {
             return cached
         }
 
-        let urlString = "\(baseURL)/movie/\(id)/images?api_key=\(apiKey)&include_image_language=\(langCode),en,null"
+        let urlString = "\(baseURL)/movie/\(id)/images?api_key=\(apiKey)&include_image_language=\(langCode),en,ja,es,fr,de,it,pt,ko,zh,ru,null"
 
         guard let url = URL(string: urlString) else {
             throw TMDBError.invalidURL
@@ -1856,7 +1864,7 @@ class TMDBService: ObservableObject {
             return cached
         }
 
-        let urlString = "\(baseURL)/tv/\(id)/images?api_key=\(apiKey)&include_image_language=\(langCode),en,null"
+        let urlString = "\(baseURL)/tv/\(id)/images?api_key=\(apiKey)&include_image_language=\(langCode),en,ja,es,fr,de,it,pt,ko,zh,ru,null"
 
         guard let url = URL(string: urlString) else {
             throw TMDBError.invalidURL
@@ -1924,6 +1932,45 @@ class TMDBService: ObservableObject {
             return sorted
         } catch {
             throw TMDBError.networkError(error)
+        }
+    }
+
+    /// TVMaze is a secondary poster source for TV series when TMDB has no usable poster.
+    /// It is looked up by the IMDb ID returned by TMDB, never by a fuzzy title search.
+    func getTVMazePosterURL(imdbID: String) async -> String? {
+        let normalizedID = imdbID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalizedID.range(of: #"^tt[0-9]{7,10}$"#, options: .regularExpression) != nil else { return nil }
+        let cacheKey = "tvmaze-poster-\(normalizedID)"
+        if let cached: String = detailCache.get(key: cacheKey) {
+            return cached == "-" ? nil : cached
+        }
+        guard var components = URLComponents(string: "https://api.tvmaze.com/lookup/shows") else { return nil }
+        components.queryItems = [URLQueryItem(name: "imdb", value: normalizedID)]
+        guard let url = components.url else { return nil }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 8
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        do {
+            let (data, response) = try await URLSession.shared.boundedData(for: request, maximumResponseBytes: 512 * 1024)
+            guard let response = response as? HTTPURLResponse, response.statusCode == 200 else {
+                detailCache.set(key: cacheKey, value: "-")
+                return nil
+            }
+            let decoded = try JSONDecoder().decode(TVMazeShowLookupResponse.self, from: data)
+            let candidate = decoded.image?.original ?? decoded.image?.medium
+            guard let candidate, let imageURL = URL(string: candidate),
+                  imageURL.scheme?.lowercased() == "https",
+                  imageURL.host?.lowercased() == "static.tvmaze.com",
+                  imageURL.user == nil, imageURL.password == nil else {
+                detailCache.set(key: cacheKey, value: "-")
+                return nil
+            }
+            let result = imageURL.absoluteString
+            detailCache.set(key: cacheKey, value: result)
+            return result
+        } catch {
+            detailCache.set(key: cacheKey, value: "-")
+            return nil
         }
     }
 
