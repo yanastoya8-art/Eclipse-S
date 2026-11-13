@@ -633,6 +633,136 @@ class TMDBContentFilter: ObservableObject {
             && calendar.startOfDay(for: releaseDate) > calendar.startOfDay(for: Date())
     }
 
+    private func shouldIncludeCatalogResult(_ result: TMDBSearchResult) -> Bool {
+        guard MyDubListDubFilter.shared.shouldInclude(result) else { return false }
+        guard result.adult != true else { return false }
+        guard shouldIncludeForConfiguredAgeAndAudio(result) else { return false }
+        guard shouldIncludeCatalogTitle(result.displayTitle) else { return false }
+        guard shouldIncludeForKids(
+            title: result.displayTitle,
+            overview: result.overview,
+            isMovie: result.isMovie,
+            tmdbID: result.id
+        ) else { return false }
+
+        if kidsModeEnabled, Self.hasExplicitAnimeMetadata(result) { return false }
+        if kidsModeEnabled,
+           TMDBMaturityRatingStore.shared.kidsDetailPolicyAllows(
+                isMovie: result.isMovie,
+                id: result.id
+           ) == false {
+            return false
+        }
+        return shouldIncludeContent(genreIds: result.genreIds)
+    }
+
+    private func shouldIncludeForKids(
+        title: String,
+        overview: String?,
+        isMovie: Bool,
+        tmdbID: Int
+    ) -> Bool {
+        guard kidsModeEnabled else { return true }
+        guard TMDBMaturityRatingStore.shared.isAllowedForKids(isMovie: isMovie, id: tmdbID) else {
+            return false
+        }
+        let metadataText = [title, overview ?? ""].joined(separator: " ")
+        if Self.containsBlockedCatalogText(metadataText, blockedTerms: Self.kidsMetadataDenylist) {
+            return false
+        }
+        return !MaturityRating.containsMatureText(metadataText)
+    }
+
+    private func shouldIncludeFastAnimeResult(_ result: TMDBSearchResult) -> Bool {
+        !Self.hasExplicitAnimeMetadata(result)
+    }
+
+    private static func hasExplicitAnimeMetadata(_ result: TMDBSearchResult) -> Bool {
+        let metadataText = [result.displayTitle, result.overview ?? ""].joined(separator: " ")
+        return containsBlockedCatalogText(metadataText, blockedTerms: adultAnimeMetadataDenylist)
+    }
+
+    private static func isAnimeResult(_ result: TMDBSearchResult) -> Bool {
+        result.animeIdentitySeed != nil
+            || result.isAnimeHint == true
+            || (result.genreIds?.contains(16) == true
+                && (result.originalLanguage?.lowercased() == "ja"
+                    || result.originCountry?.contains("JP") == true))
+    }
+
+    private func storeAnimeAgeRating(_ rating: MaturityRating, for id: Int) {
+        animeEligibilityLock.lock()
+        animeAgeRatingsByID[id] = rating
+        animeEligibilityLock.unlock()
+    }
+
+    private func storeAnimeAudioEligibility(_ isEligible: Bool, for id: Int) {
+        animeEligibilityLock.lock()
+        animeAudioLoadingIDs.remove(id)
+        animeAudioCheckedIDs.insert(id)
+        if isEligible {
+            animeAudioEligibleIDs.insert(id)
+        } else {
+            animeAudioEligibleIDs.remove(id)
+        }
+        animeEligibilityLock.unlock()
+    }
+
+    private func shouldIncludeTMDBAgeRating(isMovie: Bool, id: Int, enabled: Bool) -> Bool {
+        guard enabled else { return true }
+        // Unknown certification is not proof that a title is below the threshold.
+        guard let rating = TMDBMaturityRatingStore.shared.rating(isMovie: isMovie, id: id) else {
+            return true
+        }
+        return rating == .unknown || rating >= .teen
+    }
+
+    private func shouldIncludeForConfiguredAgeAndAudio(_ result: TMDBSearchResult) -> Bool {
+        let defaults = UserDefaults.standard
+        let isAnime = Self.isAnimeResult(result)
+
+        if isAnime, defaults.bool(forKey: "catalogHideBelowPG13Anime") {
+            guard let anilistID = result.animeIdentitySeed?.anilistId else { return true }
+            animeEligibilityLock.lock()
+            let rating = animeAgeRatingsByID[anilistID]
+            animeEligibilityLock.unlock()
+            if let rating, rating != .unknown, rating < .teen { return false }
+        } else if !isAnime {
+            let shouldCheckMovie = result.isMovie && defaults.bool(forKey: "catalogHideBelowPG13Movies")
+            let shouldCheckTV = result.isTVShow && defaults.bool(forKey: "catalogHideBelowTV14Shows")
+            if shouldCheckMovie || shouldCheckTV {
+                if let rating = TMDBMaturityRatingStore.shared.rating(
+                    isMovie: result.isMovie,
+                    id: result.id
+                ), rating != .unknown, rating < .teen {
+                    return false
+                }
+            }
+        }
+
+        if Self.shouldHideForReleaseDate(result, defaults: defaults) { return false }
+
+        if defaults.bool(forKey: "catalogRequireEnglishSpanishAudio") {
+            let originalLanguage = result.originalLanguage?.lowercased()
+            let hasNativeAudio = originalLanguage?.hasPrefix("en") == true
+                || originalLanguage?.hasPrefix("es") == true
+            if hasNativeAudio { return true }
+            guard isAnime else { return false }
+            guard let anilistID = result.animeIdentitySeed?.anilistId else {
+                // A missing AniList mapping is unknown, not proof that the
+                // selected dub language is unavailable.
+                return true
+            }
+            animeEligibilityLock.lock()
+            let hasVerifiedDub = animeAudioEligibleIDs.contains(anilistID)
+            let metadataWasChecked = animeAudioCheckedIDs.contains(anilistID)
+            animeEligibilityLock.unlock()
+            // An unavailable dub provider is unknown, not proof that no dub exists.
+            guard hasVerifiedDub || !metadataWasChecked else { return false }
+        }
+        return true
+    }
+
     private func shouldIncludeCatalogTitle(_ title: String) -> Bool {
         let normalized = Self.normalizedCatalogText(title)
         return !explicitCatalogTitleDenylist.contains(normalized)
