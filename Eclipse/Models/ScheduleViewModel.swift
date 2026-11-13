@@ -1691,7 +1691,8 @@ fileprivate struct TVMazeShow: Decodable {
             let normalized = genre.lowercased()
             return normalized == "anime" || normalized == "animation"
         }
-        return language?.lowercased() == "japanese" && hasAnimeGenre
+        return hasAnimeGenre
+            && ["japanese", "chinese", "korean"].contains(language?.lowercased() ?? "")
     }
 
     var isWesternScheduleCandidate: Bool {
@@ -1717,7 +1718,7 @@ fileprivate struct TVMazeShow: Decodable {
             return webCountry.code?.uppercased() == normalizedRegion
         }
 
-        return webChannel != nil && isEnglishLanguage
+        return webChannel != nil
     }
 }
 
