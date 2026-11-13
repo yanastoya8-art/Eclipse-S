@@ -165,6 +165,8 @@ jobs:
           } > Build.local.xcconfig
 
       - name: Resolve Swift packages
+        env:
+          MPVKIT_SOURCE_REVISION: fee7aa27869ed4775ff2984de4438484d902e67b
         run: |
           set -euo pipefail
 
