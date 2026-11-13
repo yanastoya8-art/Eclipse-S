@@ -961,7 +961,7 @@ struct BrowseFilterConfiguration: Codable, Equatable {
     var sortRawValue: String
     var minimumRating: Double
     var ageRatingRawValue: String
-    var showsUpcomingOnly: Bool?
+    var showsUpcomingOnly: Bool? = nil
 
     func sanitized(
         validGenreKeys: Set<String>,
