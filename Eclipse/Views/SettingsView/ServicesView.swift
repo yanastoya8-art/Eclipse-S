@@ -3160,7 +3160,7 @@ private struct ExtraServiceSettingsView: View {
 }
 
 
-private enum JustWatchAPIKeyStore {
+enum JustWatchAPIKeyStore {
     static let service = "app.eclipse.justwatch"
     static let account = "api-sh-key"
 
