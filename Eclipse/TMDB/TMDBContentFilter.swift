@@ -517,13 +517,13 @@ class TMDBContentFilter: ObservableObject {
         if hideBelowAnime {
             let identifiers = Array(uniqueAnime.keys)
             Task(priority: .utility) {
-                await self.resolveAnimeAgeRatings(for: identifiers)
+                await TMDBContentFilter.shared.resolveAnimeAgeRatings(for: identifiers)
             }
         }
 
         guard requireVerifiedAudio, !animeResults.isEmpty else { return }
         Task(priority: .utility) {
-            await self.resolveAnimeAudioMetadata(for: animeResults)
+            await TMDBContentFilter.shared.resolveAnimeAudioMetadata(for: animeResults)
         }
     }
 
