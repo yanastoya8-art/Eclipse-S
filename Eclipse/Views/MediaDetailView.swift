@@ -2197,7 +2197,8 @@ struct MediaDetailContentView: View {
         ResilientArtworkImage(
             urls: ([detailHeroImageURL].compactMap { $0 } + detailHeroFallbackImageURLs),
             decodeSize: homeImageDecodeSize(width: proxy.size.width, height: proxy.size.height),
-            contentMode: .fill
+            contentMode: .fill,
+            onImageLoaded: { color in ambientColor = color }
         ) {
             Rectangle().fill(EclipseTheme.shared.backgroundBase)
         }
