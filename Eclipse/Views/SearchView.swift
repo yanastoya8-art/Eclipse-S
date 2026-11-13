@@ -101,20 +101,22 @@ struct SearchView: View {
     }
 
     var body: some View {
+        Group {
 #if os(tvOS)
-        searchContent
+            searchContent
 #else
-        if #available(iOS 16.0, *) {
-            NavigationStack {
-                searchContent
+            if #available(iOS 16.0, *) {
+                NavigationStack {
+                    searchContent
+                }
+            } else {
+                NavigationView {
+                    searchContent
+                }
+                .providerNavigationStyle()
             }
-        } else {
-            NavigationView {
-                searchContent
-            }
-            .providerNavigationStyle()
-        }
 #endif
+        }
         .onReceive(NotificationCenter.default.publisher(for: TMDBContentFilter.catalogFiltersDidChangeNotification)) { _ in
             guard !searchResults.isEmpty else { return }
             let snapshot = searchResults
