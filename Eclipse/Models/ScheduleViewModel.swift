@@ -670,7 +670,18 @@ final class ScheduleViewModel: ObservableObject {
                 let result = try await self.retryOnceAfterTransientCancellation(operationName: "AniList schedule") {
                     try await AniListService.shared.fetchAiringScheduleResult(daysAhead: dayCount)
                 }
-                let entries = result.entries.map(ScheduleEntry.init(animeEntry:))
+                let mappedEntries = result.entries.map(ScheduleEntry.init(animeEntry:))
+                try Task.checkCancellation()
+                let selectedLanguages = MyDubListDubFilter.shared.selectedLanguages
+                // Resolve actual dubbed episode availability dates from JustWatch
+                // provider offers (e.g. Crunchyroll, Netflix, Hulu, HIDIVE) instead
+                // of displaying the Japanese broadcast date as a Spanish dub date.
+                let entries = selectedLanguages.isEmpty
+                    ? mappedEntries
+                    : await JustWatchScheduleService.shared.filter(
+                        entries: mappedEntries,
+                        selectedLanguages: selectedLanguages
+                    )
                 try Task.checkCancellation()
                 let loadResult = AnimeScheduleLoadResult(
                     entries: entries,
