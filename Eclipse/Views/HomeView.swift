@@ -1249,13 +1249,15 @@ struct HomeView: View {
         if heroArtworkIdentity != hero.stableIdentity || !heroLogoLookupComplete {
             Color.clear.frame(width: layout.logoWidth, height: layout.logoHeight)
         } else if let logoURL = currentHeroLogoURL(for: hero) {
-            KFImage(URL(string: logoURL))
-                .setProcessor(DownsamplingImageProcessor(size: homeImageDecodeSize(width: layout.logoWidth, height: layout.logoHeight)))
-                .placeholder { Color.clear }
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(maxWidth: layout.logoWidth, maxHeight: layout.logoHeight, alignment: .leading)
-                .accessibilityLabel(hero.displayTitle)
+            ResilientArtworkImage(
+                urls: [logoURL],
+                decodeSize: homeImageDecodeSize(width: layout.logoWidth, height: layout.logoHeight),
+                contentMode: .fit
+            ) {
+                macHeroTitleText(hero, layout: layout)
+            }
+            .frame(maxWidth: layout.logoWidth, maxHeight: layout.logoHeight, alignment: .leading)
+            .accessibilityLabel(hero.displayTitle)
         } else {
             macHeroTitleText(hero, layout: layout)
         }
@@ -1889,18 +1891,16 @@ struct HomeView: View {
             Color.clear
                 .frame(maxWidth: heroLogoMaxWidth, maxHeight: heroLogoMaxHeight)
         } else if let logoURL = currentHeroLogoURL(for: hero), failedHeroLogoURL != logoURL {
-            KFImage(URL(string: logoURL))
-                .setProcessor(DownsamplingImageProcessor(size: heroLogoDecodeSize))
-                .placeholder { Color.clear }
-                .onFailure { _ in
-                    guard heroArtworkIdentity == hero.stableIdentity else { return }
-                    failedHeroLogoURL = logoURL
-                }
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(maxWidth: heroLogoMaxWidth, maxHeight: heroLogoMaxHeight)
-                .shadow(color: .black.opacity(0.55), radius: 8, x: 0, y: 4)
-                .accessibilityLabel(Text(hero.displayTitle))
+            ResilientArtworkImage(
+                urls: [logoURL],
+                decodeSize: heroLogoDecodeSize,
+                contentMode: .fit
+            ) {
+                heroTitleText(hero)
+            }
+            .frame(maxWidth: heroLogoMaxWidth, maxHeight: heroLogoMaxHeight)
+            .shadow(color: .black.opacity(0.55), radius: 8, x: 0, y: 4)
+            .accessibilityLabel(Text(hero.displayTitle))
         } else {
             heroTitleText(hero)
         }
