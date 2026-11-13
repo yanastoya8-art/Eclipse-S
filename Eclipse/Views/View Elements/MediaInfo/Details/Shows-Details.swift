@@ -1212,10 +1212,10 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
     private var animeDubMetadataRequestKey: String {
         guard isAnime,
               specialEpisodeContext == nil,
-              let seasonNumber = selectedSeason?.seasonNumber,
-              let providerID = animeSeasonAniListIds[seasonNumber] else { return "none" }
+              let seasonNumber = selectedSeason?.seasonNumber else { return "none" }
         let languages = MyDubListDubFilter.shared.selectedLanguages.sorted().joined(separator: ",")
         guard !languages.isEmpty else { return "none" }
+        let providerID = animeSeasonAniListIds[seasonNumber] ?? 0
         return "\(seasonNumber):\(providerID):\(languages):\(animeDubFilterRevision)"
     }
 
@@ -1290,7 +1290,13 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
             }
             return
         }
-        guard let providerID = animeSeasonAniListIds[seasonNumber] else { return }
+        guard let providerID = animeSeasonAniListIds[seasonNumber] else {
+            animeDubEpisodeCountsBySeason[seasonNumber] = [:]
+            animeDubPremiereDatesBySeason[seasonNumber] = nil
+            selectedEpisodeForSearch = nil
+            selectedEpisodePlaybackContext = nil
+            return
+        }
 
         // Fail closed immediately when preferences or season identity change; do
         // not keep showing episodes allowed by the previous language selection.
