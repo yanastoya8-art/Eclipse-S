@@ -66,8 +66,6 @@ jobs:
         env:
           MPVKIT_SOURCE_REVISION: fee7aa27869ed4775ff2984de4438484d902e67b
         run: test "$(git -C SourcePackages/checkouts/mpvkit-s rev-parse HEAD)" = "$MPVKIT_SOURCE_REVISION"
-      - name: Expose sibling MPVKit package
-        run: ln -sfn "$GITHUB_WORKSPACE/SourcePackages/checkouts/mpvkit-s" "$GITHUB_WORKSPACE/../MPVKit"
 
       - name: Build patched MPVKit for iPhone and iPad
         run: |
@@ -172,7 +170,6 @@ jobs:
           set -euo pipefail
 
           SOURCE_PACKAGES_DIR="$GITHUB_WORKSPACE/SourcePackages"
-          rm -rf "$SOURCE_PACKAGES_DIR"
           xcodebuild -resolvePackageDependencies \
             -project Eclipse.xcodeproj \
             -scheme Eclipse \
@@ -214,7 +211,7 @@ jobs:
           PY
 
           echo "SOURCE_PACKAGES_DIR=$SOURCE_PACKAGES_DIR" >> "$GITHUB_ENV"
-          echo "Using local MPVKit checkout: $(git -C MPVKit rev-parse HEAD)"
+          echo "Using local MPVKit checkout: $(git -C SourcePackages/checkouts/mpvkit-s rev-parse HEAD)"
 
       - name: Build unsigned archive
         run: |
