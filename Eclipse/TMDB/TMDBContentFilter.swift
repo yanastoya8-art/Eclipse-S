@@ -324,6 +324,7 @@ struct KidsPolicyDetails: Codable, Hashable {
 
 class TMDBContentFilter: ObservableObject {
     static let shared = TMDBContentFilter()
+    static let catalogFiltersDidChangeNotification = Notification.Name("catalogFiltersDidChange")
 
     @Published private(set) var maturityRatingRevision = 0
 
