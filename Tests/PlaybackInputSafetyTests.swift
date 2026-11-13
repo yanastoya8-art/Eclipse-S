@@ -1412,7 +1412,7 @@ final class CastMediaPolicyTests: XCTestCase {
     }
 
     func testCastPolicyRejectsDeviceLocalProxyAddresses() throws {
-        for host in ["localhost", "127.0.0.1", "local.localhost", "::1"] {
+        for host in ["localhost", "127.0.0.1", "local.localhost", "[::1]"] {
             let url = try XCTUnwrap(URL(string: "http://\(host)/video.mp4"))
             XCTAssertNotNil(CastMediaPolicy.rejectionReason(for: url, headers: [:]), host)
         }
