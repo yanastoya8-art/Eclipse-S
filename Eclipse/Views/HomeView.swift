@@ -2161,6 +2161,12 @@ struct HomeView: View {
             }
         } catch {
             guard !Task.isCancelled else { return }
+            var tvMazePosterURL: String?
+            if analyzesAlternate, !hero.isMovie,
+               let details = try? await tmdbService.getTVShowDetails(id: hero.id),
+               let imdbID = details.externalIds?.imdbId {
+                tvMazePosterURL = await tmdbService.getTVMazePosterURL(imdbID: imdbID)
+            }
             await MainActor.run {
                 guard !Task.isCancelled, heroArtworkIsActive,
                       homeViewModel.heroContent?.stableIdentity == identity,
@@ -2171,6 +2177,12 @@ struct HomeView: View {
                 heroLogoURL = nil
                 heroLogoLookupComplete = true
                 heroAlternatePosterURL = nil
+                if let tvMazePosterURL {
+                    heroTVMazePosterURLs[identity] = tvMazePosterURL
+                }
+                if analyzesAlternate {
+                    resolvedHeroAlternatePosterKeys.insert(cacheKey)
+                }
             }
         }
     }
