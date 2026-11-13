@@ -3976,8 +3976,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         updatePlayerTitle()
 
         castButton.addTarget(self, action: #selector(prepareCastForCurrentStream), for: .touchDown)
-        let castURL = playbackLaunchContext?.streamURL.flatMap(URL.init(string:)) ?? initialURL
         let castHeaders = playbackLaunchContext?.headers ?? initialHeaders ?? [:]
+        let castCandidates = [playbackLaunchContext?.streamURL.flatMap { URL(string: $0) }, initialURL].compactMap { $0 }
+        let castURL = castCandidates.first(where: { CastMediaPolicy.rejectionReason(for: $0, headers: castHeaders) == nil })
+            ?? castCandidates.first
         castButton.isHidden = !isMPVRenderer
         castButton.isEnabled = castURL.flatMap { CastMediaPolicy.rejectionReason(for: $0, headers: castHeaders) } == nil
         if let castURL, let reason = CastMediaPolicy.rejectionReason(for: castURL, headers: castHeaders) {
@@ -13160,11 +13162,14 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     }
 
     @objc private func prepareCastForCurrentStream() {
-        guard let url = playbackLaunchContext?.streamURL.flatMap(URL.init(string:)) ?? initialURL else {
-            showPlayerNotice("This playback does not have a TV-accessible stream URL.")
+        let headers = playbackLaunchContext?.headers ?? initialHeaders ?? [:]
+        let candidates = [playbackLaunchContext?.streamURL.flatMap { URL(string: $0) }, initialURL].compactMap { $0 }
+        guard let url = candidates.first(where: { CastMediaPolicy.rejectionReason(for: $0, headers: headers) == nil }) else {
+            let reason = candidates.first.flatMap { CastMediaPolicy.rejectionReason(for: $0, headers: headers) }
+                ?? "This playback does not have a TV-accessible stream URL."
+            showPlayerNotice(reason)
             return
         }
-        let headers = playbackLaunchContext?.headers ?? initialHeaders ?? [:]
         let title = playerTitleLabel.text?.trimmingCharacters(in: .whitespacesAndNewlines)
             .flatMap { $0.isEmpty ? nil : $0 } ?? "Eclipse"
         if let reason = EclipseCastCoordinator.shared.prepareForCasting(
