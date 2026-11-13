@@ -6121,3 +6121,288 @@ final class MPVHeaderProxy {
     }
 #endif
 }
+
+
+/// Short-lived, token-protected LAN file endpoint used when a user casts a file
+/// already stored in Eclipse's private downloads directory.
+final class LocalFileLANServer {
+    static let shared = LocalFileLANServer()
+
+    private struct PublishedFile {
+        let url: URL
+        let expiresAt: Date
+    }
+
+    private let queue = DispatchQueue(label: "eclipse.local-file-server")
+    private let lock = NSLock()
+    private var listener: NWListener?
+    private var port: UInt16?
+    private var ready = false
+    private var files: [String: PublishedFile] = [:]
+
+    private init() {}
+
+    func publish(_ fileURL: URL, asDownload: Bool = false) -> URL? {
+        let resolvedURL = fileURL.resolvingSymlinksInPath().standardizedFileURL
+        var isDirectory: ObjCBool = false
+        guard resolvedURL.isFileURL,
+              FileManager.default.fileExists(atPath: resolvedURL.path, isDirectory: &isDirectory),
+              !isDirectory.boolValue,
+              let attributes = try? FileManager.default.attributesOfItem(atPath: resolvedURL.path),
+              (attributes[.size] as? NSNumber)?.int64Value ?? 0 > 0,
+              ensureStarted(),
+              let port = waitForPort() else { return nil }
+
+        let token = UUID().uuidString.lowercased()
+        lock.lock()
+        files[token] = PublishedFile(url: resolvedURL, expiresAt: Date().addingTimeInterval(60 * 60))
+        lock.unlock()
+
+        guard let address = Self.localIPv4Address() else {
+            lock.lock()
+            files.removeValue(forKey: token)
+            lock.unlock()
+            return nil
+        }
+        var components = URLComponents()
+        components.scheme = "http"
+        components.host = address
+        components.port = Int(port)
+        components.path = "/file/\(token)"
+        if asDownload {
+            components.queryItems = [URLQueryItem(name: "download", value: "1")]
+        }
+        return components.url
+    }
+
+    private func ensureStarted() -> Bool {
+        lock.lock()
+        if listener != nil {
+            lock.unlock()
+            return true
+        }
+        lock.unlock()
+
+        do {
+            let parameters = NWParameters.tcp
+            parameters.allowLocalEndpointReuse = true
+            let newListener = try NWListener(using: parameters, on: .any)
+            newListener.newConnectionHandler = { [weak self] connection in
+                guard let self else { connection.cancel(); return }
+                self.handle(connection)
+            }
+            newListener.stateUpdateHandler = { [weak self] state in
+                guard let self else { return }
+                if case .ready = state {
+                    self.lock.lock()
+                    self.port = newListener.port?.rawValue
+                    self.ready = self.port != nil
+                    self.lock.unlock()
+                } else if case .failed = state {
+                    self.lock.lock()
+                    if self.listener === newListener {
+                        self.listener = nil
+                        self.port = nil
+                        self.ready = false
+                    }
+                    self.lock.unlock()
+                }
+            }
+            lock.lock()
+            if listener == nil { listener = newListener }
+            lock.unlock()
+            newListener.start(queue: queue)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    private func waitForPort() -> UInt16? {
+        let deadline = Date().addingTimeInterval(2)
+        while Date() < deadline {
+            lock.lock()
+            let value = ready ? port : nil
+            lock.unlock()
+            if let value { return value }
+            Thread.sleep(forTimeInterval: 0.02)
+        }
+        return nil
+    }
+
+    private func handle(_ connection: NWConnection) {
+        connection.start(queue: queue)
+        receiveRequest(on: connection, buffer: Data())
+    }
+
+    private func receiveRequest(on connection: NWConnection, buffer: Data) {
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) { [weak self] data, _, complete, error in
+            guard let self else { connection.cancel(); return }
+            var request = buffer
+            if let data { request.append(data) }
+            if let range = request.range(of: Data("\r\n\r\n".utf8)) {
+                self.respond(request: Data(request[..<range.lowerBound]), on: connection)
+            } else if complete || error != nil || request.count >= 64 * 1024 {
+                self.sendError(400, "Bad Request", on: connection)
+            } else {
+                self.receiveRequest(on: connection, buffer: request)
+            }
+        }
+    }
+
+    private func respond(request: Data, on connection: NWConnection) {
+        guard let text = String(data: request, encoding: .utf8),
+              let firstLine = text.components(separatedBy: "\r\n").first else {
+            sendError(400, "Bad Request", on: connection)
+            return
+        }
+        let parts = firstLine.split(separator: " ")
+        guard parts.count >= 2 else {
+            sendError(400, "Bad Request", on: connection)
+            return
+        }
+        let method = String(parts[0]).uppercased()
+        guard method == "GET" || method == "HEAD",
+              let components = URLComponents(string: "http://localhost" + String(parts[1])),
+              components.path.hasPrefix("/file/") else {
+            sendError(404, "Not Found", on: connection)
+            return
+        }
+        let token = String(components.path.dropFirst("/file/".count))
+        lock.lock()
+        let entry = files[token]
+        if let entry, entry.expiresAt <= Date() { files.removeValue(forKey: token) }
+        lock.unlock()
+        guard let entry, entry.expiresAt > Date(),
+              let attributes = try? FileManager.default.attributesOfItem(atPath: entry.url.path),
+              let fileSize = (attributes[.size] as? NSNumber)?.int64Value,
+              fileSize > 0 else {
+            sendError(404, "Expired", on: connection)
+            return
+        }
+
+        let rangeLine = text.components(separatedBy: "\r\n").first { $0.lowercased().hasPrefix("range:") }
+        var start: Int64 = 0
+        var end = fileSize - 1
+        var status = 200
+        if let rangeLine {
+            let value = rangeLine.dropFirst("range:".count).trimmingCharacters(in: .whitespaces)
+            if value.hasPrefix("bytes=") {
+                let bounds = value.dropFirst(6).split(separator: "-", omittingEmptySubsequences: false)
+                if bounds.count == 2 {
+                    if bounds[0].isEmpty, let suffix = Int64(bounds[1]), suffix > 0 {
+                        start = max(0, fileSize - suffix)
+                    } else if let lower = Int64(bounds[0]) {
+                        start = lower
+                        if !bounds[1].isEmpty, let upper = Int64(bounds[1]) { end = min(end, upper) }
+                    }
+                    guard start < fileSize, end >= start else {
+                        sendRangeError(fileSize, on: connection)
+                        return
+                    }
+                    status = 206
+                }
+            }
+        }
+        let length = end - start + 1
+        let mime = Self.mimeType(for: entry.url)
+        let download = components.queryItems?.contains(where: { $0.name == "download" && $0.value == "1" }) == true
+        var response = "HTTP/1.1 \(status) \(status == 206 ? "Partial Content" : "OK")\r\n"
+        response += "Content-Type: \(mime)\r\nContent-Length: \(length)\r\nAccept-Ranges: bytes\r\n"
+        response += "Cache-Control: no-store\r\nConnection: close\r\n"
+        response += "Content-Disposition: \(download ? "attachment" : "inline"); filename=\"\(entry.url.lastPathComponent.replacingOccurrences(of: "\" ", with: "_"))\"\r\n"
+        if status == 206 { response += "Content-Range: bytes \(start)-\(end)/\(fileSize)\r\n" }
+        response += "\r\n"
+        connection.send(content: Data(response.utf8), completion: .contentProcessed { [weak self] error in
+            guard let self, error == nil else { connection.cancel(); return }
+            guard method == "GET" else { connection.cancel(); return }
+            self.sendFile(entry.url, offset: start, remaining: length, on: connection)
+        })
+    }
+
+    private func sendFile(_ url: URL, offset: Int64, remaining: Int64, on connection: NWConnection) {
+        guard remaining > 0, let handle = try? FileHandle(forReadingFrom: url) else {
+            connection.cancel()
+            return
+        }
+        do {
+            try handle.seek(toOffset: UInt64(offset))
+            sendNextChunk(handle: handle, remaining: remaining, on: connection)
+        } catch {
+            try? handle.close()
+            connection.cancel()
+        }
+    }
+
+    private func sendNextChunk(handle: FileHandle, remaining: Int64, on connection: NWConnection) {
+        guard remaining > 0 else {
+            try? handle.close()
+            connection.cancel()
+            return
+        }
+        do {
+            let chunk = try handle.read(upToCount: Int(min(256 * 1024, remaining))) ?? Data()
+            guard !chunk.isEmpty else {
+                try? handle.close()
+                connection.cancel()
+                return
+            }
+            connection.send(content: chunk, completion: .contentProcessed { [weak self] error in
+                guard let self, error == nil else {
+                    try? handle.close()
+                    connection.cancel()
+                    return
+                }
+                self.sendNextChunk(handle: handle, remaining: remaining - Int64(chunk.count), on: connection)
+            })
+        } catch {
+            try? handle.close()
+            connection.cancel()
+        }
+    }
+
+    private func sendError(_ status: Int, _ message: String, on connection: NWConnection) {
+        let body = Data(message.utf8)
+        let response = "HTTP/1.1 \(status) \(message)\r\nContent-Type: text/plain\r\nContent-Length: \(body.count)\r\nConnection: close\r\n\r\n"
+        connection.send(content: Data(response.utf8) + body, completion: .contentProcessed { _ in connection.cancel() })
+    }
+
+    private func sendRangeError(_ size: Int64, on connection: NWConnection) {
+        let response = "HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */\(size)\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+        connection.send(content: Data(response.utf8), completion: .contentProcessed { _ in connection.cancel() })
+    }
+
+    private static func mimeType(for url: URL) -> String {
+        switch url.pathExtension.lowercased() {
+        case "mkv": return "video/x-matroska"
+        case "mp4", "m4v": return "video/mp4"
+        case "mov": return "video/quicktime"
+        case "webm": return "video/webm"
+        case "ts": return "video/mp2t"
+        case "mp3": return "audio/mpeg"
+        case "aac": return "audio/aac"
+        default: return "application/octet-stream"
+        }
+    }
+
+    private static func localIPv4Address() -> String? {
+        var interfaces: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&interfaces) == 0, let first = interfaces else { return nil }
+        defer { freeifaddrs(interfaces) }
+        for item in sequence(first: first, next: { $0.pointee.ifa_next }) {
+            let flags = Int32(item.pointee.ifa_flags)
+            guard flags & IFF_UP != 0, flags & IFF_LOOPBACK == 0,
+                  let address = item.pointee.ifa_addr,
+                  address.pointee.sa_family == UInt8(AF_INET) else { continue }
+            let name = String(cString: item.pointee.ifa_name)
+            guard name == "en0" else { continue }
+            var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+            let result = getnameinfo(address, socklen_t(address.pointee.sa_len), &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST)
+            if result == 0 {
+                let value = String(cString: host)
+                if !value.hasPrefix("169.254.") { return value }
+            }
+        }
+        return nil
+    }
+}
