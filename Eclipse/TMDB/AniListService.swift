@@ -5409,7 +5409,7 @@ final class AniListService {
         let selectedLanguages = MyDubListDubFilter.shared.selectedLanguages
         let result: AnimeAiringScheduleResult
 
-        if !selectedLanguages.isEmpty {
+        if !AnimeScheduleFallback.permitsBroadcastFallback(selectedDubLanguages: selectedLanguages) {
             // A broadcast schedule is not a dub schedule. Falling back to AniList or
             // MAL here would put the newly aired Japanese episode back into a
             // language-filtered calendar. Keep the schedule fail-closed instead.
