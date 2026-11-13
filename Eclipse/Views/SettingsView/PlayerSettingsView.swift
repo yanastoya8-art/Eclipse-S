@@ -758,6 +758,7 @@ private struct MPVPlayerSkinSettingsView: View {
     @AppStorage(MPVPlayerSkinSettings.customSecondaryColorKey) private var customSecondaryColorData = Data()
     @AppStorage(MPVPlayerSkinSettings.animationsEnabledKey) private var animationsEnabled = MPVPlayerSkinSettings.defaultAnimationsEnabled
     @AppStorage(MPVPlayerSkinSettings.tintControlsOnlyKey) private var tintControlsOnly = MPVPlayerSkinSettings.defaultTintControlsOnly
+    @AppStorage(MPVPlayerSkinSettings.liquidGlassControlsKey) private var liquidGlassControlsEnabled = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var animationPhase = false
     @State private var animationStyle: MPVPlayerSkinAnimationStyle = .glow
@@ -821,6 +822,17 @@ private struct MPVPlayerSkinSettingsView: View {
                     }
                 }
 
+                GlassSection(header: "Controls") {
+                    GlassDetailRow(
+                        title: "Liquid Glass Controls",
+                        subtitle: "Use Apple's Liquid Glass material for the Molten player control bars on iOS 26 and later."
+                    ) {
+                        Toggle("", isOn: $liquidGlassControlsEnabled)
+                            .labelsHidden()
+                            .tint(primaryColor(for: selection))
+                    }
+                }
+
                 GlassSection(header: "Motion") {
                     VStack(spacing: 0) {
                         GlassDetailRow(title: "Skin Animations", subtitle: "Use subtle glows and color movement in animated skins.") {
@@ -841,7 +853,7 @@ private struct MPVPlayerSkinSettingsView: View {
                         }
                     }
                 }
-                GlassSectionFooter("Reduce Motion always disables skin animation. The Default skin keeps the original MPV appearance.")
+                GlassSectionFooter("Reduce Motion always disables skin animation. Liquid Glass controls are available on iOS 26 and use a translucent blur on earlier iOS versions.")
             }
             .padding(.top, 16)
             .padding(.bottom, 32)
