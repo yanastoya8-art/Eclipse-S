@@ -2449,8 +2449,8 @@ private actor JustWatchScheduleService {
             let code = rawCode.lowercased().replacingOccurrences(of: "_", with: "-")
             return selectedCodes.contains(code)
                 || selectedCodes.contains(where: { code.hasPrefix($0 + "-") })
-                || (code == "es" && selectedCodes.contains("es-419"))
-                || (code == "es" && selectedCodes.contains("es-es"))
+                || (isSpanishLanguageCode(code)
+                    && selectedCodes.contains(where: isSpanishLanguageCode))
         }
     }
 
@@ -2459,6 +2459,12 @@ private actor JustWatchScheduleService {
         let code = raw.lowercased().replacingOccurrences(of: "_", with: "-")
         return selectedCodes.contains(code)
             || selectedCodes.contains(where: { code.hasPrefix($0 + "-") })
+            || (isSpanishLanguageCode(code)
+                && selectedCodes.contains(where: isSpanishLanguageCode))
+    }
+
+    private static func isSpanishLanguageCode(_ code: String) -> Bool {
+        code == "es" || code.hasPrefix("es-")
     }
 
     private static func date(in object: [String: Any]) -> Date? {
