@@ -516,6 +516,13 @@ struct SettingsView: View {
 
                         GlassDivider()
 
+                        NavigationLink(destination: settingsSearchableContent(AnimeRuntimeFiltersSettingsView())) {
+                            GlassSettingsRow(icon: "slider.horizontal.3", iconColor: .mint, title: "Anime & Runtime Filters")
+                        }
+                        .buttonStyle(.plain)
+
+                        GlassDivider()
+
                         NavigationLink(destination: settingsSearchableContent(ReleaseDateFiltersSettingsView())) {
                             GlassSettingsRow(icon: "calendar.badge.clock", iconColor: .purple, title: "Release Date Filters")
                         }
@@ -983,6 +990,9 @@ struct SettingsView: View {
                     requireEnglishSpanishAudio: $requireEnglishSpanishAudio
                 )) {
                     Text("Language Filters")
+                }
+                NavigationLink(destination: AnimeRuntimeFiltersSettingsView()) {
+                    Text("Anime & Runtime Filters")
                 }
                 NavigationLink(destination: ReleaseDateFiltersSettingsView()) {
                     Text("Release Date Filters")
@@ -5433,9 +5443,9 @@ private struct LanguageFiltersSettingsView: View {
                     .accessibilityIdentifier("settings.contentFilters.dubLanguage.\(language.rawValue)")
                 }
             } header: {
-                Text("Anime Dub Languages")
+                Text("Dub Languages")
             } footer: {
-                Text("Select one or more dub languages. A title qualifies when it has at least one selected language. If no languages are selected, this anime dub filter is inactive. Anime without a match is excluded from filtered catalogs and sections.")
+                Text("Select one or more languages. Anime catalogs require a verified dub in at least one selected language. The Western TV schedule keeps original air dates when the original audio matches your selection; otherwise, it uses only verified JustWatch episode release dates. Configure your API.SH key in Settings → Services → JustWatch. Without a key or a matching release date, non-native entries are hidden.")
             }
         }
         .eclipsePageTitle("Language Filters")
@@ -5482,6 +5492,40 @@ private struct ReleaseDateFiltersSettingsView: View {
         .onChange(of: hideUnreleasedMovies) { _ in filtersDidChange() }
         .onChange(of: hideUnreleasedTVShows) { _ in filtersDidChange() }
         .eclipsePageTitle("Release Date Filters")
+        .eclipseSettingsStyle()
+        .preferredColorScheme(.dark)
+    }
+}
+
+
+private struct AnimeRuntimeFiltersSettingsView: View {
+    @AppStorage("catalogHideAnime", store: .standard) private var hideAnime = false
+    @AppStorage("catalogHideUnder20MinuteContent", store: .standard) private var hideUnder20MinuteContent = false
+
+    private func filtersDidChange() {
+        NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil)
+        NotificationCenter.default.post(name: Notification.Name("scheduleContentFiltersDidChange"), object: nil)
+    }
+
+    var body: some View {
+        List {
+            Section {
+                Toggle("Hide anime", isOn: $hideAnime)
+                    .onChange(of: hideAnime) { _ in filtersDidChange() }
+                    .accessibilityIdentifier("settings.contentFilters.hideAnime")
+            } footer: {
+                Text("Hides identified anime from filtered catalogs, home sections and the Schedule. Anime identification uses the app's AniList identity and TMDB genre, language and country metadata.")
+            }
+
+            Section {
+                Toggle("Hide movies and TV shows under 20 minutes", isOn: $hideUnder20MinuteContent)
+                    .onChange(of: hideUnder20MinuteContent) { _ in filtersDidChange() }
+                    .accessibilityIdentifier("settings.contentFilters.hideShortRuntime")
+            } footer: {
+                Text("Movie runtime and typical TV episode runtime are read from TMDB. TV shows use the median of the reported episode runtimes. Only confirmed runtimes below 20 minutes are hidden; missing runtime data is not guessed.")
+            }
+        }
+        .eclipsePageTitle("Anime & Runtime Filters")
         .eclipseSettingsStyle()
         .preferredColorScheme(.dark)
     }

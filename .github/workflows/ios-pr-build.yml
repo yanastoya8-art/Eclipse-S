@@ -33,13 +33,13 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           repository: yanastoya8-art/MPVKit-S
-          ref: 51068a9e0c55608eea4cf4bb940173de436d549e
+          ref: fee7aa27869ed4775ff2984de4438484d902e67b
           path: MPVKit
 
       - name: Build patched MPVKit for iPhone and iPad
         run: |
           set -euo pipefail
-          brew install autoconf automake libtool ninja nasm
+          brew install autoconf automake cmake libtool nasm ninja pkg-config
           MPVKIT_BUILD_VENV="$RUNNER_TEMP/mpvkit-build-venv"
           python3 -m venv "$MPVKIT_BUILD_VENV"
           "$MPVKIT_BUILD_VENV/bin/python" -m pip install --disable-pip-version-check meson==1.4.2
@@ -52,7 +52,7 @@ jobs:
       - name: Verify patched MPVKit source and local frameworks
         run: |
           set -euo pipefail
-          test "$(git -C MPVKit rev-parse HEAD)" = "9f9a68f841aefe247bb0c670e997a04702f5e247"
+          test "$(git -C MPVKit rev-parse HEAD)" = "fee7aa27869ed4775ff2984de4438484d902e67b"
           grep -q 'dovi_metadata' MPVKit/Sources/BuildScripts/patch/libmpv/0017-expose-decoded-dolby-vision-rpu.patch
           grep -q 'videoHasDolbyVisionRPU' MPVKit/Sources/MPVKitSampleBufferGPL/MPVGPUPlayerRenderer.swift
 

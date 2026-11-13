@@ -161,7 +161,7 @@ struct ScheduleEntry: Identifiable, Sendable {
     let provider: ScheduleProvider
     let sourceMediaId: Int
     let title: String
-    let airingAt: Date
+    var airingAt: Date
     let episode: Int
     let season: Int?
     var coverImage: String?
@@ -169,9 +169,12 @@ struct ScheduleEntry: Identifiable, Sendable {
     let romajiTitle: String?
     let nativeTitle: String?
     let format: String?
-    let hasKnownAiringTime: Bool
-    let isStreamingRelease: Bool
+    var hasKnownAiringTime: Bool
+    var isStreamingRelease: Bool
     let tmdbId: Int?
+    let originalLanguage: String?
+    let releaseYear: Int?
+    var runtimeMinutes: Int?
     let animeMALID: Int?
     let airingTimeWithdrawn: Bool
 
@@ -207,6 +210,9 @@ struct ScheduleEntry: Identifiable, Sendable {
         tmdbId = nil
         animeMALID = animeEntry.malID
         airingTimeWithdrawn = animeEntry.airingTimeWithdrawn == true
+        originalLanguage = nil
+        releaseYear = nil
+        runtimeMinutes = nil
     }
 
     fileprivate init(westernEpisode: TVMazeScheduleEpisode, airing: TVMazeAiringInfo) {
@@ -228,6 +234,9 @@ struct ScheduleEntry: Identifiable, Sendable {
         hasKnownAiringTime = airing.hasKnownAiringTime
         isStreamingRelease = westernEpisode.show.webChannel != nil
         tmdbId = nil
+        originalLanguage = westernEpisode.show.isoLanguageCode
+        releaseYear = westernEpisode.show.releaseYear
+        runtimeMinutes = westernEpisode.runtime
     }
 
     fileprivate init(traktItem: TraktCalendarItem, airingAt: Date, tmdbDetail: TMDBTVShowDetail?) {
@@ -253,6 +262,17 @@ struct ScheduleEntry: Identifiable, Sendable {
         hasKnownAiringTime = true
         isStreamingRelease = false
         tmdbId = traktItem.show.ids.tmdb
+        originalLanguage = traktItem.show.language?.lowercased()
+        releaseYear = traktItem.show.year
+        runtimeMinutes = traktItem.episode.runtime
+    }
+
+    func withAiringAt(_ date: Date, isStreamingRelease: Bool) -> ScheduleEntry {
+        var copy = self
+        copy.airingAt = date
+        copy.isStreamingRelease = isStreamingRelease
+        if isStreamingRelease { copy.hasKnownAiringTime = false }
+        return copy
     }
 }
 
@@ -669,9 +689,9 @@ final class ScheduleViewModel: ObservableObject {
         let loadTask = Task { @MainActor [weak self] () throws -> [ScheduleEntry] in
             guard let self else { throw CancellationError() }
             do {
-                let entries: [ScheduleEntry]
+                let rawEntries: [ScheduleEntry]
                 do {
-                    entries = try await self.retryOnceAfterTransientCancellation(operationName: "Trakt schedule") {
+                    rawEntries = try await self.retryOnceAfterTransientCancellation(operationName: "Trakt schedule") {
                         try await TraktScheduleService.shared.fetchSchedule(dayCount: dayCount)
                     }
                 } catch {
@@ -679,8 +699,14 @@ final class ScheduleViewModel: ObservableObject {
                         throw CancellationError()
                     }
                     Logger.shared.log("TraktScheduleService: falling back to TVMaze: \(error.localizedDescription)", type: "TMDB")
-                    entries = try await TVMazeService.shared.fetchSchedule(dayCount: dayCount)
+                    rawEntries = try await TVMazeService.shared.fetchSchedule(dayCount: dayCount)
                 }
+                try Task.checkCancellation()
+                let languageFiltered = await JustWatchScheduleService.shared.filter(
+                    entries: rawEntries,
+                    selectedLanguages: MyDubListDubFilter.shared.selectedLanguages
+                )
+                let entries = await self.applyShortRuntimeScheduleFilter(languageFiltered)
                 try Task.checkCancellation()
                 if self.westernScheduleLoadID == loadID {
                     self.westernScheduleEntries = entries
@@ -712,6 +738,39 @@ final class ScheduleViewModel: ObservableObject {
             return cached
         }
         return try await westernEntries(dayCount: dayCount, forceRefresh: forceRefresh)
+    }
+
+    private func applyShortRuntimeScheduleFilter(_ entries: [ScheduleEntry]) async -> [ScheduleEntry] {
+        guard UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") else {
+            return entries
+        }
+
+        var resolved = entries
+        let missingSeasonKeys = Set(entries.compactMap { entry -> String? in
+            guard entry.runtimeMinutes == nil,
+                  let tmdbID = entry.tmdbId,
+                  let season = entry.season else { return nil }
+            return "\(tmdbID)|\(season)"
+        })
+
+        for key in missingSeasonKeys {
+            let parts = key.split(separator: "|")
+            guard parts.count == 2,
+                  let tmdbID = Int(parts[0]),
+                  let season = Int(parts[1]),
+                  let detail = try? await TMDBService.shared.getSeasonDetails(
+                    tvShowId: tmdbID,
+                    seasonNumber: season
+                  ) else { continue }
+            for index in resolved.indices where resolved[index].tmdbId == tmdbID
+                && resolved[index].season == season && resolved[index].runtimeMinutes == nil {
+                resolved[index].runtimeMinutes = detail.episodes.first {
+                    $0.episodeNumber == resolved[index].episode
+                }?.runtime
+            }
+        }
+
+        return resolved.filter { ($0.runtimeMinutes ?? 20) >= 20 }
     }
 
     private func scheduleCacheIsFresh(
@@ -1167,8 +1226,7 @@ private final class TraktScheduleService {
     private func fetchCalendarItems(startDate: String, dayCount: Int) async throws -> [TraktCalendarItem] {
         var components = URLComponents(string: "\(baseURL.absoluteString)/calendars/all/shows/\(startDate)/\(dayCount)")
         components?.queryItems = [
-            URLQueryItem(name: "extended", value: "full"),
-            URLQueryItem(name: "languages", value: "en")
+            URLQueryItem(name: "extended", value: "full")
         ]
         guard let url = components?.url else {
             throw TraktScheduleError.invalidURL
@@ -1279,10 +1337,6 @@ fileprivate struct TraktCalendarItem: Decodable {
     }
 
     var isWesternScheduleCandidate: Bool {
-        guard show.language?.lowercased() == "en" else {
-            return false
-        }
-
         let excludedGenres: Set<String> = [
             "anime",
             "documentary",
@@ -1297,7 +1351,9 @@ fileprivate struct TraktCalendarItem: Decodable {
             "talk-show"
         ]
         let genres = Set((show.genres ?? []).map { $0.lowercased() })
-        return genres.isDisjoint(with: excludedGenres)
+        let isLikelyAnime = genres.contains("anime")
+            || (genres.contains("animation") && ["ja", "zh", "ko"].contains(show.language?.lowercased() ?? ""))
+        return !isLikelyAnime && genres.isDisjoint(with: excludedGenres)
     }
 }
 
@@ -1306,6 +1362,7 @@ fileprivate struct TraktCalendarEpisode: Decodable {
     let number: Int?
     let title: String?
     let ids: TraktCalendarIDs?
+    let runtime: Int?
 }
 
 fileprivate struct TraktCalendarShow: Decodable {
@@ -1413,7 +1470,7 @@ private actor TVMazeService {
                     continue
                 }
                 for episode in episodes where episode.show.isWesternScheduleCandidate
-                    && (!feed.requiresEnglishLanguage || episode.show.isEnglishLanguage) {
+                    {
                     episodesById[episode.id] = episode
                 }
             }
@@ -1543,13 +1600,14 @@ fileprivate struct TVMazeScheduleEpisode: Decodable {
     let id: Int
     let season: Int
     let number: Int?
+    let runtime: Int?
     let airdate: String
     let airtime: String?
     let airstamp: String?
     let show: TVMazeShow
 
     private enum CodingKeys: String, CodingKey {
-        case id, season, number, airdate, airtime, airstamp, show
+        case id, season, number, runtime, airdate, airtime, airstamp, show
         case embedded = "_embedded"
     }
 
@@ -1558,6 +1616,7 @@ fileprivate struct TVMazeScheduleEpisode: Decodable {
         id = try container.decode(Int.self, forKey: .id)
         season = try container.decode(Int.self, forKey: .season)
         number = try container.decodeIfPresent(Int.self, forKey: .number)
+        runtime = try container.decodeIfPresent(Int.self, forKey: .runtime)
         airdate = try container.decode(String.self, forKey: .airdate)
         airtime = try container.decodeIfPresent(String.self, forKey: .airtime)
         airstamp = try container.decodeIfPresent(String.self, forKey: .airstamp)
@@ -1610,6 +1669,7 @@ fileprivate struct TVMazeShow: Decodable {
     let id: Int
     let name: String
     let language: String?
+    let premiered: String?
     let type: String?
     let genres: [String]
     let image: TVMazeImage?
@@ -1617,12 +1677,25 @@ fileprivate struct TVMazeShow: Decodable {
     let webChannel: TVMazeChannel?
     let schedule: TVMazeShowSchedule?
 
+    var isoLanguageCode: String? {
+        guard let language else { return nil }
+        let normalized = language.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let known: [String: String] = ["english": "en", "spanish": "es", "japanese": "ja", "french": "fr", "german": "de", "italian": "it", "portuguese": "pt", "korean": "ko", "chinese": "zh", "dutch": "nl", "russian": "ru", "turkish": "tr", "arabic": "ar", "hindi": "hi", "polish": "pl", "swedish": "sv", "danish": "da", "norwegian": "no", "finnish": "fi"]
+        return known[normalized] ?? (normalized.count == 2 ? normalized : nil)
+    }
+
+    var releaseYear: Int? {
+        guard let premiered, premiered.count >= 4 else { return nil }
+        return Int(premiered.prefix(4))
+    }
+
     var isLikelyAnime: Bool {
         let hasAnimeGenre = genres.contains { genre in
             let normalized = genre.lowercased()
             return normalized == "anime" || normalized == "animation"
         }
-        return language?.lowercased() == "japanese" && hasAnimeGenre
+        return hasAnimeGenre
+            && ["japanese", "chinese", "korean"].contains(language?.lowercased() ?? "")
     }
 
     var isWesternScheduleCandidate: Bool {
@@ -1648,7 +1721,7 @@ fileprivate struct TVMazeShow: Decodable {
             return webCountry.code?.uppercased() == normalizedRegion
         }
 
-        return webChannel != nil && isEnglishLanguage
+        return webChannel != nil
     }
 }
 
@@ -1668,4 +1741,302 @@ fileprivate struct TVMazeChannel: Decodable {
 fileprivate struct TVMazeCountry: Decodable {
     let code: String?
     let timezone: String?
+}
+
+
+private actor JustWatchScheduleService {
+    static let shared = JustWatchScheduleService()
+
+    private struct CachedEpisodeDates: Codable {
+        let fetchedAt: Date
+        let datesByEpisode: [String: String]
+    }
+
+    private let baseURL = URL(string: "https://api.api.sh/justwatch/v1")!
+    private let cacheLifetime: TimeInterval = 12 * 60 * 60
+    private var showIDCache: [String: String] = [:]
+    private var seasonDateCache: [String: [Int: Date]] = [:]
+
+    func filter(
+        entries: [ScheduleEntry],
+        selectedLanguages: Set<String>
+    ) async -> [ScheduleEntry] {
+        guard !selectedLanguages.isEmpty else { return entries }
+        let selectedCodes = Set(selectedLanguages.flatMap { raw in
+            MyDubListLanguage(rawValue: raw)?.episodeMetadataLanguageCodes.map { $0.lowercased() } ?? []
+        })
+        guard !selectedCodes.isEmpty else { return entries }
+
+        let groups = Dictionary(grouping: entries, by: { entry in
+            "\(entry.tmdbId.map(String.init) ?? "title")|\(entry.title.lowercased())|\(entry.releaseYear.map(String.init) ?? "0")"
+        })
+        var filtered: [ScheduleEntry] = []
+
+        for group in groups.values {
+            guard let first = group.first else { continue }
+            if Self.language(first.originalLanguage, matches: selectedCodes) {
+                filtered.append(contentsOf: group)
+                continue
+            }
+
+            guard let apiKey = JustWatchAPIKeyStore.load(),
+                  !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  let showID = try? await resolveShowID(for: first, apiKey: apiKey) else {
+                continue
+            }
+
+            let bySeason = Dictionary(grouping: group, by: { $0.season ?? 0 })
+            for (season, seasonEntries) in bySeason {
+                guard let dates = try? await episodeDates(
+                    showID: showID,
+                    season: season,
+                    selectedCodes: selectedCodes,
+                    apiKey: apiKey
+                ) else { continue }
+
+                for entry in seasonEntries {
+                    guard let date = dates[entry.episode] else { continue }
+                    filtered.append(entry.withAiringAt(date, isStreamingRelease: true))
+                }
+            }
+        }
+
+        return filtered.sorted { $0.airingAt < $1.airingAt }
+    }
+
+    private func resolveShowID(for entry: ScheduleEntry, apiKey: String) async throws -> String {
+        let cacheKey = "\(entry.tmdbId.map(String.init) ?? "title")|\(entry.title.lowercased())|\(entry.releaseYear.map(String.init) ?? "0")"
+        if let cached = showIDCache[cacheKey] { return cached }
+        if let persisted = UserDefaults.standard.string(forKey: "justWatchShowIDV1.\(cacheKey)"), persisted.hasPrefix("ts") {
+            showIDCache[cacheKey] = persisted
+            return persisted
+        }
+
+        var components = URLComponents(url: baseURL.appendingPathComponent("search"), resolvingAgainstBaseURL: false)
+        components?.queryItems = [
+            URLQueryItem(name: "q", value: entry.title),
+            URLQueryItem(name: "country", value: "BG"),
+            URLQueryItem(name: "type", value: "show"),
+            URLQueryItem(name: "limit", value: "40")
+        ]
+        guard let url = components?.url else { throw JustWatchScheduleError.invalidURL }
+        let payload = try await requestJSON(url: url, apiKey: apiKey)
+        guard let titles = payload["titles"] as? [[String: Any]] else {
+            throw JustWatchScheduleError.invalidResponse
+        }
+
+        let exactTMDB = entry.tmdbId.map(String.init)
+        let normalizedTitle = Self.normalizedTitle(entry.title)
+        let candidates = titles.filter { title in
+            guard (title["type"] as? String)?.uppercased() == "SHOW" else { return false }
+            if let exactTMDB {
+                return Self.stringValue(title["tmdb_id"]) == exactTMDB
+            }
+            let candidateTitles = [
+                title["title"] as? String,
+                title["original_title"] as? String
+            ].compactMap { $0 }.map(Self.normalizedTitle)
+            guard candidateTitles.contains(normalizedTitle) else { return false }
+            if let year = entry.releaseYear, let candidateYear = Self.intValue(title["year"]) {
+                return abs(candidateYear - year) <= 1
+            }
+            return true
+        }
+        guard let id = candidates.first?["id"] as? String, id.hasPrefix("ts") else {
+            throw JustWatchScheduleError.titleNotFound
+        }
+        showIDCache[cacheKey] = id
+        UserDefaults.standard.set(id, forKey: "justWatchShowIDV1.\(cacheKey)")
+        return id
+    }
+
+    private func episodeDates(
+        showID: String,
+        season: Int,
+        selectedCodes: Set<String>,
+        apiKey: String
+    ) async throws -> [Int: Date] {
+        let languageKey = selectedCodes.sorted().joined(separator: ",")
+        let cacheKey = "\(showID)|\(season)|BG|\(languageKey)"
+        if let cached = seasonDateCache[cacheKey] { return cached }
+        if let cachedData = UserDefaults.standard.data(forKey: "justWatchEpisodeDatesV1.\(cacheKey)"),
+           let cached = try? JSONDecoder().decode(CachedEpisodeDates.self, from: cachedData),
+           Date().timeIntervalSince(cached.fetchedAt) >= 0,
+           Date().timeIntervalSince(cached.fetchedAt) < cacheLifetime {
+            let dates = cached.datesByEpisode.reduce(into: [Int: Date]()) { result, item in
+                if let episode = Int(item.key), let date = Self.parseDate(item.value) {
+                    result[episode] = date
+                }
+            }
+            seasonDateCache[cacheKey] = dates
+            return dates
+        }
+
+        var components = URLComponents(url: baseURL.appendingPathComponent("seasons"), resolvingAgainstBaseURL: false)
+        components?.queryItems = [
+            URLQueryItem(name: "id", value: showID),
+            URLQueryItem(name: "season", value: String(season)),
+            URLQueryItem(name: "country", value: "BG"),
+            URLQueryItem(name: "language", value: "en"),
+            URLQueryItem(name: "limit", value: "100")
+        ]
+        guard let url = components?.url else { throw JustWatchScheduleError.invalidURL }
+        let payload = try await requestJSON(url: url, apiKey: apiKey)
+        guard let episodes = payload["episodes"] as? [[String: Any]] else {
+            throw JustWatchScheduleError.invalidResponse
+        }
+
+        var dates: [Int: Date] = [:]
+        for episode in episodes {
+            guard let number = Self.firstInt(episode, keys: ["number", "episode_number", "episodeNumber"]) else {
+                continue
+            }
+            let matchingDates = Self.matchingReleaseDates(in: episode, selectedCodes: selectedCodes)
+            if let earliest = matchingDates.min() {
+                dates[number] = earliest
+            }
+        }
+
+        let persisted = CachedEpisodeDates(
+            fetchedAt: Date(),
+            datesByEpisode: dates.reduce(into: [String: String]()) { result, item in
+                result[String(item.key)] = Self.dateString(item.value)
+            }
+        )
+        if let data = try? JSONEncoder().encode(persisted) {
+            UserDefaults.standard.set(data, forKey: "justWatchEpisodeDatesV1.\(cacheKey)")
+        }
+        seasonDateCache[cacheKey] = dates
+        return dates
+    }
+
+    private func requestJSON(url: URL, apiKey: String) async throws -> [String: Any] {
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 25
+        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw JustWatchScheduleError.invalidResponse
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw JustWatchScheduleError.httpStatus(http.statusCode)
+        }
+        guard data.count <= 8 * 1_024 * 1_024,
+              let payload = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              payload["success"] as? Bool != false else {
+            throw JustWatchScheduleError.invalidResponse
+        }
+        return payload
+    }
+
+    private static func matchingReleaseDates(
+        in episode: [String: Any],
+        selectedCodes: Set<String>
+    ) -> [Date] {
+        var dates: [Date] = []
+        let upcoming = episode["upcoming_releases"] as? [[String: Any]] ?? []
+        for release in upcoming {
+            let nestedOffers = release["offers"] as? [[String: Any]] ?? [release]
+            for offer in nestedOffers where languages(offer["audio_languages"], match: selectedCodes) {
+                if let date = date(in: offer) ?? date(in: release) {
+                    dates.append(date)
+                }
+            }
+        }
+        let offers = episode["offers"] as? [[String: Any]] ?? []
+        for offer in offers where languages(offer["audio_languages"], match: selectedCodes) {
+            if let date = date(in: offer) {
+                dates.append(date)
+            }
+        }
+        return dates
+    }
+
+    private static func languages(_ raw: Any?, match selectedCodes: Set<String>) -> Bool {
+        guard let values = raw as? [String] else { return false }
+        return values.contains { rawCode in
+            let code = rawCode.lowercased().replacingOccurrences(of: "_", with: "-")
+            return selectedCodes.contains(code)
+                || selectedCodes.contains(where: { code.hasPrefix($0 + "-") })
+                || (code == "es" && selectedCodes.contains("es-419"))
+                || (code == "es" && selectedCodes.contains("es-es"))
+        }
+    }
+
+    private static func language(_ raw: String?, matches selectedCodes: Set<String>) -> Bool {
+        guard let raw else { return false }
+        let code = raw.lowercased().replacingOccurrences(of: "_", with: "-")
+        return selectedCodes.contains(code)
+            || selectedCodes.contains(where: { code.hasPrefix($0 + "-") })
+    }
+
+    private static func date(in object: [String: Any]) -> Date? {
+        for key in ["release_date", "releaseDate", "date", "available_from", "availableFrom"] {
+            if let raw = object[key] as? String, let parsed = parseDate(raw) {
+                return parsed
+            }
+        }
+        return nil
+    }
+
+    private static func firstInt(_ object: [String: Any], keys: [String]) -> Int? {
+        for key in keys {
+            if let value = intValue(object[key]), value >= 0 { return value }
+        }
+        return nil
+    }
+
+    private static func intValue(_ raw: Any?) -> Int? {
+        if let value = raw as? Int { return value }
+        if let value = raw as? String { return Int(value) }
+        if let value = raw as? NSNumber { return value.intValue }
+        return nil
+    }
+
+    private static func stringValue(_ raw: Any?) -> String? {
+        if let value = raw as? String { return value }
+        if let value = raw as? NSNumber { return value.stringValue }
+        return nil
+    }
+
+    private static func normalizedTitle(_ value: String) -> String {
+        value.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+            .unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) }
+            .map(String.init).joined()
+    }
+
+    private static func parseDate(_ value: String) -> Date? {
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = fractional.date(from: value) { return date }
+        if let date = ISO8601DateFormatter().date(from: value) { return date }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: value)
+    }
+
+    private static func dateString(_ date: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.string(from: date)
+    }
+}
+
+private enum JustWatchScheduleError: LocalizedError {
+    case invalidURL
+    case invalidResponse
+    case titleNotFound
+    case httpStatus(Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidURL: return "JustWatch schedule URL is invalid."
+        case .invalidResponse: return "JustWatch returned invalid episode-release metadata."
+        case .titleNotFound: return "JustWatch could not match this series to its TMDB identity."
+        case .httpStatus(let status): return "JustWatch schedule request failed (HTTP \(status))."
+        }
+    }
 }
