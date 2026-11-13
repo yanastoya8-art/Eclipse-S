@@ -225,6 +225,10 @@ final class PlayerSettingsStore: ObservableObject {
         didSet { profileStore.set(mpvDolbyAtmosEnabled, forKey: "mpvDolbyAtmosEnabled") }
     }
 
+    @Published var mpvTrueHDAtmosEnabled: Bool {
+        didSet { profileStore.set(mpvTrueHDAtmosEnabled, forKey: "mpvTrueHDAtmosEnabled") }
+    }
+
     @Published var mpvHDRMode: MPVHDRMode {
         didSet { profileStore.set(mpvHDRMode.rawValue, forKey: "mpvHDRMode") }
     }
@@ -464,6 +468,7 @@ final class PlayerSettingsStore: ObservableObject {
         self.mpvHDRMode = MPVHDRMode(rawValue: hdrModeRaw) ?? .defaultMode
         self.mpvDolbyVisionEnabled = store.object(forKey: "mpvDolbyVisionEnabled") as? Bool ?? true
         self.mpvDolbyAtmosEnabled = store.object(forKey: "mpvDolbyAtmosEnabled") as? Bool ?? true
+        self.mpvTrueHDAtmosEnabled = store.object(forKey: "mpvTrueHDAtmosEnabled") as? Bool ?? false
         let audioComfortModeRaw = store.string(forKey: "audioComfortMode") ?? AudioComfortMode.defaultMode.rawValue
         self.audioComfortMode = AudioComfortMode(rawValue: audioComfortModeRaw) ?? .defaultMode
         if let rawScopes = store.array(forKey: "audioComfortScopeCategories") as? [String] {
@@ -2535,6 +2540,14 @@ private struct MPVPlayerSettingsPage: View {
                     binding: $store.mpvDolbyAtmosEnabled
                 )
                 .id(PlayerSettingsSearchTarget.dolbyAtmos.anchorID)
+
+                GlassDivider(leadingInset: 16)
+                settingsToggleRow(
+                    title: "TrueHD Dolby Atmos",
+                    detail: "Experimental TrueHD bitstream passthrough. Requires Dolby Atmos and Surround Sound to be enabled, plus an HDMI audio route and receiver that explicitly support Dolby TrueHD. Unsupported routes may fall back to decoded audio or reject passthrough. Applies on next MPV playback.",
+                    binding: $store.mpvTrueHDAtmosEnabled
+                )
+                .id("player-settings-search-trueHDAtmos")
             }
 
             GlassDivider(leadingInset: 16)
