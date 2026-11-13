@@ -465,6 +465,17 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         return v
     }()
 
+    private let centerPlayPauseGlassView: UIVisualEffectView = {
+        let view = UIVisualEffectView(effect: nil)
+        view.translatesAutoresizingMaskIntoConstraints = false
+        view.isUserInteractionEnabled = false
+        view.clipsToBounds = true
+        view.layer.cornerRadius = 41
+        view.alpha = 0
+        view.isHidden = true
+        return view
+    }()
+
     private let topControlsGlassView: UIVisualEffectView = {
         let view = UIVisualEffectView(effect: nil)
         view.translatesAutoresizingMaskIntoConstraints = false
@@ -5414,7 +5425,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
                 : appearance.overlayBackground)
         updatePlayerLiquidGlassEffects()
         centerPlayPauseButton.tintColor = appearance.primary
-        centerPlayPauseButton.backgroundColor = appearance.centerButtonBackground
+        centerPlayPauseButton.backgroundColor = liquidGlassEnabled ? .clear : appearance.centerButtonBackground
         centerPlayPauseButton.layer.shadowColor = appearance.primary.cgColor
         centerPlayPauseButton.layer.shadowOpacity = selectedSkin == .defaultSkin ? 0 : 0.38
         centerPlayPauseButton.layer.shadowRadius = selectedSkin == .defaultSkin ? 0 : 10
@@ -5485,8 +5496,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
     private func updatePlayerLiquidGlassEffects() {
         guard activePlayerLiquidGlassEnabled else {
+            centerPlayPauseGlassView.effect = nil
             topControlsGlassView.effect = nil
             progressGlassView.effect = nil
+            centerPlayPauseGlassView.isHidden = true
             topControlsGlassView.isHidden = true
             progressGlassView.isHidden = true
             return
@@ -5500,10 +5513,13 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         } else {
             effect = UIBlurEffect(style: .systemUltraThinMaterialDark)
         }
+        centerPlayPauseGlassView.effect = effect
         topControlsGlassView.effect = effect
         progressGlassView.effect = effect
+        centerPlayPauseGlassView.isHidden = false
         topControlsGlassView.isHidden = false
         progressGlassView.isHidden = false
+        centerPlayPauseGlassView.alpha = controlsVisible ? 1 : 0
         topControlsGlassView.alpha = controlsVisible ? 1 : 0
         progressGlassView.alpha = controlsVisible ? 1 : 0
     }
@@ -5697,6 +5713,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         videoContainer.addSubview(loadingIndicator)
         view.addSubview(errorBanner)
         view.addSubview(playerNoticeBanner)
+        videoContainer.addSubview(centerPlayPauseGlassView)
         videoContainer.addSubview(centerPlayPauseButton)
         videoContainer.addSubview(progressGlassView)
         videoContainer.addSubview(progressContainer)
@@ -5822,6 +5839,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 #endif
 
         NSLayoutConstraint.activate([
+            centerPlayPauseGlassView.centerXAnchor.constraint(equalTo: centerPlayPauseButton.centerXAnchor),
+            centerPlayPauseGlassView.centerYAnchor.constraint(equalTo: centerPlayPauseButton.centerYAnchor),
+            centerPlayPauseGlassView.widthAnchor.constraint(equalTo: centerPlayPauseButton.widthAnchor, constant: 12),
+            centerPlayPauseGlassView.heightAnchor.constraint(equalTo: centerPlayPauseButton.heightAnchor, constant: 12),
+
             topControlsGlassView.topAnchor.constraint(equalTo: closeButton.topAnchor, constant: -7),
             topControlsGlassView.leadingAnchor.constraint(equalTo: closeButton.leadingAnchor, constant: -8),
             topControlsGlassView.trailingAnchor.constraint(equalTo: castButton.trailingAnchor, constant: 8),
@@ -13941,6 +13963,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         videoContainer.bringSubviewToFront(controlsOverlayView)
         videoContainer.bringSubviewToFront(topControlsGlassView)
         videoContainer.bringSubviewToFront(progressGlassView)
+        videoContainer.bringSubviewToFront(centerPlayPauseGlassView)
         videoContainer.bringSubviewToFront(overlayMenuDismissView)
         videoContainer.bringSubviewToFront(overlayMenuPanelView)
         videoContainer.bringSubviewToFront(centerPlayPauseButton)
@@ -13980,6 +14003,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
                 self.controlsOverlayView.alpha = 1.0
                 self.topControlsGlassView.alpha = self.activePlayerLiquidGlassEnabled ? 1.0 : 0.0
                 self.progressGlassView.alpha = self.activePlayerLiquidGlassEnabled ? 1.0 : 0.0
+                self.centerPlayPauseGlassView.alpha = self.activePlayerLiquidGlassEnabled ? 1.0 : 0.0
                 self.progressContainer.alpha = 1.0
 #if os(iOS)
                 self.closeButton.alpha = PlayerPlaybackLockSettings.isLocked() ? 0.35 : 1.0
@@ -14050,6 +14074,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
                 self.controlsOverlayView.alpha = 0.0
                 self.topControlsGlassView.alpha = 0.0
                 self.progressGlassView.alpha = 0.0
+                self.centerPlayPauseGlassView.alpha = 0.0
                 self.progressContainer.alpha = 0.0
                 self.closeButton.alpha = 0.0
 #if os(iOS)
