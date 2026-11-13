@@ -219,11 +219,13 @@ final class MyDubListDubFilter: @unchecked Sendable {
     func shouldInclude(_ result: TMDBSearchResult) -> Bool {
         let languages = selectedLanguages
         guard !languages.isEmpty else { return true }
+        let animeCountries: Set<String> = ["JP", "CN", "KR", "TW"]
+        let animeLanguages: Set<String> = ["ja", "zh", "ko"]
         let isLikelyAnime = result.animeIdentitySeed != nil
             || result.isAnimeHint == true
             || (result.genreIds?.contains(16) == true
-                && (result.originalLanguage?.lowercased() == "ja"
-                    || result.originCountry?.contains("JP") == true))
+                && (animeLanguages.contains(result.originalLanguage?.lowercased() ?? "")
+                    || result.originCountry?.contains(where: { animeCountries.contains($0) }) == true))
         guard isLikelyAnime else { return true }
         if let originalLanguage = result.originalLanguage?.lowercased(),
            languages.contains(where: { rawLanguage in
@@ -721,8 +723,8 @@ class TMDBContentFilter: ObservableObject {
         result.animeIdentitySeed != nil
             || result.isAnimeHint == true
             || (result.genreIds?.contains(16) == true
-                && (result.originalLanguage?.lowercased() == "ja"
-                    || result.originCountry?.contains("JP") == true))
+                && (["ja", "zh", "ko"].contains(result.originalLanguage?.lowercased() ?? "")
+                    || result.originCountry?.contains(where: { ["JP", "CN", "KR", "TW"].contains($0) }) == true))
     }
 
     private func storeAnimeAgeRating(_ rating: MaturityRating, for id: Int) {
