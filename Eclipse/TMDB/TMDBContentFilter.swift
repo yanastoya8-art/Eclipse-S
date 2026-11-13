@@ -899,7 +899,9 @@ class TMDBContentFilter: ObservableObject {
            Calendar(identifier: .gregorian).component(.year, from: releaseDate) < 1994 {
             return true
         }
-        return defaults.bool(forKey: unreleasedKey) && releaseDate > Date()
+        let calendar = Calendar.current
+        return defaults.bool(forKey: unreleasedKey)
+            && calendar.startOfDay(for: releaseDate) > calendar.startOfDay(for: Date())
     }
 
     private func shouldIncludeCatalogTitle(_ title: String) -> Bool {
