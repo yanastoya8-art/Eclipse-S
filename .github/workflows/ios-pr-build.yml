@@ -84,8 +84,8 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           repository: yanastoya8-art/MPVKit-S
-          ref: 5c648a7e9430946694c0f5bd3666f2c164b82101
-          path: SourcePackages/checkouts/mpvkit-s
+          ref: fee7aa27869ed4775ff2984de4438484d902e67b
+          path: MPVKit
 
       - name: Build patched MPVKit for iPhone and iPad
         run: |
@@ -95,21 +95,35 @@ jobs:
           python3 -m venv "$MPVKIT_BUILD_VENV"
           "$MPVKIT_BUILD_VENV/bin/python" -m pip install --disable-pip-version-check meson==1.4.2
           export PATH="$MPVKIT_BUILD_VENV/bin:$PATH"
-          make -C SourcePackages/checkouts/mpvkit-s build enable-gpl version=0.41.0 platform=ios
-          test -f SourcePackages/checkouts/mpvkit-s/dist/release/Package.swift
-          echo "MPVKIT_LOCAL_ARTIFACTS_DIR=$GITHUB_WORKSPACE/SourcePackages/checkouts/mpvkit-s/dist/release" >> "$GITHUB_ENV"
+          make -C MPVKit build enable-gpl version=0.41.0 platform=ios
+          test -f MPVKit/dist/release/Package.swift
           
       - name: Verify patched MPVKit source and local frameworks
         run: |
           set -euo pipefail
-          test "$(git -C SourcePackages/checkouts/mpvkit-s rev-parse HEAD)" = "5c648a7e9430946694c0f5bd3666f2c164b82101"
-          grep -q 'dovi_metadata' SourcePackages/checkouts/mpvkit-s/Sources/BuildScripts/patch/libmpv/0017-expose-decoded-dolby-vision-rpu.patch
-          grep -q 'videoHasDolbyVisionRPU' SourcePackages/checkouts/mpvkit-s/Sources/MPVKitSampleBufferGPL/MPVGPUPlayerRenderer.swift
+          test "$(git -C MPVKit rev-parse HEAD)" = "5c648a7e9430946694c0f5bd3666f2c164b82101"
+          grep -q 'dovi_metadata' MPVKit/Sources/BuildScripts/patch/libmpv/0017-expose-decoded-dolby-vision-rpu.patch
+          grep -q 'videoHasDolbyVisionRPU' MPVKit/Sources/MPVKitSampleBufferGPL/MPVGPUPlayerRenderer.swift
 
       - name: Resolve Swift packages
         run: |
           set -euo pipefail
-          SOURCE_PACKAGES_DIR="$GITHUB_WORKSPACE/SourcePackages"
+          SOURCE_PACKAGES_DIR="$RUNNER_TEMP/SourcePackages"
+          xcodebuild -resolvePackageDependencies \
+            -project Eclipse.xcodeproj \
+            -scheme Eclipse \
+            -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" \
+            -skipPackagePluginValidation \
+            -skipMacroValidation
+
+          # Stage the rebuilt runtime inside SwiftPM's own MPVKit checkout.
+          MPVKIT_PACKAGE_CHECKOUT="$SOURCE_PACKAGES_DIR/checkouts/mpvkit-s"
+          test -f "$MPVKIT_PACKAGE_CHECKOUT/Package.swift"
+          test "$(git -C "$MPVKIT_PACKAGE_CHECKOUT" rev-parse HEAD)" = "fee7aa27869ed4775ff2984de4438484d902e67b"
+          mkdir -p "$MPVKIT_PACKAGE_CHECKOUT/dist/release"
+          rsync -a --delete MPVKit/dist/release/ "$MPVKIT_PACKAGE_CHECKOUT/dist/release/"
+          MPVKIT_LOCAL_ARTIFACTS_DIR="$MPVKIT_PACKAGE_CHECKOUT/dist/release"
+          export MPVKIT_LOCAL_ARTIFACTS_DIR
           xcodebuild -resolvePackageDependencies \
             -project Eclipse.xcodeproj \
             -scheme Eclipse \
@@ -117,6 +131,7 @@ jobs:
             -skipPackagePluginValidation \
             -skipMacroValidation
           echo "SOURCE_PACKAGES_DIR=$SOURCE_PACKAGES_DIR" >> "$GITHUB_ENV"
+          echo "MPVKIT_LOCAL_ARTIFACTS_DIR=$MPVKIT_LOCAL_ARTIFACTS_DIR" >> "$GITHUB_ENV"
 
       - name: Select an available iPhone simulator
         run: |
