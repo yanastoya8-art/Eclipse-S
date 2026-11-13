@@ -33,7 +33,7 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           repository: yanastoya8-art/MPVKit-S
-          ref: cb92ec810bda2115e2bf9b9a3e799e045b3b1ce0
+          ref: d84afe50258fc523c97eefde588f55623d61f16b
           path: MPVKit
 
       - name: Build patched MPVKit for iOS and Apple platforms
