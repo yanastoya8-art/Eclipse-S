@@ -2494,7 +2494,7 @@ private struct MPVPlayerSettingsPage: View {
                 }
                 settingsToggleRow(
                     title: "Performance Overlay",
-                    detail: "Show resolution, frame rate, dropped frames, and decoder on screen. Applies on the next playback.",
+                    detail: "Show live CPU, memory, thermal, rendering, stream, and Dolby Vision metadata. Can also be toggled from the player controls.",
                     binding: $store.mpvPerformanceOverlayEnabled
                 )
                 .id(PlayerSettingsSearchTarget.performanceOverlay.anchorID)
