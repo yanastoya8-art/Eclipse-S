@@ -2122,7 +2122,6 @@ struct HomeView: View {
                   selectedLanguage == language else { return }
             heroArtworkIdentity = identity
             heroLogoURL = nil
-            failedHeroLogoURL = nil
             heroLogoLookupComplete = false
             heroAlternatePosterURL = nil
         }
