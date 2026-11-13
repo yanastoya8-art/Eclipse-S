@@ -16,9 +16,11 @@ on:
         required: false
         default: ""
 
+# Never cancel an in-progress IPA build just because another manual build
+# was queued. Each dispatch is an independent, auditable build attempt.
 concurrency:
-  group: ios-unsigned-ipa-${{ github.ref }}
-  cancel-in-progress: true
+  group: ios-unsigned-ipa-${{ github.run_id }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
