@@ -683,10 +683,16 @@ final class ScheduleViewModel: ObservableObject {
                         selectedLanguages: selectedLanguages
                     )
                 try Task.checkCancellation()
+                let providerNotice: String?
+                if !selectedLanguages.isEmpty, !mappedEntries.isEmpty, entries.isEmpty {
+                    providerNotice = "No provider-confirmed episode dates were found for the selected dub languages in your JustWatch region."
+                } else {
+                    providerNotice = result.notice
+                }
                 let loadResult = AnimeScheduleLoadResult(
                     entries: entries,
                     isAuthoritativeForNotifications: result.isAuthoritativeForNotifications,
-                    notice: result.notice
+                    notice: providerNotice
                 )
                 if self.animeScheduleLoadID == loadID {
                     self.animeScheduleResult = loadResult
