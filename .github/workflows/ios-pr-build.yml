@@ -116,13 +116,58 @@ jobs:
             -skipPackagePluginValidation \
             -skipMacroValidation
 
-          # Stage the rebuilt runtime inside SwiftPM's own MPVKit checkout.
+          # The MPVKit manifest searches its package root and package-root/xcframework.
+          # Stage the unpacked XCFrameworks at that exact location (not under dist/release),
+          # then point the manifest at the package root itself.
           MPVKIT_PACKAGE_CHECKOUT="$SOURCE_PACKAGES_DIR/checkouts/mpvkit-s"
           test -f "$MPVKIT_PACKAGE_CHECKOUT/Package.swift"
           test "$(git -C "$MPVKIT_PACKAGE_CHECKOUT" rev-parse HEAD)" = "fee7aa27869ed4775ff2984de4438484d902e67b"
-          mkdir -p "$MPVKIT_PACKAGE_CHECKOUT/dist/release"
-          rsync -a --delete MPVKit/dist/release/ "$MPVKIT_PACKAGE_CHECKOUT/dist/release/"
-          MPVKIT_LOCAL_ARTIFACTS_DIR="$MPVKIT_PACKAGE_CHECKOUT/dist/release"
+          MPVKIT_LOCAL_ARTIFACTS_DIR="$MPVKIT_PACKAGE_CHECKOUT"
+          mkdir -p "$MPVKIT_LOCAL_ARTIFACTS_DIR/xcframework"
+          rsync -a --delete MPVKit/dist/release/xcframework/ "$MPVKIT_LOCAL_ARTIFACTS_DIR/xcframework/"
+
+          # Fail here with a useful diagnostic instead of letting Package.swift abort
+          # package graph evaluation with the generic exit-74 fatal error.
+          python3 - <<'PY'
+          import plistlib
+          from pathlib import Path
+
+          root = Path(" ${MPVKIT_LOCAL_ARTIFACTS_DIR} ")
+          required = (
+              "Libmpv", "MoltenVK", "Libplacebo", "Libavcodec", "Libavdevice",
+              "Libavfilter", "Libavformat", "Libavutil", "Libswresample", "Libswscale",
+          )
+          failures = []
+          for name in required:
+              artifact = root / "xcframework" / f"{name}.xcframework"
+              info = artifact / "Info.plist"
+              if artifact.is_symlink() or not artifact.is_dir() or info.is_symlink() or not info.is_file():
+                  failures.append(f"{name}: missing/non-regular XCFramework or Info.plist at {artifact}")
+                  continue
+              try:
+                  libraries = plistlib.loads(info.read_bytes())["AvailableLibraries"]
+              except Exception as error:
+                  failures.append(f"{name}: invalid Info.plist: {error}")
+                  continue
+              device = any(
+                  item.get("SupportedPlatform") == "ios"
+                  and item.get("SupportedPlatformVariant") is None
+                  and "arm64" in item.get("SupportedArchitectures", [])
+                  for item in libraries
+              )
+              simulator = any(
+                  item.get("SupportedPlatform") == "ios"
+                  and item.get("SupportedPlatformVariant") == "simulator"
+                  and "arm64" in item.get("SupportedArchitectures", [])
+                  for item in libraries
+              )
+              if not device or not simulator:
+                  failures.append(f"{name}: missing iOS arm64 device/simulator slices; libraries={libraries}")
+          if failures:
+              raise SystemExit("\\n".join(failures))
+          print(f"Validated {len(required)} iOS device + Apple-silicon simulator XCFrameworks in {root}")
+          PY
+
           export MPVKIT_LOCAL_ARTIFACTS_DIR
           xcodebuild -resolvePackageDependencies \
             -project Eclipse.xcodeproj \
