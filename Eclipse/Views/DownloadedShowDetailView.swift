@@ -210,7 +210,7 @@ struct DownloadedShowDetailView: View {
             }
 
             VStack(alignment: .leading, spacing: 5) {
-                Text("Episode \\(item.episodeNumber ?? 0)")
+                Text("Episode \(item.episodeNumber ?? 0)")
                     .font(.subheadline.weight(.semibold))
                     .foregroundColor(.white)
                 if let name = item.episodeName, !name.isEmpty {
@@ -230,7 +230,7 @@ struct DownloadedShowDetailView: View {
                     if item.status == .downloading || item.status == .paused {
                         ProgressView(value: item.progress)
                             .tint(item.status == .paused ? .orange : .blue)
-                        Text("\\(Int(item.progress * 100))% • \\(item.formattedSize)")
+                        Text("\(Int(item.progress * 100))% • \(item.formattedSize)")
                             .font(.caption2)
                             .foregroundColor(.secondary)
                     }

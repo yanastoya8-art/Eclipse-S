@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Kingfisher
+import Security
 
 enum ServicesSettingsSearchTarget: Hashable {
     case autoUpdateServices
@@ -159,6 +160,7 @@ struct ServicesView: View {
     @State private var didScheduleInitialExtraSettingsNavigation = false
     @State private var didScheduleInitialAutoModeSettingsNavigation = false
     @State private var showAutoModeSettings = false
+    @State private var showJustWatchSettings = false
     @State private var showExtraServiceSettings = false
     @State private var bulkSourceActivationError: String?
     @State private var showSkyStreamManager = false
@@ -366,6 +368,15 @@ struct ServicesView: View {
                 .accessibilityLabel("Add Source")
             }
 #endif
+            Button {
+                showJustWatchSettings = true
+            } label: {
+                Label("JustWatch API", systemImage: "key.horizontal")
+            }
+            .buttonStyle(.bordered)
+            .sheet(isPresented: $showJustWatchSettings) {
+                NavigationStack { JustWatchSettingsView() }
+            }
 #if os(tvOS)
             if isAdministrable {
                 HStack(spacing: 24) {
@@ -988,6 +999,22 @@ struct ServicesView: View {
             }
             .eclipseExperimentalSettingsRows()
             .background(EclipseScrollTracker())
+
+            Section {
+                NavigationLink(isActive: $showJustWatchSettings) {
+                    JustWatchSettingsView()
+                } label: {
+                    HStack {
+                        Label("JustWatch", systemImage: "key.horizontal")
+                        Spacer()
+                        Text(JustWatchAPIKeyStore.hasKey ? "Configured" : "API key needed")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } footer: {
+                Text("Add your API.SH key to enable language-aware streaming availability in the release schedule.")
+            }
+            .eclipseExperimentalSettingsRows()
 
             Section {
                 NavigationLink(isActive: $showAutoModeSettings) {
@@ -3129,5 +3156,212 @@ private struct ExtraServiceSettingsView: View {
         guard canEditLanguageRules else { return }
         StreamLanguageFilter.setHiddenLanguages([], defaults: ProfileSettingsStore.services)
         reloadHiddenStreamLanguagesFromDefaults()
+    }
+}
+
+
+enum JustWatchAPIKeyStore {
+    static let service = "app.eclipse.justwatch"
+    static let account = "api-sh-key"
+
+    static func load() -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var result: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let data = result as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    static var hasKey: Bool {
+        guard let value = load() else { return false }
+        return !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    static func save(_ value: String) throws {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lookup: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+        guard !trimmed.isEmpty else {
+            let status = SecItemDelete(lookup as CFDictionary)
+            guard status == errSecSuccess || status == errSecItemNotFound else {
+                throw NSError(domain: NSOSStatusErrorDomain, code: Int(status))
+            }
+            return
+        }
+
+        let data = Data(trimmed.utf8)
+        let attributes: [String: Any] = [
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        ]
+        let status = SecItemUpdate(lookup as CFDictionary, attributes as CFDictionary)
+        if status == errSecItemNotFound {
+            var insert = lookup
+            attributes.forEach { insert[$0.key] = $0.value }
+            let addStatus = SecItemAdd(insert as CFDictionary, nil)
+            guard addStatus == errSecSuccess else {
+                throw NSError(domain: NSOSStatusErrorDomain, code: Int(addStatus))
+            }
+        } else if status != errSecSuccess {
+            throw NSError(domain: NSOSStatusErrorDomain, code: Int(status))
+        }
+    }
+}
+
+private struct JustWatchSettingsView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var apiKey = JustWatchAPIKeyStore.load() ?? ""
+    @State private var saveMessage: String?
+    @State private var saveFailed = false
+    @State private var isTestingConnection = false
+    @State private var connectionMessage: String?
+    @State private var connectionFailed = false
+
+    var body: some View {
+        Form {
+            Section("API.SH") {
+                SecureField("Paste your API key", text: $apiKey)
+                    .textContentType(.password)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .accessibilityIdentifier("settings.justwatch.apiKey")
+
+                HStack {
+                    Label(
+                        JustWatchAPIKeyStore.hasKey ? "Key saved on this device" : "No key saved",
+                        systemImage: JustWatchAPIKeyStore.hasKey ? "checkmark.circle.fill" : "key"
+                    )
+                    .foregroundStyle(JustWatchAPIKeyStore.hasKey ? .green : .secondary)
+                    Spacer()
+                    Button("Clear", role: .destructive) {
+                        apiKey = ""
+                        save()
+                    }
+                    .disabled(!JustWatchAPIKeyStore.hasKey || isTestingConnection)
+                }
+            } footer: {
+                Text("Your key is stored in the iOS/iPadOS Keychain on this device. It is not written to app preferences, source code, or the GitHub repository.")
+            }
+
+            Section {
+                Button("Save API Key") { save() }
+                    .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isTestingConnection)
+                    .accessibilityIdentifier("settings.justwatch.saveKey")
+
+                Button {
+                    Task { await testConnection() }
+                } label: {
+                    HStack {
+                        Text("Test Connection")
+                        Spacer()
+                        if isTestingConnection { ProgressView() }
+                    }
+                }
+                .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isTestingConnection)
+                .accessibilityIdentifier("settings.justwatch.testConnection")
+            } footer: {
+                Text("Testing makes one API.SH request to retrieve the streaming-provider list for Bulgaria and consumes one API credit. A GitHub Actions secret alone is not available to the installed app.")
+            }
+
+            if let saveMessage {
+                Section {
+                    Label(saveMessage, systemImage: saveFailed ? "exclamationmark.triangle" : "checkmark.circle")
+                        .foregroundStyle(saveFailed ? .red : .green)
+                }
+            }
+
+            if let connectionMessage {
+                Section("Connection") {
+                    Label(connectionMessage, systemImage: connectionFailed ? "xmark.circle" : "checkmark.circle.fill")
+                        .foregroundStyle(connectionFailed ? .red : .green)
+                }
+            }
+        }
+        .navigationTitle("JustWatch")
+#if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+#endif
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Done") { dismiss() }
+            }
+        }
+    }
+
+    private func save() {
+        do {
+            try JustWatchAPIKeyStore.save(apiKey)
+            apiKey = JustWatchAPIKeyStore.load() ?? ""
+            saveFailed = false
+            saveMessage = apiKey.isEmpty ? "API key removed." : "API key saved securely."
+            connectionMessage = nil
+        } catch {
+            saveFailed = true
+            saveMessage = "Could not save the API key (Keychain error \(error))."
+        }
+    }
+
+    @MainActor
+    private func testConnection() async {
+        let candidate = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !candidate.isEmpty else { return }
+        isTestingConnection = true
+        connectionMessage = nil
+        defer { isTestingConnection = false }
+
+        do {
+            let url = URL(string: "https://api.api.sh/justwatch/v1/providers?country=BG")!
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.timeoutInterval = 25
+            request.setValue(candidate, forHTTPHeaderField: "x-api-key")
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse else {
+                throw JustWatchConnectionError.invalidResponse
+            }
+            guard (200..<300).contains(http.statusCode) else {
+                throw JustWatchConnectionError.httpStatus(http.statusCode)
+            }
+            guard let payload = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  payload["providers"] is [[String: Any]] else {
+                throw JustWatchConnectionError.invalidResponse
+            }
+            try JustWatchAPIKeyStore.save(candidate)
+            apiKey = candidate
+            connectionFailed = false
+            connectionMessage = "Connected successfully. API key saved securely."
+        } catch {
+            connectionFailed = true
+            connectionMessage = error.localizedDescription
+        }
+    }
+}
+
+private enum JustWatchConnectionError: LocalizedError {
+    case invalidResponse
+    case httpStatus(Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidResponse:
+            return "The API returned an unexpected response."
+        case .httpStatus(401):
+            return "The API key was rejected. Check that you copied it correctly."
+        case .httpStatus(403):
+            return "The key is not allowed to access the JustWatch endpoint."
+        case .httpStatus(402):
+            return "The API credit balance or key limit has been reached."
+        case .httpStatus(let status):
+            return "API.SH returned HTTP \(status)."
+        }
     }
 }

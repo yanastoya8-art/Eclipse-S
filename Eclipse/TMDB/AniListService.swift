@@ -1275,13 +1275,33 @@ final class AnimeMetadataService {
         requiredSpecialAniListIds: [Int] = [],
         tmdbService: TMDBService
     ) async -> [AniListSpecialSearchEntry] {
-        await aniListService.fetchSpecialSearchEntries(
+        let entries = await aniListService.fetchSpecialSearchEntries(
             tmdbShowId: tmdbShowId,
             fallbackPosterURL: fallbackPosterURL,
             baseAniListIds: baseAniListIds,
             requiredSpecialAniListIds: requiredSpecialAniListIds,
             tmdbService: tmdbService
         )
+        let selectedLanguages = MyDubListDubFilter.shared.selectedLanguages
+        guard !selectedLanguages.isEmpty else { return entries }
+
+        // Specials and OVAs are fetched through a separate detail path from the
+        // main catalog. Apply the same selected-language identity gate here so
+        // undubbed extras cannot bypass the catalog filter.
+        let filtered = entries.filter { entry in
+            AnimeSpecialDubFilterPolicy.shouldInclude(
+                selectedLanguages: selectedLanguages,
+                isVerifiedForSelection: MyDubListDubFilter.shared.shouldInclude(
+                    anilistID: entry.canonicalAniListId,
+                    malID: entry.malId
+                )
+            )
+        }
+        Logger.shared.log(
+            "MyDubList: filtered anime specials/OVAs from \(entries.count) to \(filtered.count) for languages=\(selectedLanguages.sorted().joined(separator: ","))",
+            type: "Anime"
+        )
+        return filtered
     }
 
     func fetchParentTitleCandidates(
