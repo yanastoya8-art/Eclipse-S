@@ -569,7 +569,7 @@ class TMDBContentFilter: ObservableObject {
         }
     }
 
-    private nonisolated static func resolveAnimeDubEligibility(anilistID: Int, malID: Int?) async -> Bool? {
+    private static func resolveAnimeDubEligibility(anilistID: Int, malID: Int?) async -> Bool? {
         var counts = (try? await TaizenAnimeDubMetadataService.shared.episodeDubCounts(
             anilistID: anilistID,
             malID: malID
