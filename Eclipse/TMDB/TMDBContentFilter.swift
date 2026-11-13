@@ -1167,47 +1167,69 @@ actor TaizenAnimeAgeRatingService {
     private let maximumResponseBytes = 1 * 1_024 * 1_024
 
     func rating(anilistID: Int) async throws -> MaturityRating {
-        guard (1...1_000_000_000).contains(anilistID) else {
-            throw TaizenAnimeAgeRatingError.invalidResponse
+        try await ratings(anilistIDs: [anilistID])[anilistID] ?? .unknown
+    }
+
+    func ratings(anilistIDs: [Int]) async throws -> [Int: MaturityRating] {
+        let identifiers = Array(Set(anilistIDs.filter { (1...1_000_000_000).contains($0) })).sorted()
+        guard !identifiers.isEmpty else { return [:] }
+
+        var resolved: [Int: MaturityRating] = [:]
+        let now = Date()
+        let missing = identifiers.filter { id in
+            guard let cached = cache[id] else { return true }
+            return now.timeIntervalSince(cached.fetchedAt) < 0
+                || now.timeIntervalSince(cached.fetchedAt) >= cacheLifetime
         }
-        if let cached = cache[anilistID],
-           Date().timeIntervalSince(cached.fetchedAt) >= 0,
-           Date().timeIntervalSince(cached.fetchedAt) < cacheLifetime {
-            return cached.rating
+        for id in identifiers where !missing.contains(id) {
+            resolved[id] = cache[id]?.rating
         }
 
-        guard let url = URL(string: "https://taizen.moe/api/v1/anime/\(anilistID)") else {
-            throw TaizenAnimeAgeRatingError.invalidURL
-        }
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 15
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        let (data, response) = try await URLSession.shared.data(for: request)
-        try Task.checkCancellation()
+        for offset in stride(from: 0, to: missing.count, by: 20) {
+            let batch = Array(missing[offset..<min(offset + 20, missing.count)])
+            let fields = batch.enumerated().map { index, id in
+                "a\(index): anime(id: \(id)) { id ageRating { rating } }"
+            }.joined(separator: " ")
+            let query = "{ \(fields) }"
+            guard var components = URLComponents(string: "https://taizen.moe/api/graphql") else {
+                throw TaizenAnimeAgeRatingError.invalidURL
+            }
+            components.queryItems = [URLQueryItem(name: "query", value: query)]
+            guard let url = components.url else { throw TaizenAnimeAgeRatingError.invalidURL }
 
-        guard data.count <= maximumResponseBytes,
-              let http = response as? HTTPURLResponse else {
-            throw TaizenAnimeAgeRatingError.invalidResponse
-        }
-        guard http.statusCode == 200 else {
-            throw TaizenAnimeAgeRatingError.http(http.statusCode)
-        }
-        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              root["ok"] as? Bool == true,
-              let payload = root["data"] as? [String: Any],
-              let responseID = payload["id"] as? NSNumber,
-              responseID.intValue == anilistID,
-              let ageRating = payload["ageRating"] as? [String: Any] else {
-            throw TaizenAnimeAgeRatingError.invalidResponse
-        }
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 20
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
+            let (data, response) = try await URLSession.shared.data(for: request)
+            try Task.checkCancellation()
+            guard data.count <= maximumResponseBytes,
+                  let http = response as? HTTPURLResponse else {
+                throw TaizenAnimeAgeRatingError.invalidResponse
+            }
+            guard http.statusCode == 200 else {
+                throw TaizenAnimeAgeRatingError.http(http.statusCode)
+            }
+            guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  (root["errors"] as? [Any])?.isEmpty != false,
+                  let payload = root["data"] as? [String: Any] else {
+                throw TaizenAnimeAgeRatingError.invalidResponse
+            }
 
-        let rating: MaturityRating
-        if let raw = ageRating["rating"] as? String {
-            rating = MaturityRating.classify(certification: raw)
-        } else {
-            rating = .unknown
+            for (index, id) in batch.enumerated() {
+                let rating: MaturityRating
+                if let anime = payload["a\(index)"] as? [String: Any],
+                   let returnedID = anime["id"] as? NSNumber,
+                   returnedID.intValue == id,
+                   let age = anime["ageRating"] as? [String: Any],
+                   let raw = age["rating"] as? String {
+                    rating = MaturityRating.classify(certification: raw)
+                } else {
+                    rating = .unknown
+                }
+                cache[id] = CachedRating(fetchedAt: now, rating: rating)
+                resolved[id] = rating
+            }
         }
-        cache[anilistID] = CachedRating(fetchedAt: Date(), rating: rating)
-        return rating
+        return resolved
     }
 }
