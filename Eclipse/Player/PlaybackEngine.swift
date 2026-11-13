@@ -13,7 +13,7 @@ enum CastMediaPolicy {
             return "application/x-mpegURL"
         case "mpd":
             return "application/dash+xml"
-        case "mp4", "m4v", "mov":
+        case "mp4", "m4v":
             return "video/mp4"
         case "webm":
             return "video/webm"
@@ -35,7 +35,7 @@ enum CastMediaPolicy {
             return "This source requires custom request headers that the standard Cast receiver cannot send. A custom receiver is required."
         }
         let host = (url.host ?? "").lowercased()
-        if host == "localhost" || host.hasSuffix(".localhost") || host == "127.0.0.1" || host == "::1" {
+        if host == "localhost" || host.hasSuffix(".localhost") || host == "127.0.0.1" || host == "::1" || host == "[::1]" {
             return "This stream is hosted on this iPhone or iPad and cannot be reached by a TV."
         }
         return nil
