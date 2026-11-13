@@ -2232,10 +2232,11 @@ private struct BrowseMediaView: View {
     ) async -> [TMDBSearchResult] {
         let dubLanguagesSelected = !MyDubListDubFilter.shared.selectedLanguages.isEmpty
         let originalAudioFilterEnabled = UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
-        guard dubLanguagesSelected || originalAudioFilterEnabled else { return results }
+        let needsIdentityForFiltering = dubLanguagesSelected || originalAudioFilterEnabled
 
         let candidates = results.enumerated().filter { _, result in
             result.animeIdentitySeed == nil
+                && (needsIdentityForFiltering || result.fullPosterURL == nil)
         }
         guard !candidates.isEmpty else { return results }
 
