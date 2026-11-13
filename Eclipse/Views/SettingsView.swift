@@ -3798,7 +3798,7 @@ struct MyDubListDubsSettingsView: View {
             VStack(spacing: 22) {
                 GlassSection(header: "Anime Dub Filter") {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Select one or more dub languages. An anime remains visible if it has a dub in at least one selected language. Anime with no matching dub is hidden from anime catalog sections and schedules.")
+                        Text("Select one or more dub languages. Episode lists show only episodes covered by at least one selected language, using metadata for the exact anime season. Anime with no matching dub remain hidden from anime catalog sections. A new season with no released dub episodes shows its official premiere countdown when a date is available, otherwise TBA.")
                             .font(.subheadline)
                             .foregroundColor(.white.opacity(0.75))
                             .fixedSize(horizontal: false, vertical: true)
@@ -3835,17 +3835,19 @@ struct MyDubListDubsSettingsView: View {
                     }
                 }
 
-                GlassSectionFooter("Multiple languages use OR logic: English + Spanish means either dub qualifies. With no languages selected, no dub filtering is applied. Data: MyDubList, confidence tier low (at least one reported source).")
+                GlassSectionFooter("Multiple languages use OR logic: English + Spanish means either dub qualifies. With no languages selected, no dub filtering is applied. MyDubList supplies title-level language matching; Taizen supplies season-specific dubbed episode counts. Spanish is one combined data category: the current sources do not distinguish Latino from Castellano, so either regional variant may qualify but cannot be identified separately.")
 
                 GlassSection(header: "Data & Attribution") {
                     VStack(alignment: .leading, spacing: 12) {
                         Text(refreshMessage)
                             .font(.caption)
                             .foregroundColor(.white.opacity(0.65))
-                        Text("Dub data © MyDubList. Adapted by Eclipse by mapping MyAnimeList IDs to AniList IDs for filtering.")
+                        Text("Dub data © MyDubList (CC BY 4.0). Episode counts are provided by Taizen, using MyDubList and AnimeSchedule data. Eclipse matches each season by its AniList or MyAnimeList identity.")
                             .font(.caption)
                             .foregroundColor(.white.opacity(0.65))
                         Link("Powered by MyDubList", destination: URL(string: "https://mydublist.com")!)
+                            .font(.subheadline)
+                        Link("Taizen episode metadata & API", destination: URL(string: "https://taizen.moe/api-docs")!)
                             .font(.subheadline)
                         Link("Dataset license: CC BY 4.0", destination: URL(string: "https://creativecommons.org/licenses/by/4.0/")!)
                             .font(.subheadline)
