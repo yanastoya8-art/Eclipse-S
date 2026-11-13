@@ -1377,3 +1377,45 @@ final class MediaLanguageCatalogTests: XCTestCase {
         return (name, try XCTUnwrap(UserDefaults(suiteName: name)))
     }
 }
+
+
+#if os(iOS)
+final class CastMediaPolicyTests: XCTestCase {
+    func testCastPolicyAcceptsSupportedStreamContainers() throws {
+        let cases: [(String, String)] = [
+            ("https://media.example/video/master.m3u8", "application/x-mpegURL"),
+            ("https://media.example/video/manifest.mpd", "application/dash+xml"),
+            ("https://media.example/video/movie.mp4", "video/mp4"),
+            ("https://media.example/video/movie.webm", "video/webm")
+        ]
+        for (rawURL, expectedType) in cases {
+            let url = try XCTUnwrap(URL(string: rawURL))
+            XCTAssertNil(CastMediaPolicy.rejectionReason(for: url, headers: [:]))
+            XCTAssertEqual(CastMediaPolicy.contentType(for: url), expectedType)
+        }
+    }
+
+    func testCastPolicyRejectsMKVAndOtherUnsupportedContainers() throws {
+        for ext in ["mkv", "avi", "movx", "m4a"] {
+            let url = try XCTUnwrap(URL(string: "https://media.example/video/movie.\(ext)"))
+            XCTAssertNotNil(CastMediaPolicy.rejectionReason(for: url, headers: [:]))
+        }
+    }
+
+    func testCastPolicyRejectsHeadersTheDefaultReceiverCannotForward() throws {
+        let url = try XCTUnwrap(URL(string: "https://media.example/video/movie.mp4"))
+        XCTAssertNil(CastMediaPolicy.rejectionReason(for: url, headers: ["User-Agent": "Eclipse"]))
+        XCTAssertNil(CastMediaPolicy.rejectionReason(for: url, headers: ["Accept": "video/*"]))
+        XCTAssertNotNil(CastMediaPolicy.rejectionReason(for: url, headers: ["Authorization": "Bearer token"]))
+        XCTAssertNotNil(CastMediaPolicy.rejectionReason(for: url, headers: ["X-API-Key": "secret"]))
+        XCTAssertNotNil(CastMediaPolicy.rejectionReason(for: url, headers: ["Referer": "https://provider.example"]))
+    }
+
+    func testCastPolicyRejectsDeviceLocalProxyAddresses() throws {
+        for host in ["localhost", "127.0.0.1", "local.localhost", "::1"] {
+            let url = try XCTUnwrap(URL(string: "http://\(host)/video.mp4"))
+            XCTAssertNotNil(CastMediaPolicy.rejectionReason(for: url, headers: [:]), host)
+        }
+    }
+}
+#endif
