@@ -1396,7 +1396,7 @@ final class CastMediaPolicyTests: XCTestCase {
     }
 
     func testCastPolicyRejectsMKVAndOtherUnsupportedContainers() throws {
-        for ext in ["mkv", "avi", "movx", "m4a"] {
+        for ext in ["mkv", "avi", "mov", "m4a"] {
             let url = try XCTUnwrap(URL(string: "https://media.example/video/movie.\(ext)"))
             XCTAssertNotNil(CastMediaPolicy.rejectionReason(for: url, headers: [:]))
         }
