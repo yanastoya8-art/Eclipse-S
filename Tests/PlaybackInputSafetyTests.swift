@@ -1476,12 +1476,12 @@ final class MPVDolbyPlaybackSettingsTests: XCTestCase {
         {"url":"https://media.example/file.mkv","name":"   ","title":"  4K HDR\\nProvider formatted"}
         """
         let stream = try JSONDecoder().decode(StremioStream.self, from: Data(json.utf8))
-        XCTAssertEqual(stream.displayName, "  4K HDR\\nProvider formatted")
+        XCTAssertEqual(stream.displayName, "  4K HDR\nProvider formatted")
     }
 
     func testAddonDescriptionFallbackKeepsAllOriginalLines() throws {
         let json = """
-        {"url":"https://media.example/file.mkv","description":"  Provider heading  \nSecond formatted line\nThird line"}
+        {"url":"https://media.example/file.mkv","description":"  Provider heading  \\nSecond formatted line\\nThird line"}
         """
         let stream = try JSONDecoder().decode(StremioStream.self, from: Data(json.utf8))
         XCTAssertEqual(stream.displayName, "  Provider heading  \nSecond formatted line\nThird line")
@@ -1490,7 +1490,7 @@ final class MPVDolbyPlaybackSettingsTests: XCTestCase {
     func testStremioStreamDisplayNamePreservesAddonFormattingVerbatim() throws {
         let rawName = "  1080p\n\nDolby Vision  "
         let json = """
-        {"url":"https://media.example/stream.m3u8","name":"  1080p\n\nDolby Vision  ","title":"Fallback title"}
+        {"url":"https://media.example/stream.m3u8","name":"  1080p\\n\\nDolby Vision  ","title":"Fallback title"}
         """
         let stream = try JSONDecoder().decode(StremioStream.self, from: Data(json.utf8))
         XCTAssertEqual(stream.displayName, rawName)
