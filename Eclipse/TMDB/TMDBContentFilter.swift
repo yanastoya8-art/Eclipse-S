@@ -1100,3 +1100,78 @@ actor AnidubAnimeDubMetadataService {
         return counts
     }
 }
+
+
+enum TaizenAnimeAgeRatingError: Error, LocalizedError {
+    case invalidURL
+    case invalidResponse
+    case http(Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidURL: return "Taizen age-rating URL is invalid."
+        case .invalidResponse: return "Taizen returned invalid anime age-rating metadata."
+        case .http(let status): return "Taizen age-rating request failed (HTTP \(status))."
+        }
+    }
+}
+
+/// MyAnimeList age ratings are kept separate from TMDB national
+/// certifications; the two rating systems are not interchangeable.
+actor TaizenAnimeAgeRatingService {
+    static let shared = TaizenAnimeAgeRatingService()
+
+    private struct CachedRating {
+        let fetchedAt: Date
+        let rating: MaturityRating
+    }
+
+    private var cache: [Int: CachedRating] = [:]
+    private let cacheLifetime: TimeInterval = 24 * 60 * 60
+    private let maximumResponseBytes = 1 * 1_024 * 1_024
+
+    func rating(anilistID: Int) async throws -> MaturityRating {
+        guard (1...1_000_000_000).contains(anilistID) else {
+            throw TaizenAnimeAgeRatingError.invalidResponse
+        }
+        if let cached = cache[anilistID],
+           Date().timeIntervalSince(cached.fetchedAt) >= 0,
+           Date().timeIntervalSince(cached.fetchedAt) < cacheLifetime {
+            return cached.rating
+        }
+
+        guard let url = URL(string: "https://taizen.moe/api/v1/anime/\(anilistID)") else {
+            throw TaizenAnimeAgeRatingError.invalidURL
+        }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 15
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try Task.checkCancellation()
+
+        guard data.count <= maximumResponseBytes,
+              let http = response as? HTTPURLResponse else {
+            throw TaizenAnimeAgeRatingError.invalidResponse
+        }
+        guard http.statusCode == 200 else {
+            throw TaizenAnimeAgeRatingError.http(http.statusCode)
+        }
+        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              root["ok"] as? Bool == true,
+              let payload = root["data"] as? [String: Any],
+              let responseID = payload["id"] as? NSNumber,
+              responseID.intValue == anilistID,
+              let ageRating = payload["ageRating"] as? [String: Any] else {
+            throw TaizenAnimeAgeRatingError.invalidResponse
+        }
+
+        let rating: MaturityRating
+        if let raw = ageRating["rating"] as? String {
+            rating = MaturityRating.classify(certification: raw)
+        } else {
+            rating = .unknown
+        }
+        cache[anilistID] = CachedRating(fetchedAt: Date(), rating: rating)
+        return rating
+    }
+}
