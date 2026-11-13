@@ -675,24 +675,14 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         return b
     }()
 
-    private let castButton: GCKUICastButton = {
-        let button = GCKUICastButton(frame: .zero)
-        button.translatesAutoresizingMaskIntoConstraints = false
-        button.tintColor = .white
-        button.accessibilityLabel = "Cast to Chromecast"
-        button.accessibilityIdentifier = "player.cast"
-        button.alpha = 0
-        return button
-    }()
-
-    private let lgCastButton: UIButton = {
+    private let castButton: UIButton = {
         let button = UIButton(type: .system)
         button.translatesAutoresizingMaskIntoConstraints = false
         let configuration = UIImage.SymbolConfiguration(pointSize: 18, weight: .semibold)
-        button.setImage(UIImage(systemName: "tv", withConfiguration: configuration), for: .normal)
+        button.setImage(UIImage(systemName: "airplayvideo", withConfiguration: configuration), for: .normal)
         button.tintColor = .white
-        button.accessibilityLabel = "Cast to LG webOS TV"
-        button.accessibilityIdentifier = "player.castLGWebOS"
+        button.accessibilityLabel = "Cast to TV"
+        button.accessibilityIdentifier = "player.cast"
         button.alpha = 0
         return button
     }()
@@ -4012,8 +4002,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         applyPlayerSkinIfNeeded(force: true)
         updatePlayerTitle()
 
-        castButton.addTarget(self, action: #selector(prepareCastForCurrentStream), for: .touchDown)
-        lgCastButton.addTarget(self, action: #selector(prepareLGWebOSCastForCurrentStream), for: .touchUpInside)
+        castButton.addTarget(self, action: #selector(castCurrentStreamAutomatically), for: .touchUpInside)
         updateCastButtonAvailability()
 
         setupActions()
@@ -5449,7 +5438,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         centerPlayPauseButton.layer.shadowOffset = .zero
 
         var themedButtons = [
-            closeButton, pipButton, castButton, lgCastButton, skipBackwardButton, skipForwardButton,
+            closeButton, pipButton, castButton, skipBackwardButton, skipForwardButton,
             subtitleButton, servicesButton, episodeBrowserButton, speedButton, audioButton
         ]
 #if os(iOS)
@@ -5749,7 +5738,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 #endif
         videoContainer.addSubview(pipButton)
         videoContainer.addSubview(castButton)
-        videoContainer.addSubview(lgCastButton)
         videoContainer.addSubview(playerTitleLabel)
         videoContainer.addSubview(skipBackwardButton)
         videoContainer.addSubview(skipForwardButton)
@@ -5868,7 +5856,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
             topControlsGlassView.topAnchor.constraint(equalTo: closeButton.topAnchor, constant: -7),
             topControlsGlassView.leadingAnchor.constraint(equalTo: closeButton.leadingAnchor, constant: -8),
-            topControlsGlassView.trailingAnchor.constraint(equalTo: lgCastButton.trailingAnchor, constant: 8),
+            topControlsGlassView.trailingAnchor.constraint(equalTo: castButton.trailingAnchor, constant: 8),
             topControlsGlassView.bottomAnchor.constraint(equalTo: closeButton.bottomAnchor, constant: 7),
 
             progressGlassView.leadingAnchor.constraint(equalTo: progressContainer.leadingAnchor, constant: -8),
@@ -5911,10 +5899,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             castButton.widthAnchor.constraint(equalToConstant: 36),
             castButton.heightAnchor.constraint(equalToConstant: 36),
 
-            lgCastButton.centerYAnchor.constraint(equalTo: closeButton.centerYAnchor),
-            lgCastButton.leadingAnchor.constraint(equalTo: castButton.trailingAnchor, constant: 8),
-            lgCastButton.widthAnchor.constraint(equalToConstant: 36),
-            lgCastButton.heightAnchor.constraint(equalToConstant: 36),
 
             playerTitleLabel.centerYAnchor.constraint(equalTo: closeButton.centerYAnchor),
             playerTitleCenterConstraint,
@@ -13272,17 +13256,25 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             ?? candidates.first
         let rejection = url.flatMap { CastMediaPolicy.rejectionReason(for: $0, headers: headers) }
         castButton.isHidden = !isMPVRenderer
-        castButton.isEnabled = url != nil && rejection == nil
-        castButton.accessibilityHint = rejection ?? "Cast the current stream to a compatible Chromecast or Cast-enabled TV."
-        let lgURL = candidates.first(where: { LGWebOSCastPolicy.rejectionReason(for: $0, headers: headers) == nil })
-            ?? candidates.first
-        let lgRejection = lgURL.flatMap { LGWebOSCastPolicy.rejectionReason(for: $0, headers: headers) }
-        lgCastButton.isHidden = !isMPVRenderer
-        lgCastButton.isEnabled = lgURL != nil
-        lgCastButton.accessibilityHint = lgRejection ?? "Send the current stream URL to your paired LG webOS TV."
+        castButton.isEnabled = !candidates.isEmpty
+        castButton.accessibilityHint = candidates.isEmpty
+            ? "No stream URL is available to cast."
+            : "Automatically use LG webOS for MKV streams and Chromecast for other streams."
         let castTint = activePlayerSkinAppearance.primary
         castButton.tintColor = castButton.isEnabled ? castTint : castTint.withAlphaComponent(0.35)
-        lgCastButton.tintColor = lgCastButton.isEnabled ? castTint : castTint.withAlphaComponent(0.35)
+    }
+
+    @objc private func castCurrentStreamAutomatically() {
+        let candidates = [playbackLaunchContext?.streamURL.flatMap { URL(string: $0) }, initialURL].compactMap { $0 }
+        guard let url = candidates.first else {
+            showPlayerNotice("This playback does not have a stream URL that can be cast.")
+            return
+        }
+        if url.pathExtension.lowercased() == "mkv" {
+            prepareLGWebOSCastForCurrentStream()
+        } else {
+            GCKCastContext.sharedInstance().presentCastDialog()
+        }
     }
 
     @objc private func prepareCastForCurrentStream() {
@@ -14121,7 +14113,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 #endif
         videoContainer.bringSubviewToFront(pipButton)
         videoContainer.bringSubviewToFront(castButton)
-        videoContainer.bringSubviewToFront(lgCastButton)
         videoContainer.bringSubviewToFront(playerTitleLabel)
         videoContainer.bringSubviewToFront(skipBackwardButton)
         videoContainer.bringSubviewToFront(skipForwardButton)
@@ -14161,7 +14152,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 #endif
                 self.pipButton.alpha = self.pipButton.isHidden ? 0.0 : 1.0
                 self.castButton.alpha = self.castButton.isHidden ? 0.0 : 1.0
-                self.lgCastButton.alpha = self.lgCastButton.isHidden ? 0.0 : 1.0
                 self.playerTitleLabel.alpha = self.playerTitleLabel.text?.isEmpty == false ? 1.0 : 0.0
                 self.skipBackwardButton.alpha = 1.0
                 self.skipForwardButton.alpha = 1.0
@@ -14232,7 +14222,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 #endif
                 self.pipButton.alpha = 0.0
                 self.castButton.alpha = 0.0
-                self.lgCastButton.alpha = 0.0
                 self.playerTitleLabel.alpha = 0.0
                 self.skipBackwardButton.alpha = 0.0
                 self.skipForwardButton.alpha = 0.0
