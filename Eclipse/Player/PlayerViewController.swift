@@ -6162,8 +6162,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             text.append(metalPerformanceOverlayRow(label: "Stream", value: clipped, valueColor: .white))
         }
 
+        var bitstreamHasDolbyVisionRPU: Bool?
         #if os(iOS) && ECLIPSE_MPVKIT_MOLTENVK_INLINE_RENDERER && ECLIPSE_MPVKIT_SAMPLE_BUFFER_PIP_BRIDGE
         if let diag = metalPerformanceDiagnostics() {
+            bitstreamHasDolbyVisionRPU = diag.videoHasDolbyVisionRPU
             text.append(NSAttributedString(string: "\n"))
             text.append(metalPerformanceOverlayRow(
                 label: "PiP",
@@ -6205,7 +6207,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
         // This flag comes from FFmpeg decoded-frame Dolby Vision side data (RPU/metadata),
         // never from addon labels, URLs, codec names, or container metadata.
-        let bitstreamHasDolbyVisionRPU = metalPerformanceDiagnostics()?.videoHasDolbyVisionRPU
         let dolbyVisionStatus = MPVDolbyVisionDetectionPolicy.status(
             bitstreamHasDolbyVisionRPU: bitstreamHasDolbyVisionRPU
         )
