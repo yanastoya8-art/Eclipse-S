@@ -7281,9 +7281,6 @@ struct MediaDetailContentView: View {
                     }
 
                     async let animeSnapshotTask: Bool = prefetchExactAnimeSnapshotIfNeeded(knownTMDBShowDetail: detail)
-                    let primaryDetailElapsedMs = Int(
-                        ((ProcessInfo.processInfo.systemUptime - detailLoadStartedAt) * 1_000).rounded()
-                    )
 
                     let asianAnimationCountries: Set<String> = ["JP", "CN", "KR", "TW"]
                     let isAsianAnimation = detail.originCountry?.contains(where: { asianAnimationCountries.contains($0) }) ?? false
