@@ -2683,8 +2683,8 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/yanastoya8-art/MPVKit-S.git";
 			requirement = {
-				branch = "eclipse-mpv-metal";
-				kind = branch;
+				kind = revision;
+				revision = "5c648a7e9430946694c0f5bd3666f2c164b82101";
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
