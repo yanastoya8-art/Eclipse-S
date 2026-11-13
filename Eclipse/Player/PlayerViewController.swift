@@ -16835,8 +16835,10 @@ private enum LGWebOSCastPolicy {
               normalizedHost != "::1" else {
             return "The TV cannot access a stream hosted only on this iPhone."
         }
-        guard headers.isEmpty else {
-            return "This stream requires custom HTTP headers. LG's native media player cannot receive those headers, so Eclipse cannot cast this URL directly."
+        let safeHeaders: Set<String> = ["user-agent", "accept", "accept-language", "connection", "range"]
+        let requiredHeaders = headers.keys.filter { !safeHeaders.contains($0.lowercased()) }
+        guard requiredHeaders.isEmpty else {
+            return "This stream requires authentication or a custom Referer/Cookie header. LG's native media player cannot receive those headers, so Eclipse cannot cast this URL directly."
         }
         guard mimeType(for: url) != nil else {
             return "The stream format is not recognized for direct LG webOS playback."
