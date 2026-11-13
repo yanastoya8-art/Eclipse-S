@@ -1295,7 +1295,7 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
             selectedEpisodePageStartByKey[episodePageKey(for: detail)] = 0
         }
 
-        let canonicalID = providerID > 0 ? (animeProviderAliases[providerID] ?? providerID) : nil
+        let canonicalID = animeProviderAliases[providerID] ?? (providerID > 0 ? providerID : nil)
         let malID = providerID < 0 ? RemoteMediaNumericBoundary.positiveMagnitude(providerID) : nil
         do {
             let counts = try await TaizenAnimeDubMetadataService.shared.episodeDubCounts(
