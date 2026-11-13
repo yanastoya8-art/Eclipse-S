@@ -64,14 +64,15 @@ struct ScheduleView: View {
             titles[tmdbId, default: ""] += variants + " "
         }
         let ids = Set(titlesById.keys)
+        let isMovieSchedule = entries.contains(where: \.isMovie)
         Task { @MainActor in
 
-            await TMDBMaturityRatingStore.shared.resolve(ids.map { (isMovie: false, id: $0) })
+            await TMDBMaturityRatingStore.shared.resolve(ids.map { (isMovie: isMovieSchedule, id: $0) })
 
             guard generation == kidsScheduleFilterGeneration else { return }
             kidsBlockedScheduleIds = Set(
                 ids.filter { id in
-                    guard TMDBMaturityRatingStore.shared.isAllowedForKids(isMovie: false, id: id) else {
+                    guard TMDBMaturityRatingStore.shared.isAllowedForKids(isMovie: isMovieSchedule, id: id) else {
                         return true
                     }
                     guard TMDBContentFilter.kidsTextHeuristicsAllow(title: titlesById[id] ?? "") else {
@@ -79,7 +80,7 @@ struct ScheduleView: View {
                     }
 
                     return TMDBMaturityRatingStore.shared.kidsDetailPolicyAllows(
-                        isMovie: false,
+                        isMovie: isMovieSchedule,
                         id: id
                     ) != true
                 }
