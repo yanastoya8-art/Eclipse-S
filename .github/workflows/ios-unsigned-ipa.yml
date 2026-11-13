@@ -197,8 +197,8 @@ jobs:
           # linker-visible symbol providers in its _MPVKit-GPL target. Validate that
           # reviewed bridge source instead of incorrectly requiring the symbols inside
           # the prebuilt Libmpv.xcframework itself.
-          BRIDGE_SOURCE="SourcePackages/checkouts/mpvkit-s/Sources/_MPVKit-GPL/dummy.c"
-          BRIDGE_HEADER="SourcePackages/checkouts/mpvkit-s/Sources/_MPVKit-GPL/include/dummy.h"
+          BRIDGE_SOURCE="$MPVKIT_PACKAGE_CHECKOUT/Sources/_MPVKit-GPL/dummy.c"
+          BRIDGE_HEADER="$MPVKIT_PACKAGE_CHECKOUT/Sources/_MPVKit-GPL/include/dummy.h"
           test -f "$BRIDGE_SOURCE"
           test -f "$BRIDGE_HEADER"
           python3 - "$BRIDGE_SOURCE" "$BRIDGE_HEADER" <<'PY'
