@@ -82,7 +82,7 @@ enum MyDubListLanguage: String, CaseIterable, Identifiable, Sendable {
     /// a confirmed region.
     var episodeMetadataLanguageCodes: [String] {
         switch self {
-        case .spanish: return ["es-419", "es-ES", "es"]
+        case .spanish: return ["es-419", "es-es", "es"]
         default: return [taizenLanguageCode]
         }
     }
