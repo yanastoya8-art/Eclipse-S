@@ -55,6 +55,7 @@ struct MangaDetailView: View {
     @State private var chapterLoadError: String?
     @AppStorage(ReaderDetailElement.orderStorageKey) private var readerDetailElementOrder = ReaderDetailElement.defaultOrderRawValue
     @AppStorage(ReaderDetailElement.hiddenStorageKey) private var readerDetailHiddenElements = ""
+    @AppStorage("readerDetailHeroBlur") private var readerDetailHeroBlur: Double = 18
 
     private let coverWidth: CGFloat = isIPad ? 150 * iPadScaleSmall : 150
     private var designMetrics: ExperimentalMediaDesignMetrics { .current }
@@ -83,6 +84,11 @@ struct MangaDetailView: View {
 
     private var readerBleedColor: Color? {
         EclipseTheme.usableDominant(headerAmbientColor)
+    }
+
+    private var readerDetailHeroBlurRadius: CGFloat {
+        guard readerDetailHeroBlur.isFinite else { return 18 }
+        return CGFloat(min(max(readerDetailHeroBlur, 0), 30))
     }
 
     @ViewBuilder
@@ -460,7 +466,7 @@ struct MangaDetailView: View {
                     .aspectRatio(contentMode: isIPad && experimental ? .fit : .fill)
                     .frame(width: viewportWidth, height: stretchedHeight)
                     .clipped()
-                    .blur(radius: experimental ? 0 : 18)
+                    .blur(radius: readerDetailHeroBlurRadius)
                     .overlay(Color.black.opacity(experimental ? 0.10 : 0.34))
 
                 if !experimental {
