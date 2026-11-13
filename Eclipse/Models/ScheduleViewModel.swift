@@ -890,6 +890,7 @@ final class ScheduleViewModel: ObservableObject {
 
     @MainActor
     private func movieEntries(dayCount: Int, forceRefresh: Bool) async throws -> [ScheduleEntry] {
+        let window = ScheduleDateWindow.envelope(dayCount: dayCount)
         if !forceRefresh,
            scheduleCacheIsFresh(
                 movieScheduleFetchedAt,
@@ -897,7 +898,7 @@ final class ScheduleViewModel: ObservableObject {
                 requiredDayCount: dayCount
            ),
            let cached = movieScheduleEntries {
-            return entries(cached, within: dayCount)
+            return cached.filter { $0.airingAt >= window.start && $0.airingAt < window.end }
         }
         if !forceRefresh, retryIsCoolingDown(since: movieScheduleLastFailureAt) {
             throw ScheduleSourceLoadError.retryDeferred("Movies")
@@ -917,7 +918,7 @@ final class ScheduleViewModel: ObservableObject {
             movieScheduleDayCount = dayCount
             movieScheduleFetchedAt = Date()
             movieScheduleLastFailureAt = nil
-            return entries(filteredEntries, within: dayCount)
+            return filteredEntries.filter { $0.airingAt >= window.start && $0.airingAt < window.end }
         } catch {
             movieScheduleLastFailureAt = Date()
             throw error
