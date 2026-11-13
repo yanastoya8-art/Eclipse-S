@@ -75,9 +75,15 @@ enum MediaLanguageCatalog {
         if key.hasPrefix("language:") { return language(for: value) }
         let tokens = Set(key.split { !$0.isLetter && !$0.isNumber }.map(String.init))
         let latinoMarkers: Set<String> = ["lat", "latin", "latino", "latam", "419", "latinoamerican", "latinamerican"]
+        // Treat every Spanish regional variant (Castellano, Latin American,
+        // and generic Spanish) as one filter language. The source metadata remains
+        // untouched so the actual audio-track region can still be displayed.
         if !tokens.isDisjoint(with: latinoMarkers),
            !tokens.isDisjoint(with: ["es", "spa", "spanish", "lat", "latin", "latino", "latam"]) {
-            return language(for: "es-419")
+            return language(for: "es")
+        }
+        if unwrapped == "es-419" || unwrapped == "es-es" || unwrapped.hasPrefix("es-") {
+            return language(for: "es")
         }
         if ["cantonese", "mandarin"].contains(key) { return language(for: "zh") }
         if ["fil", "filipino", "pilipino"].contains(key) { return language(for: "tl") }
@@ -102,7 +108,7 @@ enum MediaLanguageCatalog {
     static func matches(ruleID: String, languageID: String) -> Bool {
         guard let rule = language(for: ruleID), let language = language(for: languageID) else { return false }
         if rule.id == language.id { return true }
-        guard rule.id.count == 2, language.id != "es-419" else { return false }
+        guard rule.id.count == 2 else { return false }
         if language.id.hasPrefix(rule.id + "-") { return true }
         if rule.id == "zh", ["cmn", "yue"].contains(language.id) { return true }
         if rule.id == "no", ["nb", "nn"].contains(language.id) { return true }
