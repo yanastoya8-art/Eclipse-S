@@ -30,11 +30,13 @@ enum CastMediaPolicy {
         guard contentType(for: url) != nil else {
             return "This TV does not support this stream format. Cast supports HLS, DASH, MP4, and WebM; MKV requires a compatible receiver or transcoding."
         }
-        let receiverCannotForwardHeaders: Set<String> = [
-            "authorization", "cookie", "referer", "origin", "x-api-key", "proxy-authorization"
-        ]
-        if headers.keys.contains(where: { receiverCannotForwardHeaders.contains($0.lowercased()) }) {
-            return "This source requires request headers that the standard Cast receiver cannot send. A custom receiver is required."
+        let receiverSafeHeaders: Set<String> = ["user-agent", "accept", "accept-encoding"]
+        if headers.keys.contains(where: { !receiverSafeHeaders.contains($0.lowercased()) }) {
+            return "This source requires custom request headers that the standard Cast receiver cannot send. A custom receiver is required."
+        }
+        let host = (url.host ?? "").lowercased()
+        if host == "localhost" || host.hasSuffix(".localhost") || host == "127.0.0.1" || host == "::1" {
+            return "This stream is hosted on this iPhone or iPad and cannot be reached by a TV."
         }
         return nil
     }
