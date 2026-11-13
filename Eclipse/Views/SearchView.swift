@@ -1933,6 +1933,7 @@ private struct BrowseMediaView: View {
         let sort = self.sort
         let minimumRating = self.minimumRating
         let ageRating = self.ageRating
+        let upcomingOnly = currentFilters.showsUpcomingOnly == true
 
         isLoading = true
         errorMessage = nil
@@ -1945,7 +1946,7 @@ private struct BrowseMediaView: View {
                     genres: selectedGenres,
                     excludedGenres: excludedGenres,
                     years: years,
-                    upcomingOnly: currentFilters.showsUpcomingOnly == true,
+                    upcomingOnly: upcomingOnly,
                     excludedYears: excludedYears,
                     originCountries: countries,
                     sort: sort,
@@ -1953,8 +1954,12 @@ private struct BrowseMediaView: View {
                     page: page
                 )
                 try Task.checkCancellation()
+                let identityResolvedResults = browseMediaType.isAnime
+                    ? await resolveAnimeBrowseIdentities(pageResult.results)
+                    : pageResult.results
+                try Task.checkCancellation()
                 let browseTypeFiltered = await filterResultsForBrowseType(
-                    pageResult.results,
+                    identityResolvedResults,
                     mediaType: browseMediaType,
                     ageRating: ageRating
                 )
@@ -2219,6 +2224,111 @@ private struct BrowseMediaView: View {
             }
 
             return true
+        }
+    }
+
+    private func resolveAnimeBrowseIdentities(
+        _ results: [TMDBSearchResult]
+    ) async -> [TMDBSearchResult] {
+        let dubLanguagesSelected = !MyDubListDubFilter.shared.selectedLanguages.isEmpty
+        let originalAudioFilterEnabled = UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
+        guard dubLanguagesSelected || originalAudioFilterEnabled else { return results }
+
+        let candidates = results.enumerated().filter { _, result in
+            result.animeIdentitySeed == nil
+        }
+        guard !candidates.isEmpty else { return results }
+
+        return await withTaskGroup(of: (Int, TMDBSearchResult).self) { group in
+            var iterator = candidates.makeIterator()
+            let concurrencyLimit = 5
+            for _ in 0..<min(concurrencyLimit, candidates.count) {
+                guard let (index, result) = iterator.next() else { continue }
+                group.addTask {
+                    let mappingResult = await AniMapMappingService.shared.mappingsResult(forTMDBShowId: result.id)
+                    let mapping = mappingResult.mappings
+                        .filter { $0.mediaType?.lowercased() != "movie" }
+                        .first { $0.anilistId != nil }
+                        ?? mappingResult.mappings.first { $0.anilistId != nil }
+                    guard let anilistID = mapping?.anilistId, anilistID > 0 else {
+                        return (index, result)
+                    }
+
+                    let identity = await AniListService.shared.fetchAnimeSeasonIdentity(
+                        anilistId: anilistID,
+                        tmdbShowId: result.id,
+                        title: result.displayTitle
+                    )
+                    let enriched = TMDBSearchResult(
+                        id: result.id,
+                        mediaType: result.mediaType,
+                        title: result.title,
+                        name: result.name,
+                        overview: result.overview,
+                        posterPath: result.posterPath,
+                        backdropPath: result.backdropPath,
+                        releaseDate: result.releaseDate,
+                        firstAirDate: result.firstAirDate,
+                        voteAverage: result.voteAverage,
+                        popularity: result.popularity,
+                        adult: result.adult,
+                        genreIds: result.genreIds,
+                        originalLanguage: result.originalLanguage,
+                        originCountry: result.originCountry,
+                        voteCount: result.voteCount,
+                        isAnimeHint: true,
+                        animeIdentitySeed: AnimeMediaIdentitySeed(
+                            anilistId: anilistID,
+                            malId: mapping?.malId,
+                            kitsuId: mapping?.kitsuId,
+                            format: mapping?.mediaType
+                        ),
+                        animeArtworkURL: identity?.posterURL ?? result.animeArtworkURL
+                    )
+                    return (index, enriched)
+                }
+            }
+
+            var resolvedByIndex: [Int: TMDBSearchResult] = [:]
+            while let (index, result) = await group.next() {
+                resolvedByIndex[index] = result
+                if let (nextIndex, nextResult) = iterator.next() {
+                    group.addTask {
+                        let mappingResult = await AniMapMappingService.shared.mappingsResult(forTMDBShowId: nextResult.id)
+                        let mapping = mappingResult.mappings
+                            .filter { $0.mediaType?.lowercased() != "movie" }
+                            .first { $0.anilistId != nil }
+                            ?? mappingResult.mappings.first { $0.anilistId != nil }
+                        guard let anilistID = mapping?.anilistId, anilistID > 0 else {
+                            return (nextIndex, nextResult)
+                        }
+                        let identity = await AniListService.shared.fetchAnimeSeasonIdentity(
+                            anilistId: anilistID,
+                            tmdbShowId: nextResult.id,
+                            title: nextResult.displayTitle
+                        )
+                        return (nextIndex, TMDBSearchResult(
+                            id: nextResult.id, mediaType: nextResult.mediaType,
+                            title: nextResult.title, name: nextResult.name,
+                            overview: nextResult.overview, posterPath: nextResult.posterPath,
+                            backdropPath: nextResult.backdropPath, releaseDate: nextResult.releaseDate,
+                            firstAirDate: nextResult.firstAirDate, voteAverage: nextResult.voteAverage,
+                            popularity: nextResult.popularity, adult: nextResult.adult,
+                            genreIds: nextResult.genreIds, originalLanguage: nextResult.originalLanguage,
+                            originCountry: nextResult.originCountry, voteCount: nextResult.voteCount,
+                            isAnimeHint: true,
+                            animeIdentitySeed: AnimeMediaIdentitySeed(
+                                anilistId: anilistID, malId: mapping?.malId,
+                                kitsuId: mapping?.kitsuId, format: mapping?.mediaType
+                            ),
+                            animeArtworkURL: identity?.posterURL ?? nextResult.animeArtworkURL
+                        ))
+                    }
+                }
+            }
+            return results.enumerated().map { index, result in
+                resolvedByIndex[index] ?? result
+            }
         }
     }
 
