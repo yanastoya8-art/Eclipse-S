@@ -394,6 +394,9 @@ final class ScheduleViewModel: ObservableObject {
             requiredSources: requiredSources,
             forceRefreshSources: requiredSources
         )
+        if mode == .movies {
+            _ = try? await movieEntries(dayCount: ScheduleWindow.current.rawValue, forceRefresh: true)
+        }
         await loadSchedule(
             mode: mode,
             localTimeZone: currentLocalTimeZone,
@@ -906,12 +909,13 @@ final class ScheduleViewModel: ObservableObject {
                 entries: rawEntries,
                 selectedLanguages: MyDubListDubFilter.shared.selectedLanguages
             )
+            let filteredEntries = await applyShortRuntimeScheduleFilter(languageFiltered)
             try Task.checkCancellation()
-            movieScheduleEntries = languageFiltered
+            movieScheduleEntries = filteredEntries
             movieScheduleDayCount = dayCount
             movieScheduleFetchedAt = Date()
             movieScheduleLastFailureAt = nil
-            return entries(languageFiltered, within: dayCount)
+            return entries(filteredEntries, within: dayCount)
         } catch {
             movieScheduleLastFailureAt = Date()
             throw error
@@ -1486,7 +1490,7 @@ private final class TraktScheduleService {
                           let path = movie.posterPath, !path.isEmpty else {
                         return (id, nil)
                     }
-                    return (id, "https://image.tmdb.org/t/p/w500\\(path)")
+                    return (id, "https://image.tmdb.org/t/p/w500\(path)")
                 }
             }
             var posters: [Int: String] = [:]
