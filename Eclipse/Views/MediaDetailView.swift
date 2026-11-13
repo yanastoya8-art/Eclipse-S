@@ -493,6 +493,7 @@ struct MediaDetailContentView: View {
     @State private var optionalPresentationTask: Task<Void, Never>?
     @State private var optionalPresentationGeneration = UUID()
     @State private var optionalPresentationIsComplete = false
+    @State private var titleArtworkLookupComplete = false
     @State private var alternatePosterWasResolved = false
     @State private var optionalPresentationCacheWritable = false
 #if DEBUG
@@ -1959,7 +1960,7 @@ struct MediaDetailContentView: View {
     private func macDetailPoster(width: CGFloat) -> some View {
         let posterURL = searchResult.isMovie
             ? movieDetail?.fullPosterURL ?? searchResult.fullPosterURL
-            : tvShowDetail?.fullPosterURL ?? searchResult.fullPosterURL
+            : tvShowDetail?.fullPosterURL ?? searchResult.fullPosterURL ?? searchResult.animeArtworkURL
         return KFImage(URL(string: posterURL ?? ""))
             .setProcessor(DownsamplingImageProcessor(size: homeImageDecodeSize(width: width, height: width * 1.5)))
             .placeholder {
@@ -1985,10 +1986,12 @@ struct MediaDetailContentView: View {
 
     @ViewBuilder
     private func macDetailTitle(compact: Bool) -> some View {
-        if mediaDetailTitleArtworkEnabled, let logoURL {
+        if mediaDetailTitleArtworkEnabled && !titleArtworkLookupComplete {
+            Color.clear.frame(width: compact ? 330 : 480, height: compact ? 88 : 112)
+        } else if mediaDetailTitleArtworkEnabled, let logoURL {
             KFImage(URL(string: logoURL))
                 .setProcessor(DownsamplingImageProcessor(size: homeImageDecodeSize(width: 480, height: 112)))
-                .placeholder { macDetailTitleText(compact: compact) }
+                .placeholder { Color.clear }
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(maxWidth: compact ? 330 : 480, maxHeight: compact ? 88 : 112, alignment: .leading)
@@ -2282,12 +2285,12 @@ struct MediaDetailContentView: View {
 
     @ViewBuilder
     private var iPadImmersiveTitle: some View {
-        if mediaDetailTitleArtworkEnabled, let logoURL {
+        if mediaDetailTitleArtworkEnabled && !titleArtworkLookupComplete {
+            Color.clear.frame(width: 380, height: 118)
+        } else if mediaDetailTitleArtworkEnabled, let logoURL {
             KFImage(URL(string: logoURL))
                 .setProcessor(DownsamplingImageProcessor(size: homeImageDecodeSize(width: 380, height: 118)))
-                .placeholder {
-                    iPadImmersiveTitleText
-                }
+                .placeholder { Color.clear }
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(maxWidth: 380, maxHeight: 118, alignment: .leading)
@@ -2577,6 +2580,7 @@ struct MediaDetailContentView: View {
             }
 #endif
             return searchResult.fullPosterURL
+                ?? searchResult.animeArtworkURL
                 ?? tvShowDetail?.fullPosterURL
                 ?? tvShowDetail?.fullBackdropURL
                 ?? searchResult.fullBackdropURL
@@ -2709,12 +2713,16 @@ struct MediaDetailContentView: View {
     private var titleArtwork: some View {
         if !mediaDetailTitleArtworkEnabled {
             EmptyView()
+        } else if !titleArtworkLookupComplete {
+            Color.clear
+                .frame(
+                    width: ExperimentalFeatureState.isEnabledAtLaunch ? (isTvOS ? 720 : (usesWideDetailLayout ? 420 : 334)) : (usesWideDetailLayout ? 400 : 280),
+                    height: ExperimentalFeatureState.isEnabledAtLaunch ? (isTvOS ? 250 : 132) : (usesWideDetailLayout ? 140 : 100)
+                )
         } else if let logoURL = logoURL {
             KFImage(URL(string: logoURL))
                 .setProcessor(DownsamplingImageProcessor(size: homeImageDecodeSize(width: isTvOS ? 720 : (usesWideDetailLayout ? 420 : 334), height: isTvOS ? 250 : 140)))
-                .placeholder {
-                    titleText
-                }
+                .placeholder { Color.clear }
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(
@@ -6817,7 +6825,7 @@ struct MediaDetailContentView: View {
 
     private var shouldAnalyzeAlternatePoster: Bool {
 #if os(iOS)
-        !usesWideDetailLayout && mediaDetailTitleArtworkEnabled && mediaDetailAlternatePosterEnabled
+        !usesWideDetailLayout && mediaDetailAlternatePosterEnabled
 #else
         false
 #endif
@@ -6878,6 +6886,7 @@ struct MediaDetailContentView: View {
             let images = await imagesResult
             guard !Task.isCancelled, isDetailVisible, optionalPresentationGeneration == generation,
                   searchResult.stableIdentity == identity, selectedLanguage == language else { return }
+            titleArtworkLookupComplete = true
             if let images {
                 logoURL = tmdbService.getBestLogo(from: images, preferredLanguage: language)?.fullURL
             }
@@ -6942,6 +6951,7 @@ struct MediaDetailContentView: View {
 #endif
         cancelOptionalPresentation()
         optionalPresentationIsComplete = false
+        titleArtworkLookupComplete = false
         alternatePosterWasResolved = false
         optionalPresentationCacheWritable = false
         if let existingTask = detailLoadTask {
@@ -7039,6 +7049,7 @@ struct MediaDetailContentView: View {
                 self.logoURL = cached.logoURL
                 self.alternatePosterURL = cached.alternatePosterURL
                 self.optionalPresentationIsComplete = cached.optionalPresentationIsComplete
+                self.titleArtworkLookupComplete = cached.logoURL != nil || cached.optionalPresentationIsComplete
                 self.alternatePosterWasResolved = cached.alternatePosterWasResolved
                 self.optionalPresentationCacheWritable = true
                 self.isAnimeShow = cached.isAnimeShow
