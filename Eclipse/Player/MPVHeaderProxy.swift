@@ -6150,6 +6150,7 @@ final class MPVHeaderProxy {
 
 /// Short-lived, token-protected LAN file endpoint used when a user casts a file
 /// already stored in Eclipse's private downloads directory.
+// LAN file transport is deliberately separate from the loopback-only playback proxy.
 final class LocalFileLANServer {
     static let shared = LocalFileLANServer()
 
