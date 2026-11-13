@@ -399,6 +399,23 @@ actor AnimeScheduleService {
     }
 }
 
+enum AnimeScheduleLanguageNoticePolicy {
+    static func notice(
+        selectedLanguages: Set<String>,
+        providerNotice: String?
+    ) -> String? {
+        guard selectedLanguages.contains(MyDubListLanguage.spanish.rawValue) else {
+            return providerNotice
+        }
+        let clarification = "The anime calendar currently shows confirmed English-dub release dates only. Spanish-dub release dates are not available from this schedule provider."
+        guard let providerNotice,
+              !providerNotice.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return clarification
+        }
+        return "\(providerNotice) \(clarification)"
+    }
+}
+
 enum AnimeScheduleFallback {
     static func permitsBroadcastFallback(selectedDubLanguages: Set<String>) -> Bool {
         selectedDubLanguages.isEmpty

@@ -117,6 +117,26 @@ final class AnimeScheduleFallbackTests: XCTestCase {
         }
     }
 
+    func testSpanishSelectionExplainsEnglishOnlyAnimeScheduleDates() {
+        let notice = AnimeScheduleLanguageNoticePolicy.notice(
+            selectedLanguages: ["english", "spanish"],
+            providerNotice: nil
+        )
+        XCTAssertTrue(notice?.contains("English-dub release dates only") == true)
+        XCTAssertTrue(notice?.contains("Spanish-dub release dates are not available") == true)
+    }
+
+    func testEnglishOnlyAnimeSchedulePreservesProviderNotice() {
+        let providerNotice = "DubOnly timetable is temporarily unavailable."
+        XCTAssertEqual(
+            AnimeScheduleLanguageNoticePolicy.notice(
+                selectedLanguages: ["english"],
+                providerNotice: providerNotice
+            ),
+            providerNotice
+        )
+    }
+
     func testLanguageFilterNeverAllowsUndubbedBroadcastFallback() {
         XCTAssertFalse(AnimeScheduleFallback.permitsBroadcastFallback(selectedDubLanguages: ["english"]))
         XCTAssertFalse(AnimeScheduleFallback.permitsBroadcastFallback(selectedDubLanguages: ["spanish"]))

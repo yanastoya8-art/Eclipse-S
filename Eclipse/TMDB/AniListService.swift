@@ -5492,7 +5492,10 @@ final class AniListService {
         return AnimeAiringScheduleResult(
             entries: filteredEntries,
             isAuthoritativeForNotifications: result.isAuthoritativeForNotifications,
-            notice: result.notice
+            notice: AnimeScheduleLanguageNoticePolicy.notice(
+                selectedLanguages: selectedLanguages,
+                providerNotice: result.notice
+            )
         )
     }
 
