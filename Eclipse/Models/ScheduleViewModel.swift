@@ -1759,6 +1759,13 @@ fileprivate struct TVMazeCountry: Decodable {
 }
 
 
+enum JustWatchScheduleCachePolicy {
+    static func isFresh(fetchedAt: Date, now: Date, lifetime: TimeInterval) -> Bool {
+        let age = now.timeIntervalSince(fetchedAt)
+        return age >= 0 && age < lifetime
+    }
+}
+
 private actor JustWatchScheduleService {
     static let shared = JustWatchScheduleService()
 
@@ -1875,14 +1882,12 @@ private actor JustWatchScheduleService {
         let cacheKey = "\(showID)|\(season)|BG|\(languageKey)"
         let now = Date()
         if let cached = seasonDateCache[cacheKey],
-           now.timeIntervalSince(cached.fetchedAt) >= 0,
-           now.timeIntervalSince(cached.fetchedAt) < cacheLifetime {
+           JustWatchScheduleCachePolicy.isFresh(fetchedAt: cached.fetchedAt, now: now, lifetime: cacheLifetime) {
             return Self.episodeDates(from: cached)
         }
         if let cachedData = UserDefaults.standard.data(forKey: "justWatchEpisodeDatesV1.\(cacheKey)"),
            let cached = try? JSONDecoder().decode(CachedEpisodeDates.self, from: cachedData),
-           now.timeIntervalSince(cached.fetchedAt) >= 0,
-           now.timeIntervalSince(cached.fetchedAt) < cacheLifetime {
+           JustWatchScheduleCachePolicy.isFresh(fetchedAt: cached.fetchedAt, now: now, lifetime: cacheLifetime) {
             seasonDateCache[cacheKey] = cached
             return Self.episodeDates(from: cached)
         }
