@@ -56,8 +56,6 @@ struct SettingsView: View {
     @State private var isCheckingGitHubRelease = false
     @StateObject private var profileManager = ProfileManager.shared
 
-    private let koFiURL = URL(string: "https://ko-fi.com/soupydev")!
-    private let discordURL = URL(string: "https://discord.gg/cuhAwNwh25")!
     private var sourceCodeURL: URL { Bundle.main.eclipseSourceURL }
     private let licenseURL = URL(string: "https://www.gnu.org/licenses/gpl-3.0.html")!
     private let privacyPolicyURL = URL(string: "https://soupy-dev.github.io/Eclipse/privacy-policy/")!
