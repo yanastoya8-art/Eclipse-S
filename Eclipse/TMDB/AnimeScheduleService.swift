@@ -93,6 +93,17 @@ struct AnimeScheduleAnime: Codable {
 }
 
 enum AnimeScheduleEntryMapper {
+    static func shouldReplaceDuplicate(
+        existing: AniListAiringScheduleEntry,
+        candidate: AniListAiringScheduleEntry
+    ) -> Bool {
+        if candidate.airingAt != existing.airingAt {
+            return candidate.airingAt < existing.airingAt
+        }
+        // At the same time, prefer a confirmed airing over a withdrawn date.
+        return existing.airingTimeWithdrawn == true && candidate.airingTimeWithdrawn != true
+    }
+
     static func date(_ value: String?) -> Date? {
         guard let value, value.count <= 40, !value.hasPrefix("0001-") else { return nil }
         let formatter = ISO8601DateFormatter()
@@ -294,17 +305,9 @@ actor AnimeScheduleService {
             if wantedRoutes.contains(row.route), anime?.isAdult != true, mapped.isEmpty { complete = false }
             for entry in mapped {
                 let key = "\(entry.mediaId)-\(entry.episode)"
-                if let previous = entriesByID[key] {
-                    // Multiple selected dub languages can publish the same
-                    // episode on different dates. Keep only the earliest airing
-                    // for that canonical anime/episode identity. At an identical
-                    // timestamp, prefer a confirmed airing over a withdrawn one.
-                    if previous.airingAt < entry.airingAt { continue }
-                    if previous.airingAt == entry.airingAt {
-                        if previous.airingTimeWithdrawn != true || entry.airingTimeWithdrawn == true {
-                            continue
-                        }
-                    }
+                if let previous = entriesByID[key],
+                   !AnimeScheduleEntryMapper.shouldReplaceDuplicate(existing: previous, candidate: entry) {
+                    continue
                 }
                 entriesByID[key] = entry
             }
