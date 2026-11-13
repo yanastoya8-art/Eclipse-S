@@ -6203,22 +6203,20 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         }
         #endif
 
-        let streamMetadata = [
-            playbackLaunchContext?.streamName,
-            initialURL?.absoluteString
-        ].compactMap { $0 }.joined(separator: " ").lowercased()
 #if os(iOS) && ECLIPSE_MPVKIT_MOLTENVK_INLINE_RENDERER && ECLIPSE_MPVKIT_SAMPLE_BUFFER_PIP_BRIDGE
-        let dynamicRangeMetadata = metalPerformanceDiagnostics()?.dynamicRangeText.lowercased() ?? ""
+        let rendererDiagnostics = metalPerformanceDiagnostics()
+        let dynamicRangeMetadata = rendererDiagnostics?.dynamicRangeText
+        let videoCodecMetadata = rendererDiagnostics?.videoCodec
 #else
-        let dynamicRangeMetadata = ""
+        let dynamicRangeMetadata: String? = nil
+        let videoCodecMetadata: String? = nil
 #endif
-        let dolbyVisionDetected = dynamicRangeMetadata.contains("dolby vision")
-            || dynamicRangeMetadata.contains("dolbyvision")
-            || streamMetadata.contains("dolby vision")
-            || streamMetadata.contains("dolbyvision")
-            || streamMetadata.contains("dovi")
-            || streamMetadata.contains("dvhe")
-            || streamMetadata.contains("dvh1")
+        let dolbyVisionDetected = MPVDolbyVisionDetectionPolicy.isDetected(
+            streamName: playbackLaunchContext?.streamName,
+            streamURL: initialURL?.absoluteString,
+            dynamicRange: dynamicRangeMetadata,
+            videoCodec: videoCodecMetadata
+        )
         text.append(NSAttributedString(string: "\n"))
         text.append(metalPerformanceOverlayRow(
             label: "Dolby Vision",
