@@ -495,24 +495,25 @@ struct SettingsView: View {
 
 
                 GlassSection(header: "Content Filters") {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Toggle("Hide movies below PG-13", isOn: $hideBelowPG13Movies)
-                    .onChange(of: hideBelowPG13Movies) { _ in NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil) }
-                            .accessibilityIdentifier("settings.contentFilters.moviesPG13")
-                        Toggle("Hide TV shows below TV-14", isOn: $hideBelowTV14Shows)
-                    .onChange(of: hideBelowTV14Shows) { _ in NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil) }
-                            .accessibilityIdentifier("settings.contentFilters.tv14")
-                        Toggle("Hide anime below PG-13", isOn: $hideBelowPG13Anime)
-                    .onChange(of: hideBelowPG13Anime) { _ in NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil) }
-                            .accessibilityIdentifier("settings.contentFilters.animePG13")
-                        Toggle("Require English/Spanish original audio or verified anime dub", isOn: $requireEnglishSpanishAudio)
-                    .onChange(of: requireEnglishSpanishAudio) { _ in NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil) }
-                            .accessibilityIdentifier("settings.contentFilters.audioLanguages")
-                        Text("Age filters hide titles with lower or unknown ratings. For movies and non-anime TV, the current public metadata verifies original language only. Anime can also qualify through episode-level English or Spanish dub counts. Dubbed audio and individual dubbed episodes for general movies and TV require a JustWatch partner feed and token.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    VStack(spacing: 0) {
+                        NavigationLink(destination: settingsSearchableContent(AgeFiltersSettingsView(
+                            hideBelowPG13Movies: $hideBelowPG13Movies,
+                            hideBelowTV14Shows: $hideBelowTV14Shows,
+                            hideBelowPG13Anime: $hideBelowPG13Anime
+                        ))) {
+                            GlassSettingsRow(icon: "person.crop.circle.badge.checkmark", iconColor: .orange, title: "Age Filters")
+                        }
+                        .buttonStyle(.plain)
+
+                        GlassDivider()
+
+                        NavigationLink(destination: settingsSearchableContent(LanguageFiltersSettingsView(
+                            requireEnglishSpanishAudio: $requireEnglishSpanishAudio
+                        ))) {
+                            GlassSettingsRow(icon: "globe", iconColor: .cyan, title: "Language Filters")
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .padding(.vertical, 6)
                 }
 
                 GlassSection(header: "Basic") {
@@ -964,20 +965,18 @@ struct SettingsView: View {
     private var settingsListContent: some View {
         Group {
             Section("Content Filters") {
-                Toggle("Hide movies below PG-13", isOn: $hideBelowPG13Movies)
-                    .onChange(of: hideBelowPG13Movies) { _ in NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil) }
-                    .accessibilityIdentifier("settings.contentFilters.moviesPG13")
-                Toggle("Hide TV shows below TV-14", isOn: $hideBelowTV14Shows)
-                    .onChange(of: hideBelowTV14Shows) { _ in NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil) }
-                    .accessibilityIdentifier("settings.contentFilters.tv14")
-                Toggle("Hide anime below PG-13", isOn: $hideBelowPG13Anime)
-                    .onChange(of: hideBelowPG13Anime) { _ in NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil) }
-                    .accessibilityIdentifier("settings.contentFilters.animePG13")
-                Toggle("Require English/Spanish original audio or verified anime dub", isOn: $requireEnglishSpanishAudio)
-                    .onChange(of: requireEnglishSpanishAudio) { _ in NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil) }
-                    .accessibilityIdentifier("settings.contentFilters.audioLanguages")
-            } footer: {
-                Text("For movies and non-anime TV, public metadata verifies original language only. Anime can also qualify through episode-level English or Spanish dub counts. General movie and TV dub tracks require a JustWatch partner feed and token.")
+                NavigationLink(destination: AgeFiltersSettingsView(
+                    hideBelowPG13Movies: $hideBelowPG13Movies,
+                    hideBelowTV14Shows: $hideBelowTV14Shows,
+                    hideBelowPG13Anime: $hideBelowPG13Anime
+                )) {
+                    Text("Age Filters")
+                }
+                NavigationLink(destination: LanguageFiltersSettingsView(
+                    requireEnglishSpanishAudio: $requireEnglishSpanishAudio
+                )) {
+                    Text("Language Filters")
+                }
             }
 
             Section("Basic") {
@@ -5348,3 +5347,89 @@ private struct CloudSyncHealthSection: View {
     }
 }
 #endif
+
+
+private struct AgeFiltersSettingsView: View {
+    @Binding var hideBelowPG13Movies: Bool
+    @Binding var hideBelowTV14Shows: Bool
+    @Binding var hideBelowPG13Anime: Bool
+
+    private func filtersDidChange() {
+        NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil)
+    }
+
+    var body: some View {
+        List {
+            Section {
+                Toggle("Hide movies below PG-13", isOn: $hideBelowPG13Movies)
+                    .onChange(of: hideBelowPG13Movies) { _ in filtersDidChange() }
+                    .accessibilityIdentifier("settings.contentFilters.moviesPG13")
+                Toggle("Hide TV shows below TV-14", isOn: $hideBelowTV14Shows)
+                    .onChange(of: hideBelowTV14Shows) { _ in filtersDidChange() }
+                    .accessibilityIdentifier("settings.contentFilters.tv14")
+                Toggle("Hide anime below PG-13", isOn: $hideBelowPG13Anime)
+                    .onChange(of: hideBelowPG13Anime) { _ in filtersDidChange() }
+                    .accessibilityIdentifier("settings.contentFilters.animePG13")
+            } footer: {
+                Text("Titles below the selected rating are hidden. Unknown ratings continue to follow the app's existing age-rating policy.")
+            }
+        }
+        .eclipsePageTitle("Age Filters")
+        .eclipseSettingsStyle()
+        .preferredColorScheme(.dark)
+    }
+}
+
+private struct LanguageFiltersSettingsView: View {
+    @Binding var requireEnglishSpanishAudio: Bool
+    @State private var selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguages
+
+    private func saveDubLanguages(_ languages: Set<String>) {
+        MyDubListDubFilter.shared.setSelectedLanguages(languages)
+        NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil)
+        Task {
+            _ = await MyDubListDubFilter.shared.refresh()
+            NotificationCenter.default.post(name: MyDubListDubFilter.didRefreshNotification, object: nil)
+        }
+    }
+
+    var body: some View {
+        List {
+            Section {
+                Toggle("Require English/Spanish original audio or verified anime dub", isOn: $requireEnglishSpanishAudio)
+                    .onChange(of: requireEnglishSpanishAudio) { _ in
+                        NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil)
+                    }
+                    .accessibilityIdentifier("settings.contentFilters.audioLanguages")
+            } footer: {
+                Text("For movies and non-anime TV, public metadata verifies original language only. Anime can also qualify through verified episode-level English or Spanish dub data.")
+            }
+
+            Section {
+                ForEach(MyDubListLanguage.allCases) { language in
+                    Toggle(language.displayName, isOn: Binding(
+                        get: { selectedDubLanguages.contains(language.rawValue) },
+                        set: { isSelected in
+                            var updated = selectedDubLanguages
+                            if isSelected {
+                                updated.insert(language.rawValue)
+                            } else {
+                                updated.remove(language.rawValue)
+                            }
+                            selectedDubLanguages = updated
+                            saveDubLanguages(updated)
+                        }
+                    ))
+                    .accessibilityIdentifier("settings.contentFilters.dubLanguage.\(language.rawValue)")
+                }
+            } header: {
+                Text("Anime Dub Languages")
+            } footer: {
+                Text("Select one or more dub languages. A title qualifies when it has at least one selected language. If no languages are selected, this anime dub filter is inactive. Anime without a match is excluded from filtered catalogs and sections.")
+            }
+        }
+        .eclipsePageTitle("Language Filters")
+        .eclipseSettingsStyle()
+        .preferredColorScheme(.dark)
+    }
+}
