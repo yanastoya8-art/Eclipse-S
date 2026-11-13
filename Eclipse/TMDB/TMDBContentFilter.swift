@@ -146,6 +146,7 @@ final class MyDubListDubFilter: @unchecked Sendable {
         lock.lock()
         isLoaded = false
         lock.unlock()
+        notifyRefreshObservers()
     }
 
     func refresh() async -> Bool {
@@ -210,6 +211,7 @@ final class MyDubListDubFilter: @unchecked Sendable {
             return true
         } catch {
             Logger.shared.log("MyDubList: dub filter refresh failed: \(error.localizedDescription)", type: "Anime")
+            notifyRefreshObservers()
             return hasSnapshot(for: languages)
         }
     }
@@ -223,7 +225,7 @@ final class MyDubListDubFilter: @unchecked Sendable {
                 && (result.originalLanguage?.lowercased() == "ja"
                     || result.originCountry?.contains("JP") == true))
         guard isLikelyAnime else { return true }
-        guard let seed = result.animeIdentitySeed else { return false }
+        guard let seed = result.animeIdentitySeed else { return true }
 
         lock.lock()
         defer { lock.unlock() }
@@ -802,7 +804,7 @@ class TMDBContentFilter: ObservableObject {
         let isAnime = Self.isAnimeResult(result)
 
         if isAnime, defaults.bool(forKey: "catalogHideBelowPG13Anime") {
-            guard let anilistID = result.animeIdentitySeed?.anilistId else { return false }
+            guard let anilistID = result.animeIdentitySeed?.anilistId else { return true }
             animeEligibilityLock.lock()
             let rating = animeAgeRatingsByID[anilistID]
             animeEligibilityLock.unlock()
@@ -813,10 +815,12 @@ class TMDBContentFilter: ObservableObject {
             let shouldCheckMovie = result.isMovie && defaults.bool(forKey: "catalogHideBelowPG13Movies")
             let shouldCheckTV = result.isTVShow && defaults.bool(forKey: "catalogHideBelowTV14Shows")
             if shouldCheckMovie || shouldCheckTV {
-                guard let rating = TMDBMaturityRatingStore.shared.rating(
+                if let rating = TMDBMaturityRatingStore.shared.rating(
                     isMovie: result.isMovie,
                     id: result.id
-                ), rating != .unknown, rating >= .teen else { return false }
+                ), rating != .unknown, rating < .teen {
+                    return false
+                }
             }
         }
 
@@ -826,10 +830,15 @@ class TMDBContentFilter: ObservableObject {
             let originalLanguage = result.originalLanguage?.lowercased()
             let hasNativeAudio = originalLanguage == "en" || originalLanguage == "es"
             if hasNativeAudio { return true }
-            guard isAnime, let anilistID = result.animeIdentitySeed?.anilistId else {
+            guard isAnime else {
                 // TMDB does not publish dub-track availability for general
                 // movies or TV episodes. Unknown audio must not be guessed.
                 return false
+            }
+            guard let anilistID = result.animeIdentitySeed?.anilistId else {
+                // A missing AniList mapping is unknown, not proof that the
+                // selected dub language is unavailable.
+                return true
             }
             animeEligibilityLock.lock()
             let hasVerifiedDub = animeAudioEligibleIDs.contains(anilistID)
