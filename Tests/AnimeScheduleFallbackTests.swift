@@ -96,6 +96,13 @@ final class AnimeScheduleFallbackTests: XCTestCase {
         }
     }
 
+    func testLanguageFilterNeverAllowsUndubbedBroadcastFallback() {
+        XCTAssertFalse(AnimeScheduleFallback.permitsBroadcastFallback(selectedDubLanguages: ["english"]))
+        XCTAssertFalse(AnimeScheduleFallback.permitsBroadcastFallback(selectedDubLanguages: ["spanish"]))
+        XCTAssertFalse(AnimeScheduleFallback.permitsBroadcastFallback(selectedDubLanguages: ["english", "spanish"]))
+        XCTAssertTrue(AnimeScheduleFallback.permitsBroadcastFallback(selectedDubLanguages: []))
+    }
+
     func testFallbackUsesAnimeScheduleBeforeMAL() async throws {
         var usedMAL = false
         let entries = try mapped()
