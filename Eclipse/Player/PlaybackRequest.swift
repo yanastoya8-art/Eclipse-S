@@ -1165,24 +1165,17 @@ struct PlaybackRequest {
 }
 
 
-enum MPVDolbyVisionDetectionPolicy {
-    static func isDetected(
-        streamName: String?,
-        streamURL: String?,
-        dynamicRange: String?,
-        videoCodec: String?
-    ) -> Bool {
-        let metadata = [
-            streamName,
-            streamURL,
-            dynamicRange,
-            videoCodec
-        ]
-        .compactMap { $0 }
-        .joined(separator: " ")
-        .lowercased()
+enum MPVDolbyVisionDetectionStatus: Equatable {
+    case detected
+    case notDetected
+    case unavailable
+}
 
-        return ["dolby vision", "dolbyvision", "dovi", "dvhe", "dvh1"]
-            .contains { metadata.contains($0) }
+enum MPVDolbyVisionDetectionPolicy {
+    /// Only accepts a positive signal from the demuxed/decoded video bitstream.
+    /// nil means the active renderer does not expose Dolby Vision RPU/config detection.
+    static func status(bitstreamHasDolbyVisionRPU: Bool?) -> MPVDolbyVisionDetectionStatus {
+        guard let bitstreamHasDolbyVisionRPU else { return .unavailable }
+        return bitstreamHasDolbyVisionRPU ? .detected : .notDetected
     }
 }
