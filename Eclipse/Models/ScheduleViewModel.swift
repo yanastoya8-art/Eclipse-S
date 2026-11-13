@@ -577,6 +577,26 @@ final class ScheduleViewModel: ObservableObject {
         }
     }
 
+    private func filteredAnimeScheduleResult(_ result: AnimeScheduleLoadResult) -> AnimeScheduleLoadResult {
+        let selectedLanguages = MyDubListDubFilter.shared.selectedLanguages
+        guard !selectedLanguages.isEmpty else { return result }
+
+        let entries = result.entries.filter { entry in
+            guard entry.source == .anime else { return true }
+            let anilistID = entry.sourceMediaId > 0 ? entry.sourceMediaId : nil
+            let malID = entry.animeMALID ?? (entry.sourceMediaId < 0 ? -entry.sourceMediaId : nil)
+            return MyDubListDubFilter.shared.shouldInclude(
+                anilistID: anilistID,
+                malID: malID
+            )
+        }
+        return AnimeScheduleLoadResult(
+            entries: entries,
+            isAuthoritativeForNotifications: result.isAuthoritativeForNotifications,
+            notice: result.notice
+        )
+    }
+
     @MainActor
     private func animeEntries(dayCount: Int, forceRefresh: Bool) async throws -> AnimeScheduleLoadResult {
         if !forceRefresh,
@@ -586,7 +606,7 @@ final class ScheduleViewModel: ObservableObject {
                 requiredDayCount: dayCount
            ),
            let cached = cachedAnimeResult(for: dayCount) {
-            return cached
+            return filteredAnimeScheduleResult(cached)
         }
         if let animeScheduleLoadTask {
             _ = try await animeScheduleLoadTask.value
@@ -596,7 +616,7 @@ final class ScheduleViewModel: ObservableObject {
                     cachedDayCount: animeScheduleDayCount,
                     requiredDayCount: dayCount
                ) {
-                return cached
+                return filteredAnimeScheduleResult(cached)
             }
 
             return try await animeEntries(dayCount: dayCount, forceRefresh: forceRefresh)
@@ -631,7 +651,7 @@ final class ScheduleViewModel: ObservableObject {
                     self.animeScheduleLoadTask = nil
                     self.animeScheduleLoadID = nil
                 }
-                return loadResult
+                return filteredAnimeScheduleResult(loadResult)
             } catch {
                 if self.animeScheduleLoadID == loadID {
                     self.animeScheduleLastFailureAt = Date()
@@ -650,7 +670,7 @@ final class ScheduleViewModel: ObservableObject {
                 cachedDayCount: animeScheduleDayCount,
                 requiredDayCount: dayCount
            ) {
-            return cached
+            return filteredAnimeScheduleResult(cached)
         }
         return try await animeEntries(dayCount: dayCount, forceRefresh: forceRefresh)
     }
