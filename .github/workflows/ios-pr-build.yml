@@ -11,8 +11,8 @@ permissions:
   actions: write
   contents: read
 
-# Every run gets a slot for its lightweight queue-cleanup job. That job
-# cancels only older queued builds after verifying it belongs to the branch HEAD.
+# Every run gets a slot for its lightweight queue-cleanup job. The latest
+# branch-head run cancels older queued and in-progress builds for that branch.
 concurrency:
   group: ios-pr-build-${{ github.run_id }}
   cancel-in-progress: false
@@ -48,15 +48,15 @@ jobs:
             echo "This run is stale; only the latest branch commit may prune queued builds."
             exit 0
           fi
-          if ! queued_runs="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ios-pr-build.yml --branch "$BRANCH_NAME" --limit 100 --json databaseId,status --jq '.[] | select(.status == "queued" or .status == "pending") | .databaseId')"; then
-            echo "::warning::Could not list queued runs; continuing with the current build."
+          if ! stale_runs="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ios-pr-build.yml --branch "$BRANCH_NAME" --limit 100 --json databaseId,status --jq '.[] | select(.status == "queued" or .status == "pending" or .status == "in_progress") | .databaseId')"; then
+            echo "::warning::Could not list stale runs; continuing with the current build."
             exit 0
           fi
           while IFS= read -r run_id; do
             [[ -z "$run_id" || "$run_id" == "$CURRENT_RUN_ID" ]] && continue
-            echo "Cancelling superseded queued run $run_id"
-            gh run cancel "$run_id" --repo "$GITHUB_REPOSITORY" || echo "::warning::Could not cancel queued run $run_id"
-          done <<< "$queued_runs"
+            echo "Cancelling superseded queued/in-progress run $run_id"
+            gh run cancel "$run_id" --repo "$GITHUB_REPOSITORY" || echo "::warning::Could not cancel stale run $run_id"
+          done <<< "$stale_runs"
 
   ios-build-and-tests:
     name: Build and test iPhone/iPad app
