@@ -961,6 +961,7 @@ struct BrowseFilterConfiguration: Codable, Equatable {
     var sortRawValue: String
     var minimumRating: Double
     var ageRatingRawValue: String
+    var showsUpcomingOnly: Bool?
 
     func sanitized(
         validGenreKeys: Set<String>,
@@ -988,7 +989,8 @@ struct BrowseFilterConfiguration: Codable, Equatable {
             selectedCountryCodes: countries.sorted(),
             sortRawValue: BrowseSort(rawValue: sortRawValue)?.rawValue ?? BrowseSort.popularity.rawValue,
             minimumRating: boundedMinimumRating,
-            ageRatingRawValue: BrowseAgeRating(rawValue: ageRatingRawValue)?.rawValue ?? BrowseAgeRating.all.rawValue
+            ageRatingRawValue: BrowseAgeRating(rawValue: ageRatingRawValue)?.rawValue ?? BrowseAgeRating.all.rawValue,
+            showsUpcomingOnly: showsUpcomingOnly
         )
     }
 }
@@ -1359,7 +1361,8 @@ private struct BrowseMediaView: View {
         let years = selectedYears
             .sorted(by: >)
             .map(String.init)
-        return selectionSummary(values: years, emptyTitle: "Any Year")
+        let summary = selectionSummary(values: years, emptyTitle: "Any Year")
+        return currentFilters.showsUpcomingOnly == true ? "Upcoming" : summary
     }
 
     private var excludedYearName: String {
@@ -1385,6 +1388,7 @@ private struct BrowseMediaView: View {
             || sort != .popularity
             || minimumRating > 0
             || ageRating != .all
+            || currentFilters.showsUpcomingOnly == true
     }
 
     private var activeFilterCount: Int {
@@ -1397,6 +1401,7 @@ private struct BrowseMediaView: View {
         if sort != .popularity { count += 1 }
         if minimumRating > 0 { count += 1 }
         if ageRating != .all { count += 1 }
+        if currentFilters.showsUpcomingOnly == true { count += 1 }
         return count
     }
 
@@ -1599,8 +1604,22 @@ private struct BrowseMediaView: View {
 
     private var yearMenu: some View {
         Menu {
-            Button(action: { updateCurrentFilters { $0.selectedYears = [] } }) {
-                menuRow("Any Year", isSelected: selectedYears.isEmpty)
+            Button(action: {
+                updateCurrentFilters {
+                    $0.selectedYears = []
+                    $0.showsUpcomingOnly = false
+                }
+            }) {
+                menuRow("Any Year", isSelected: selectedYears.isEmpty && currentFilters.showsUpcomingOnly != true)
+            }
+
+            Button(action: {
+                updateCurrentFilters {
+                    $0.selectedYears = []
+                    $0.showsUpcomingOnly = true
+                }
+            }) {
+                menuRow("Upcoming (announced date)", isSelected: currentFilters.showsUpcomingOnly == true)
             }
 
             ForEach(availableYears, id: \.self) { year in
@@ -1926,6 +1945,7 @@ private struct BrowseMediaView: View {
                     genres: selectedGenres,
                     excludedGenres: excludedGenres,
                     years: years,
+                    upcomingOnly: currentFilters.showsUpcomingOnly == true,
                     excludedYears: excludedYears,
                     originCountries: countries,
                     sort: sort,
@@ -2077,6 +2097,7 @@ private struct BrowseMediaView: View {
         genres: [BrowseGenre],
         excludedGenres: [BrowseGenre],
         years: [Int],
+        upcomingOnly: Bool,
         excludedYears: Set<Int>,
         originCountries: [String],
         sort: BrowseSort,
@@ -2115,12 +2136,16 @@ private struct BrowseMediaView: View {
                 excludedKeywordIds: excludedKeywordIDs,
                 originCountries: effectiveCountries,
                 originalLanguage: effectiveLanguage,
+                dateGte: upcomingOnly ? Self.todayDateString() : nil,
                 sortBy: tmdbSortValue,
                 minimumVoteCount: voteCountFloor,
                 voteAverageGte: ratingFloor,
                 page: page
             )
-            return BrowsePageResult(results: fetched.results, hasMore: fetched.hasMore)
+            let results = upcomingOnly
+                ? fetched.results.filter { Self.hasOfficialUpcomingDate($0) }
+                : fetched.results
+            return BrowsePageResult(results: results, hasMore: fetched.hasMore)
         }
 
         return try await withThrowingTaskGroup(of: BrowsePageResult.self) { group in
@@ -2140,7 +2165,10 @@ private struct BrowseMediaView: View {
                         voteAverageGte: ratingFloor,
                         page: page
                     )
-                    return BrowsePageResult(results: fetched.results, hasMore: fetched.hasMore)
+                    let results = upcomingOnly
+                        ? fetched.results.filter { Self.hasOfficialUpcomingDate($0) }
+                        : fetched.results
+                    return BrowsePageResult(results: results, hasMore: fetched.hasMore)
                 }
             }
 
@@ -2157,6 +2185,22 @@ private struct BrowseMediaView: View {
                 hasMore: hasMore
             )
         }
+    }
+
+    private static func todayDateString() -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withFullDate]
+        return formatter.string(from: Date())
+    }
+
+    private static func hasOfficialUpcomingDate(_ result: TMDBSearchResult) -> Bool {
+        let raw = result.isMovie ? result.releaseDate : (result.firstAirDate ?? result.releaseDate)
+        guard let raw, raw.count >= 10, !raw.hasPrefix("0001-") else { return false }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withFullDate]
+        guard let announcedDate = formatter.date(from: String(raw.prefix(10))),
+              let today = formatter.date(from: todayDateString()) else { return false }
+        return announcedDate >= today
     }
 
     private func filterExcludedResults(
