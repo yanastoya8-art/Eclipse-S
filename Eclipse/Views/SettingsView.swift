@@ -3798,7 +3798,7 @@ struct MyDubListDubsSettingsView: View {
             VStack(spacing: 22) {
                 GlassSection(header: "Anime Dub Filter") {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Select one or more dub languages. Episode lists show only episodes covered by at least one selected language, using metadata for the exact anime season. Anime with no matching dub remain hidden from anime catalog sections. A new season with no released dub episodes shows its official premiere countdown when a date is available, otherwise TBA.")
+                        Text("Select one or more dub languages. Episode lists show only the sequential episodes covered by at least one selected language's reported dub count for that exact anime season. Anime with no matching dub remain hidden from anime catalog sections. A new season with no released dub episodes shows a countdown when an official English dub episode date is available, otherwise TBA.")
                             .font(.subheadline)
                             .foregroundColor(.white.opacity(0.75))
                             .fixedSize(horizontal: false, vertical: true)
