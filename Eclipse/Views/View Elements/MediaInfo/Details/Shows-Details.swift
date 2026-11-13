@@ -1073,18 +1073,19 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
     @ViewBuilder
     private var episodeListSection: some View {
         Group {
+            if let seasonNumber = selectedSeason?.seasonNumber,
+               shouldShowDubPremiereNotice(for: seasonNumber) {
+                dubPremiereNotice(for: seasonNumber)
+                    .padding(.horizontal)
+            }
             if let detail = activeSeasonDetail {
-                if shouldShowDubPremiereNotice(for: detail) {
-                    dubPremiereNotice(for: detail)
-                        .padding(.horizontal)
-                }
                 let episodeItems = visibleEpisodeRenderItems(for: detail)
                 if episodeItems.isEmpty {
                     VStack(spacing: 8) {
                         Image(systemName: "calendar.badge.clock")
                             .font(.title2)
                             .foregroundColor(.secondary)
-                        Text(shouldShowDubPremiereNotice(for: detail)
+                        Text(shouldShowDubPremiereNotice(for: detail.seasonNumber)
                             ? "No episodes have a selected dub yet"
                             : "No aired episodes yet")
                             .font(.subheadline.weight(.semibold))
@@ -1218,11 +1219,11 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
         return "\(seasonNumber):\(providerID):\(languages):\(animeDubFilterRevision)"
     }
 
-    private func shouldShowDubPremiereNotice(for detail: TMDBSeasonDetail) -> Bool {
+    private func shouldShowDubPremiereNotice(for seasonNumber: Int) -> Bool {
         guard isAnime, specialEpisodeContext == nil else { return false }
         let selectedLanguages = MyDubListDubFilter.shared.selectedLanguages
         guard !selectedLanguages.isEmpty else { return false }
-        let counts = animeDubEpisodeCountsBySeason[detail.seasonNumber] ?? [:]
+        let counts = animeDubEpisodeCountsBySeason[seasonNumber] ?? [:]
         return (AnimeDubEpisodeVisibilityPolicy.availableEpisodeLimit(
             selectedLanguages: selectedLanguages,
             dubCountsByLanguage: counts
@@ -1230,7 +1231,7 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
     }
 
     @ViewBuilder
-    private func dubPremiereNotice(for detail: TMDBSeasonDetail) -> some View {
+    private func dubPremiereNotice(for seasonNumber: Int) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("No selected-language dub episodes are available for this season yet.")
                 .font(.subheadline)
@@ -1240,7 +1241,7 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
                     .font(.caption.weight(.semibold))
                     .foregroundColor(.white.opacity(0.65))
                 Spacer()
-                if let premiere = animeDubPremiereDatesBySeason[detail.seasonNumber] {
+                if let premiere = animeDubPremiereDatesBySeason[seasonNumber] {
                     if premiere > Date() {
                         TimelineView(.periodic(from: .now, by: 1)) { timeline in
                             let remaining = max(0, Int(premiere.timeIntervalSince(timeline.date)))
