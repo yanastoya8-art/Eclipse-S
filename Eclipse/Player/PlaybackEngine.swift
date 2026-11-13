@@ -116,7 +116,24 @@ final class EclipseCastCoordinator: NSObject, GCKSessionManagerListener, GCKRequ
 
     func sessionManager(_ sessionManager: GCKSessionManager, didEnd session: GCKSession, withError error: Error?) {
         pendingMediaInformation = nil
+        activeLoadRequest = nil
         NotificationCenter.default.post(name: Self.didEndSessionNotification, object: nil)
+    }
+
+    func sessionManager(_ sessionManager: GCKSessionManager, didFailToStartSessionWithError error: Error?) {
+        pendingMediaInformation = nil
+        NotificationCenter.default.post(
+            name: Self.didFailMediaNotification,
+            object: error?.localizedDescription ?? "Could not connect to the TV."
+        )
+    }
+
+    func sessionManager(_ sessionManager: GCKSessionManager, didFailToResumeSession session: GCKSession, withError error: Error?) {
+        pendingMediaInformation = nil
+        NotificationCenter.default.post(
+            name: Self.didFailMediaNotification,
+            object: error?.localizedDescription ?? "Could not reconnect to the TV."
+        )
     }
 
     func requestDidComplete(_ request: GCKRequest) {
