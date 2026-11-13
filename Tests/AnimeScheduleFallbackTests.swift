@@ -424,3 +424,66 @@ final class AnimeScheduleFallbackTests: XCTestCase {
         print("AnimeSchedule live: calendar buckets=\(model.dayBuckets.count) notification entries=\(snapshot.entries.count) title navigation=\(detail != nil)")
     }
 }
+
+
+final class AnimeDubEpisodeVisibilityTests: XCTestCase {
+    func testSelectedLanguagesUseORLogicAndExposeOnlyReportedEpisodePrefix() {
+        let selected: Set<String> = [
+            MyDubListLanguage.english.rawValue,
+            MyDubListLanguage.spanish.rawValue
+        ]
+        let counts = ["en": 3, "es": 7]
+
+        XCTAssertEqual(
+            AnimeDubEpisodeVisibilityPolicy.availableEpisodeLimit(
+                selectedLanguages: selected,
+                dubCountsByLanguage: counts
+            ),
+            7
+        )
+        XCTAssertTrue(AnimeDubEpisodeVisibilityPolicy.includes(
+            episodeNumber: 7,
+            selectedLanguages: selected,
+            dubCountsByLanguage: counts
+        ))
+        XCTAssertFalse(AnimeDubEpisodeVisibilityPolicy.includes(
+            episodeNumber: 8,
+            selectedLanguages: selected,
+            dubCountsByLanguage: counts
+        ))
+    }
+
+    func testMissingDubMetadataFailsClosedWhenFilterIsEnabled() {
+        let selected: Set<String> = [MyDubListLanguage.english.rawValue]
+
+        XCTAssertEqual(
+            AnimeDubEpisodeVisibilityPolicy.availableEpisodeLimit(
+                selectedLanguages: selected,
+                dubCountsByLanguage: [:]
+            ),
+            0
+        )
+        XCTAssertFalse(AnimeDubEpisodeVisibilityPolicy.includes(
+            episodeNumber: 1,
+            selectedLanguages: selected,
+            dubCountsByLanguage: [:]
+        ))
+    }
+
+    func testNoSelectedLanguagesLeavesEpisodeVisibilityUnfiltered() {
+        XCTAssertNil(AnimeDubEpisodeVisibilityPolicy.availableEpisodeLimit(
+            selectedLanguages: [],
+            dubCountsByLanguage: [:]
+        ))
+        XCTAssertTrue(AnimeDubEpisodeVisibilityPolicy.includes(
+            episodeNumber: 1,
+            selectedLanguages: [],
+            dubCountsByLanguage: [:]
+        ))
+    }
+
+    func testSpanishOptionUsesCombinedSpanishMetadataTag() {
+        XCTAssertEqual(MyDubListLanguage.spanish.taizenLanguageCode, "es")
+        XCTAssertEqual(MyDubListLanguage.english.taizenLanguageCode, "en")
+    }
+}
