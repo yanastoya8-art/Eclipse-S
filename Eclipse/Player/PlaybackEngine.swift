@@ -17,6 +17,8 @@ enum CastMediaPolicy {
             return "video/mp4"
         case "webm":
             return "video/webm"
+        case "ts":
+            return "video/mp2t"
         default:
             return nil
         }
