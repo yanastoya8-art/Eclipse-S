@@ -40,6 +40,7 @@ final class HomeViewModel: ObservableObject {
     @Published var catalogResults: [String: [TMDBSearchResult]] = [:]
     private var unfilteredCatalogResults: [String: [TMDBSearchResult]] = [:]
     private var unfilteredWidgetData: [String: [TMDBSearchResult]] = [:]
+    private var pendingCatalogFilterRefresh = false
     @Published var isLoading = true
     @Published var errorMessage: String?
     @Published var heroContent: TMDBSearchResult?
@@ -92,8 +93,18 @@ final class HomeViewModel: ObservableObject {
 
     @MainActor
     private func reapplyCatalogFilters() async {
-        guard hasLoadedContent, let contentFilter = activeContentFilter else { return }
-        let catalogSnapshot = unfilteredCatalogResults.isEmpty ? catalogResults : unfilteredCatalogResults
+        guard hasLoadedContent else {
+            pendingCatalogFilterRefresh = true
+            return
+        }
+        guard let contentFilter = activeContentFilter else { return }
+        var catalogSnapshot = unfilteredCatalogResults
+        for (key, value) in catalogResults where catalogSnapshot[key] == nil {
+            catalogSnapshot[key] = value
+        }
+        if catalogSnapshot.isEmpty {
+            catalogSnapshot = catalogResults
+        }
         var widgetSnapshot = unfilteredWidgetData
         for (key, value) in widgetData where widgetSnapshot[key] == nil {
             widgetSnapshot[key] = value
@@ -339,6 +350,12 @@ final class HomeViewModel: ObservableObject {
                 self.isLoading = false
                 let permitsEmptyResults = enabledCatalogSnapshot.allSatisfy { $0.source == .local }
                 self.hasLoadedContent = finalLoadedCount > 0 || permitsEmptyResults
+                if self.hasLoadedContent && self.pendingCatalogFilterRefresh {
+                    self.pendingCatalogFilterRefresh = false
+                    Task { @MainActor [weak self] in
+                        await self?.reapplyCatalogFilters()
+                    }
+                }
                 self.hasCompletedInitialLoad = true
                 self.hasRenderableStartupContent = finalLoadedCount > 0
                 self.errorMessage = finalLoadedCount == 0 && !permitsEmptyResults
