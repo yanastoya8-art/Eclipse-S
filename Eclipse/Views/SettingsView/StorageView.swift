@@ -214,7 +214,7 @@ struct StorageView: View {
     @AppStorage(DownloadAllFillerPolicy.enabledKey) private var downloadSkipFillerEnabled = false
 #endif
 #if os(iOS) && !targetEnvironment(macCatalyst)
-    @AppStorage(HLSBackgroundDownloadSettings.enabledKey, store: .standard) private var hlsBackgroundDownloadsEnabled = false
+    @AppStorage(BackgroundDownloadSettings.enabledKey, store: .standard) private var hlsBackgroundDownloadsEnabled = false
 #endif
 
     @StateObject private var accentColorManager = AccentColorManager.shared
@@ -277,8 +277,8 @@ struct StorageView: View {
 #if os(iOS) && !targetEnvironment(macCatalyst)
                 if #available(iOS 26.0, *), PlatformCapabilities.current.supportsHLSBackgroundDownloads {
                     GlassDivider()
-                    GlassDetailRow(icon: "arrow.down.circle", iconColor: .blue, title: "HLS Background Downloads", subtitle: "Experimental. Downloads you start or resume can continue in the background. iOS may pause them. Turn off to use the current download behavior.") {
-                        Toggle("HLS Background Downloads", isOn: Binding(
+                    GlassDetailRow(icon: "arrow.down.circle", iconColor: .blue, title: "Background Downloads", subtitle: "Direct video files use iOS background transfers. This option enables extended background processing for HLS streams on supported iOS versions; iOS may still pause a transfer.") {
+                        Toggle("Background Downloads", isOn: Binding(
                             get: { hlsBackgroundDownloadsEnabled },
                             set: { value in
                                 guard !ProfileManager.shared.isKidsModeActive else { return }
@@ -288,7 +288,7 @@ struct StorageView: View {
                         ))
                         .labelsHidden()
                         .tint(accent)
-                        .accessibilityIdentifier("settings.storage.hlsBackgroundDownloads")
+                        .accessibilityIdentifier("settings.storage.backgroundDownloads")
                     }
                 }
 #endif
