@@ -38,6 +38,10 @@ struct SettingsView: View {
     @AppStorage("githubReleaseURL", store: .standard) private var githubReleaseURL = ""
     @AppStorage("defaultScheduleMode") private var defaultScheduleModeRaw = ScheduleMode.anime.rawValue
     @AppStorage(ScheduleWindow.storageKey) private var scheduleWindowDays = ScheduleWindow.defaultValue.rawValue
+    @AppStorage("catalogHideBelowPG13Movies", store: .standard) private var hideBelowPG13Movies = false
+    @AppStorage("catalogHideBelowTV14Shows", store: .standard) private var hideBelowTV14Shows = false
+    @AppStorage("catalogHideBelowPG13Anime", store: .standard) private var hideBelowPG13Anime = false
+    @AppStorage("catalogRequireEnglishSpanishAudio", store: .standard) private var requireEnglishSpanishAudio = false
 #if !os(tvOS)
     @AppStorage("showKanzen", store: .standard) private var showKanzen: Bool = false
     @State private var settingsSearchText = ""
@@ -490,6 +494,23 @@ struct SettingsView: View {
                     if settingsSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
 
 
+                GlassSection(header: "Content Filters") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Toggle("Hide movies below PG-13", isOn: $hideBelowPG13Movies)
+                            .accessibilityIdentifier("settings.contentFilters.moviesPG13")
+                        Toggle("Hide TV shows below TV-14", isOn: $hideBelowTV14Shows)
+                            .accessibilityIdentifier("settings.contentFilters.tv14")
+                        Toggle("Hide anime below PG-13", isOn: $hideBelowPG13Anime)
+                            .accessibilityIdentifier("settings.contentFilters.animePG13")
+                        Toggle("Require English or Spanish audio", isOn: $requireEnglishSpanishAudio)
+                            .accessibilityIdentifier("settings.contentFilters.audioLanguages")
+                        Text("Age filters hide titles with lower or unknown ratings. Audio eligibility uses verified original-language metadata for movies and non-anime TV; anime additionally uses episode-level dub counts. Dub tracks for non-anime titles require a licensed partner metadata feed.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 6)
+                }
+
                 GlassSection(header: "Basic") {
                     VStack(spacing: 0) {
                         NavigationLink(destination: settingsSearchableContent(ServicesView())) {
@@ -938,6 +959,17 @@ struct SettingsView: View {
 #if os(tvOS)
     private var settingsListContent: some View {
         Group {
+            Section("Content Filters") {
+                Toggle("Hide movies below PG-13", isOn: $hideBelowPG13Movies)
+                    .accessibilityIdentifier("settings.contentFilters.moviesPG13")
+                Toggle("Hide TV shows below TV-14", isOn: $hideBelowTV14Shows)
+                    .accessibilityIdentifier("settings.contentFilters.tv14")
+                Toggle("Hide anime below PG-13", isOn: $hideBelowPG13Anime)
+                    .accessibilityIdentifier("settings.contentFilters.animePG13")
+                Toggle("Require English or Spanish audio", isOn: $requireEnglishSpanishAudio)
+                    .accessibilityIdentifier("settings.contentFilters.audioLanguages")
+            }
+
             Section("Basic") {
                 NavigationLink(destination: ServicesView()
                     .eclipseHideTabBar()
