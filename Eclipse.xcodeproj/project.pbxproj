@@ -2678,7 +2678,7 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCLocalSwiftPackageReference section */
+/* Begin XCRemoteSwiftPackageReference section */
 		136C25C42EFE950300E37A6E /* XCRemoteSwiftPackageReference "MPVKit-S" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/yanastoya8-art/MPVKit-S.git";
@@ -2687,7 +2687,7 @@
 				kind = branch;
 			};
 		};
-/* End XCLocalSwiftPackageReference section */
+/* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
 		13A46CFE2EF5944C00423BC6 /* XCRemoteSwiftPackageReference "Kingfisher" */ = {
