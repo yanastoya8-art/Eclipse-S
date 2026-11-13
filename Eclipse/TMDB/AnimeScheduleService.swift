@@ -294,8 +294,18 @@ actor AnimeScheduleService {
             if wantedRoutes.contains(row.route), anime?.isAdult != true, mapped.isEmpty { complete = false }
             for entry in mapped {
                 let key = "\(entry.mediaId)-\(entry.episode)"
-                if let previous = entriesByID[key], previous.airingAt == entry.airingAt,
-                   previous.airingTimeWithdrawn == true { continue }
+                if let previous = entriesByID[key] {
+                    // Multiple selected dub languages can publish the same
+                    // episode on different dates. Keep only the earliest airing
+                    // for that canonical anime/episode identity. At an identical
+                    // timestamp, prefer a confirmed airing over a withdrawn one.
+                    if previous.airingAt < entry.airingAt { continue }
+                    if previous.airingAt == entry.airingAt {
+                        if previous.airingTimeWithdrawn != true || entry.airingTimeWithdrawn == true {
+                            continue
+                        }
+                    }
+                }
                 entriesByID[key] = entry
             }
         }
