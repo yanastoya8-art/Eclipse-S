@@ -3990,16 +3990,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         updatePlayerTitle()
 
         castButton.addTarget(self, action: #selector(prepareCastForCurrentStream), for: .touchDown)
-        let castHeaders = playbackLaunchContext?.headers ?? initialHeaders ?? [:]
-        let castCandidates = [playbackLaunchContext?.streamURL.flatMap { URL(string: $0) }, initialURL].compactMap { $0 }
-        let castURL = castCandidates.first(where: { CastMediaPolicy.rejectionReason(for: $0, headers: castHeaders) == nil })
-            ?? castCandidates.first
-        castButton.isHidden = !isMPVRenderer
-        castButton.isEnabled = castURL.flatMap { CastMediaPolicy.rejectionReason(for: $0, headers: castHeaders) } == nil
-        if let castURL, let reason = CastMediaPolicy.rejectionReason(for: castURL, headers: castHeaders) {
-            castButton.accessibilityHint = reason
-            castButton.tintColor = UIColor.white.withAlphaComponent(0.35)
-        }
+        updateCastButtonAvailability()
 
         setupActions()
 #if os(iOS)
@@ -4691,6 +4682,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         logMPV("load target={\(playbackURLSummary(url))} preset=\(preset.id.rawValue) headers=\(headers?.count ?? 0)")
         initialURL = url
         initialHeaders = headers
+        updateCastButtonAvailability()
 #if os(iOS) && !targetEnvironment(macCatalyst)
         configureSkyStreamRouteRejectionRecovery(
             for: url,
@@ -7561,6 +7553,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             self.originalTMDBEpisodeNumber = request.originalTMDBEpisodeNumber
             self.episodePlaybackContext = request.episodePlaybackContext
             self.playbackLaunchContext = transport.launchContext
+            self.updateCastButtonAvailability()
             let replacementTitle: String = {
                 switch request.mediaInfo {
                 case .movie(_, let title, _, _): return title
@@ -11363,6 +11356,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             }
             retainEphemeralProxyOwnership(transport.launchContext?.ephemeralProxyOwnership)
             playbackLaunchContext = transport.launchContext
+            updateCastButtonAvailability()
             initialSubtitles = resolution.subtitles
             initialSubtitleNames = resolution.subtitleNames
             initialSubtitleHeadersByURL = resolution.subtitleHeadersByURL
@@ -13186,6 +13180,19 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         updateBrightnessControlVisibility()
         updateVolumeControlVisibility()
 #endif
+    }
+
+    private func updateCastButtonAvailability() {
+        guard isViewLoaded else { return }
+        let headers = playbackLaunchContext?.headers ?? initialHeaders ?? [:]
+        let candidates = [playbackLaunchContext?.streamURL.flatMap { URL(string: $0) }, initialURL].compactMap { $0 }
+        let url = candidates.first(where: { CastMediaPolicy.rejectionReason(for: $0, headers: headers) == nil })
+            ?? candidates.first
+        let rejection = url.flatMap { CastMediaPolicy.rejectionReason(for: $0, headers: headers) }
+        castButton.isHidden = !isMPVRenderer
+        castButton.isEnabled = url != nil && rejection == nil
+        castButton.accessibilityHint = rejection ?? "Cast the current stream to a compatible Chromecast or Cast-enabled TV."
+        castButton.tintColor = castButton.isEnabled ? .white : UIColor.white.withAlphaComponent(0.35)
     }
 
     @objc private func prepareCastForCurrentStream() {
