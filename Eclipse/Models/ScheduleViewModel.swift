@@ -1684,8 +1684,9 @@ enum MovieSchedulePolicy {
     static func isAnime(language: String?, genres: [String]?) -> Bool {
         let normalizedGenres = Set((genres ?? []).map { $0.lowercased() })
         let normalizedLanguage = language?.lowercased() ?? ""
+        let baseLanguage = normalizedLanguage.split(separator: "-").first.map(String.init) ?? normalizedLanguage
         return normalizedGenres.contains("anime")
-            || (normalizedGenres.contains("animation") && ["ja", "zh", "ko"].contains(normalizedLanguage))
+            || (normalizedGenres.contains("animation") && ["ja", "zh", "ko"].contains(baseLanguage))
     }
 }
 
