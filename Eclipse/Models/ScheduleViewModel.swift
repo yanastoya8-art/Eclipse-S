@@ -1564,7 +1564,7 @@ private final class TraktScheduleService {
         }
 
         let grouped = Dictionary(grouping: items.compactMap { item -> (TraktMovieCalendarItem, Date)? in
-            guard let date = Self.parseDate(item.released) else { return nil }
+            guard item.isNonAnimeMovie, let date = Self.parseDate(item.released) else { return nil }
             return (item, date)
         }, by: { item, _ in item.movie.stableScheduleKey })
         let candidates = grouped.values.compactMap { group in
