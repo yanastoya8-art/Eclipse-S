@@ -362,10 +362,15 @@ class StremioAddonManager: ObservableObject {
         }
         let streams: [StremioStream]
         do {
+            // Addon stream endpoints can transiently return HTTP 200 with an
+            // empty streams array while their resolver/cache is warming up.
+            // Re-resolution is part of download admission, so retry that case
+            // just as we do during the initial stream lookup.
             streams = try await StremioClient.shared.fetchStreams(
                 baseURL: configuredURL,
                 type: contentType,
-                id: contentID
+                id: contentID,
+                retryEmptyResponse: true
             )
         } catch {
             Logger.shared.log(
@@ -387,6 +392,10 @@ class StremioAddonManager: ObservableObject {
         guard let selected,
               selected.isDirectHTTP,
               let streamURL = selected.url else {
+            Logger.shared.log(
+                "Stremio: Protected download re-resolution returned no matching direct HTTP stream count=\(streams.count) fingerprintPresent=\(reference.stremioStreamFingerprint != nil)",
+                type: "Download"
+            )
             return nil
         }
         let sanitizedHeaders = Self.boundedDownloadHeaders(selected.proxyHeaders ?? [:])
