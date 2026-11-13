@@ -892,8 +892,10 @@ class TMDBContentFilter: ObservableObject {
             }
             animeEligibilityLock.lock()
             let hasVerifiedDub = animeAudioEligibleIDs.contains(anilistID)
+            let metadataWasChecked = animeAudioCheckedIDs.contains(anilistID)
             animeEligibilityLock.unlock()
-            guard hasVerifiedDub else { return false }
+            // An unavailable dub provider is unknown, not proof that no dub exists.
+            guard hasVerifiedDub || !metadataWasChecked else { return false }
         }
         return true
     }
