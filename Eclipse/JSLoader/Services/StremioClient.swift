@@ -611,7 +611,7 @@ final class StremioClient {
         return "\(scheme)://\(host.lowercased())\(portSuffix)"
     }
 
-    private static func shouldRetryNoPlayableResponse(
+    static func shouldRetryNoPlayableResponse(
         allStreams: [StremioStream],
         safeStreams: [StremioStream]
     ) -> Bool {
