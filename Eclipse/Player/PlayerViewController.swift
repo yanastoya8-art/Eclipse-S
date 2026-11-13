@@ -6203,25 +6203,27 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         }
         #endif
 
-#if os(iOS) && ECLIPSE_MPVKIT_MOLTENVK_INLINE_RENDERER && ECLIPSE_MPVKIT_SAMPLE_BUFFER_PIP_BRIDGE
-        let rendererDiagnostics = metalPerformanceDiagnostics()
-        let dynamicRangeMetadata = rendererDiagnostics?.dynamicRangeText
-        let videoCodecMetadata = rendererDiagnostics?.videoCodec
-#else
-        let dynamicRangeMetadata: String? = nil
-        let videoCodecMetadata: String? = nil
-#endif
-        let dolbyVisionDetected = MPVDolbyVisionDetectionPolicy.isDetected(
-            streamName: playbackLaunchContext?.streamName,
-            streamURL: initialURL?.absoluteString,
-            dynamicRange: dynamicRangeMetadata,
-            videoCodec: videoCodecMetadata
-        )
+        // Do not infer Dolby Vision from addon labels, URLs, codec names, or HDR transfer metadata.
+        // The current MPVKit renderer diagnostics do not expose decoded Dolby Vision RPU/config data.
+        let dolbyVisionStatus = MPVDolbyVisionDetectionPolicy.status(bitstreamHasDolbyVisionRPU: nil)
+        let dolbyVisionLabel: String
+        let dolbyVisionColor: UIColor
+        switch dolbyVisionStatus {
+        case .detected:
+            dolbyVisionLabel = "Detected"
+            dolbyVisionColor = .systemGreen
+        case .notDetected:
+            dolbyVisionLabel = "Not detected"
+            dolbyVisionColor = .white
+        case .unavailable:
+            dolbyVisionLabel = "Stream inspection unavailable"
+            dolbyVisionColor = .secondaryLabel
+        }
         text.append(NSAttributedString(string: "\n"))
         text.append(metalPerformanceOverlayRow(
             label: "Dolby Vision",
-            value: dolbyVisionDetected ? "Detected" : "Not detected",
-            valueColor: dolbyVisionDetected ? .systemGreen : .white
+            value: dolbyVisionLabel,
+            valueColor: dolbyVisionColor
         ))
 
         return text
