@@ -38,7 +38,13 @@ struct ResilientArtworkImage<Placeholder: View>: View {
     }
 
     private var currentURL: String? {
-        urls.first { !failedURLs.contains($0) }
+        urls.first { value in
+            guard !failedURLs.contains(value),
+                  let url = URL(string: value),
+                  ["https", "http"].contains(url.scheme?.lowercased() ?? ""),
+                  url.host != nil else { return false }
+            return true
+        }
     }
 
     var body: some View {
@@ -57,7 +63,7 @@ struct ResilientArtworkImage<Placeholder: View>: View {
                 placeholder()
             }
         }
-        .onChange(of: urls) { _, _ in failedURLs.removeAll() }
+        .onChangeComp(of: urls) { _, _ in failedURLs.removeAll() }
     }
 }
 
@@ -136,7 +142,7 @@ struct StretchyHeaderView: View {
             }
         }
         .frame(height: headerHeight)
-        .onChange(of: imageCandidates) { _, _ in failedImageURLs.removeAll() }
+        .onChangeComp(of: imageCandidates) { _, _ in failedImageURLs.removeAll() }
     }
 
     private func updateAmbientColor(from image: UIImage, url: String) {
