@@ -16882,13 +16882,34 @@ private final class LGWebOSCastCoordinator {
             throw LGWebOSCastError.unsupported(reason)
         }
         let address = try Self.validatedIPv4Address(rawAddress)
-        guard let socketURL = URL(string: "ws://\(address):3000") else {
-            throw LGWebOSCastError.invalidAddress
-        }
-        let socket = session.webSocketTask(with: socketURL)
-        socket.resume()
-        defer { socket.cancel(with: .goingAway, reason: nil) }
+        let socketURLs = [
+            URL(string: "wss://\(address):3001"),
+            URL(string: "ws://\(address):3000")
+        ].compactMap { $0 }
 
+        var lastError: Error?
+        for socketURL in socketURLs {
+            let socket = session.webSocketTask(with: socketURL)
+            socket.resume()
+            do {
+                try await performCast(url: url, title: title, address: address, socket: socket)
+                socket.cancel(with: .goingAway, reason: nil)
+                UserDefaults.standard.set(address, forKey: addressKey)
+                return
+            } catch {
+                socket.cancel(with: .goingAway, reason: nil)
+                lastError = error
+            }
+        }
+        throw lastError ?? LGWebOSCastError.noTVResponse
+    }
+
+    private func performCast(
+        url: URL,
+        title: String,
+        address: String,
+        socket: URLSessionWebSocketTask
+    ) async throws {
         let savedKey = LGWebOSClientKeyStore.load(for: address)
         let registerID = "eclipse-register-\(UUID().uuidString)"
         let registration = Self.registrationMessage(id: registerID, clientKey: savedKey)
@@ -16920,7 +16941,6 @@ private final class LGWebOSCastCoordinator {
         guard responsePayload["returnValue"] as? Bool == true else {
             throw LGWebOSCastError.tvRejectedRequest(responsePayload["errorText"] as? String)
         }
-        UserDefaults.standard.set(address, forKey: addressKey)
     }
 
     private func receiveResponse(
