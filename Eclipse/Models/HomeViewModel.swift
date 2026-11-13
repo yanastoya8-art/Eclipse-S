@@ -38,6 +38,8 @@ enum HomeHeroSelectionSettings {
 
 final class HomeViewModel: ObservableObject {
     @Published var catalogResults: [String: [TMDBSearchResult]] = [:]
+    private var unfilteredCatalogResults: [String: [TMDBSearchResult]] = [:]
+    private var unfilteredWidgetData: [String: [TMDBSearchResult]] = [:]
     @Published var isLoading = true
     @Published var errorMessage: String?
     @Published var heroContent: TMDBSearchResult?
@@ -91,8 +93,8 @@ final class HomeViewModel: ObservableObject {
     @MainActor
     private func reapplyCatalogFilters() async {
         guard hasLoadedContent, let contentFilter = activeContentFilter else { return }
-        let catalogSnapshot = catalogResults
-        let widgetSnapshot = widgetData
+        let catalogSnapshot = unfilteredCatalogResults.isEmpty ? catalogResults : unfilteredCatalogResults
+        let widgetSnapshot = unfilteredWidgetData.isEmpty ? widgetData : unfilteredWidgetData
         let allResults = Array(catalogSnapshot.values.joined()) + Array(widgetSnapshot.values.joined())
         await contentFilter.prepareMaturityRatings(for: allResults)
 
@@ -211,6 +213,10 @@ final class HomeViewModel: ObservableObject {
                 "upcomingTV": tmdbResults.9.map { self.tvSearchResult($0) }
             ]
 
+            await MainActor.run {
+                guard self.loadGeneration == generation else { return }
+                self.unfilteredCatalogResults = rawTMDBLoadedCatalogs
+            }
             await contentFilter.prepareMaturityRatings(
                 for: Array(rawTMDBLoadedCatalogs.values.joined())
             )
@@ -240,12 +246,23 @@ final class HomeViewModel: ObservableObject {
                 enabledCatalogIds: enabledCatalogIds,
                 needsTopRatedAnime: needsTopRatedAnime
             )
-            let animeCatalogs = await self.loadFastAnimeCatalogs(
+            let rawAnimeCatalogs = await self.loadFastAnimeCatalogs(
                 tmdbService: tmdbService,
-                contentFilter: contentFilter,
                 requiredKinds: requiredAnimeCatalogs
             )
             guard !Task.isCancelled else { return }
+            await contentFilter.prepareMaturityRatings(for: Array(rawAnimeCatalogs.values.joined()))
+            let animeCatalogs = rawAnimeCatalogs.mapValues { contentFilter.filterFastAnimeSearchResults($0) }
+            let rawAnimeByCatalogID: [String: [TMDBSearchResult]] = [
+                "trendingAnime": rawAnimeCatalogs[.trending] ?? [],
+                "popularAnime": rawAnimeCatalogs[.popular] ?? [],
+                "topRatedAnime": rawAnimeCatalogs[.topRated] ?? [],
+                "airingAnime": rawAnimeCatalogs[.airing] ?? []
+            ]
+            await MainActor.run {
+                guard self.loadGeneration == generation else { return }
+                self.unfilteredCatalogResults.merge(rawAnimeByCatalogID) { _, anime in anime }
+            }
             let trendingAnime = animeCatalogs[.trending] ?? []
             let popularAnime = animeCatalogs[.popular] ?? []
             let topRatedAnime = animeCatalogs[.topRated] ?? []
@@ -432,30 +449,34 @@ final class HomeViewModel: ObservableObject {
 
     private func loadFastAnimeCatalogs(
         tmdbService: TMDBService,
-        contentFilter: TMDBContentFilter,
         requiredKinds: Set<AniListService.AniListCatalogKind>
     ) async -> [AniListService.AniListCatalogKind: [TMDBSearchResult]] {
         guard !requiredKinds.isEmpty else { return [:] }
 
-        var loaded: [AniListService.AniListCatalogKind: [TMDBSearchResult]] = [:]
-        for kind in requiredKinds {
-            let fastKind = fastAnimeCatalogKind(for: kind)
-            let items: [TMDBSearchResult] = await loadHomeCatalog("fastAnime:\(kind)") {
-                try await tmdbService.getFastAnimeCatalog(kind: fastKind, limit: 20)
+        return await withTaskGroup(
+            of: (AniListService.AniListCatalogKind, [TMDBSearchResult]).self
+        ) { group in
+            for kind in requiredKinds {
+                let fastKind = fastAnimeCatalogKind(for: kind)
+                group.addTask {
+                    let items: [TMDBSearchResult] = await self.loadHomeCatalog("fastAnime:\(kind)") {
+                        try await tmdbService.getFastAnimeCatalog(kind: fastKind, limit: 20)
+                    }
+                    return (kind, items)
+                }
             }
-            await contentFilter.prepareMaturityRatings(for: items)
-            let filtered = contentFilter.filterFastAnimeSearchResults(items)
-            if !filtered.isEmpty {
-                loaded[kind] = filtered
-            }
-        }
 
-        let loadedSummary = loaded
-            .map { "\(String(describing: $0.key))=\($0.value.count)" }
-            .sorted()
-            .joined(separator: ",")
-        Logger.shared.log("HomeViewModel: performance anime catalogs loaded \(loadedSummary.isEmpty ? "none" : loadedSummary)", type: "TMDB")
-        return loaded
+            var loaded: [AniListService.AniListCatalogKind: [TMDBSearchResult]] = [:]
+            for await (kind, items) in group where !items.isEmpty {
+                loaded[kind] = items
+            }
+            let loadedSummary = loaded
+                .map { "\(String(describing: $0.key))=\($0.value.count)" }
+                .sorted()
+                .joined(separator: ",")
+            Logger.shared.log("HomeViewModel: performance anime catalogs loaded \(loadedSummary.isEmpty ? "none" : loadedSummary)", type: "TMDB")
+            return loaded
+        }
     }
 
     private func fastAnimeCatalogKind(for kind: AniListService.AniListCatalogKind) -> TMDBService.FastAnimeCatalogKind {
@@ -813,6 +834,8 @@ final class HomeViewModel: ObservableObject {
             heroCarouselIndex = 0
             catalogResults = [:]
             widgetData = [:]
+            unfilteredCatalogResults = [:]
+            unfilteredWidgetData = [:]
             isLoading = true
             heroContent = nil
             heroLaunchSelectionKey = nil
