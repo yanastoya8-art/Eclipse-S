@@ -7250,6 +7250,36 @@ struct MediaDetailContentView: View {
                 } else {
                     async let detailTask = tmdbService.getTVShowWithSeasons(id: searchResult.id)
                     let detail = try await detailTask
+                    guard !Task.isCancelled else { return }
+
+                    // Reveal the TMDB-backed page immediately. Anime/provider enrichment can
+                    // take several additional network round trips, so it must not gate first paint.
+                    let primaryDetailElapsedMs = Int(
+                        ((ProcessInfo.processInfo.systemUptime - detailLoadStartedAt) * 1_000).rounded()
+                    )
+                    await MainActor.run {
+                        guard !Task.isCancelled,
+                              self.searchResult.stableIdentity == routeIdentity,
+                              self.selectedLanguage == detailLanguage else { return }
+                        self.tvShowDetail = detail
+                        self.synopsis = detail.overview ?? ""
+                        self.isAnimeShow = (detail.originCountry?.contains(where: { ["JP", "CN", "KR", "TW"].contains($0) }) ?? false)
+                            && detail.genres.contains(where: { $0.id == 16 })
+                        self.selectedSeason = detail.seasons
+                            .filter { $0.seasonNumber > 0 && $0.episodeCount > 0 }
+                            .min { $0.seasonNumber < $1.seasonNumber }
+                        self.seasonDetail = nil
+                        self.selectedEpisodeForSearch = nil
+                        self.detailLoadedIdentity = routeIdentity
+                        self.detailLoadedLanguage = detailLanguage
+                        self.isLoading = false
+                        self.hasLoadedContent = true
+                        Logger.shared.log(
+                            "MediaDetailTiming: tmdbId=\(detail.id) medium=tv stage=tmdb-first-render-ready elapsedMs=\(primaryDetailElapsedMs)",
+                            type: "TMDB"
+                        )
+                    }
+
                     async let animeSnapshotTask: Bool = prefetchExactAnimeSnapshotIfNeeded(knownTMDBShowDetail: detail)
                     let primaryDetailElapsedMs = Int(
                         ((ProcessInfo.processInfo.systemUptime - detailLoadStartedAt) * 1_000).rounded()
