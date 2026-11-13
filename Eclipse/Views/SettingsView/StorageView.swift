@@ -214,7 +214,7 @@ struct StorageView: View {
     @AppStorage(DownloadAllFillerPolicy.enabledKey) private var downloadSkipFillerEnabled = false
 #endif
 #if os(iOS) && !targetEnvironment(macCatalyst)
-    @AppStorage(BackgroundDownloadSettings.enabledKey, store: .standard) private var hlsBackgroundDownloadsEnabled = false
+    @AppStorage(BackgroundDownloadSettings.enabledKey, store: .standard) private var backgroundDownloadsEnabled = false
 #endif
 
     @StateObject private var accentColorManager = AccentColorManager.shared
@@ -279,10 +279,10 @@ struct StorageView: View {
                     GlassDivider()
                     GlassDetailRow(icon: "arrow.down.circle", iconColor: .blue, title: "Background Downloads", subtitle: "Direct video files use iOS background transfers. This option enables extended background processing for HLS streams on supported iOS versions; iOS may still pause a transfer.") {
                         Toggle("Background Downloads", isOn: Binding(
-                            get: { hlsBackgroundDownloadsEnabled },
+                            get: { backgroundDownloadsEnabled },
                             set: { value in
                                 guard !ProfileManager.shared.isKidsModeActive else { return }
-                                hlsBackgroundDownloadsEnabled = value
+                                backgroundDownloadsEnabled = value
                                 DownloadManager.shared.applyHLSBackgroundDownloadsSettingChanged()
                             }
                         ))
