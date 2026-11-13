@@ -36,12 +36,12 @@ jobs:
           ref: 9f9a68f841aefe247bb0c670e997a04702f5e247
           path: MPVKit
 
-      - name: Build patched MPVKit for iOS and Apple platforms
+      - name: Build patched MPVKit for iOS and iOS Simulator
         run: |
           set -euo pipefail
           brew install autoconf automake libtool ninja nasm
           python3 -m pip install meson==1.4.2
-          make -C MPVKit build enable-gpl version=0.41.0
+          make -C MPVKit build enable-gpl version=0.41.0 platform=ios
           test -f MPVKit/dist/release/Package.swift
           echo "MPVKIT_LOCAL_ARTIFACTS_DIR=$GITHUB_WORKSPACE/MPVKit/dist/release" >> "$GITHUB_ENV"
           ln -sfn "$GITHUB_WORKSPACE/MPVKit" "$GITHUB_WORKSPACE/../MPVKit"
