@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Combine
+import GoogleCast
 #if canImport(Kingfisher)
 import Kingfisher
 #endif
@@ -15,6 +16,14 @@ import Nuke
 #endif
 
 class AppDelegate: NSObject, UIApplicationDelegate {
+
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        EclipseCastCoordinator.shared.configure()
+        return true
+    }
 
 #if !os(tvOS)
     private static var orientationLocksByScene: [String: UIInterfaceOrientationMask] = [:]
