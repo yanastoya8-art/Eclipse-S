@@ -2337,7 +2337,7 @@
 		};
 		A6691D3F98C2EA9E6A4B885E /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 13F0725A2E4B2D3300EF90EB /* Eclipse-tvOS */;
+			target = 13F0725A2E4B2D3300EF90EB /* Eclipse */;
 			targetProxy = B92BD1BD91E875E74A50FE76 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
