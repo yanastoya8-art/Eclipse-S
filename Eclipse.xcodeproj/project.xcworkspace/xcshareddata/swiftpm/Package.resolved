@@ -69,7 +69,6 @@
       "kind": "remoteSourceControl",
       "location": "https://github.com/yanastoya8-art/MPVKit-S.git",
       "state": {
-        "branch": "eclipse-mpv-metal",
         "revision": "5c648a7e9430946694c0f5bd3666f2c164b82101"
       }
     }
