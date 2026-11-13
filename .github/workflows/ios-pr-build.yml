@@ -49,7 +49,7 @@ jobs:
       - name: Verify patched MPVKit source and local frameworks
         run: |
           set -euo pipefail
-          test "$(git -C MPVKit rev-parse HEAD)" = "4b8d18313de5f17afeaa7accb31ed86c871cf952"
+          test "$(git -C MPVKit rev-parse HEAD)" = "f17d5152cf08b029cf3f93a04d3dd6caec938226"
           grep -q 'dovi_metadata' MPVKit/Sources/BuildScripts/patch/libmpv/0017-expose-decoded-dolby-vision-rpu.patch
           grep -q 'videoHasDolbyVisionRPU' MPVKit/Sources/MPVKitSampleBufferGPL/MPVGPUPlayerRenderer.swift
 
