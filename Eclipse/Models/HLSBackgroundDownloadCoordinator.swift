@@ -9,8 +9,6 @@ enum BackgroundDownloadSettings {
     }
 }
 
-typealias HLSBackgroundDownloadSettings = BackgroundDownloadSettings
-
 protocol HLSBackgroundDownloadScheduling: AnyObject {
     func request(
         attemptID: UUID,
