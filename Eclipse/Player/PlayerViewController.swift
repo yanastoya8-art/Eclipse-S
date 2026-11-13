@@ -13309,15 +13309,39 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     @objc private func prepareLGWebOSCastForCurrentStream() {
         let headers = playbackLaunchContext?.headers ?? initialHeaders ?? [:]
         let candidates = [playbackLaunchContext?.streamURL.flatMap { URL(string: $0) }, initialURL].compactMap { $0 }
-        guard let url = candidates.first(where: { LGWebOSCastPolicy.rejectionReason(for: $0, headers: headers) == nil }) else {
-            let reason = candidates.first.flatMap { LGWebOSCastPolicy.rejectionReason(for: $0, headers: headers) }
-                ?? "This playback does not have a TV-accessible stream URL."
+        guard let sourceURL = candidates.first else {
+            showPlayerNotice("This playback does not have a stream URL that can be cast.")
+            return
+        }
+
+        let castURL: URL
+        let castHeaders: [String: String]
+        if sourceURL.isFileURL {
+            guard let publishedURL = LocalFileLANServer.shared.publish(sourceURL) else {
+                showPlayerNotice("Eclipse could not share this downloaded file on your local network. Allow Local Network access and make sure Wi-Fi is connected.")
+                return
+            }
+            castURL = publishedURL
+            castHeaders = [:]
+        } else {
+            guard let reason = LGWebOSCastPolicy.rejectionReason(for: sourceURL, headers: headers) else {
+                castURL = sourceURL
+                castHeaders = headers
+                let title = playerTitleLabel.text?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    .flatMap { $0.isEmpty ? nil : $0 } ?? "Eclipse"
+                presentLGWebOSCastPrompt(url: castURL, title: title, headers: castHeaders)
+                return
+            }
             showPlayerNotice(reason)
             return
         }
 
         let title = playerTitleLabel.text?.trimmingCharacters(in: .whitespacesAndNewlines)
             .flatMap { $0.isEmpty ? nil : $0 } ?? "Eclipse"
+        presentLGWebOSCastPrompt(url: castURL, title: title, headers: castHeaders)
+    }
+
+    private func presentLGWebOSCastPrompt(url: URL, title: String, headers: [String: String]) {
         let alert = UIAlertController(
             title: "Cast to LG webOS TV",
             message: "Enter your TV's local IPv4 address. Accept the pairing prompt on the TV the first time.",
