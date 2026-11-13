@@ -11,11 +11,11 @@ enum AtmosphereStyle: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .gradient: return "Gradient"
+        case .gradient: return "Classic Gradient"
         case .multiGradient: return "Multi Gradient"
         case .aurora: return "Aurora"
         case .ember: return "Ember"
-        case .solid: return "Solid Color"
+        case .solid: return "Solid Colour"
         }
     }
 
@@ -463,19 +463,22 @@ class EclipseTheme: ObservableObject {
     ) -> AtmosphereInput {
         let usableDominant = Self.usableDominant(dominant)
         let mode = atmosphereBackgroundMode()
-        let accent = scopedGradientColor()
+        let style = scopedAtmosphereStyle()
+        let palette = scopedPalette()
+        let paletteAccent = palette.topWash
         let classicColor: Color
         switch mode {
         case .solid:
-            classicColor = scopedAtmosphereColor(dominant: usableDominant ?? accent)
+            classicColor = scopedAtmosphereColor(dominant: usableDominant ?? paletteAccent)
         case .classicGradient, .multiGradient:
-            classicColor = accent
+            classicColor = paletteAccent
         }
         return AtmosphereInput(
             mode: mode,
-            palette: scopedPalette(),
+            style: style,
+            palette: palette,
             classicColor: classicColor,
-            baseColor: backgroundBase,
+            baseColor: palette.mesh.last ?? backgroundBase,
             dominant: hasHeroBleed ? usableDominant : nil,
             hasHeroBleed: hasHeroBleed,
             heroHeight: heroHeight,
@@ -488,11 +491,12 @@ class EclipseTheme: ObservableObject {
 
     func atmosphereBackdropColor() -> Color {
         let intensity = scopedBackgroundIntensity()
+        let palette = scopedPalette()
         switch atmosphereBackgroundMode() {
         case .solid:
-            return scopedAtmosphereColor(dominant: scopedGradientColor())
+            return scopedAtmosphereColor(dominant: palette.topWash)
         case .classicGradient:
-            return scopedGradientColor().atmosphereScaled(intensity)
+            return palette.topWash.atmosphereScaled(intensity)
         case .multiGradient:
             let palette = scopedPalette()
             let base = palette.mesh.indices.contains(4) ? palette.mesh[4] : backgroundBase
@@ -571,19 +575,22 @@ class EclipseTheme: ObservableObject {
     ) -> AtmosphereInput {
         let usableDominant = Self.usableDominant(dominant)
         let mode = atmosphereBackgroundMode(isReaderMode: isReaderMode)
-        let accent = scopedGradientColor(isReaderMode: isReaderMode)
+        let style = scopedAtmosphereStyle(isReaderMode: isReaderMode)
+        let palette = scopedPalette(isReaderMode: isReaderMode)
+        let paletteAccent = palette.topWash
         let classicColor: Color
         switch mode {
         case .solid:
-            classicColor = scopedAtmosphereColor(dominant: usableDominant ?? accent, isReaderMode: isReaderMode)
+            classicColor = scopedAtmosphereColor(dominant: usableDominant ?? paletteAccent, isReaderMode: isReaderMode)
         case .classicGradient, .multiGradient:
-            classicColor = accent
+            classicColor = paletteAccent
         }
         return AtmosphereInput(
             mode: mode,
-            palette: scopedPalette(isReaderMode: isReaderMode),
+            style: style,
+            palette: palette,
             classicColor: classicColor,
-            baseColor: backgroundBase,
+            baseColor: palette.mesh.last ?? backgroundBase,
             dominant: hasHeroBleed ? usableDominant : nil,
             hasHeroBleed: hasHeroBleed,
             heroHeight: heroHeight,
@@ -596,11 +603,12 @@ class EclipseTheme: ObservableObject {
 
     func atmosphereBackdropColor(isReaderMode: Bool? = nil) -> Color {
         let intensity = scopedBackgroundIntensity(isReaderMode: isReaderMode)
+        let palette = scopedPalette(isReaderMode: isReaderMode)
         switch atmosphereBackgroundMode(isReaderMode: isReaderMode) {
         case .solid:
-            return scopedAtmosphereColor(dominant: scopedGradientColor(isReaderMode: isReaderMode), isReaderMode: isReaderMode)
+            return scopedAtmosphereColor(dominant: palette.topWash, isReaderMode: isReaderMode)
         case .classicGradient:
-            return scopedGradientColor(isReaderMode: isReaderMode).atmosphereScaled(intensity)
+            return palette.topWash.atmosphereScaled(intensity)
         case .multiGradient:
             let palette = scopedPalette(isReaderMode: isReaderMode)
             let base = palette.mesh.indices.contains(4) ? palette.mesh[4] : backgroundBase
