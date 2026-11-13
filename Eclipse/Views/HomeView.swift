@@ -667,7 +667,7 @@ struct HomeView: View {
 
     private var shouldAnalyzeHeroAlternatePoster: Bool {
 #if os(iOS)
-        !usesWideHomeLayout && mediaDetailAlternatePosterEnabled
+        !usesWideHomeLayout && (mediaDetailAlternatePosterEnabled || homeViewModel.heroContent?.fullPosterURL == nil)
 #else
         false
 #endif
