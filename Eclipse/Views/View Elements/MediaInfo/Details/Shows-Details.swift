@@ -1280,6 +1280,13 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
         let selectedLanguages = MyDubListDubFilter.shared.selectedLanguages
         guard !selectedLanguages.isEmpty else { return }
 
+        // Fail closed immediately when preferences or season identity change; do
+        // not keep showing episodes allowed by the previous language selection.
+        animeDubEpisodeCountsBySeason[seasonNumber] = [:]
+        animeDubPremiereDatesBySeason[seasonNumber] = nil
+        selectedEpisodeForSearch = nil
+        selectedEpisodePageStartByKey["season-\(selectedSeason?.id ?? 0)-\(seasonNumber)"] = 0
+
         let canonicalID = providerID > 0 ? (animeProviderAliases[providerID] ?? providerID) : nil
         let malID = providerID < 0 ? RemoteMediaNumericBoundary.positiveMagnitude(providerID) : nil
         do {
@@ -1324,6 +1331,9 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
                   animeSeasonAniListIds[seasonNumber] == providerID else { return }
             animeDubEpisodeCountsBySeason[seasonNumber] = [:]
             animeDubPremiereDatesBySeason[seasonNumber] = nil
+            if let detail = activeSeasonDetail, detail.seasonNumber == seasonNumber {
+                selectedEpisodeForSearch = nil
+            }
             Logger.shared.log(
                 "AnimeDub: failed to load episode availability season=\(seasonNumber) providerID=\(providerID): \(error.localizedDescription)",
                 type: "Error"
