@@ -39,7 +39,7 @@ jobs:
       - name: Build patched MPVKit for iPhone and iPad
         run: |
           set -euo pipefail
-          brew install autoconf automake libtool ninja nasm
+          brew install autoconf automake cmake libtool nasm ninja pkg-config
           MPVKIT_BUILD_VENV="$RUNNER_TEMP/mpvkit-build-venv"
           python3 -m venv "$MPVKIT_BUILD_VENV"
           "$MPVKIT_BUILD_VENV/bin/python" -m pip install --disable-pip-version-check meson==1.4.2
