@@ -3775,7 +3775,7 @@ struct ScheduleSettingsView: View {
                     }
                     .padding(14)
                 }
-                GlassSectionFooter("DubOnly currently publishes English-dub release times only. If you select Spanish or another language without English in Anime Dub Languages, the schedule will show a notice instead of presenting English release times as that language's schedule.")
+                GlassSectionFooter("DubOnly currently publishes English-dub release times only, using AnimeSchedule.net schedule data. The anime and combined schedules therefore include only titles with an English dub when English is selected—even if Spanish or other languages are also selected. If English is not selected, the app shows a notice rather than presenting English release times as another language's schedule.")
             }
             .padding(.top, 16)
             .padding(.bottom, 32)
