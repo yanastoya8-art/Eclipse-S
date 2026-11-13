@@ -2201,9 +2201,6 @@ struct MediaDetailContentView: View {
         ) {
             Rectangle().fill(EclipseTheme.shared.backgroundBase)
         }
-        .onSuccess { result in
-            ambientColor = Color.ambientColor(from: result.image)
-        }
             .frame(width: proxy.size.width, height: proxy.size.height)
             .clipped()
             .ignoresSafeArea()
