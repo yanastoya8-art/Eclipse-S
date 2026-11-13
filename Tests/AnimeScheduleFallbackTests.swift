@@ -528,3 +528,14 @@ final class AnimeDubEpisodeVisibilityTests: XCTestCase {
         )
     }
 }
+
+final class StremioDownloadRefreshPolicyTests: XCTestCase {
+    func testEmptyAddonResponseIsRetriedDuringDownloadRefresh() {
+        XCTAssertTrue(
+            StremioClient.shouldRetryNoPlayableResponse(
+                allStreams: [],
+                safeStreams: []
+            )
+        )
+    }
+}
