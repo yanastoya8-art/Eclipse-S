@@ -468,16 +468,20 @@ class TMDBContentFilter: ObservableObject {
             || defaults.bool(forKey: "catalogRequireEnglishSpanishAudio")
         guard needsAnimeMetadata else { return }
 
-        for result in results where Self.isAnimeResult(result) {
-            guard let anilistID = result.animeIdentitySeed?.anilistId,
-                  anilistID > 0 else { continue }
-            if defaults.bool(forKey: "catalogHideBelowPG13Anime") {
-                let rating = try? await TaizenAnimeAgeRatingService.shared.rating(anilistID: anilistID)
-                if let rating {
-                    storeAnimeAgeRating(rating, for: anilistID)
+        let animeResults = results.filter { Self.isAnimeResult($0) }
+        if defaults.bool(forKey: "catalogHideBelowPG13Anime") {
+            let identifiers = animeResults.compactMap { $0.animeIdentitySeed?.anilistId }
+            if let ratings = try? await TaizenAnimeAgeRatingService.shared.ratings(anilistIDs: identifiers) {
+                for (id, rating) in ratings {
+                    storeAnimeAgeRating(rating, for: id)
                 }
             }
-            if defaults.bool(forKey: "catalogRequireEnglishSpanishAudio") {
+        }
+
+        if defaults.bool(forKey: "catalogRequireEnglishSpanishAudio") {
+            for result in animeResults {
+                guard let anilistID = result.animeIdentitySeed?.anilistId,
+                      anilistID > 0 else { continue }
                 let counts = (try? await TaizenAnimeDubMetadataService.shared.episodeDubCounts(
                     anilistID: anilistID,
                     malID: result.animeIdentitySeed?.malId
