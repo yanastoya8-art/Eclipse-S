@@ -1351,7 +1351,9 @@ fileprivate struct TraktCalendarItem: Decodable {
             "talk-show"
         ]
         let genres = Set((show.genres ?? []).map { $0.lowercased() })
-        return genres.isDisjoint(with: excludedGenres)
+        let isLikelyAnime = genres.contains("anime")
+            || (genres.contains("animation") && ["ja", "zh", "ko"].contains(show.language?.lowercased() ?? ""))
+        return !isLikelyAnime && genres.isDisjoint(with: excludedGenres)
     }
 }
 
