@@ -794,6 +794,7 @@ private final class MPVHeaderProxyCore {
     fileprivate let logPrefix: String
     private let playlistMode: MPVHeaderProxyPlaylistMode
     private let gracefulResponseClose: Bool
+    private let listenOnLocalNetwork: Bool
     private let hopByHopRequestHeaders: Set<String> = [
         "connection",
         "keep-alive",
@@ -809,11 +810,13 @@ private final class MPVHeaderProxyCore {
     fileprivate init(
         logPrefix: String = "MPVHeaderProxy",
         playlistMode: MPVHeaderProxyPlaylistMode = .preserveUpstream,
-        gracefulResponseClose: Bool = false
+        gracefulResponseClose: Bool = false,
+        listenOnLocalNetwork: Bool = false
     ) {
         self.logPrefix = logPrefix
         self.playlistMode = playlistMode
         self.gracefulResponseClose = gracefulResponseClose
+        self.listenOnLocalNetwork = listenOnLocalNetwork
     }
 
     private func withSessionsLock<T>(_ body: () -> T) -> T {
@@ -1482,8 +1485,10 @@ private final class MPVHeaderProxyCore {
             let parameters = NWParameters.tcp
             parameters.allowLocalEndpointReuse = true
             let requestedPort = preferredPort.flatMap(NWEndpoint.Port.init(rawValue:)) ?? .any
-            parameters.requiredInterfaceType = .loopback
-            parameters.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: requestedPort)
+            if !listenOnLocalNetwork {
+                parameters.requiredInterfaceType = .loopback
+                parameters.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: requestedPort)
+            }
             let listener = try NWListener(using: parameters, on: requestedPort)
             listener.newConnectionHandler = { [weak self] connection in
                 self?.handleConnection(connection)
@@ -2896,12 +2901,34 @@ private final class MPVHeaderProxyCore {
         }
     }
 
+    private static func localIPv4Address() -> String? {
+        var interfaces: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&interfaces) == 0, let first = interfaces else { return nil }
+        defer { freeifaddrs(interfaces) }
+        for item in sequence(first: first, next: { $0.pointee.ifa_next }) {
+            let flags = Int32(item.pointee.ifa_flags)
+            guard flags & IFF_UP != 0,
+                  flags & IFF_LOOPBACK == 0,
+                  let address = item.pointee.ifa_addr,
+                  address.pointee.sa_family == UInt8(AF_INET) else { continue }
+            let name = String(cString: item.pointee.ifa_name)
+            guard name == "en0" || name.hasPrefix("bridge") else { continue }
+            var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+            let result = getnameinfo(address, socklen_t(address.pointee.sa_len), &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST)
+            if result == 0 {
+                let value = String(cString: host)
+                if !value.hasPrefix("169.254.") { return value }
+            }
+        }
+        return nil
+    }
+
     private func buildProxyURL(port: UInt16?, sessionId: String, targetURL: URL) -> URL? {
         guard let port, port > 0 else { return nil }
         let encoded = encodeTargetURL(targetURL)
         var components = URLComponents()
         components.scheme = "http"
-        components.host = "127.0.0.1"
+        components.host = listenOnLocalNetwork ? Self.localIPv4Address() : "127.0.0.1"
         components.port = Int(port)
         components.path = "/proxy/\(sessionId)"
         components.queryItems = [
@@ -5976,7 +6003,18 @@ final class MPVHeaderProxy {
         gracefulResponseClose: true
     )
 
+    private let lanProxy = MPVHeaderProxyCore(
+        logPrefix: "MPVHeaderProxyLAN",
+        playlistMode: .normalizeRewrittenPlaylist,
+        gracefulResponseClose: true,
+        listenOnLocalNetwork: true
+    )
+
     private init() {}
+
+    func makeLANProxyURL(for targetURL: URL, headers: [String: String], logType: String = "LANCast") -> URL? {
+        lanProxy.makeProxyURL(for: targetURL, headers: headers, logType: logType)
+    }
 
 #if DEBUG
     static func testingInstance(pinnedLoopbackTransport: Bool = false,
