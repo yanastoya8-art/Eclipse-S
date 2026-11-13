@@ -5017,10 +5017,10 @@ private final class MPVHeaderProxyCore {
             var responseHeaders = proxy.filteredResponseHeaders(from: http)
             if logType == "Download" {
                 let filename = (targetURL.lastPathComponent.isEmpty ? "download" : targetURL.lastPathComponent)
-                    .replacingOccurrences(of: "\\\"", with: "_")
-                    .replacingOccurrences(of: "\\r", with: "_")
-                    .replacingOccurrences(of: "\\n", with: "_")
-                responseHeaders["Content-Disposition"] = "attachment; filename=\\"\(filename)\\""
+                    .replacingOccurrences(of: "\"", with: "_")
+                    .replacingOccurrences(of: "\r", with: "_")
+                    .replacingOccurrences(of: "\n", with: "_")
+                responseHeaders["Content-Disposition"] = "attachment; filename=\"\(filename)\""
                 responseHeaders["Cache-Control"] = "no-store"
             }
             if method == "HEAD" {
@@ -5655,10 +5655,10 @@ private final class MPVHeaderProxyCore {
             var responseHeaders = proxy.filteredResponseHeaders(from: http)
             if logType == "Download" {
                 let filename = (targetURL.lastPathComponent.isEmpty ? "download" : targetURL.lastPathComponent)
-                    .replacingOccurrences(of: "\\\"", with: "_")
-                    .replacingOccurrences(of: "\\r", with: "_")
-                    .replacingOccurrences(of: "\\n", with: "_")
-                responseHeaders["Content-Disposition"] = "attachment; filename=\\"\(filename)\\""
+                    .replacingOccurrences(of: "\"", with: "_")
+                    .replacingOccurrences(of: "\r", with: "_")
+                    .replacingOccurrences(of: "\n", with: "_")
+                responseHeaders["Content-Disposition"] = "attachment; filename=\"\(filename)\""
                 responseHeaders["Cache-Control"] = "no-store"
             }
             responseHeadersSent = true
@@ -6353,7 +6353,7 @@ final class LocalFileLANServer {
         var response = "HTTP/1.1 \(status) \(status == 206 ? "Partial Content" : "OK")\r\n"
         response += "Content-Type: \(mime)\r\nContent-Length: \(length)\r\nAccept-Ranges: bytes\r\n"
         response += "Cache-Control: no-store\r\nConnection: close\r\n"
-        response += "Content-Disposition: \(download ? "attachment" : "inline"); filename=\"\(entry.url.lastPathComponent.replacingOccurrences(of: "\" ", with: "_"))\"\r\n"
+        response += "Content-Disposition: \(download ? "attachment" : "inline"); filename=\"\(entry.url.lastPathComponent.replacingOccurrences(of: "\"", with: "_").replacingOccurrences(of: "\r", with: "_").replacingOccurrences(of: "\n", with: "_"))\"\r\n"
         if status == 206 { response += "Content-Range: bytes \(start)-\(end)/\(fileSize)\r\n" }
         response += "\r\n"
         connection.send(content: Data(response.utf8), completion: .contentProcessed { [weak self] error in
