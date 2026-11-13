@@ -5944,6 +5944,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             servicesWidth.priority = .init(999)
             let episodeBrowserWidth = episodeBrowserButton.widthAnchor.constraint(equalToConstant: 32)
             episodeBrowserWidth.priority = .init(999)
+            let performanceOverlayWidth = performanceOverlayButton.widthAnchor.constraint(equalToConstant: 32)
+            performanceOverlayWidth.priority = .init(999)
             NSLayoutConstraint.activate([
                 playerSourceButtonsStackView.trailingAnchor.constraint(equalTo: progressContainer.trailingAnchor),
                 playerSourceButtonsStackView.centerYAnchor.constraint(equalTo: subtitleButton.centerYAnchor),
@@ -5953,6 +5955,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
                 episodeBrowserWidth,
                 episodeBrowserButton.heightAnchor.constraint(equalToConstant: 32),
+                performanceOverlayWidth,
+                performanceOverlayButton.heightAnchor.constraint(equalToConstant: 32),
 
                 speedButton.trailingAnchor.constraint(equalTo: subtitleButton.leadingAnchor, constant: -8),
                 speedButton.centerYAnchor.constraint(equalTo: subtitleButton.centerYAnchor),
