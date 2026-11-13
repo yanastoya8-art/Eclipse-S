@@ -577,6 +577,7 @@ struct HomeView: View {
     @State private var showingHeroDetail = false
     @State private var heroLogoURL: String?
     @State private var heroAlternatePosterURL: String?
+    @State private var heroTVMazePosterURLs: [String: String] = [:]
     @State private var heroArtworkIdentity: String?
     @State private var prefetchedHeroAlternatePosterURLs: [String: String] = [:]
     @State private var resolvedHeroAlternatePosterKeys: Set<String> = []
@@ -1727,7 +1728,7 @@ struct HomeView: View {
             }
             let cacheKey = heroAlternatePosterCacheKey(hero.stableIdentity, language: selectedLanguage)
             guard resolvedHeroAlternatePosterKeys.contains(cacheKey) else { return nil }
-            return hero.fullPosterURL ?? hero.fullBackdropURL
+            return heroTVMazePosterURLs[hero.stableIdentity] ?? hero.fullPosterURL ?? hero.fullBackdropURL
         }
 #endif
         return hero.fullBackdropURL ?? hero.fullPosterURL
@@ -2130,16 +2131,25 @@ struct HomeView: View {
             )
             guard !Task.isCancelled else { return }
             let alternatePosterURL = alternateResolution.poster?.fullURL
+            var tvMazePosterURL: String?
+            if alternatePosterURL == nil, !hero.isMovie,
+               let details = try? await tmdbService.getTVShowDetails(id: hero.id),
+               let imdbID = details.externalIds?.imdbId {
+                tvMazePosterURL = await tmdbService.getTVMazePosterURL(imdbID: imdbID)
+            }
             await MainActor.run {
                 guard !Task.isCancelled, heroArtworkIsActive, shouldAnalyzeHeroAlternatePoster,
                       homeViewModel.heroContent?.stableIdentity == identity,
                       selectedLanguage == language else { return }
                 heroAlternatePosterURL = alternatePosterURL
-                if alternateResolution.isComplete {
-                    resolvedHeroAlternatePosterKeys.insert(cacheKey)
-                }
+                // Once the alternate lookup has completed, use the strongest
+                // available fallback instead of leaving the hero blank.
+                resolvedHeroAlternatePosterKeys.insert(cacheKey)
                 if let alternatePosterURL {
                     prefetchedHeroAlternatePosterURLs[cacheKey] = alternatePosterURL
+                }
+                if let tvMazePosterURL {
+                    heroTVMazePosterURLs[identity] = tvMazePosterURL
                 }
             }
         } catch {
