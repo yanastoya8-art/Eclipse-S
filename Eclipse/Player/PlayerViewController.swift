@@ -7,6 +7,7 @@
 
 import UIKit
 import GoogleCast
+import Security
 import UIKit.UIGestureRecognizerSubclass
 import SwiftUI
 import AVFoundation
@@ -678,8 +679,20 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         let button = GCKUICastButton(frame: .zero)
         button.translatesAutoresizingMaskIntoConstraints = false
         button.tintColor = .white
-        button.accessibilityLabel = "Cast to TV"
+        button.accessibilityLabel = "Cast to Chromecast"
         button.accessibilityIdentifier = "player.cast"
+        button.alpha = 0
+        return button
+    }()
+
+    private let lgCastButton: UIButton = {
+        let button = UIButton(type: .system)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        let configuration = UIImage.SymbolConfiguration(pointSize: 18, weight: .semibold)
+        button.setImage(UIImage(systemName: "tv", withConfiguration: configuration), for: .normal)
+        button.tintColor = .white
+        button.accessibilityLabel = "Cast to LG webOS TV"
+        button.accessibilityIdentifier = "player.castLGWebOS"
         button.alpha = 0
         return button
     }()
@@ -4000,6 +4013,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         updatePlayerTitle()
 
         castButton.addTarget(self, action: #selector(prepareCastForCurrentStream), for: .touchDown)
+        lgCastButton.addTarget(self, action: #selector(prepareLGWebOSCastForCurrentStream), for: .touchUpInside)
         updateCastButtonAvailability()
 
         setupActions()
@@ -5435,7 +5449,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         centerPlayPauseButton.layer.shadowOffset = .zero
 
         var themedButtons = [
-            closeButton, pipButton, castButton, skipBackwardButton, skipForwardButton,
+            closeButton, pipButton, castButton, lgCastButton, skipBackwardButton, skipForwardButton,
             subtitleButton, servicesButton, episodeBrowserButton, speedButton, audioButton
         ]
 #if os(iOS)
@@ -5735,6 +5749,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 #endif
         videoContainer.addSubview(pipButton)
         videoContainer.addSubview(castButton)
+        videoContainer.addSubview(lgCastButton)
         videoContainer.addSubview(playerTitleLabel)
         videoContainer.addSubview(skipBackwardButton)
         videoContainer.addSubview(skipForwardButton)
@@ -5853,7 +5868,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
             topControlsGlassView.topAnchor.constraint(equalTo: closeButton.topAnchor, constant: -7),
             topControlsGlassView.leadingAnchor.constraint(equalTo: closeButton.leadingAnchor, constant: -8),
-            topControlsGlassView.trailingAnchor.constraint(equalTo: castButton.trailingAnchor, constant: 8),
+            topControlsGlassView.trailingAnchor.constraint(equalTo: lgCastButton.trailingAnchor, constant: 8),
             topControlsGlassView.bottomAnchor.constraint(equalTo: closeButton.bottomAnchor, constant: 7),
 
             progressGlassView.leadingAnchor.constraint(equalTo: progressContainer.leadingAnchor, constant: -8),
@@ -5895,6 +5910,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             castButton.leadingAnchor.constraint(equalTo: pipButton.trailingAnchor, constant: 8),
             castButton.widthAnchor.constraint(equalToConstant: 36),
             castButton.heightAnchor.constraint(equalToConstant: 36),
+
+            lgCastButton.centerYAnchor.constraint(equalTo: closeButton.centerYAnchor),
+            lgCastButton.leadingAnchor.constraint(equalTo: castButton.trailingAnchor, constant: 8),
+            lgCastButton.widthAnchor.constraint(equalToConstant: 36),
+            lgCastButton.heightAnchor.constraint(equalToConstant: 36),
 
             playerTitleLabel.centerYAnchor.constraint(equalTo: closeButton.centerYAnchor),
             playerTitleCenterConstraint,
@@ -13254,8 +13274,15 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         castButton.isHidden = !isMPVRenderer
         castButton.isEnabled = url != nil && rejection == nil
         castButton.accessibilityHint = rejection ?? "Cast the current stream to a compatible Chromecast or Cast-enabled TV."
+        let lgURL = candidates.first(where: { LGWebOSCastPolicy.rejectionReason(for: $0, headers: headers) == nil })
+            ?? candidates.first
+        let lgRejection = lgURL.flatMap { LGWebOSCastPolicy.rejectionReason(for: $0, headers: headers) }
+        lgCastButton.isHidden = !isMPVRenderer
+        lgCastButton.isEnabled = lgURL != nil && lgRejection == nil
+        lgCastButton.accessibilityHint = lgRejection ?? "Send the current stream URL to your paired LG webOS TV."
         let castTint = activePlayerSkinAppearance.primary
         castButton.tintColor = castButton.isEnabled ? castTint : castTint.withAlphaComponent(0.35)
+        lgCastButton.tintColor = lgCastButton.isEnabled ? castTint : castTint.withAlphaComponent(0.35)
     }
 
     @objc private func prepareCastForCurrentStream() {
@@ -13276,6 +13303,51 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         ) {
             showPlayerNotice(reason)
         }
+    }
+
+    @objc private func prepareLGWebOSCastForCurrentStream() {
+        let headers = playbackLaunchContext?.headers ?? initialHeaders ?? [:]
+        let candidates = [playbackLaunchContext?.streamURL.flatMap { URL(string: $0) }, initialURL].compactMap { $0 }
+        guard let url = candidates.first(where: { LGWebOSCastPolicy.rejectionReason(for: $0, headers: headers) == nil }) else {
+            let reason = candidates.first.flatMap { LGWebOSCastPolicy.rejectionReason(for: $0, headers: headers) }
+                ?? "This playback does not have a TV-accessible stream URL."
+            showPlayerNotice(reason)
+            return
+        }
+
+        let title = playerTitleLabel.text?.trimmingCharacters(in: .whitespacesAndNewlines)
+            .flatMap { $0.isEmpty ? nil : $0 } ?? "Eclipse"
+        let alert = UIAlertController(
+            title: "Cast to LG webOS TV",
+            message: "Enter your TV's local IPv4 address. Accept the pairing prompt on the TV the first time.",
+            preferredStyle: .alert
+        )
+        alert.addTextField { field in
+            field.placeholder = "192.168.1.100"
+            field.keyboardType = .decimalPad
+            field.text = LGWebOSCastCoordinator.shared.savedAddress
+            field.autocorrectionType = .no
+        }
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Cast", style: .default) { [weak self, weak alert] _ in
+            guard let self,
+                  let address = alert?.textFields?.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !address.isEmpty else { return }
+            Task { @MainActor in
+                do {
+                    try await LGWebOSCastCoordinator.shared.cast(
+                        url: url,
+                        title: title,
+                        address: address,
+                        headers: headers
+                    )
+                    self.showPlayerNotice("Stream sent to your LG TV. Playback support depends on the TV model and the file's video/audio codecs.")
+                } catch {
+                    self.showPlayerNotice(error.localizedDescription)
+                }
+            }
+        })
+        present(alert, animated: true)
     }
 
     @objc private func handleCastMediaLoaded() {
@@ -14049,6 +14121,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 #endif
         videoContainer.bringSubviewToFront(pipButton)
         videoContainer.bringSubviewToFront(castButton)
+        videoContainer.bringSubviewToFront(lgCastButton)
         videoContainer.bringSubviewToFront(playerTitleLabel)
         videoContainer.bringSubviewToFront(skipBackwardButton)
         videoContainer.bringSubviewToFront(skipForwardButton)
@@ -14088,6 +14161,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 #endif
                 self.pipButton.alpha = self.pipButton.isHidden ? 0.0 : 1.0
                 self.castButton.alpha = self.castButton.isHidden ? 0.0 : 1.0
+                self.lgCastButton.alpha = self.lgCastButton.isHidden ? 0.0 : 1.0
                 self.playerTitleLabel.alpha = self.playerTitleLabel.text?.isEmpty == false ? 1.0 : 0.0
                 self.skipBackwardButton.alpha = 1.0
                 self.skipForwardButton.alpha = 1.0
@@ -14158,6 +14232,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 #endif
                 self.pipButton.alpha = 0.0
                 self.castButton.alpha = 0.0
+                self.lgCastButton.alpha = 0.0
                 self.playerTitleLabel.alpha = 0.0
                 self.skipBackwardButton.alpha = 0.0
                 self.skipForwardButton.alpha = 0.0
@@ -16742,6 +16817,254 @@ extension PlayerViewController: PiPControllerDelegate {
             }
             guard self.vlcRenderer == nil else { return }
             self.requestMPVSerializedForegroundRecovery(source: "scene-did-activate")
+        }
+    }
+}
+
+
+private enum LGWebOSCastPolicy {
+    static func rejectionReason(for url: URL, headers: [String: String]) -> String? {
+        guard let scheme = url.scheme?.lowercased(), ["http", "https"].contains(scheme),
+              let host = url.host, !host.isEmpty,
+              url.user == nil, url.password == nil else {
+            return "LG webOS casting requires a direct HTTP or HTTPS stream URL."
+        }
+        let normalizedHost = host.lowercased()
+        guard normalizedHost != "localhost",
+              normalizedHost != "127.0.0.1",
+              normalizedHost != "::1" else {
+            return "The TV cannot access a stream hosted only on this iPhone."
+        }
+        guard headers.isEmpty else {
+            return "This stream requires custom HTTP headers. LG's native media player cannot receive those headers, so Eclipse cannot cast this URL directly."
+        }
+        guard mimeType(for: url) != nil else {
+            return "The stream format is not recognized for direct LG webOS playback."
+        }
+        return nil
+    }
+
+    static func mimeType(for url: URL) -> String? {
+        switch url.pathExtension.lowercased() {
+        case "mkv": return "video/x-matroska"
+        case "mp4", "m4v": return "video/mp4"
+        case "mov": return "video/quicktime"
+        case "webm": return "video/webm"
+        case "m3u8": return "application/vnd.apple.mpegurl"
+        case "mpd": return "application/dash+xml"
+        case "ts": return "video/mp2t"
+        case "mp3": return "audio/mpeg"
+        case "aac": return "audio/aac"
+        default: return nil
+        }
+    }
+}
+
+@MainActor
+private final class LGWebOSCastCoordinator {
+    static let shared = LGWebOSCastCoordinator()
+    private let session: URLSession
+    private let addressKey = "lgWebOSLastTVAddress"
+
+    var savedAddress: String? { UserDefaults.standard.string(forKey: addressKey) }
+
+    private init() {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = 20
+        configuration.timeoutIntervalForResource = 30
+        session = URLSession(configuration: configuration)
+    }
+
+    func cast(url: URL, title: String, address rawAddress: String, headers: [String: String]) async throws {
+        if let reason = LGWebOSCastPolicy.rejectionReason(for: url, headers: headers) {
+            throw LGWebOSCastError.unsupported(reason)
+        }
+        let address = try Self.validatedIPv4Address(rawAddress)
+        guard let socketURL = URL(string: "ws://\(address):3000") else {
+            throw LGWebOSCastError.invalidAddress
+        }
+        let socket = session.webSocketTask(with: socketURL)
+        socket.resume()
+        defer { socket.cancel(with: .goingAway, reason: nil) }
+
+        let savedKey = LGWebOSClientKeyStore.load(for: address)
+        let registerID = "eclipse-register-\(UUID().uuidString)"
+        let registration = Self.registrationMessage(id: registerID, clientKey: savedKey)
+        try await socket.send(.string(try Self.jsonString(registration)))
+
+        let registered = try await receiveResponse(from: socket, matchingID: registerID, acceptsRegistered: true)
+        let payload = registered["payload"] as? [String: Any] ?? [:]
+        if let clientKey = payload["client-key"] as? String, !clientKey.isEmpty {
+            try LGWebOSClientKeyStore.save(clientKey, for: address)
+        } else if savedKey == nil {
+            throw LGWebOSCastError.pairingNotCompleted
+        }
+
+        let requestID = "eclipse-media-\(UUID().uuidString)"
+        let mediaRequest: [String: Any] = [
+            "type": "request",
+            "id": requestID,
+            "uri": "ssap://media.viewer/open",
+            "payload": [
+                "target": url.absoluteString,
+                "title": title,
+                "mimeType": LGWebOSCastPolicy.mimeType(for: url) ?? "application/octet-stream"
+            ]
+        ]
+        try await socket.send(.string(try Self.jsonString(mediaRequest)))
+        let response = try await receiveResponse(from: socket, matchingID: requestID, acceptsRegistered: false)
+        let responsePayload = response["payload"] as? [String: Any] ?? [:]
+        guard responsePayload["returnValue"] as? Bool == true else {
+            throw LGWebOSCastError.tvRejectedRequest(responsePayload["errorText"] as? String)
+        }
+        UserDefaults.standard.set(address, forKey: addressKey)
+    }
+
+    private func receiveResponse(
+        from socket: URLSessionWebSocketTask,
+        matchingID expectedID: String,
+        acceptsRegistered: Bool
+    ) async throws -> [String: Any] {
+        for _ in 0..<12 {
+            let message = try await socket.receive()
+            let data: Data
+            switch message {
+            case .string(let string): data = Data(string.utf8)
+            case .data(let value): data = value
+            @unknown default: continue
+            }
+            guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                continue
+            }
+            let messageType = object["type"] as? String
+            let messageID = object["id"] as? String
+            if acceptsRegistered && (messageType == "registered" || messageID == expectedID) {
+                return object
+            }
+            if !acceptsRegistered && messageID == expectedID {
+                return object
+            }
+        }
+        throw LGWebOSCastError.noTVResponse
+    }
+
+    private static func registrationMessage(id: String, clientKey: String?) -> [String: Any] {
+        var payload: [String: Any] = [
+            "forcePairing": false,
+            "pairingType": "PROMPT",
+            "manifest": [
+                "manifestVersion": 1,
+                "appVersion": "1.0",
+                "signed": [
+                    "created": "20261113000000",
+                    "appId": "com.eclipse.player",
+                    "vendorId": "com.eclipse",
+                    "localizedAppNames": ["": "Eclipse"],
+                    "localizedVendorNames": ["": "Eclipse"],
+                    "permissions": [
+                        "LAUNCH", "LAUNCH_WEBAPP", "APP_TO_APP",
+                        "CONTROL_AUDIO", "CONTROL_INPUT_MEDIA_PLAYBACK",
+                        "CONTROL_POWER", "READ_RUNNING_APPS", "READ_CURRENT_CHANNEL",
+                        "READ_TV_CHANNEL_LIST", "READ_NETWORK_STATE", "READ_DEVICE_INFO",
+                        "READ_INPUT_DEVICE_LIST", "READ_INSTALLED_APPS"
+                    ]
+                ]
+            ]
+        ]
+        if let clientKey { payload["client-key"] = clientKey }
+        return ["type": "register", "id": id, "payload": payload]
+    }
+
+    private static func jsonString(_ value: [String: Any]) throws -> String {
+        let data = try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])
+        guard let string = String(data: data, encoding: .utf8) else {
+            throw LGWebOSCastError.invalidMessage
+        }
+        return string
+    }
+
+    private static func validatedIPv4Address(_ raw: String) throws -> String {
+        let candidate = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !candidate.isEmpty, !candidate.contains("/"), !candidate.contains("@"),
+              let components = URLComponents(string: "http://\(candidate)"),
+              let host = components.host, !host.isEmpty,
+              components.user == nil, components.password == nil,
+              components.port == nil, components.path.isEmpty,
+              components.query == nil, components.fragment == nil,
+              host.range(of: #"^[0-9]{1,3}(\\.[0-9]{1,3}){3}$"#, options: .regularExpression) != nil,
+              host.split(separator: ".").allSatisfy({ Int($0).map { (0...255).contains($0) } == true }) else {
+            throw LGWebOSCastError.invalidAddress
+        }
+        return host
+    }
+}
+
+private enum LGWebOSClientKeyStore {
+    private static let service = "app.eclipse.lgwebos"
+
+    static func load(for address: String) -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: address,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var result: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let data = result as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    static func save(_ key: String, for address: String) throws {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: address
+        ]
+        let attributes: [String: Any] = [
+            kSecValueData as String: Data(key.utf8),
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        ]
+        let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        if status == errSecItemNotFound {
+            var insert = query
+            attributes.forEach { insert[$0.key] = $0.value }
+            let addStatus = SecItemAdd(insert as CFDictionary, nil)
+            guard addStatus == errSecSuccess else {
+                throw LGWebOSCastError.keychain(Int(addStatus))
+            }
+        } else if status != errSecSuccess {
+            throw LGWebOSCastError.keychain(Int(status))
+        }
+    }
+}
+
+private enum LGWebOSCastError: LocalizedError {
+    case invalidAddress
+    case invalidMessage
+    case noTVResponse
+    case pairingNotCompleted
+    case unsupported(String)
+    case tvRejectedRequest(String?)
+    case keychain(Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidAddress:
+            return "Enter the LG TV's local IPv4 address, for example 192.168.1.100."
+        case .invalidMessage:
+            return "Eclipse could not create the LG webOS request."
+        case .noTVResponse:
+            return "The LG TV did not respond. Make sure it is on and both devices are on the same Wi-Fi network."
+        case .pairingNotCompleted:
+            return "Accept the pairing request on your LG TV, then try casting again."
+        case .unsupported(let reason):
+            return reason
+        case .tvRejectedRequest(let message):
+            return message ?? "The LG TV rejected this media URL."
+        case .keychain(let status):
+            return "Eclipse could not securely save the LG TV pairing key (Keychain error \(status))."
         }
     }
 }
