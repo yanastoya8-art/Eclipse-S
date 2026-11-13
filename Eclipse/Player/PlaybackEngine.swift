@@ -140,6 +140,7 @@ final class EclipseCastCoordinator: NSObject, GCKSessionManagerListener, GCKRequ
         guard activeLoadRequest === request else { return }
         activeLoadRequest = nil
         NotificationCenter.default.post(name: Self.didLoadMediaNotification, object: nil)
+        GCKCastContext.sharedInstance().presentDefaultExpandedMediaControls()
     }
 
     func request(_ request: GCKRequest, didFailWithError error: GCKError) {
