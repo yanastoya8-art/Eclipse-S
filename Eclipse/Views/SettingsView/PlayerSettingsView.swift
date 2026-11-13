@@ -2536,7 +2536,7 @@ private struct MPVPlayerSettingsPage: View {
                 GlassDivider(leadingInset: 16)
                 settingsToggleRow(
                     title: "Dolby Atmos",
-                    detail: "Preserve Dolby Digital Plus Atmos on compatible audio routes. Requires Surround Sound, normal speed, and no audio processing. Off keeps ordinary surround sound. TrueHD Atmos is not supported. Applies on next MPV playback.",
+                    detail: "Preserve Dolby Digital Plus Atmos on compatible audio routes. Requires Surround Sound, normal speed, and no audio processing. Off keeps ordinary surround sound. Enable the separate TrueHD Dolby Atmos option below to request TrueHD passthrough.",
                     binding: $store.mpvDolbyAtmosEnabled
                 )
                 .id(PlayerSettingsSearchTarget.dolbyAtmos.anchorID)
