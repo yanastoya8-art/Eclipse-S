@@ -16910,6 +16910,7 @@ private final class LGWebOSCastCoordinator {
             "payload": [
                 "target": url.absoluteString,
                 "title": title,
+                "mediaType": "movie",
                 "mimeType": LGWebOSCastPolicy.mimeType(for: url) ?? "application/octet-stream"
             ]
         ]
