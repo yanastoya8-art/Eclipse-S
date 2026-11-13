@@ -608,9 +608,9 @@ final class HomeViewModel: ObservableObject {
             ]
             let currentResults = await MainActor.run { (self.catalogResults, self.unfilteredCatalogResults) }
             for mapping in rankedMappings {
-                if enabledCatalogs.contains(where: { $0.id == mapping.catalogId }),
-                   let items = currentResults.0[mapping.sourceKey], !items.isEmpty {
-                    let rawItems = currentResults.1[mapping.sourceKey] ?? items
+                let rawItems = currentResults.1[mapping.sourceKey] ?? currentResults.0[mapping.sourceKey] ?? []
+                if enabledCatalogs.contains(where: { $0.id == mapping.catalogId }), !rawItems.isEmpty {
+                    let items = await contentFilter.filterSearchResultsResolvingRatings(rawItems)
                     await MainActor.run {
                         guard self.loadGeneration == generation else { return }
                         self.unfilteredWidgetData[mapping.catalogId] = rawItems
@@ -631,7 +631,7 @@ final class HomeViewModel: ObservableObject {
                     }
                     for await (networkId, raw, results) in group {
                         guard !Task.isCancelled else { return }
-                        if !results.isEmpty {
+                        if !raw.isEmpty {
                             await MainActor.run {
                                 guard self.loadGeneration == generation else { return }
                                 self.unfilteredWidgetData["network_\(networkId)"] = raw
@@ -654,7 +654,7 @@ final class HomeViewModel: ObservableObject {
                     }
                     for await (genreId, raw, results) in group {
                         guard !Task.isCancelled else { return }
-                        if !results.isEmpty {
+                        if !raw.isEmpty {
                             await MainActor.run {
                                 guard self.loadGeneration == generation else { return }
                                 self.unfilteredWidgetData["genre_\(genreId)"] = raw
@@ -677,7 +677,7 @@ final class HomeViewModel: ObservableObject {
                     }
                     for await (companyId, raw, results) in group {
                         guard !Task.isCancelled else { return }
-                        if !results.isEmpty {
+                        if !raw.isEmpty {
                             await MainActor.run {
                                 guard self.loadGeneration == generation else { return }
                                 self.unfilteredWidgetData["company_\(companyId)"] = raw
@@ -694,7 +694,7 @@ final class HomeViewModel: ObservableObject {
                 guard let randomGenre = WidgetGenre.activeTV.randomElement() else { return }
                 let rawResults = (try? await tmdbService.discoverByGenre(genreId: randomGenre.id, mediaType: "tv")) ?? []
                 let results = await contentFilter.filterSearchResultsResolvingRatings(rawResults)
-                if !results.isEmpty {
+                if !rawResults.isEmpty {
                     await MainActor.run {
                         guard self.loadGeneration == generation else { return }
                         self.unfilteredWidgetData["featured"] = rawResults
