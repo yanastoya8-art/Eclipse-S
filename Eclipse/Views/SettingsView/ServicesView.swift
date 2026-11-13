@@ -1007,7 +1007,7 @@ struct ServicesView: View {
                     HStack {
                         Label("JustWatch", systemImage: "key.horizontal")
                         Spacer()
-                        Text(JustWatchAPIKeyStore.shared.hasKey ? "Configured" : "API key needed")
+                        Text(JustWatchAPIKeyStore.hasKey ? "Configured" : "API key needed")
                             .foregroundStyle(.secondary)
                     }
                 }
