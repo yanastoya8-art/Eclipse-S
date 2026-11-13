@@ -117,6 +117,25 @@ final class AnimeScheduleFallbackTests: XCTestCase {
         }
     }
 
+    func testAnidubFallbackDoesNotSpendRequestsWhenTaizenConfirmsSpanish() {
+        XCTAssertFalse(AnimeDubMetadataFallbackPolicy.shouldQueryAnidub(
+            selectedLanguages: ["spanish"],
+            taizenCounts: ["es": 12]
+        ))
+        XCTAssertTrue(AnimeDubMetadataFallbackPolicy.shouldQueryAnidub(
+            selectedLanguages: ["spanish"],
+            taizenCounts: ["en": 12]
+        ))
+        XCTAssertTrue(AnimeDubMetadataFallbackPolicy.shouldQueryAnidub(
+            selectedLanguages: ["spanish"],
+            taizenCounts: [:]
+        ))
+        XCTAssertFalse(AnimeDubMetadataFallbackPolicy.shouldQueryAnidub(
+            selectedLanguages: ["english"],
+            taizenCounts: ["en": 12]
+        ))
+    }
+
     func testSpanishSelectionExplainsEnglishOnlyAnimeScheduleDates() {
         let notice = AnimeScheduleLanguageNoticePolicy.notice(
             selectedLanguages: ["english", "spanish"],

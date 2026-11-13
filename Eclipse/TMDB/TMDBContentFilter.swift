@@ -575,11 +575,14 @@ class TMDBContentFilter: ObservableObject {
             malID: malID
         )) ?? [:]
 
-        // Taizen groups regional Spanish into "es". Anidub supplements it with
-        // explicit es-419 / es-ES records and is also the fallback when Taizen
-        // has no usable record. Its response is cached for six hours.
-        if MyDubListDubFilter.shared.selectedLanguages.contains(MyDubListLanguage.spanish.rawValue)
-            || counts.isEmpty {
+        // Taizen's positive "es" count already confirms Spanish audio for the
+        // app's combined Latino/Castellano filter. Query Anidub only when that
+        // confirmation is missing, avoiding one anonymous API request per title
+        // when Taizen has already supplied the needed language metadata.
+        if AnimeDubMetadataFallbackPolicy.shouldQueryAnidub(
+            selectedLanguages: MyDubListDubFilter.shared.selectedLanguages,
+            taizenCounts: counts
+        ) {
             if let anidubCounts = try? await AnidubAnimeDubMetadataService.shared.episodeDubCounts(anilistID: anilistID) {
                 for (language, count) in anidubCounts {
                     counts[language] = max(counts[language] ?? 0, count)
@@ -1357,6 +1360,17 @@ enum AnimeDubEpisodeVisibilityPolicy {
     }
 }
 
+
+enum AnimeDubMetadataFallbackPolicy {
+    static func shouldQueryAnidub(
+        selectedLanguages: Set<String>,
+        taizenCounts: [String: Int]
+    ) -> Bool {
+        guard !taizenCounts.isEmpty else { return true }
+        guard selectedLanguages.contains(MyDubListLanguage.spanish.rawValue) else { return false }
+        return (taizenCounts["es"] ?? 0) <= 0
+    }
+}
 
 enum AnidubAnimeDubMetadataError: Error, LocalizedError {
     case invalidURL
