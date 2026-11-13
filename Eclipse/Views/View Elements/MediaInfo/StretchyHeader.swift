@@ -23,8 +23,24 @@ struct StretchyHeaderView: View {
     let onAmbientColorExtracted: ((Color) -> Void)?
     var imageDecodeSize: CGSize? = nil
     var placeholderColor: Color = Color.gray.opacity(0.3)
+    var fallbackImageURLs: [String] = []
 
     @State private var localAmbientColor: Color = Color.black
+    @State private var failedImageURLs: Set<String> = []
+
+    private var imageCandidates: [String] {
+        var seen: Set<String> = []
+        return ([backdropURL].compactMap { $0 } + fallbackImageURLs).filter { value in
+            guard let url = URL(string: value),
+                  ["https", "http"].contains(url.scheme?.lowercased() ?? ""),
+                  url.host != nil else { return false }
+            return seen.insert(value).inserted
+        }
+    }
+
+    private var resolvedBackdropURL: String? {
+        imageCandidates.first { !failedImageURLs.contains($0) }
+    }
 
     private var resolvedImageDecodeSize: CGSize {
         imageDecodeSize ?? CGSize(
@@ -42,20 +58,19 @@ struct StretchyHeaderView: View {
 
             ZStack(alignment: .bottom) {
                 Color.clear
-                    .overlay(
-                        KFImage(URL(string: backdropURL ?? ""))
-                            .setProcessor(DownsamplingImageProcessor(size: resolvedImageDecodeSize))
-                            .placeholder {
-                                Rectangle()
-                                    .fill(placeholderColor)
-                            }
-                            .onSuccess { result in
-                                updateAmbientColor(from: result.image)
-                            }
-                            .resizable()
-                            .aspectRatio(contentMode: .fill),
-                        alignment: .center
-                    )
+                    .overlay {
+                        if let imageURL = resolvedBackdropURL {
+                            KFImage(URL(string: imageURL))
+                                .setProcessor(DownsamplingImageProcessor(size: resolvedImageDecodeSize))
+                                .placeholder { Rectangle().fill(placeholderColor) }
+                                .onSuccess { result in updateAmbientColor(from: result.image) }
+                                .onFailure { _ in failedImageURLs.insert(imageURL) }
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                        } else {
+                            Rectangle().fill(placeholderColor)
+                        }
+                    }
                     .clipped()
                     .frame(height: height)
                     .offset(y: offset)
@@ -75,6 +90,7 @@ struct StretchyHeaderView: View {
             }
         }
         .frame(height: headerHeight)
+        .onChange(of: imageCandidates) { _, _ in failedImageURLs.removeAll() }
     }
 
     private func updateAmbientColor(from image: UIImage) {
