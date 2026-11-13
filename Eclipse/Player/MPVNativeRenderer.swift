@@ -2927,6 +2927,8 @@ struct MetalPlaybackDiagnostics {
 
     let videoCodec: String?
 
+    let videoHasDolbyVisionRPU: Bool?
+
     let highBitDepthActive: Bool
 
     let subtitleCodec: String?
@@ -4171,6 +4173,7 @@ final class MPVGPUPlayerBridge: PlayerRenderer {
             isHDR: isHDR,
             dynamicRangeText: rangeText,
             videoCodec: d.videoCodec,
+            videoHasDolbyVisionRPU: d.videoHasDolbyVisionRPU,
             highBitDepthActive: highBitDepth,
             subtitleCodec: subtitleCodec,
             hardwareDecoder: d.hardwareDecoder,
@@ -6030,6 +6033,7 @@ final class MPVSampleBufferPiPBridge: PlayerRenderer {
             isHDR: isHDR,
             dynamicRangeText: rangeText,
             videoCodec: nil,
+            videoHasDolbyVisionRPU: nil,
             highBitDepthActive: diag.highBitDepthRenderingActive,
             subtitleCodec: subtitleCodec,
             hardwareDecoder: nil,
