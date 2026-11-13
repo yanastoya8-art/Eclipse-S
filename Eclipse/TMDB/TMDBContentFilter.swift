@@ -784,7 +784,7 @@ actor TaizenAnimeDubMetadataService {
     }
 
     private var cache: [String: CachedCounts] = [:]
-    private let cacheLifetime: TimeInterval = 6 * 60 * 60
+    private let cacheLifetime: TimeInterval = 60 * 60
     private let maximumResponseBytes = 2 * 1_024 * 1_024
 
     func episodeDubCounts(anilistID: Int?, malID: Int?) async throws -> [String: Int] {
