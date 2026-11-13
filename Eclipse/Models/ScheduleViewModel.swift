@@ -316,6 +316,7 @@ final class ScheduleViewModel: ObservableObject {
     private var posterHydrationTask: Task<Void, Never>?
     private var posterHydrationAttemptedTMDBIDs = Set<Int>()
     private var currentLocalTimeZone = true
+    private var dailyCalendarRefreshInProgress = false
 
     init() {}
 
@@ -324,6 +325,7 @@ final class ScheduleViewModel: ObservableObject {
     /// background, so this is deliberately not presented as an exact-time job.
     @MainActor
     func refreshCalendarIfNeeded(now: Date = Date()) async {
+        guard !dailyCalendarRefreshInProgress else { return }
         let calendar = AppCalendar.current
         let today = calendar.startOfDay(for: now)
         let key = "animeCalendarLastAutomaticRefreshDayV1"
@@ -332,6 +334,11 @@ final class ScheduleViewModel: ObservableObject {
             return
         }
 
+        dailyCalendarRefreshInProgress = true
+        defer { dailyCalendarRefreshInProgress = false }
+        // Persist the attempt before awaiting network work so the five-minute
+        // foreground maintenance timer cannot repeatedly restart a failed fetch.
+        UserDefaults.standard.set(now, forKey: key)
         let mode = loadedScheduleMode ?? .anime
         await MyDubListDubFilter.shared.refresh()
         await loadSchedule(
@@ -339,9 +346,11 @@ final class ScheduleViewModel: ObservableObject {
             localTimeZone: currentLocalTimeZone,
             forceRefresh: true
         )
-        guard errorMessage == nil, !isLoading else { return }
-        UserDefaults.standard.set(now, forKey: key)
-        Logger.shared.log("Schedule calendar: completed daily automatic refresh", type: "Anime")
+        if errorMessage == nil, !isLoading {
+            Logger.shared.log("Schedule calendar: completed daily automatic refresh", type: "Anime")
+        } else {
+            Logger.shared.log("Schedule calendar: daily automatic refresh did not complete: \(errorMessage ?? "unknown error")", type: "Anime")
+        }
     }
 
     func loadSchedule(
