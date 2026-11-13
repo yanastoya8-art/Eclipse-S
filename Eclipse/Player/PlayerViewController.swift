@@ -6,6 +6,7 @@
 //
 
 import UIKit
+import GoogleCast
 import UIKit.UIGestureRecognizerSubclass
 import SwiftUI
 import AVFoundation
@@ -658,6 +659,15 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         b.tintColor = .white
         b.alpha = 0.0
         return b
+    }()
+
+    private let castButton: GCKUICastButton = {
+        let button = GCKUICastButton(frame: .zero)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.tintColor = .white
+        button.accessibilityLabel = "Cast to TV"
+        button.accessibilityIdentifier = "player.cast"
+        return button
     }()
 
 #if os(iOS)
@@ -3965,6 +3975,16 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         applyPlayerSkinIfNeeded(force: true)
         updatePlayerTitle()
 
+        castButton.addTarget(self, action: #selector(prepareCastForCurrentStream), for: .touchDown)
+        let castURL = playbackLaunchContext?.streamURL.flatMap(URL.init(string:)) ?? initialURL
+        let castHeaders = playbackLaunchContext?.headers ?? initialHeaders ?? [:]
+        castButton.isHidden = !isMPVRenderer
+        castButton.isEnabled = castURL.flatMap { CastMediaPolicy.rejectionReason(for: $0, headers: castHeaders) } == nil
+        if let castURL, let reason = CastMediaPolicy.rejectionReason(for: castURL, headers: castHeaders) {
+            castButton.accessibilityHint = reason
+            castButton.tintColor = UIColor.white.withAlphaComponent(0.35)
+        }
+
         setupActions()
 #if os(iOS)
         applyPlaybackLockState(capturingOrientationIfNeeded: false)
@@ -3992,6 +4012,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         updateEpisodeBrowserButtonVisibility()
 
         NotificationCenter.default.addObserver(self, selector: #selector(handleLoggerNotification(_:)), name: NSNotification.Name("LoggerNotification"), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleCastMediaLoaded), name: EclipseCastCoordinator.didLoadMediaNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleCastSessionEnded), name: EclipseCastCoordinator.didEndSessionNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(invalidateSkipDataForProfileChange), name: .activeProfileDidChange, object: nil)
         NotificationCenter.default.addObserver(
             self,
@@ -5682,6 +5704,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         videoContainer.addSubview(playbackLockButton)
 #endif
         videoContainer.addSubview(pipButton)
+        videoContainer.addSubview(castButton)
         videoContainer.addSubview(playerTitleLabel)
         videoContainer.addSubview(skipBackwardButton)
         videoContainer.addSubview(skipForwardButton)
@@ -5794,7 +5817,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         NSLayoutConstraint.activate([
             topControlsGlassView.topAnchor.constraint(equalTo: closeButton.topAnchor, constant: -7),
             topControlsGlassView.leadingAnchor.constraint(equalTo: closeButton.leadingAnchor, constant: -8),
-            topControlsGlassView.trailingAnchor.constraint(equalTo: pipButton.trailingAnchor, constant: 8),
+            topControlsGlassView.trailingAnchor.constraint(equalTo: castButton.trailingAnchor, constant: 8),
             topControlsGlassView.bottomAnchor.constraint(equalTo: closeButton.bottomAnchor, constant: 7),
 
             progressGlassView.leadingAnchor.constraint(equalTo: progressContainer.leadingAnchor, constant: -8),
@@ -5831,6 +5854,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             pipLeadingConstraint,
             pipButton.widthAnchor.constraint(equalToConstant: 36),
             pipButton.heightAnchor.constraint(equalToConstant: 36),
+
+            castButton.centerYAnchor.constraint(equalTo: closeButton.centerYAnchor),
+            castButton.leadingAnchor.constraint(equalTo: pipButton.trailingAnchor, constant: 8),
+            castButton.widthAnchor.constraint(equalToConstant: 36),
+            castButton.heightAnchor.constraint(equalToConstant: 36),
 
             playerTitleLabel.centerYAnchor.constraint(equalTo: closeButton.centerYAnchor),
             playerTitleCenterConstraint,
@@ -13129,6 +13157,32 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         updateBrightnessControlVisibility()
         updateVolumeControlVisibility()
 #endif
+    }
+
+    @objc private func prepareCastForCurrentStream() {
+        guard let url = playbackLaunchContext?.streamURL.flatMap(URL.init(string:)) ?? initialURL else {
+            showPlayerNotice("This playback does not have a TV-accessible stream URL.")
+            return
+        }
+        let headers = playbackLaunchContext?.headers ?? initialHeaders ?? [:]
+        let title = playerTitleLabel.text?.trimmingCharacters(in: .whitespacesAndNewlines)
+            .flatMap { $0.isEmpty ? nil : $0 } ?? "Eclipse"
+        if let reason = EclipseCastCoordinator.shared.prepareForCasting(
+            url: url,
+            title: title,
+            headers: headers
+        ) {
+            showPlayerNotice(reason)
+        }
+    }
+
+    @objc private func handleCastMediaLoaded() {
+        rendererPausePlayback()
+        showPlayerNotice("Casting to TV. Use the Cast controls to control playback.")
+    }
+
+    @objc private func handleCastSessionEnded() {
+        showPlayerNotice("Casting ended. Tap Play to continue on this device.")
     }
 
     private func applyVLCSubtitleModeSettingIfNeeded() {
