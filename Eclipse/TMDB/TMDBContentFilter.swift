@@ -479,11 +479,16 @@ class TMDBContentFilter: ObservableObject {
                 let revisionBeforeLookup = TMDBMaturityRatingStore.shared.revision
                 Task(priority: .utility) {
                     await TMDBMaturityRatingStore.shared.resolve(ratingLookups)
-                    if TMDBMaturityRatingStore.shared.revision != revisionBeforeLookup {
-                        NotificationCenter.default.post(
-                            name: TMDBContentFilter.catalogFiltersDidChangeNotification,
-                            object: nil
-                        )
+                    let didResolveNewRatings = await MainActor.run {
+                        TMDBMaturityRatingStore.shared.revision != revisionBeforeLookup
+                    }
+                    if didResolveNewRatings {
+                        await MainActor.run {
+                            NotificationCenter.default.post(
+                                name: TMDBContentFilter.catalogFiltersDidChangeNotification,
+                                object: nil
+                            )
+                        }
                     }
                 }
             }
