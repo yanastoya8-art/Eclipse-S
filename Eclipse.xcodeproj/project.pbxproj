@@ -1897,6 +1897,7 @@
 			packageProductDependencies = (
 				13A46CFF2EF5944C00423BC6 /* Kingfisher */,
 				136C25C52EFE950300E37A6E /* MPVKit-GPL */,
+				GCSTPROD0000000000000001 /* GoogleCastDynamic */,
 				C0A5A0042FD1000000C0A504 /* CrashReporter */,
 				AD0000232FD9000000AD0023 /* ZIPFoundation */,
 				AD0000322FDA000000AD0032 /* Nuke */,
