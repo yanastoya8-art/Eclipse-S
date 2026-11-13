@@ -2282,7 +2282,7 @@ struct MediaDetailContentView: View {
     private var iPadImmersiveTitle: some View {
         if mediaDetailTitleArtworkEnabled && !titleArtworkLookupComplete {
             Color.clear.frame(width: 380, height: 118)
-        } else if mediaDetailTitleArtworkEnabled, let logoURL, failedTitleLogoURL != logoURL {
+        } else if mediaDetailTitleArtworkEnabled, let logoURL {
             ResilientArtworkImage(
                 urls: [logoURL],
                 decodeSize: homeImageDecodeSize(width: 380, height: 118),
