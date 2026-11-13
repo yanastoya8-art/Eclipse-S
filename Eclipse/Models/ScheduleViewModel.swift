@@ -358,6 +358,7 @@ final class ScheduleViewModel: ObservableObject {
     private var activePosterHydrationID: UUID?
     private var posterHydrationTask: Task<Void, Never>?
     private var posterHydrationAttemptedTMDBIDs = Set<Int>()
+    private var moviePosterHydrationAttemptedTMDBIDs = Set<Int>()
     private var currentLocalTimeZone = true
     private var dailyCalendarRefreshInProgress = false
 
@@ -453,6 +454,7 @@ final class ScheduleViewModel: ObservableObject {
             currentLocalTimeZone = localTimeZone
             if forceRefresh {
                 posterHydrationAttemptedTMDBIDs.removeAll(keepingCapacity: true)
+                moviePosterHydrationAttemptedTMDBIDs.removeAll(keepingCapacity: true)
                 tmdbCache.removeAll(keepingCapacity: true)
                 tmdbCacheGeneration = UUID()
             }
@@ -1096,7 +1098,7 @@ final class ScheduleViewModel: ObservableObject {
         }
         let movieEntries = entries.filter {
             guard $0.isMovie, let tmdbId = $0.tmdbId, $0.coverImage == nil else { return false }
-            return !posterHydrationAttemptedTMDBIDs.contains(tmdbId)
+            return !moviePosterHydrationAttemptedTMDBIDs.contains(tmdbId)
         }
         guard !tvEntries.isEmpty || !movieEntries.isEmpty else { return }
 
@@ -1107,7 +1109,8 @@ final class ScheduleViewModel: ObservableObject {
             async let moviePostersTask = TraktScheduleService.shared.fetchTMDBMoviePosters(for: movieEntries)
             let (details, moviePosters) = await (tvDetailsTask, moviePostersTask)
             guard !Task.isCancelled, self.activePosterHydrationID == loadID else { return }
-            posterHydrationAttemptedTMDBIDs.formUnion((tvEntries + movieEntries).compactMap(\.tmdbId))
+            posterHydrationAttemptedTMDBIDs.formUnion(tvEntries.compactMap(\.tmdbId))
+            moviePosterHydrationAttemptedTMDBIDs.formUnion(movieEntries.compactMap(\.tmdbId))
 
             var hydratedEntries = self.scheduleEntries
             for index in hydratedEntries.indices {
