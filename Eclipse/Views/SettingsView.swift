@@ -988,9 +988,6 @@ struct SettingsView: View {
                 .accessibilityIdentifier("tv.settings.data")
             }
 
-#if canImport(StoreKit)
-            TVSupportSettingsSection()
-#endif
 
             Section {
                 NavigationLink(destination: TVDiagnosticsView()
@@ -3373,27 +3370,6 @@ private final class SupportPurchaseStore: ObservableObject {
         }
     }
 }
-
-#if os(tvOS)
-private struct TVSupportSettingsSection: View {
-    @StateObject private var store = SupportPurchaseStore()
-
-    var body: some View {
-        Group {
-            if !Bundle.main.allowsExternalDonationLinks, !store.products.isEmpty {
-                Section {
-                    NavigationLink("Support Eclipse", destination: StoreKitSupportView().eclipseHideTabBar())
-                } header: {
-                    Text("Support")
-                } footer: {
-                    Text("Purchases use the App Store on this Apple TV. External donation and community links are not shown in the TV app.")
-                }
-            }
-        }
-        .task { await store.loadProducts() }
-    }
-}
-#endif
 
 private enum SupportPurchaseError: Error {
     case unverifiedTransaction
