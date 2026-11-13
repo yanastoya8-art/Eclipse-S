@@ -1770,7 +1770,7 @@ private actor JustWatchScheduleService {
     private let baseURL = URL(string: "https://api.api.sh/justwatch/v1")!
     private let cacheLifetime: TimeInterval = 12 * 60 * 60
     private var showIDCache: [String: String] = [:]
-    private var seasonDateCache: [String: [Int: Date]] = [:]
+    private var seasonDateCache: [String: CachedEpisodeDates] = [:]
 
     func filter(
         entries: [ScheduleEntry],
@@ -1873,18 +1873,18 @@ private actor JustWatchScheduleService {
     ) async throws -> [Int: Date] {
         let languageKey = selectedCodes.sorted().joined(separator: ",")
         let cacheKey = "\(showID)|\(season)|BG|\(languageKey)"
-        if let cached = seasonDateCache[cacheKey] { return cached }
+        let now = Date()
+        if let cached = seasonDateCache[cacheKey],
+           now.timeIntervalSince(cached.fetchedAt) >= 0,
+           now.timeIntervalSince(cached.fetchedAt) < cacheLifetime {
+            return Self.episodeDates(from: cached)
+        }
         if let cachedData = UserDefaults.standard.data(forKey: "justWatchEpisodeDatesV1.\(cacheKey)"),
            let cached = try? JSONDecoder().decode(CachedEpisodeDates.self, from: cachedData),
-           Date().timeIntervalSince(cached.fetchedAt) >= 0,
-           Date().timeIntervalSince(cached.fetchedAt) < cacheLifetime {
-            let dates = cached.datesByEpisode.reduce(into: [Int: Date]()) { result, item in
-                if let episode = Int(item.key), let date = Self.parseDate(item.value) {
-                    result[episode] = date
-                }
-            }
-            seasonDateCache[cacheKey] = dates
-            return dates
+           now.timeIntervalSince(cached.fetchedAt) >= 0,
+           now.timeIntervalSince(cached.fetchedAt) < cacheLifetime {
+            seasonDateCache[cacheKey] = cached
+            return Self.episodeDates(from: cached)
         }
 
         var components = URLComponents(url: baseURL.appendingPathComponent("seasons"), resolvingAgainstBaseURL: false)
@@ -1921,7 +1921,7 @@ private actor JustWatchScheduleService {
         if let data = try? JSONEncoder().encode(persisted) {
             UserDefaults.standard.set(data, forKey: "justWatchEpisodeDatesV1.\(cacheKey)")
         }
-        seasonDateCache[cacheKey] = dates
+        seasonDateCache[cacheKey] = persisted
         return dates
     }
 
@@ -1943,6 +1943,14 @@ private actor JustWatchScheduleService {
             throw JustWatchScheduleError.invalidResponse
         }
         return payload
+    }
+
+    private static func episodeDates(from cached: CachedEpisodeDates) -> [Int: Date] {
+        cached.datesByEpisode.reduce(into: [Int: Date]()) { result, item in
+            if let episode = Int(item.key), episode > 0, let date = parseDate(item.value) {
+                result[episode] = date
+            }
+        }
     }
 
     private static func matchingReleaseDates(
