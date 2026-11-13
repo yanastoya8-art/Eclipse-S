@@ -119,9 +119,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          for name in TMDB_API_KEY ANIMESCHEDULE_API_TOKEN ANILIST_CLIENT_ID ANILIST_CLIENT_SECRET TRAKT_CLIENT_ID TRAKT_CLIENT_SECRET MAL_CLIENT_ID MAL_CLIENT_SECRET SIMKL_CLIENT_ID; do
+          if [ -z "${TMDB_API_KEY:-}" ]; then
+            echo "::error::TMDB_API_KEY is required. Add it under Repository Settings > Secrets and variables > Actions, then rerun the IPA workflow. Refusing to package an app that cannot load TMDB catalogs."
+            exit 1
+          fi
+
+          for name in ANIMESCHEDULE_API_TOKEN ANILIST_CLIENT_ID ANILIST_CLIENT_SECRET TRAKT_CLIENT_ID TRAKT_CLIENT_SECRET MAL_CLIENT_ID MAL_CLIENT_SECRET SIMKL_CLIENT_ID; do
             if [ -z "${!name:-}" ]; then
-              echo "::warning::$name is not configured in GitHub Actions secrets; building with an empty value"
+              echo "::warning::$name is not configured in GitHub Actions secrets; related optional features may be unavailable"
             fi
           done
 
