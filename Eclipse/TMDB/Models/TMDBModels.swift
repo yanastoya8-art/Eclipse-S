@@ -374,8 +374,8 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
         if (animeIdentitySeed != nil || isAnimeHint == true), let animeArtworkURL {
             return animeArtworkURL
         }
-        if let posterPath, let url = TMDBImageRequestPolicy.urlString(for: posterPath, kind: .poster) {
-            return url
+        if let posterPath {
+            return TMDBImageRequestPolicy.urlString(for: posterPath, kind: .poster)
         }
         return animeArtworkURL
     }
