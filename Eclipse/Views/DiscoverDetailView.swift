@@ -11,6 +11,7 @@ struct DiscoverDetailView: View {
     @State private var currentPage = 1
     @State private var isLoadingMore = false
     @State private var hasMorePages = true
+    @StateObject private var contentFilter = TMDBContentFilter.shared
     @Environment(\.heroNamespace) private var heroNamespace
 
     private var columns: [GridItem] {
@@ -77,6 +78,13 @@ struct DiscoverDetailView: View {
         .onAppear {
             if items.isEmpty {
                 items = initialItems
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: TMDBContentFilter.catalogFiltersDidChangeNotification)) { _ in
+            let snapshot = items
+            Task {
+                await contentFilter.prepareMaturityRatings(for: snapshot)
+                items = contentFilter.filterSearchResults(snapshot)
             }
         }
     }
