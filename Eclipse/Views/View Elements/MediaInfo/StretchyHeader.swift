@@ -15,6 +15,46 @@ private enum StretchyHeaderAmbientColorCache {
     static let values = NSCache<NSString, UIColor>()
 }
 
+struct ResilientArtworkImage<Placeholder: View>: View {
+    let urls: [String]
+    let decodeSize: CGSize
+    let contentMode: ContentMode
+    private let placeholder: () -> Placeholder
+    @State private var failedURLs: Set<String> = []
+
+    init(
+        urls: [String],
+        decodeSize: CGSize,
+        contentMode: ContentMode = .fill,
+        @ViewBuilder placeholder: @escaping () -> Placeholder
+    ) {
+        self.urls = urls
+        self.decodeSize = decodeSize
+        self.contentMode = contentMode
+        self.placeholder = placeholder
+    }
+
+    private var currentURL: String? {
+        urls.first { !failedURLs.contains($0) }
+    }
+
+    var body: some View {
+        Group {
+            if let imageURL = currentURL {
+                KFImage(URL(string: imageURL))
+                    .setProcessor(DownsamplingImageProcessor(size: decodeSize))
+                    .placeholder { placeholder() }
+                    .onFailure { _ in failedURLs.insert(imageURL) }
+                    .resizable()
+                    .aspectRatio(contentMode: contentMode)
+            } else {
+                placeholder()
+            }
+        }
+        .onChange(of: urls) { _, _ in failedURLs.removeAll() }
+    }
+}
+
 struct StretchyHeaderView: View {
     let backdropURL: String?
     let isMovie: Bool
