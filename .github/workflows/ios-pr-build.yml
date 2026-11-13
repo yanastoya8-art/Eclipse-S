@@ -61,7 +61,7 @@ jobs:
   ios-build-and-tests:
     name: Build and test iPhone/iPad app
     needs: prune-stale-ios-builds
-    runs-on: macos-26-intel
+    runs-on: macos-26
     timeout-minutes: 180
 
     steps:
