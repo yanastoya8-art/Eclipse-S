@@ -8372,6 +8372,11 @@ struct ModulesSearchResultsSheet: View {
             } label: {
                 Label("Copy Stream URL", systemImage: "doc.on.doc")
             }
+            Button {
+                copyProviderDownloadURL(stream.option.url, headers: stream.option.headers)
+            } label: {
+                Label("Copy Download URL", systemImage: "arrow.down.doc")
+            }
         }
 #endif
     }
