@@ -6172,25 +6172,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             text.append(NSAttributedString(string: "\n"))
             text.append(metalPerformanceOverlayRow(label: "Video", value: videoValue, valueColor: diag.isHDR ? .systemOrange : .white))
 
-            let streamMetadata = [
-                playbackLaunchContext?.streamName,
-                initialURL?.absoluteString
-            ].compactMap { $0 }.joined(separator: " ").lowercased()
-            let dynamicRangeMetadata = diag.dynamicRangeText.lowercased()
-            let dolbyVisionDetected = dynamicRangeMetadata.contains("dolby vision")
-                || dynamicRangeMetadata.contains("dolbyvision")
-                || streamMetadata.contains("dolby vision")
-                || streamMetadata.contains("dolbyvision")
-                || streamMetadata.contains("dovi")
-                || streamMetadata.contains("dvhe")
-                || streamMetadata.contains("dvh1")
-            text.append(NSAttributedString(string: "\n"))
-            text.append(metalPerformanceOverlayRow(
-                label: "Dolby Vision",
-                value: dolbyVisionDetected ? "Detected" : "Not detected",
-                valueColor: dolbyVisionDetected ? .systemGreen : .white
-            ))
-
             if let rawDecoder = diag.hardwareDecoder {
                 let decoder = rawDecoder.trimmingCharacters(in: .whitespacesAndNewlines)
                 let decoderValue: String
@@ -6217,6 +6198,29 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             text.append(metalPerformanceOverlayRow(label: "Subs", value: subValue, valueColor: diag.subtitleCodec == "ass" ? .systemYellow : .white))
         }
         #endif
+
+        let streamMetadata = [
+            playbackLaunchContext?.streamName,
+            initialURL?.absoluteString
+        ].compactMap { $0 }.joined(separator: " ").lowercased()
+#if os(iOS) && ECLIPSE_MPVKIT_MOLTENVK_INLINE_RENDERER && ECLIPSE_MPVKIT_SAMPLE_BUFFER_PIP_BRIDGE
+        let dynamicRangeMetadata = metalPerformanceDiagnostics()?.dynamicRangeText.lowercased() ?? ""
+#else
+        let dynamicRangeMetadata = ""
+#endif
+        let dolbyVisionDetected = dynamicRangeMetadata.contains("dolby vision")
+            || dynamicRangeMetadata.contains("dolbyvision")
+            || streamMetadata.contains("dolby vision")
+            || streamMetadata.contains("dolbyvision")
+            || streamMetadata.contains("dovi")
+            || streamMetadata.contains("dvhe")
+            || streamMetadata.contains("dvh1")
+        text.append(NSAttributedString(string: "\n"))
+        text.append(metalPerformanceOverlayRow(
+            label: "Dolby Vision",
+            value: dolbyVisionDetected ? "Detected" : "Not detected",
+            valueColor: dolbyVisionDetected ? .systemGreen : .white
+        ))
 
         return text
     }
