@@ -498,7 +498,6 @@ class EclipseTheme: ObservableObject {
         case .classicGradient:
             return palette.topWash.atmosphereScaled(intensity)
         case .multiGradient:
-            let palette = scopedPalette()
             let base = palette.mesh.indices.contains(4) ? palette.mesh[4] : backgroundBase
             return base.atmosphereScaled(intensity)
         }
@@ -610,7 +609,6 @@ class EclipseTheme: ObservableObject {
         case .classicGradient:
             return palette.topWash.atmosphereScaled(intensity)
         case .multiGradient:
-            let palette = scopedPalette(isReaderMode: isReaderMode)
             let base = palette.mesh.indices.contains(4) ? palette.mesh[4] : backgroundBase
             return base.atmosphereScaled(intensity)
         }
