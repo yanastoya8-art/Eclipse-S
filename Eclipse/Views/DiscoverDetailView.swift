@@ -80,6 +80,11 @@ struct DiscoverDetailView: View {
                 items = initialItems
             }
         }
+        .onChangeComp(of: initialItems.map(\.stableIdentity)) { _, _ in
+            items = initialItems
+            currentPage = 1
+            hasMorePages = true
+        }
         .onReceive(NotificationCenter.default.publisher(for: TMDBContentFilter.catalogFiltersDidChangeNotification)) { _ in
             let snapshot = items
             Task {
