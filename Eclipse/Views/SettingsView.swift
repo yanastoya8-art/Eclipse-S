@@ -513,6 +513,13 @@ struct SettingsView: View {
                             GlassSettingsRow(icon: "globe", iconColor: .cyan, title: "Language Filters")
                         }
                         .buttonStyle(.plain)
+
+                        GlassDivider()
+
+                        NavigationLink(destination: settingsSearchableContent(ReleaseDateFiltersSettingsView())) {
+                            GlassSettingsRow(icon: "calendar.badge.clock", iconColor: .purple, title: "Release Date Filters")
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
 
@@ -976,6 +983,9 @@ struct SettingsView: View {
                     requireEnglishSpanishAudio: $requireEnglishSpanishAudio
                 )) {
                     Text("Language Filters")
+                }
+                NavigationLink(destination: ReleaseDateFiltersSettingsView()) {
+                    Text("Release Date Filters")
                 }
             }
 
@@ -5429,6 +5439,49 @@ private struct LanguageFiltersSettingsView: View {
             }
         }
         .eclipsePageTitle("Language Filters")
+        .eclipseSettingsStyle()
+        .preferredColorScheme(.dark)
+    }
+}
+
+
+private struct ReleaseDateFiltersSettingsView: View {
+    @AppStorage("catalogHidePre1994Anime", store: .standard) private var hidePre1994Anime = false
+    @AppStorage("catalogHidePre1994Movies", store: .standard) private var hidePre1994Movies = false
+    @AppStorage("catalogHidePre1994TVShows", store: .standard) private var hidePre1994TVShows = false
+    @AppStorage("catalogHideUnreleasedAnime", store: .standard) private var hideUnreleasedAnime = false
+    @AppStorage("catalogHideUnreleasedMovies", store: .standard) private var hideUnreleasedMovies = false
+    @AppStorage("catalogHideUnreleasedTVShows", store: .standard) private var hideUnreleasedTVShows = false
+
+    private func filtersDidChange() {
+        NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil)
+    }
+
+    var body: some View {
+        List {
+            Section {
+                Toggle("Hide anime released before 1994", isOn: $hidePre1994Anime)
+                Toggle("Hide movies released before 1994", isOn: $hidePre1994Movies)
+                Toggle("Hide TV shows released before 1994", isOn: $hidePre1994TVShows)
+            } footer: {
+                Text("Only titles with a confirmed release date before 1994 are hidden. Titles with no verified date remain visible.")
+            }
+
+            Section {
+                Toggle("Hide upcoming anime", isOn: $hideUnreleasedAnime)
+                Toggle("Hide upcoming movies", isOn: $hideUnreleasedMovies)
+                Toggle("Hide upcoming TV shows", isOn: $hideUnreleasedTVShows)
+            } footer: {
+                Text("Hides titles with an officially announced release or first-air date in the future. Titles without a confirmed date are not treated as upcoming.")
+            }
+        }
+        .onChange(of: hidePre1994Anime) { _ in filtersDidChange() }
+        .onChange(of: hidePre1994Movies) { _ in filtersDidChange() }
+        .onChange(of: hidePre1994TVShows) { _ in filtersDidChange() }
+        .onChange(of: hideUnreleasedAnime) { _ in filtersDidChange() }
+        .onChange(of: hideUnreleasedMovies) { _ in filtersDidChange() }
+        .onChange(of: hideUnreleasedTVShows) { _ in filtersDidChange() }
+        .eclipsePageTitle("Release Date Filters")
         .eclipseSettingsStyle()
         .preferredColorScheme(.dark)
     }
