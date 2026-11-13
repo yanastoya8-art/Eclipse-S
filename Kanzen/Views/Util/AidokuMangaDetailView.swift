@@ -157,6 +157,7 @@ struct ReaderExtensionMangaDetailView: View {
     @State private var ambientColor: Color = .black
     @AppStorage(ReaderDetailElement.orderStorageKey) private var readerDetailElementOrder = ReaderDetailElement.defaultOrderRawValue
     @AppStorage(ReaderDetailElement.hiddenStorageKey) private var readerDetailHiddenElements = ""
+    @AppStorage("readerDetailHeroBlur") private var readerDetailHeroBlur: Double = 18
 
     init(
         sourceID: ReaderExtensionSourceID,
@@ -176,6 +177,11 @@ struct ReaderExtensionMangaDetailView: View {
         if let trackerReaderMatch, trackerReaderMatch.isCurrent, let cache = trackerReaderMatch.extensionChapters {
             _chapterCache = State(initialValue: cache)
         }
+    }
+
+    private var readerDetailHeroBlurRadius: CGFloat {
+        guard readerDetailHeroBlur.isFinite else { return 18 }
+        return CGFloat(min(max(readerDetailHeroBlur, 0), 30))
     }
 
     private var source: ReaderExtensionInstalledSource? {
@@ -319,6 +325,7 @@ struct ReaderExtensionMangaDetailView: View {
                 .scaledToFill()
                 .frame(width: viewportWidth, height: height)
                 .clipped()
+                .blur(radius: readerDetailHeroBlurRadius)
 
                 LinearGradient(
                     colors: [.clear, ambientColor.opacity(0.45), .black.opacity(0.95)],
