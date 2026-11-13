@@ -1,12 +1,15 @@
 import Foundation
 
-enum HLSBackgroundDownloadSettings {
+enum BackgroundDownloadSettings {
+    // Keep the old key so existing user preferences continue to work.
     static let enabledKey = "hlsBackgroundDownloadsEnabled"
 
     static func isEnabled(defaults: UserDefaults = .standard) -> Bool {
         defaults.bool(forKey: enabledKey)
     }
 }
+
+typealias HLSBackgroundDownloadSettings = BackgroundDownloadSettings
 
 protocol HLSBackgroundDownloadScheduling: AnyObject {
     func request(
@@ -212,7 +215,7 @@ final class HLSBackgroundDownloadCoordinator: HLSBackgroundDownloadScheduling {
     private func log(_ event: String, request: Request, slot: Slot) {
         let attempt = request.attemptID?.uuidString ?? "retired"
         let index = slots.firstIndex(where: { $0 === slot }) ?? -1
-        Logger.shared.log("HLSBackground attempt=\(attempt) slot=\(index) \(event)", type: "Download")
+        Logger.shared.log("BackgroundDownload attempt=\(attempt) slot=\(index) \(event)", type: "Download")
     }
 
     private func expire(_ request: Request, in slot: Slot) {
