@@ -579,10 +579,7 @@ class TMDBContentFilter: ObservableObject {
         // app's combined Latino/Castellano filter. Query Anidub only when that
         // confirmation is missing, avoiding one anonymous API request per title
         // when Taizen has already supplied the needed language metadata.
-        if AnimeDubMetadataFallbackPolicy.shouldQueryAnidub(
-            selectedLanguages: MyDubListDubFilter.shared.selectedLanguages,
-            taizenCounts: counts
-        ) {
+        if AnimeDubMetadataFallbackPolicy.shouldQueryAnidub(taizenCounts: counts) {
             if let anidubCounts = try? await AnidubAnimeDubMetadataService.shared.episodeDubCounts(anilistID: anilistID) {
                 for (language, count) in anidubCounts {
                     counts[language] = max(counts[language] ?? 0, count)
@@ -1362,13 +1359,12 @@ enum AnimeDubEpisodeVisibilityPolicy {
 
 
 enum AnimeDubMetadataFallbackPolicy {
-    static func shouldQueryAnidub(
-        selectedLanguages: Set<String>,
-        taizenCounts: [String: Int]
-    ) -> Bool {
-        guard !taizenCounts.isEmpty else { return true }
-        guard selectedLanguages.contains(MyDubListLanguage.spanish.rawValue) else { return false }
-        return (taizenCounts["es"] ?? 0) <= 0
+    static func shouldQueryAnidub(taizenCounts: [String: Int]) -> Bool {
+        let hasEnglishOrSpanish = (taizenCounts["en"] ?? 0) > 0
+            || (taizenCounts["es"] ?? 0) > 0
+            || (taizenCounts["es-419"] ?? 0) > 0
+            || (taizenCounts["es-es"] ?? 0) > 0
+        return !hasEnglishOrSpanish
     }
 }
 

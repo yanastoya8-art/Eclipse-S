@@ -117,23 +117,12 @@ final class AnimeScheduleFallbackTests: XCTestCase {
         }
     }
 
-    func testAnidubFallbackDoesNotSpendRequestsWhenTaizenConfirmsSpanish() {
-        XCTAssertFalse(AnimeDubMetadataFallbackPolicy.shouldQueryAnidub(
-            selectedLanguages: ["spanish"],
-            taizenCounts: ["es": 12]
-        ))
-        XCTAssertTrue(AnimeDubMetadataFallbackPolicy.shouldQueryAnidub(
-            selectedLanguages: ["spanish"],
-            taizenCounts: ["en": 12]
-        ))
-        XCTAssertTrue(AnimeDubMetadataFallbackPolicy.shouldQueryAnidub(
-            selectedLanguages: ["spanish"],
-            taizenCounts: [:]
-        ))
-        XCTAssertFalse(AnimeDubMetadataFallbackPolicy.shouldQueryAnidub(
-            selectedLanguages: ["english"],
-            taizenCounts: ["en": 12]
-        ))
+    func testAnidubFallbackOnlyRunsWhenTaizenLacksEnglishAndSpanishCounts() {
+        XCTAssertFalse(AnimeDubMetadataFallbackPolicy.shouldQueryAnidub(taizenCounts: ["es": 12]))
+        XCTAssertFalse(AnimeDubMetadataFallbackPolicy.shouldQueryAnidub(taizenCounts: ["en": 12]))
+        XCTAssertFalse(AnimeDubMetadataFallbackPolicy.shouldQueryAnidub(taizenCounts: ["es-419": 12]))
+        XCTAssertTrue(AnimeDubMetadataFallbackPolicy.shouldQueryAnidub(taizenCounts: ["fr": 12]))
+        XCTAssertTrue(AnimeDubMetadataFallbackPolicy.shouldQueryAnidub(taizenCounts: [:]))
     }
 
     func testSpanishSelectionExplainsEnglishOnlyAnimeScheduleDates() {
