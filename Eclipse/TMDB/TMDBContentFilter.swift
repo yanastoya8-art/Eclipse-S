@@ -458,9 +458,9 @@ class TMDBContentFilter: ObservableObject {
             || defaults.bool(forKey: "catalogHideBelowPG13Movies")
             || defaults.bool(forKey: "catalogHideBelowTV14Shows")
         if needsTMDBRatings {
+            let ratingResults = kidsModeEnabled ? results : results.filter { !Self.isAnimeResult($0) }
             await TMDBMaturityRatingStore.shared.resolve(
-                results.filter { !Self.isAnimeResult($0) }
-                    .map { (isMovie: $0.isMovie, id: $0.id) }
+                ratingResults.map { (isMovie: $0.isMovie, id: $0.id) }
             )
         }
 
