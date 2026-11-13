@@ -10,6 +10,12 @@ import CloudKit
 import Combine
 import SwiftUI
 import Kingfisher
+#if os(macOS)
+import AppKit
+typealias ServicesPresentationController = NSViewController
+#else
+typealias ServicesPresentationController = UIViewController
+#endif
 
 private func copyProviderDownloadURL(_ rawURL: String, headers: [String: String]? = nil) {
     guard let sourceURL = URL(string: rawURL),
@@ -23,12 +29,6 @@ private func copyProviderDownloadURL(_ rawURL: String, headers: [String: String]
           ) else { return }
     ProviderExternalApplication.copy(downloadURL.absoluteString)
 }
-#if os(macOS)
-import AppKit
-typealias ServicesPresentationController = NSViewController
-#else
-typealias ServicesPresentationController = UIViewController
-#endif
 
 extension Notification.Name {
     static let requestNextEpisode = Notification.Name("requestNextEpisode")
