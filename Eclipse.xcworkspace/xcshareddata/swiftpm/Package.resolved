@@ -2,6 +2,15 @@
   "originHash": "a97b8465156bd61489677a59c2e10ab5f4d0bbf90958605deb6e12a1d63e3700",
   "pins": [
     {
+      "identity": "google-cast-ios-sdk",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/googlecast/google-cast-ios-sdk",
+      "state": {
+        "revision": "104500df8ce2a827ca3b3392bf16877fae413a33",
+        "version": "4.8.6"
+      }
+    },
+    {
       "identity": "kingfisher",
       "kind": "remoteSourceControl",
       "location": "https://github.com/onevcat/Kingfisher",
