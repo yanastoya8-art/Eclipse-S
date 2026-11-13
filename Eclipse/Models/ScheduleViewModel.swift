@@ -1873,14 +1873,15 @@ private actor JustWatchScheduleService {
 
         for group in groups.values {
             guard let first = group.first else { continue }
-            if Self.language(first.originalLanguage, matches: selectedCodes) {
-                filtered.append(contentsOf: group)
-                continue
-            }
+            // A native-language airing is a valid candidate, but it must not
+            // short-circuit provider lookup: a selected dub can arrive earlier.
+            // Compare both dates per episode and keep the earliest qualifying one.
+            let hasNativeRelease = Self.language(first.originalLanguage, matches: selectedCodes)
 
             guard let apiKey = JustWatchAPIKeyStore.load(),
                   !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                   let showID = try? await resolveShowID(for: first, apiKey: apiKey) else {
+                if hasNativeRelease { filtered.append(contentsOf: group) }
                 continue
             }
 
@@ -1891,11 +1892,22 @@ private actor JustWatchScheduleService {
                     season: season,
                     selectedCodes: selectedCodes,
                     apiKey: apiKey
-                ) else { continue }
+                ) else {
+                    if hasNativeRelease { filtered.append(contentsOf: seasonEntries) }
+                    continue
+                }
 
                 for entry in seasonEntries {
-                    guard let date = dates[entry.episode] else { continue }
-                    filtered.append(entry.withAiringAt(date, isStreamingRelease: true))
+                    let dubbedDate = dates[entry.episode]
+                    let nativeDate = hasNativeRelease ? entry.airingAt : nil
+                    guard let earliestDate = [nativeDate, dubbedDate].compactMap({ $0 }).min() else {
+                        continue
+                    }
+                    let isDubbedReleaseEarlier = dubbedDate.map { $0 < (nativeDate ?? .distantFuture) } ?? false
+                    filtered.append(entry.withAiringAt(
+                        earliestDate,
+                        isStreamingRelease: isDubbedReleaseEarlier || entry.isStreamingRelease
+                    ))
                 }
             }
         }
