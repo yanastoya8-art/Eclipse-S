@@ -5425,7 +5425,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         centerPlayPauseButton.layer.shadowOffset = .zero
 
         var themedButtons = [
-            closeButton, pipButton, skipBackwardButton, skipForwardButton,
+            closeButton, pipButton, castButton, skipBackwardButton, skipForwardButton,
             subtitleButton, servicesButton, episodeBrowserButton, speedButton, audioButton
         ]
 #if os(iOS)
@@ -5438,6 +5438,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
                 button.configuration = configuration
             }
         }
+        castButton.tintColor = castButton.isEnabled
+            ? appearance.primary
+            : appearance.primary.withAlphaComponent(0.35)
 #if !os(tvOS)
         if var configuration = skipButton.configuration {
             configuration.baseBackgroundColor = selectedSkin == .defaultSkin ? .systemYellow : appearance.secondary
@@ -13193,7 +13196,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         castButton.isHidden = !isMPVRenderer
         castButton.isEnabled = url != nil && rejection == nil
         castButton.accessibilityHint = rejection ?? "Cast the current stream to a compatible Chromecast or Cast-enabled TV."
-        castButton.tintColor = castButton.isEnabled ? .white : UIColor.white.withAlphaComponent(0.35)
+        let castTint = activePlayerSkinAppearance.primary
+        castButton.tintColor = castButton.isEnabled ? castTint : castTint.withAlphaComponent(0.35)
     }
 
     @objc private func prepareCastForCurrentStream() {
