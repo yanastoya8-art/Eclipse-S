@@ -1046,7 +1046,9 @@ struct ScheduleView: View {
                     Spacer()
 
                     Text(selectedScheduleMode == .movies
-                        ? "\(visibleToProfile(bucket.items).count) releases"
+                        ? (visibleToProfile(bucket.items).count == 1
+                            ? "1 release"
+                            : "\(visibleToProfile(bucket.items).count) releases")
                         : "\(visibleToProfile(bucket.items).count) airing")
                         .font(.caption.weight(.medium))
                         .foregroundColor(.secondary)
