@@ -13267,7 +13267,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             showPlayerNotice("This playback does not have a stream URL that can be cast.")
             return
         }
-        if url.pathExtension.lowercased() == "mkv" {
+        if url.isFileURL || url.pathExtension.lowercased() == "mkv" {
             prepareLGWebOSCastForCurrentStream()
         } else {
             let headers = playbackLaunchContext?.headers ?? initialHeaders ?? [:]
@@ -16889,7 +16889,8 @@ private final class LGWebOSCastCoordinator {
     }
 
     func cast(url: URL, title: String, address rawAddress: String, headers: [String: String]) async throws {
-        if let reason = LGWebOSCastPolicy.rejectionReason(for: url, headers: headers) {
+        let isSharedLocalFile = LocalFileLANServer.shared.isPublishedURL(url)
+        if !isSharedLocalFile, let reason = LGWebOSCastPolicy.rejectionReason(for: url, headers: headers) {
             throw LGWebOSCastError.unsupported(reason)
         }
         let address = try Self.validatedIPv4Address(rawAddress)
@@ -16898,13 +16899,21 @@ private final class LGWebOSCastCoordinator {
             URL(string: "ws://\(address):3000")
         ].compactMap { $0 }
 
-        guard let proxiedURL = MPVHeaderProxy.shared.makeLANProxyURL(
+        let proxiedURL: URL
+        if isSharedLocalFile {
+            proxiedURL = url
+        } else if let proxyURL = MPVHeaderProxy.shared.makeLANProxyURL(
             for: url,
             headers: headers,
             logType: "LGWebOSCast"
-        ) else {
+        ) {
+            proxiedURL = proxyURL
+        } else {
             throw LGWebOSCastError.proxyUnavailable
         }
+        let mediaMimeType = LocalFileLANServer.shared.mimeType(forPublishedURL: url)
+            ?? LGWebOSCastPolicy.mimeType(for: url)
+            ?? "application/octet-stream"
 
         var lastError: Error?
         for socketURL in socketURLs {
@@ -16916,7 +16925,7 @@ private final class LGWebOSCastCoordinator {
                     title: title,
                     address: address,
                     socket: socket,
-                    mimeType: LGWebOSCastPolicy.mimeType(for: url) ?? "application/octet-stream"
+                    mimeType: mediaMimeType
                 )
                 socket.cancel(with: .goingAway, reason: nil)
                 UserDefaults.standard.set(address, forKey: addressKey)
