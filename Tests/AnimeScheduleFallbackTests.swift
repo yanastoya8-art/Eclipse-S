@@ -664,3 +664,32 @@ final class UnifiedSpanishAndDubSchedulePolicyTests: XCTestCase {
         XCTAssertFalse(AnimeScheduleEntryMapper.shouldReplaceDuplicate(existing: confirmed, candidate: withdrawn))
     }
 }
+
+
+final class ScheduleReleaseDatePolicyTests: XCTestCase {
+    func testEarlierNativeReleaseWinsOverLaterDub() {
+        let native = Date(timeIntervalSince1970: 100)
+        let dubbed = Date(timeIntervalSince1970: 200)
+        XCTAssertEqual(ScheduleReleaseDatePolicy.earliest(native: native, dubbed: dubbed), native)
+        XCTAssertFalse(ScheduleReleaseDatePolicy.usesDubbedDate(native: native, dubbed: dubbed))
+    }
+
+    func testEarlierDubReleaseWinsOverLaterNative() {
+        let native = Date(timeIntervalSince1970: 200)
+        let dubbed = Date(timeIntervalSince1970: 100)
+        XCTAssertEqual(ScheduleReleaseDatePolicy.earliest(native: native, dubbed: dubbed), dubbed)
+        XCTAssertTrue(ScheduleReleaseDatePolicy.usesDubbedDate(native: native, dubbed: dubbed))
+    }
+
+    func testSingleAvailableLanguageDateIsKept() {
+        let native = Date(timeIntervalSince1970: 100)
+        let dubbed = Date(timeIntervalSince1970: 200)
+        XCTAssertEqual(ScheduleReleaseDatePolicy.earliest(native: native, dubbed: nil), native)
+        XCTAssertEqual(ScheduleReleaseDatePolicy.earliest(native: nil, dubbed: dubbed), dubbed)
+    }
+
+    func testNoQualifyingLanguageDateIsExcluded() {
+        XCTAssertNil(ScheduleReleaseDatePolicy.earliest(native: nil, dubbed: nil))
+        XCTAssertFalse(ScheduleReleaseDatePolicy.usesDubbedDate(native: nil, dubbed: nil))
+    }
+}
