@@ -9,27 +9,15 @@ PROJECT_NAME="Eclipse"
 APPLICATION_NAME="Eclipse"
 
 PLATFORM=${1:-ios}
-
 case "$PLATFORM" in
     ios|iOS)
         PLATFORM="ios"
         SCHEME="$PROJECT_NAME"
-        SDK="iphoneos"
         XCODE_DESTINATION="generic/platform=iOS"
-        OUTPUT_SUFFIX=""
-        ;;
-    tvos|tvOS)
-        PLATFORM="tvos"
-        SCHEME="$PROJECT_NAME-tvOS"
-        SDK="appletvos"
-        XCODE_DESTINATION="generic/platform=tvOS"
-        OUTPUT_SUFFIX="-tvOS"
         ;;
     *)
-        echo "Error: Invalid platform '$PLATFORM'"
-        echo "Usage: $0 [ios|tvos]"
-        echo "  ios  - Build for iOS (default)"
-        echo "  tvos - Build for tvOS"
+        echo "Error: Eclipse builds are iPhone/iPad only."
+        echo "Usage: $0 [ios]"
         exit 1
         ;;
 esac
@@ -65,11 +53,7 @@ xcodebuild -resolvePackageDependencies \
     -skipPackagePluginValidation \
     -skipMacroValidation
 
-if [ "$PLATFORM" = "ios" ]; then
-    LIBMPV_SLICE='*Libmpv.xcframework/ios-arm64/Libmpv.framework/Libmpv'
-else
-    LIBMPV_SLICE='*Libmpv.xcframework/tvos-arm64_arm64e/Libmpv.framework/Libmpv'
-fi
+LIBMPV_SLICE='*Libmpv.xcframework/ios-arm64/Libmpv.framework/Libmpv'
 
 LIBMPV_BINARY=""
 for ARTIFACT_ROOT in "$MPVKIT_CHECKOUT/dist/release" "$SOURCE_PACKAGES_DIR/artifacts"; do
@@ -147,47 +131,7 @@ if [ ! -d "$APP_PATH" ]; then
     fi
 fi
 
-if [ "$PLATFORM" = "ios" ]; then
-    "$WORKING_LOCATION/scripts/validate-ios-privacy-manifest.sh" "$APP_PATH"
-else
-    MANIFEST_PATH="$APP_PATH/PrivacyInfo.xcprivacy"
-    if [ ! -f "$MANIFEST_PATH" ]; then
-        echo "Error: PrivacyInfo.xcprivacy is missing from the tvOS app bundle."
-        exit 1
-    fi
-    plutil -lint "$MANIFEST_PATH" >/dev/null
-    python3 - "$MANIFEST_PATH" <<'PY'
-import plistlib
-import sys
-
-with open(sys.argv[1], "rb") as handle:
-    manifest = plistlib.load(handle)
-
-if manifest.get("NSPrivacyTracking") is not False:
-    raise SystemExit("error: tvOS privacy manifest must declare NSPrivacyTracking=false.")
-if manifest.get("NSPrivacyCollectedDataTypes") != []:
-    raise SystemExit("error: tvOS privacy manifest must contain an empty NSPrivacyCollectedDataTypes array.")
-
-required = {
-    "NSPrivacyAccessedAPICategoryUserDefaults": {"CA92.1"},
-    "NSPrivacyAccessedAPICategorySystemBootTime": {"35F9.1"},
-    "NSPrivacyAccessedAPICategoryFileTimestamp": {"C617.1"},
-    "NSPrivacyAccessedAPICategoryDiskSpace": {"E174.1"},
-}
-declared = {
-    entry.get("NSPrivacyAccessedAPIType"): set(entry.get("NSPrivacyAccessedAPITypeReasons", []))
-    for entry in manifest.get("NSPrivacyAccessedAPITypes", [])
-    if isinstance(entry, dict)
-}
-for category, reasons in required.items():
-    missing = reasons - declared.get(category, set())
-    if missing:
-        raise SystemExit(
-            f"error: tvOS privacy manifest is missing {category} reason(s) {', '.join(sorted(missing))}."
-        )
-PY
-    echo "tvOS privacy manifest validation passed"
-fi
+"$WORKING_LOCATION/scripts/validate-ios-privacy-manifest.sh" "$APP_PATH"
 
 # Create Payload directory and copy app
 cd "$BUILD_INVOCATION_DIR"
@@ -206,8 +150,8 @@ rm -rf "Payload/$APPLICATION_NAME.app/_CodeSignature" 2>/dev/null || true
 rm -f "Payload/$APPLICATION_NAME.app/embedded.mobileprovision" 2>/dev/null || true
 
 # Create IPA (preserve symlinks with -y, recursive with -r)
-zip -qry "$APPLICATION_NAME$OUTPUT_SUFFIX.ipa" Payload
-mv -f "$APPLICATION_NAME$OUTPUT_SUFFIX.ipa" "$WORKING_LOCATION/build/$APPLICATION_NAME$OUTPUT_SUFFIX.ipa"
+zip -qry "$APPLICATION_NAME.ipa" Payload
+mv -f "$APPLICATION_NAME.ipa" "$WORKING_LOCATION/build/$APPLICATION_NAME.ipa"
 
 # Cleanup
 rm -rf Payload
