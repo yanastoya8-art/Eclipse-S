@@ -75,6 +75,24 @@ final class MaturityRatingRegionTests: XCTestCase {
         XCTAssertEqual(MaturityRating.classify(certification: "TV-PG"), .general)
     }
 
+    func testPG13AndTV14MeetTeenCatalogThreshold() {
+        XCTAssertEqual(MaturityRating.classify(certification: "PG-13"), .teen)
+        XCTAssertEqual(MaturityRating.classify(certification: "TV-14"), .teen)
+        XCTAssertEqual(MaturityRating.classify(certification: "PG"), .general)
+        XCTAssertEqual(MaturityRating.classify(certification: "TV-PG"), .general)
+        XCTAssertEqual(MaturityRating.classify(certification: "G"), .general)
+        XCTAssertEqual(MaturityRating.classify(certification: "NR"), .unknown)
+    }
+
+    func testMyAnimeListPG13ThresholdUsesItsOwnRatingScale() {
+        XCTAssertEqual(MaturityRating.classify(certification: "G"), .general)
+        XCTAssertEqual(MaturityRating.classify(certification: "PG"), .general)
+        XCTAssertEqual(MaturityRating.classify(certification: "PG-13"), .teen)
+        XCTAssertEqual(MaturityRating.classify(certification: "R"), .mature)
+        XCTAssertEqual(MaturityRating.classify(certification: "R+"), .mature)
+        XCTAssertEqual(MaturityRating.classify(certification: "Rx"), .adult)
+    }
+
     func testPGTiersAgreeWithTheBareAgeBoards() {
 
         XCTAssertEqual(
