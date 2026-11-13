@@ -471,6 +471,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         view.isUserInteractionEnabled = false
         view.clipsToBounds = true
         view.layer.cornerRadius = 23
+        view.alpha = 0
         view.isHidden = true
         return view
     }()
@@ -481,6 +482,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         view.isUserInteractionEnabled = false
         view.clipsToBounds = true
         view.layer.cornerRadius = 22
+        view.alpha = 0
         view.isHidden = true
         return view
     }()
@@ -667,6 +669,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         button.tintColor = .white
         button.accessibilityLabel = "Cast to TV"
         button.accessibilityIdentifier = "player.cast"
+        button.alpha = 0
         return button
     }()
 
@@ -5501,6 +5504,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         progressGlassView.effect = effect
         topControlsGlassView.isHidden = false
         progressGlassView.isHidden = false
+        topControlsGlassView.alpha = controlsVisible ? 1 : 0
+        progressGlassView.alpha = controlsVisible ? 1 : 0
     }
 
     private func configurePlayerSkinDecoration(animationsEnabled: Bool) {
@@ -13934,6 +13939,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
         restorePlayerInteractionHierarchy()
         videoContainer.bringSubviewToFront(controlsOverlayView)
+        videoContainer.bringSubviewToFront(topControlsGlassView)
+        videoContainer.bringSubviewToFront(progressGlassView)
         videoContainer.bringSubviewToFront(overlayMenuDismissView)
         videoContainer.bringSubviewToFront(overlayMenuPanelView)
         videoContainer.bringSubviewToFront(centerPlayPauseButton)
@@ -13943,6 +13950,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         videoContainer.bringSubviewToFront(playbackLockButton)
 #endif
         videoContainer.bringSubviewToFront(pipButton)
+        videoContainer.bringSubviewToFront(castButton)
         videoContainer.bringSubviewToFront(playerTitleLabel)
         videoContainer.bringSubviewToFront(skipBackwardButton)
         videoContainer.bringSubviewToFront(skipForwardButton)
@@ -13970,6 +13978,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             UIView.animate(withDuration: 0.25, delay: 0, options: [.beginFromCurrentState, .curveEaseOut]) {
                 self.centerPlayPauseButton.alpha = 1.0
                 self.controlsOverlayView.alpha = 1.0
+                self.topControlsGlassView.alpha = self.activePlayerLiquidGlassEnabled ? 1.0 : 0.0
+                self.progressGlassView.alpha = self.activePlayerLiquidGlassEnabled ? 1.0 : 0.0
                 self.progressContainer.alpha = 1.0
 #if os(iOS)
                 self.closeButton.alpha = PlayerPlaybackLockSettings.isLocked() ? 0.35 : 1.0
@@ -13978,6 +13988,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
                 self.closeButton.alpha = 1.0
 #endif
                 self.pipButton.alpha = self.pipButton.isHidden ? 0.0 : 1.0
+                self.castButton.alpha = self.castButton.isHidden ? 0.0 : 1.0
                 self.playerTitleLabel.alpha = self.playerTitleLabel.text?.isEmpty == false ? 1.0 : 0.0
                 self.skipBackwardButton.alpha = 1.0
                 self.skipForwardButton.alpha = 1.0
@@ -14037,12 +14048,15 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             UIView.animate(withDuration: 0.25, delay: 0, options: [.beginFromCurrentState, .curveEaseIn]) {
                 self.centerPlayPauseButton.alpha = 0.0
                 self.controlsOverlayView.alpha = 0.0
+                self.topControlsGlassView.alpha = 0.0
+                self.progressGlassView.alpha = 0.0
                 self.progressContainer.alpha = 0.0
                 self.closeButton.alpha = 0.0
 #if os(iOS)
                 self.playbackLockButton.alpha = 0.0
 #endif
                 self.pipButton.alpha = 0.0
+                self.castButton.alpha = 0.0
                 self.playerTitleLabel.alpha = 0.0
                 self.skipBackwardButton.alpha = 0.0
                 self.skipForwardButton.alpha = 0.0
