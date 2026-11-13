@@ -300,7 +300,7 @@ struct ScheduleEntry: Identifiable, Sendable {
         hasKnownAiringTime = false
         isStreamingRelease = false
         tmdbId = movie.ids.tmdb
-        originalLanguage = movie.language?.lowercased()
+        originalLanguage = movie.primaryLanguageCode?.lowercased()
         releaseYear = movie.year
         runtimeMinutes = movie.runtime
         isMovie = true
@@ -1634,16 +1634,21 @@ fileprivate struct TraktCalendarItem: Decodable {
     }
 }
 
+enum MovieSchedulePolicy {
+    static func isAnime(language: String?, genres: [String]?) -> Bool {
+        let normalizedGenres = Set((genres ?? []).map { $0.lowercased() })
+        let normalizedLanguage = language?.lowercased() ?? ""
+        return normalizedGenres.contains("anime")
+            || (normalizedGenres.contains("animation") && ["ja", "zh", "ko"].contains(normalizedLanguage))
+    }
+}
+
 fileprivate struct TraktMovieCalendarItem: Decodable {
     let released: String
     let movie: TraktCalendarMovie
 
     var isNonAnimeMovie: Bool {
-        let genres = Set((movie.genres ?? []).map { $0.lowercased() })
-        let language = movie.language?.lowercased() ?? ""
-        let isAnime = genres.contains("anime")
-            || (genres.contains("animation") && ["ja", "zh", "ko"].contains(language))
-        return !isAnime
+        !MovieSchedulePolicy.isAnime(language: movie.primaryLanguageCode, genres: movie.genres)
     }
 }
 
@@ -1652,8 +1657,13 @@ fileprivate struct TraktCalendarMovie: Decodable {
     let year: Int?
     let ids: TraktCalendarIDs
     let language: String?
+    let languages: [String]?
     let genres: [String]?
     let runtime: Int?
+
+    var primaryLanguageCode: String? {
+        language ?? languages?.first
+    }
 
     var stableScheduleKey: String {
         if let tmdb = ids.tmdb { return "tmdb-\(tmdb)" }
