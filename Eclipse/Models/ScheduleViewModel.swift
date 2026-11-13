@@ -180,7 +180,7 @@ struct ScheduleEntry: Identifiable, Sendable {
     var hasKnownAiringTime: Bool
     var isStreamingRelease: Bool
     let tmdbId: Int?
-    let originalLanguage: String?
+    var originalLanguage: String?
     let releaseYear: Int?
     var runtimeMinutes: Int?
     let animeMALID: Int?
@@ -1564,13 +1564,55 @@ private final class TraktScheduleService {
         }
 
         let grouped = Dictionary(grouping: items.compactMap { item -> (TraktMovieCalendarItem, Date)? in
-            guard item.isNonAnimeMovie, let date = Self.parseDate(item.released) else { return nil }
+            guard let date = Self.parseDate(item.released) else { return nil }
             return (item, date)
         }, by: { item, _ in item.movie.stableScheduleKey })
+        let candidates = grouped.values.compactMap { group in
+            group.min(by: { $0.1 < $1.1 })
+        }
+
+        let tmdbLookups = candidates.compactMap { candidate -> (Int, String)? in
+            guard let tmdbID = candidate.0.movie.ids.tmdb else { return nil }
+            return (tmdbID, candidate.0.movie.title)
+        }
+        let metadataByTMDBID = await withTaskGroup(
+            of: (Int, String?, String?, Bool).self,
+            returning: [Int: (String?, String?, Bool)].self
+        ) { group in
+            for (tmdbID, title) in tmdbLookups.prefix(80) {
+                group.addTask {
+                    guard let matches = try? await TMDBService.shared.searchMovies(query: title),
+                          let movie = matches.first(where: { $0.id == tmdbID }) else {
+                        return (tmdbID, nil, nil, false)
+                    }
+                    return (
+                        tmdbID,
+                        movie.originalLanguage,
+                        movie.fullPosterURL,
+                        movie.genreIds?.contains(16) == true
+                    )
+                }
+            }
+            var metadata: [Int: (String?, String?, Bool)] = [:]
+            for await (id, language, poster, isAnimation) in group {
+                metadata[id] = (language, poster, isAnimation)
+            }
+            return metadata
+        }
+
         var result: [ScheduleEntry] = []
-        for group in grouped.values {
-            guard let earliest = group.min(by: { $0.1 < $1.1 }) else { continue }
-            result.append(ScheduleEntry(traktMovieItem: earliest.0, releaseDate: earliest.1))
+        for candidate in candidates {
+            let movie = candidate.0.movie
+            let metadata = movie.ids.tmdb.flatMap { metadataByTMDBID[$0] }
+            let originalLanguage = metadata?.0 ?? movie.primaryLanguageCode
+            let genres = (movie.genres ?? []) + (metadata?.2 == true ? ["animation"] : [])
+            guard !MovieSchedulePolicy.isAnime(language: originalLanguage, genres: genres) else {
+                continue
+            }
+            var entry = ScheduleEntry(traktMovieItem: candidate.0, releaseDate: candidate.1)
+            entry.originalLanguage = originalLanguage?.lowercased()
+            entry.coverImage = metadata?.1 ?? entry.coverImage
+            result.append(entry)
         }
         return result.sorted { $0.airingAt < $1.airingAt }
     }
