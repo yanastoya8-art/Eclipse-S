@@ -51,7 +51,7 @@ enum CastMediaPolicy {
 
         let builder = GCKMediaInformationBuilder(contentURL: url)
         builder.contentType = contentType
-        builder.streamType = .buffered
+        builder.streamType = .none
         builder.metadata = metadata
         return builder.build()
     }
@@ -101,13 +101,7 @@ final class EclipseCastCoordinator: NSObject, GCKSessionManagerListener, GCKRequ
             return
         }
         pendingMediaInformation = nil
-        guard let request = remoteClient.loadMedia(mediaInformation) else {
-            NotificationCenter.default.post(
-                name: Self.didFailMediaNotification,
-                object: "The TV receiver did not accept this stream."
-            )
-            return
-        }
+        let request = remoteClient.loadMedia(mediaInformation)
         activeLoadRequest = request
         request.delegate = self
     }
