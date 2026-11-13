@@ -1,0 +1,80 @@
+name: iOS Build and Tests
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-pr-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios-build-and-tests:
+    name: Build and test iPhone/iPad app
+    runs-on: macos-26
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout Eclipse
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Checkout pinned MPVKit
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          repository: Soupy-dev/MPVKit
+          ref: 4410f4665eb137e72fb96a09f9d1542809842c4a
+          path: MPVKit
+
+      - name: Verify MPVKit revision
+        run: |
+          test "$(git -C MPVKit rev-parse HEAD)" = "4410f4665eb137e72fb96a09f9d1542809842c4a"
+          ln -sfn "$GITHUB_WORKSPACE/MPVKit" "$GITHUB_WORKSPACE/../MPVKit"
+
+      - name: Set up Xcode
+        uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Resolve Swift packages
+        run: |
+          set -euo pipefail
+          SOURCE_PACKAGES_DIR="$RUNNER_TEMP/SourcePackages"
+          xcodebuild -resolvePackageDependencies \
+            -project Eclipse.xcodeproj \
+            -scheme Eclipse \
+            -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" \
+            -skipPackagePluginValidation \
+            -skipMacroValidation
+          echo "SOURCE_PACKAGES_DIR=$SOURCE_PACKAGES_DIR" >> "$GITHUB_ENV"
+
+      - name: Select an available iPhone simulator
+        run: |
+          set -euo pipefail
+          DEVICE_ID="$(xcrun simctl list devices available -j | python3 -c 'import json,sys; data=json.load(sys.stdin); devices=[d for group in data["devices"].values() for d in group if d["isAvailable"] and d["name"].startswith("iPhone")]; print(devices[0]["udid"] if devices else "")')"
+          if [ -z "$DEVICE_ID" ]; then
+            echo "::error::No available iPhone simulator was found."
+            exit 1
+          fi
+          echo "SIMULATOR_UDID=$DEVICE_ID" >> "$GITHUB_ENV"
+          xcrun simctl boot "$DEVICE_ID" || true
+
+      - name: Build and run iOS unit tests
+        run: |
+          set -euo pipefail
+          xcodebuild test \
+            -project Eclipse.xcodeproj \
+            -scheme Eclipse \
+            -configuration Debug \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" \
+            -disableAutomaticPackageResolution \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
+            -parallel-testing-enabled NO \
+            CODE_SIGNING_ALLOWED=NO \
+            ENABLE_USER_SCRIPT_SANDBOXING=NO
