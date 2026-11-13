@@ -485,7 +485,7 @@ class TMDBContentFilter: ObservableObject {
             if kidsModeEnabled {
                 await TMDBMaturityRatingStore.shared.resolve(ratingLookups)
             } else {
-                let revisionBeforeLookup = TMDBMaturityRatingStore.shared.revision
+                let revisionBeforeLookup = await MainActor.run { TMDBMaturityRatingStore.shared.revision }
                 Task(priority: .utility) {
                     await TMDBMaturityRatingStore.shared.resolve(ratingLookups)
                     let didResolveNewRatings = await MainActor.run {
