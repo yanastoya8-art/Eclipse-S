@@ -1757,11 +1757,11 @@ private actor JustWatchScheduleService {
 
     func filter(
         entries: [ScheduleEntry],
-        selectedLanguages: Set<String>
+        selectedLanguages: [String]
     ) async -> [ScheduleEntry] {
         guard !selectedLanguages.isEmpty else { return entries }
-        let selectedCodes = Set(selectedLanguages.flatMap { raw in
-            MyDubListLanguage(rawValue: raw)?.episodeMetadataLanguageCodes.map { $0.lowercased() } ?? []
+        let selectedCodes = Set(selectedLanguages.compactMap {
+            MediaLanguageCatalog.filterCanonicalID(for: $0)?.lowercased()
         })
         guard !selectedCodes.isEmpty else { return entries }
 
