@@ -76,6 +76,16 @@ enum MyDubListLanguage: String, CaseIterable, Identifiable, Sendable {
         case .vietnamese: return "vi"
         }
     }
+
+    /// anidub exposes BCP-47 tags for regional Spanish when available.
+    /// The generic "es" entry remains a fallback for Spanish records without
+    /// a confirmed region.
+    var episodeMetadataLanguageCodes: [String] {
+        switch self {
+        case .spanish: return ["es-419", "es-ES", "es"]
+        default: return [taizenLanguageCode]
+        }
+    }
 }
 
 final class MyDubListDubFilter: @unchecked Sendable {
@@ -860,8 +870,8 @@ enum AnimeDubEpisodeVisibilityPolicy {
         dubCountsByLanguage: [String: Int]
     ) -> Int? {
         guard !selectedLanguages.isEmpty else { return nil }
-        let selectedCodes = selectedLanguages.compactMap { rawValue in
-            MyDubListLanguage(rawValue: rawValue)?.taizenLanguageCode
+        let selectedCodes = selectedLanguages.flatMap { rawValue in
+            MyDubListLanguage(rawValue: rawValue)?.episodeMetadataLanguageCodes ?? []
         }
         return selectedCodes.compactMap { dubCountsByLanguage[$0] }.max() ?? 0
     }
@@ -879,5 +889,88 @@ enum AnimeDubEpisodeVisibilityPolicy {
             return selectedLanguages.isEmpty
         }
         return episodeNumber <= limit
+    }
+}
+
+
+enum AnidubAnimeDubMetadataError: Error, LocalizedError {
+    case invalidURL
+    case invalidResponse
+    case http(Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidURL: return "The anidub metadata URL is invalid."
+        case .invalidResponse: return "anidub returned invalid dub metadata."
+        case .http(let status): return "anidub metadata request failed (HTTP \(status))."
+        }
+    }
+}
+
+/// Regional Spanish dub counts from anidub. Its API returns every language
+/// known for a title in one request, including locale-tagged Spanish records.
+actor AnidubAnimeDubMetadataService {
+    static let shared = AnidubAnimeDubMetadataService()
+
+    private struct CachedCounts {
+        let fetchedAt: Date
+        let counts: [String: Int]
+    }
+
+    private var cache: [Int: CachedCounts] = [:]
+    private let cacheLifetime: TimeInterval = 6 * 60 * 60
+    private let maximumResponseBytes = 1 * 1_024 * 1_024
+
+    func episodeDubCounts(anilistID: Int) async throws -> [String: Int] {
+        guard (1...1_000_000_000).contains(anilistID) else {
+            throw AnidubAnimeDubMetadataError.invalidResponse
+        }
+        if let cached = cache[anilistID],
+           Date().timeIntervalSince(cached.fetchedAt) < cacheLifetime {
+            return cached.counts
+        }
+
+        guard let url = URL(string: "https://api.anidub.moe/v1/anime/\(anilistID)") else {
+            throw AnidubAnimeDubMetadataError.invalidURL
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 15
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Eclipse", forHTTPHeaderField: "User-Agent")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try Task.checkCancellation()
+        guard data.count <= maximumResponseBytes,
+              let http = response as? HTTPURLResponse else {
+            throw AnidubAnimeDubMetadataError.invalidResponse
+        }
+        guard http.statusCode == 200 else {
+            throw AnidubAnimeDubMetadataError.http(http.statusCode)
+        }
+        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let responseID = root["anilistId"] as? NSNumber,
+              responseID.intValue == anilistID,
+              let rows = root["dubs"] as? [[String: Any]] else {
+            throw AnidubAnimeDubMetadataError.invalidResponse
+        }
+
+        var counts: [String: Int] = [:]
+        for row in rows {
+            guard let rawLanguage = row["language"] as? String,
+                  rawLanguage.utf8.count <= 32,
+                  let rawStatus = row["status"] as? String,
+                  rawStatus == "dubbed",
+                  let rawCount = row["dubbedEpisodes"] as? NSNumber else { continue }
+            let count = rawCount.intValue
+            guard count > 0, count <= 20_000 else { continue }
+            let language = rawLanguage.lowercased()
+            guard language == "en" || language == "es"
+                    || language == "es-419" || language == "es-es" else { continue }
+            counts[language] = max(counts[language] ?? 0, count)
+        }
+
+        cache[anilistID] = CachedCounts(fetchedAt: Date(), counts: counts)
+        return counts
     }
 }
