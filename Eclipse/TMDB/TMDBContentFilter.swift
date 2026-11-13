@@ -620,6 +620,10 @@ class TMDBContentFilter: ObservableObject {
                 isMovie: true,
                 defaults: .standard
             ) else { return false }
+            if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
+                let language = movie.originalLanguage?.lowercased() ?? ""
+                guard language.hasPrefix("en") || language.hasPrefix("es") else { return false }
+            }
             guard shouldIncludeTMDBAgeRating(
                 isMovie: true,
                 id: movie.id,
@@ -647,6 +651,11 @@ class TMDBContentFilter: ObservableObject {
                 isMovie: false,
                 defaults: .standard
             ) else { return false }
+            if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
+                let language = tvShow.originalLanguage?.lowercased() ?? ""
+                let hasNativeAudio = language.hasPrefix("en") || language.hasPrefix("es")
+                if !hasNativeAudio && !isAnime { return false }
+            }
             guard shouldIncludeTMDBAgeRating(
                 isMovie: false,
                 id: tvShow.id,
@@ -878,7 +887,7 @@ class TMDBContentFilter: ObservableObject {
 
         if defaults.bool(forKey: "catalogRequireEnglishSpanishAudio") {
             let originalLanguage = result.originalLanguage?.lowercased()
-            let hasNativeAudio = originalLanguage == "en" || originalLanguage == "es"
+            let hasNativeAudio = originalLanguage?.hasPrefix("en") == true || originalLanguage?.hasPrefix("es") == true
             if hasNativeAudio { return true }
             guard isAnime else {
                 // TMDB does not publish dub-track availability for general
@@ -906,14 +915,6 @@ class TMDBContentFilter: ObservableObject {
             || (result.genreIds?.contains(16) == true
                 && (result.originalLanguage?.lowercased() == "ja"
                     || result.originCountry?.contains("JP") == true))
-    }
-
-    private static func announcedReleaseDate(for result: TMDBSearchResult) -> Date? {
-        let raw = result.isMovie ? result.releaseDate : (result.firstAirDate ?? result.releaseDate)
-        guard let raw, raw.count >= 10, !raw.hasPrefix("0001-") else { return nil }
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withFullDate]
-        return formatter.date(from: String(raw.prefix(10)))
     }
 
     private static func shouldHideForReleaseDate(
