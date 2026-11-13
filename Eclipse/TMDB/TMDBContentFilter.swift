@@ -984,7 +984,7 @@ actor AnidubAnimeDubMetadataService {
 
         var counts: [String: Int] = [:]
         for row in rows {
-            guard row["stale"] as? Bool != true,
+            guard row["stale"] as? Bool == false,
                   let rawLanguage = row["language"] as? String,
                   rawLanguage.utf8.count <= 32,
                   let rawStatus = row["status"] as? String,
