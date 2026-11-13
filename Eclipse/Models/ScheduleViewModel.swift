@@ -1843,6 +1843,17 @@ enum JustWatchScheduleCachePolicy {
     }
 }
 
+enum ScheduleReleaseDatePolicy {
+    static func earliest(native: Date?, dubbed: Date?) -> Date? {
+        [native, dubbed].compactMap { $0 }.min()
+    }
+
+    static func usesDubbedDate(native: Date?, dubbed: Date?) -> Bool {
+        guard let dubbed else { return false }
+        return native.map { dubbed < $0 } ?? true
+    }
+}
+
 private actor JustWatchScheduleService {
     static let shared = JustWatchScheduleService()
 
@@ -1900,10 +1911,16 @@ private actor JustWatchScheduleService {
                 for entry in seasonEntries {
                     let dubbedDate = dates[entry.episode]
                     let nativeDate = hasNativeRelease ? entry.airingAt : nil
-                    guard let earliestDate = [nativeDate, dubbedDate].compactMap({ $0 }).min() else {
+                    guard let earliestDate = ScheduleReleaseDatePolicy.earliest(
+                        native: nativeDate,
+                        dubbed: dubbedDate
+                    ) else {
                         continue
                     }
-                    let isDubbedReleaseEarlier = dubbedDate.map { $0 < (nativeDate ?? .distantFuture) } ?? false
+                    let isDubbedReleaseEarlier = ScheduleReleaseDatePolicy.usesDubbedDate(
+                        native: nativeDate,
+                        dubbed: dubbedDate
+                    )
                     filtered.append(entry.withAiringAt(
                         earliestDate,
                         isStreamingRelease: isDubbedReleaseEarlier || entry.isStreamingRelease
