@@ -36,11 +36,12 @@ struct ScheduleView: View {
     @State private var kidsScheduleFilterGeneration = 0
 
     private func visibleToProfile(_ entries: [ScheduleEntry]) -> [ScheduleEntry] {
-        guard ProfileManager.shared.isKidsModeActive else { return entries }
-        return entries.filter { entry in
-
+        let profileEntries = UserDefaults.standard.bool(forKey: "catalogHideAnime")
+            ? entries.filter { $0.source != .anime }
+            : entries
+        guard ProfileManager.shared.isKidsModeActive else { return profileEntries }
+        return profileEntries.filter { entry in
             guard let tmdbId = entry.tmdbId else { return false }
-
             guard resolvedKidsScheduleIds.contains(tmdbId) else { return false }
             return !kidsBlockedScheduleIds.contains(tmdbId)
         }
@@ -156,6 +157,16 @@ struct ScheduleView: View {
             refreshKidsScheduleFilter(viewModel.scheduleEntries)
         }
         .onReceive(NotificationCenter.default.publisher(for: MyDubListDubFilter.didRefreshNotification)) { _ in
+            guard isActive else { return }
+            Task {
+                await viewModel.loadSchedule(
+                    mode: selectedScheduleMode,
+                    localTimeZone: showLocalScheduleTime,
+                    forceRefresh: true
+                )
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("scheduleContentFiltersDidChange"))) { _ in
             guard isActive else { return }
             Task {
                 await viewModel.loadSchedule(
