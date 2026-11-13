@@ -20,17 +20,20 @@ struct ResilientArtworkImage<Placeholder: View>: View {
     let decodeSize: CGSize
     let contentMode: ContentMode
     private let placeholder: () -> Placeholder
+    private let onImageLoaded: ((Color) -> Void)?
     @State private var failedURLs: Set<String> = []
 
     init(
         urls: [String],
         decodeSize: CGSize,
         contentMode: ContentMode = .fill,
+        onImageLoaded: ((Color) -> Void)? = nil,
         @ViewBuilder placeholder: @escaping () -> Placeholder
     ) {
         self.urls = urls
         self.decodeSize = decodeSize
         self.contentMode = contentMode
+        self.onImageLoaded = onImageLoaded
         self.placeholder = placeholder
     }
 
@@ -44,6 +47,9 @@ struct ResilientArtworkImage<Placeholder: View>: View {
                 KFImage(URL(string: imageURL))
                     .setProcessor(DownsamplingImageProcessor(size: decodeSize))
                     .placeholder { placeholder() }
+#if canImport(UIKit)
+                    .onSuccess { result in onImageLoaded?(Color.ambientColor(from: result.image)) }
+#endif
                     .onFailure { _ in failedURLs.insert(imageURL) }
                     .resizable()
                     .aspectRatio(contentMode: contentMode)
@@ -103,7 +109,7 @@ struct StretchyHeaderView: View {
                             KFImage(URL(string: imageURL))
                                 .setProcessor(DownsamplingImageProcessor(size: resolvedImageDecodeSize))
                                 .placeholder { Rectangle().fill(placeholderColor) }
-                                .onSuccess { result in updateAmbientColor(from: result.image) }
+                                .onSuccess { result in updateAmbientColor(from: result.image, url: imageURL) }
                                 .onFailure { _ in failedImageURLs.insert(imageURL) }
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
@@ -133,8 +139,8 @@ struct StretchyHeaderView: View {
         .onChange(of: imageCandidates) { _, _ in failedImageURLs.removeAll() }
     }
 
-    private func updateAmbientColor(from image: UIImage) {
-        let cacheKey = backdropURL as NSString?
+    private func updateAmbientColor(from image: UIImage, url: String) {
+        let cacheKey = url as NSString?
         if let cacheKey,
            let cachedColor = StretchyHeaderAmbientColorCache.values.object(forKey: cacheKey) {
             applyAmbientColor(Color(cachedColor))
