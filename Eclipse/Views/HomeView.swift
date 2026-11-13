@@ -1202,25 +1202,19 @@ struct HomeView: View {
     private func macHeroArtwork(_ hero: TMDBSearchResult, layout: MacHomeHeroLayout) -> some View {
         let imageURL = heroImageURL(for: hero)
         return ZStack {
-            KFImage(URL(string: imageURL ?? ""))
-                .setProcessor(DownsamplingImageProcessor(size: homeImageDecodeSize(width: layout.width, height: layout.height)))
-                .placeholder { theme.backgroundBase }
-                .onSuccess { result in
-                    guard let imageURL, macHeroAmbientImageURL != imageURL else { return }
-                    macHeroAmbientImageURL = imageURL
-                    DispatchQueue.global(qos: .utility).async {
-                        let color = Color.ambientColor(from: result.image)
-                        DispatchQueue.main.async {
-                            guard homeViewModel.heroContent?.stableIdentity == hero.stableIdentity,
-                                  currentHeroImageURL == imageURL else { return }
-                            homeViewModel.ambientColor = color
-                        }
-                    }
+            ResilientArtworkImage(
+                urls: ([imageURL].compactMap { $0 } + heroImageFallbackURLs(for: hero)),
+                decodeSize: homeImageDecodeSize(width: layout.width, height: layout.height),
+                contentMode: .fill,
+                onImageLoaded: { color in
+                    guard homeViewModel.heroContent?.stableIdentity == hero.stableIdentity else { return }
+                    homeViewModel.ambientColor = color
                 }
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-                .frame(width: layout.width, height: layout.height, alignment: .center)
-                .clipped()
+            ) {
+                theme.backgroundBase
+            }
+            .frame(width: layout.width, height: layout.height, alignment: .center)
+            .clipped()
 
             LinearGradient(
                 stops: [
