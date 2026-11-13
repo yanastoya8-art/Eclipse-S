@@ -1987,15 +1987,16 @@ struct MediaDetailContentView: View {
         if mediaDetailTitleArtworkEnabled && !titleArtworkLookupComplete {
             Color.clear.frame(width: compact ? 330 : 480, height: compact ? 88 : 112)
         } else if mediaDetailTitleArtworkEnabled, let logoURL, failedTitleLogoURL != logoURL {
-            KFImage(URL(string: logoURL))
-                .setProcessor(DownsamplingImageProcessor(size: homeImageDecodeSize(width: 480, height: 112)))
-                .placeholder { Color.clear }
-                .onFailure { _ in failedTitleLogoURL = logoURL }
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(maxWidth: compact ? 330 : 480, maxHeight: compact ? 88 : 112, alignment: .leading)
-                .accessibilityLabel(searchResult.displayTitle)
-                .accessibilityAddTraits(.isHeader)
+            ResilientArtworkImage(
+                urls: [logoURL],
+                decodeSize: homeImageDecodeSize(width: 480, height: 112),
+                contentMode: .fit
+            ) {
+                macDetailTitleText(compact: compact)
+            }
+            .frame(maxWidth: compact ? 330 : 480, maxHeight: compact ? 88 : 112, alignment: .leading)
+            .accessibilityLabel(searchResult.displayTitle)
+            .accessibilityAddTraits(.isHeader)
         } else {
             macDetailTitleText(compact: compact)
         }
@@ -2283,14 +2284,15 @@ struct MediaDetailContentView: View {
         if mediaDetailTitleArtworkEnabled && !titleArtworkLookupComplete {
             Color.clear.frame(width: 380, height: 118)
         } else if mediaDetailTitleArtworkEnabled, let logoURL, failedTitleLogoURL != logoURL {
-            KFImage(URL(string: logoURL))
-                .setProcessor(DownsamplingImageProcessor(size: homeImageDecodeSize(width: 380, height: 118)))
-                .placeholder { Color.clear }
-                .onFailure { _ in failedTitleLogoURL = logoURL }
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(maxWidth: 380, maxHeight: 118, alignment: .leading)
-                .shadow(color: .black.opacity(0.48), radius: 8, x: 0, y: 4)
+            ResilientArtworkImage(
+                urls: [logoURL],
+                decodeSize: homeImageDecodeSize(width: 380, height: 118),
+                contentMode: .fit
+            ) {
+                iPadImmersiveTitleText
+            }
+            .frame(maxWidth: 380, maxHeight: 118, alignment: .leading)
+            .shadow(color: .black.opacity(0.48), radius: 8, x: 0, y: 4)
         } else {
             iPadImmersiveTitleText
         }
@@ -2741,18 +2743,19 @@ struct MediaDetailContentView: View {
                     height: ExperimentalFeatureState.isEnabledAtLaunch ? (isTvOS ? 250 : 132) : (usesWideDetailLayout ? 140 : 100)
                 )
         } else if let logoURL = logoURL, failedTitleLogoURL != logoURL {
-            KFImage(URL(string: logoURL))
-                .setProcessor(DownsamplingImageProcessor(size: homeImageDecodeSize(width: isTvOS ? 720 : (usesWideDetailLayout ? 420 : 334), height: isTvOS ? 250 : 140)))
-                .placeholder { Color.clear }
-                .onFailure { _ in failedTitleLogoURL = logoURL }
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(
-                    maxWidth: ExperimentalFeatureState.isEnabledAtLaunch ? (isTvOS ? 720 : (usesWideDetailLayout ? 420 : 334)) : (usesWideDetailLayout ? 400 : 280),
-                    maxHeight: ExperimentalFeatureState.isEnabledAtLaunch ? (isTvOS ? 250 : 132) : (usesWideDetailLayout ? 140 : 100)
-                )
-                .shadow(color: .black.opacity(0.52), radius: 6, x: 0, y: 3)
-                .padding(.horizontal, ExperimentalFeatureState.isEnabledAtLaunch ? (isTvOS ? 60 : (usesWideDetailLayout ? 36 : 26)) : 0)
+            ResilientArtworkImage(
+                urls: [logoURL],
+                decodeSize: homeImageDecodeSize(width: isTvOS ? 720 : (usesWideDetailLayout ? 420 : 334), height: isTvOS ? 250 : 140),
+                contentMode: .fit
+            ) {
+                titleText
+            }
+            .frame(
+                maxWidth: ExperimentalFeatureState.isEnabledAtLaunch ? (isTvOS ? 720 : (usesWideDetailLayout ? 420 : 334)) : (usesWideDetailLayout ? 400 : 280),
+                maxHeight: ExperimentalFeatureState.isEnabledAtLaunch ? (isTvOS ? 250 : 132) : (usesWideDetailLayout ? 140 : 100)
+            )
+            .shadow(color: .black.opacity(0.52), radius: 6, x: 0, y: 3)
+            .padding(.horizontal, ExperimentalFeatureState.isEnabledAtLaunch ? (isTvOS ? 60 : (usesWideDetailLayout ? 36 : 26)) : 0)
         } else {
             titleText
                 .padding(.horizontal, ExperimentalFeatureState.isEnabledAtLaunch ? (isTvOS ? 60 : (usesWideDetailLayout ? 36 : 26)) : 0)
