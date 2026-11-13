@@ -1869,7 +1869,7 @@ struct HomeView: View {
 
     @ViewBuilder
     private func heroTitleArtwork(_ hero: TMDBSearchResult) -> some View {
-        if heroArtworkIdentity == hero.stableIdentity && !heroLogoLookupComplete {
+        if heroArtworkIdentity != hero.stableIdentity || !heroLogoLookupComplete {
             Color.clear
                 .frame(maxWidth: heroLogoMaxWidth, maxHeight: heroLogoMaxHeight)
         } else if let logoURL = currentHeroLogoURL(for: hero) {
