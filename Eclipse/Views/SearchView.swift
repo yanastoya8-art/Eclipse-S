@@ -2246,8 +2246,8 @@ private struct BrowseMediaView: View {
             for _ in 0..<min(concurrencyLimit, candidates.count) {
                 guard let (index, result) = iterator.next() else { continue }
                 group.addTask {
-                    let mappingResult = await AniMapMappingService.shared.mappingsResult(forTMDBShowId: result.id)
-                    let mapping = mappingResult.mappings
+                    let mappings = await AniMapMappingService.shared.mappings(forTMDBShowId: result.id)
+                    let mapping = mappings
                         .filter { $0.mediaType?.lowercased() != "movie" }
                         .first { $0.anilistId != nil }
                         ?? mappingResult.mappings.first { $0.anilistId != nil }
@@ -2295,8 +2295,8 @@ private struct BrowseMediaView: View {
                 resolvedByIndex[index] = result
                 if let (nextIndex, nextResult) = iterator.next() {
                     group.addTask {
-                        let mappingResult = await AniMapMappingService.shared.mappingsResult(forTMDBShowId: nextResult.id)
-                        let mapping = mappingResult.mappings
+                        let mappings = await AniMapMappingService.shared.mappings(forTMDBShowId: nextResult.id)
+                        let mapping = mappings
                             .filter { $0.mediaType?.lowercased() != "movie" }
                             .first { $0.anilistId != nil }
                             ?? mappingResult.mappings.first { $0.anilistId != nil }
