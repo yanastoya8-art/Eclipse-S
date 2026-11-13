@@ -16991,7 +16991,7 @@ private final class LGWebOSCastCoordinator {
               components.user == nil, components.password == nil,
               components.port == nil, components.path.isEmpty,
               components.query == nil, components.fragment == nil,
-              host.range(of: #"^[0-9]{1,3}(\\.[0-9]{1,3}){3}$"#, options: .regularExpression) != nil,
+              host.range(of: #"^[0-9]{1,3}(\.[0-9]{1,3}){3}$"#, options: .regularExpression) != nil,
               host.split(separator: ".").allSatisfy({ Int($0).map { (0...255).contains($0) } == true }) else {
             throw LGWebOSCastError.invalidAddress
         }
