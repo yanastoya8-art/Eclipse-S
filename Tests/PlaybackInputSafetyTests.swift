@@ -1424,7 +1424,7 @@ final class CastMediaPolicyTests: XCTestCase {
 
 final class MPVDolbyPlaybackSettingsTests: XCTestCase {
     func testTrueHDAtmosAddsTrueHDAlongsideEAC3Passthrough() throws {
-        let suite = "Eclipse.TrueHDAtmos.\\(UUID().uuidString)"
+        let suite = "Eclipse.TrueHDAtmos.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set(true, forKey: "mpvDolbyAtmosEnabled")
@@ -1437,7 +1437,7 @@ final class MPVDolbyPlaybackSettingsTests: XCTestCase {
     }
 
     func testTrueHDAtmosDisabledRetainsExistingEAC3AtmosPassthrough() throws {
-        let suite = "Eclipse.TrueHDAtmosDisabled.\\(UUID().uuidString)"
+        let suite = "Eclipse.TrueHDAtmosDisabled.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set(true, forKey: "mpvDolbyAtmosEnabled")
@@ -1448,7 +1448,7 @@ final class MPVDolbyPlaybackSettingsTests: XCTestCase {
     }
 
     func testTrueHDAtmosCannotOverrideDisabledSurroundSound() throws {
-        let suite = "Eclipse.TrueHDAtmosStereo.\\(UUID().uuidString)"
+        let suite = "Eclipse.TrueHDAtmosStereo.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set(true, forKey: "mpvDolbyAtmosEnabled")
@@ -1461,9 +1461,9 @@ final class MPVDolbyPlaybackSettingsTests: XCTestCase {
     }
 
     func testStremioStreamDisplayNamePreservesAddonFormattingVerbatim() throws {
-        let rawName = "  1080p\\n\\nDolby Vision  "
+        let rawName = "  1080p\n\nDolby Vision  "
         let json = """
-        {"url":"https://media.example/stream.m3u8","name":"  1080p\\n\\nDolby Vision  ","title":"Fallback title"}
+        {"url":"https://media.example/stream.m3u8","name":"  1080p\n\nDolby Vision  ","title":"Fallback title"}
         """
         let stream = try JSONDecoder().decode(StremioStream.self, from: Data(json.utf8))
         XCTAssertEqual(stream.displayName, rawName)
