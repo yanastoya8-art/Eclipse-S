@@ -1673,6 +1673,7 @@ class TMDBService: ObservableObject {
         keywordIds: [Int] = [],
         excludedKeywordIds: [Int] = [],
         year: Int? = nil,
+        dateGte: String? = nil,
         originCountries: [String] = [],
         originalLanguage: String? = nil,
         sortBy: String = "popularity.desc",
@@ -1710,6 +1711,11 @@ class TMDBService: ObservableObject {
         if let year {
             let yearKey = normalizedMediaType == "tv" ? "first_air_date_year" : "primary_release_year"
             queryItems.append(URLQueryItem(name: yearKey, value: "\(year)"))
+        }
+
+        if let dateGte, dateGte.count == 10 {
+            let dateKey = normalizedMediaType == "tv" ? "first_air_date.gte" : "primary_release_date.gte"
+            queryItems.append(URLQueryItem(name: dateKey, value: dateGte))
         }
 
         if let originCountryValue = TMDBDiscoverFilterPolicy.originCountryQueryValue(originCountries) {
