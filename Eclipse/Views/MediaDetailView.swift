@@ -453,6 +453,7 @@ struct MediaDetailContentView: View {
     @State private var trackerPlaybackPresentationGeneration = UUID()
     @State private var romajiTitle: String?
     @State private var logoURL: String?
+    @State private var failedTitleLogoURL: String?
     @State private var alternatePosterURL: String?
     @State private var tvMazePosterURL: String?
     @State private var isAnimeShow = false
@@ -2477,7 +2478,8 @@ struct MediaDetailContentView: View {
                 onAmbientColorExtracted: { color in
                     ambientColor = color
                 },
-                placeholderColor: shouldAnalyzeAlternatePoster ? .clear : Color.gray.opacity(0.3)
+                placeholderColor: shouldAnalyzeAlternatePoster ? .clear : Color.gray.opacity(0.3),
+                fallbackImageURLs: detailHeroFallbackImageURLs
             )
 #if DEBUG
             if ProcessInfo.processInfo.environment["ECLIPSE_UI_POSTER_AUDIT"] == "1" {
@@ -2567,6 +2569,24 @@ struct MediaDetailContentView: View {
             )
             .frame(height: 120)
             .clipShape(RoundedRectangle(cornerRadius: 0))
+        }
+    }
+
+    private var detailHeroFallbackImageURLs: [String] {
+        let primary = detailHeroImageURL
+        let candidates: [String?] = [
+            alternatePosterURL, tvMazePosterURL, searchResult.fullBackdropURL,
+            searchResult.fullPosterURL, searchResult.animeArtworkURL,
+            movieDetail?.fullBackdropURL, movieDetail?.fullPosterURL,
+            tvShowDetail?.fullBackdropURL, tvShowDetail?.fullPosterURL
+        ]
+        var seen: Set<String> = []
+        return candidates.compactMap { $0 }.filter { value in
+            guard value != primary,
+                  let url = URL(string: value),
+                  ["https", "http"].contains(url.scheme?.lowercased() ?? ""),
+                  url.host != nil else { return false }
+            return seen.insert(value).inserted
         }
     }
 
@@ -2719,10 +2739,11 @@ struct MediaDetailContentView: View {
                     width: ExperimentalFeatureState.isEnabledAtLaunch ? (isTvOS ? 720 : (usesWideDetailLayout ? 420 : 334)) : (usesWideDetailLayout ? 400 : 280),
                     height: ExperimentalFeatureState.isEnabledAtLaunch ? (isTvOS ? 250 : 132) : (usesWideDetailLayout ? 140 : 100)
                 )
-        } else if let logoURL = logoURL {
+        } else if let logoURL = logoURL, failedTitleLogoURL != logoURL {
             KFImage(URL(string: logoURL))
                 .setProcessor(DownsamplingImageProcessor(size: homeImageDecodeSize(width: isTvOS ? 720 : (usesWideDetailLayout ? 420 : 334), height: isTvOS ? 250 : 140)))
                 .placeholder { Color.clear }
+                .onFailure { _ in failedTitleLogoURL = logoURL }
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(
@@ -6889,6 +6910,7 @@ struct MediaDetailContentView: View {
             titleArtworkLookupComplete = true
             if let images {
                 logoURL = tmdbService.getBestLogo(from: images, preferredLanguage: language)?.fullURL
+                failedTitleLogoURL = nil
             }
             cacheOptionalPresentation(key: cacheKey)
             if analyzeAlternate, shouldAnalyzeAlternatePoster, let images {
@@ -7126,6 +7148,7 @@ struct MediaDetailContentView: View {
 #if os(iOS)
         romajiTitle = nil
         logoURL = nil
+        failedTitleLogoURL = nil
         castMembers = []
 #endif
         seasonDetail = nil
