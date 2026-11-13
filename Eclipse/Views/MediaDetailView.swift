@@ -6916,6 +6916,12 @@ struct MediaDetailContentView: View {
                     tvMazePosterURL = await tmdbService.getTVMazePosterURL(imdbID: imdbID)
                 }
                 cacheOptionalPresentation(key: cacheKey)
+            } else if analyzeAlternate, shouldAnalyzeAlternatePoster {
+                if !isMovie, let imdbID = tvShowDetail?.externalIds?.imdbId {
+                    tvMazePosterURL = await tmdbService.getTVMazePosterURL(imdbID: imdbID)
+                }
+                alternatePosterWasResolved = true
+                cacheOptionalPresentation(key: cacheKey)
             }
             let romaji = await romajiResult
             let credits = await creditsResult
