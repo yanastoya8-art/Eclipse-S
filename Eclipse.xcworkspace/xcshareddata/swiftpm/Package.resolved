@@ -1,5 +1,5 @@
 {
-  "originHash": "a97b8465156bd61489677a59c2e10ab5f4d0bbf90958605deb6e12a1d63e3700",
+  "originHash": "03314255f38e1d62592078420e0be3a2f9972a99b5d4dcce547b84a7cd371745",
   "pins": [
     {
       "identity": "google-cast-ios-sdk",
@@ -62,6 +62,14 @@
       "state": {
         "revision": "22787ffb59de99e5dc1fbfe80b19c97a904ad48d",
         "version": "0.9.20"
+      }
+    },
+    {
+      "identity": "mpvkit-s",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/yanastoya8-art/MPVKit-S.git",
+      "state": {
+        "revision": "fee7aa27869ed4775ff2984de4438484d902e67b"
       }
     }
   ],
