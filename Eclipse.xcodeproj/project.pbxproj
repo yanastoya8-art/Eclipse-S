@@ -1915,7 +1915,7 @@
 			mainGroup = 13F072522E4B2D3300EF90EB;
 			packageReferences = (
 				13A46CFE2EF5944C00423BC6 /* XCRemoteSwiftPackageReference "Kingfisher" */,
-				136C25C42EFE950300E37A6E /* XCLocalSwiftPackageReference "MPVKit" */,
+				136C25C42EFE950300E37A6E /* XCRemoteSwiftPackageReference "MPVKit-S" */,
 				C0A5A0032FD1000000C0A503 /* XCRemoteSwiftPackageReference "plcrashreporter" */,
 				AD0000212FD9000000AD0021 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
 				AD0000312FDA000000AD0031 /* XCRemoteSwiftPackageReference "Nuke" */,
@@ -2679,9 +2679,13 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		136C25C42EFE950300E37A6E /* XCLocalSwiftPackageReference "MPVKit" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = ../MPVKit;
+		136C25C42EFE950300E37A6E /* XCRemoteSwiftPackageReference "MPVKit-S" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/yanastoya8-art/MPVKit-S.git";
+			requirement = {
+				branch = "eclipse-mpv-metal";
+				kind = branch;
+			};
 		};
 /* End XCLocalSwiftPackageReference section */
 
@@ -2747,7 +2751,7 @@
 /* Begin XCSwiftPackageProductDependency section */
 		136C25C52EFE950300E37A6E /* MPVKit-GPL */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 136C25C42EFE950300E37A6E /* XCLocalSwiftPackageReference "MPVKit" */;
+			package = 136C25C42EFE950300E37A6E /* XCRemoteSwiftPackageReference "MPVKit-S" */;
 			productName = "MPVKit-GPL";
 		};
 		13A46CFF2EF5944C00423BC6 /* Kingfisher */ = {
