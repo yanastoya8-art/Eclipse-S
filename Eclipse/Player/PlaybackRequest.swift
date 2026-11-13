@@ -73,11 +73,13 @@ struct PlaybackProgressRecoveryGuard {
 struct MPVDolbyPlaybackSettings {
     let visionEnabled: Bool
     let atmosEnabled: Bool
+    let trueHDAtmosEnabled: Bool
     let surroundEnabled: Bool
 
     init(defaults: UserDefaults) {
         visionEnabled = defaults.object(forKey: "mpvDolbyVisionEnabled") as? Bool ?? true
         atmosEnabled = defaults.object(forKey: "mpvDolbyAtmosEnabled") as? Bool ?? true
+        trueHDAtmosEnabled = defaults.object(forKey: "mpvTrueHDAtmosEnabled") as? Bool ?? false
         surroundEnabled = defaults.object(forKey: "mpvSurroundSoundEnabled") as? Bool ?? true
     }
 
@@ -87,9 +89,15 @@ struct MPVDolbyPlaybackSettings {
 
     var options: [String: String] {
         let compressedAudio = atmosEnabled && surroundEnabled
+        let passthroughCodecs: String
+        if compressedAudio {
+            passthroughCodecs = trueHDAtmosEnabled ? "eac3,truehd" : "eac3"
+        } else {
+            passthroughCodecs = ""
+        }
         var values = [
             "apple-compressed-audio": compressedAudio ? "yes" : "no",
-            "audio-spdif": compressedAudio ? "eac3" : "",
+            "audio-spdif": passthroughCodecs,
             "audio-channels": surroundEnabled ? "auto" : "stereo"
         ]
         if !visionEnabled {
