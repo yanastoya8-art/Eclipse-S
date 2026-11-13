@@ -61,11 +61,11 @@ jobs:
         with:
           repository: yanastoya8-art/MPVKit-S
           ref: fee7aa27869ed4775ff2984de4438484d902e67b
-          path: SourcePackages/checkouts/mpvkit-s
+          path: MPVKit
       - name: Verify immutable MPVKit checkout
         env:
           MPVKIT_SOURCE_REVISION: fee7aa27869ed4775ff2984de4438484d902e67b
-        run: test "$(git -C SourcePackages/checkouts/mpvkit-s rev-parse HEAD)" = "$MPVKIT_SOURCE_REVISION"
+        run: test "$(git -C MPVKit rev-parse HEAD)" = "$MPVKIT_SOURCE_REVISION"
 
       - name: Build patched MPVKit for iPhone and iPad
         run: |
@@ -75,9 +75,8 @@ jobs:
           python3 -m venv "$MPVKIT_BUILD_VENV"
           "$MPVKIT_BUILD_VENV/bin/python" -m pip install --disable-pip-version-check meson==1.4.2
           export PATH="$MPVKIT_BUILD_VENV/bin:$PATH"
-          make -C SourcePackages/checkouts/mpvkit-s build enable-gpl version=0.41.0 platform=ios
-          test -f SourcePackages/checkouts/mpvkit-s/dist/release/Package.swift
-          echo "MPVKIT_LOCAL_ARTIFACTS_DIR=$GITHUB_WORKSPACE/SourcePackages/checkouts/mpvkit-s/dist/release" >> "$GITHUB_ENV"
+          make -C MPVKit build enable-gpl version=0.41.0 platform=ios
+          test -f MPVKit/dist/release/Package.swift
 
       - name: Set up Xcode
         uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
@@ -169,7 +168,23 @@ jobs:
         run: |
           set -euo pipefail
 
-          SOURCE_PACKAGES_DIR="$GITHUB_WORKSPACE/SourcePackages"
+          SOURCE_PACKAGES_DIR="$RUNNER_TEMP/SourcePackages"
+          xcodebuild -resolvePackageDependencies \
+            -project Eclipse.xcodeproj \
+            -scheme Eclipse \
+            -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" \
+            -skipPackagePluginValidation \
+            -skipMacroValidation
+
+          # Stage rebuilt XCFrameworks inside the exact SwiftPM checkout. The
+          # MPVKit manifest rejects local artifact paths outside its package root.
+          MPVKIT_PACKAGE_CHECKOUT="$SOURCE_PACKAGES_DIR/checkouts/mpvkit-s"
+          test -f "$MPVKIT_PACKAGE_CHECKOUT/Package.swift"
+          test "$(git -C "$MPVKIT_PACKAGE_CHECKOUT" rev-parse HEAD)" = "$MPVKIT_SOURCE_REVISION"
+          mkdir -p "$MPVKIT_PACKAGE_CHECKOUT/dist/release"
+          rsync -a --delete MPVKit/dist/release/ "$MPVKIT_PACKAGE_CHECKOUT/dist/release/"
+          MPVKIT_LOCAL_ARTIFACTS_DIR="$MPVKIT_PACKAGE_CHECKOUT/dist/release"
+          export MPVKIT_LOCAL_ARTIFACTS_DIR
           xcodebuild -resolvePackageDependencies \
             -project Eclipse.xcodeproj \
             -scheme Eclipse \
@@ -211,7 +226,8 @@ jobs:
           PY
 
           echo "SOURCE_PACKAGES_DIR=$SOURCE_PACKAGES_DIR" >> "$GITHUB_ENV"
-          echo "Using local MPVKit checkout: $(git -C SourcePackages/checkouts/mpvkit-s rev-parse HEAD)"
+          echo "MPVKIT_LOCAL_ARTIFACTS_DIR=$MPVKIT_LOCAL_ARTIFACTS_DIR" >> "$GITHUB_ENV"
+          echo "Using local MPVKit checkout: $(git -C MPVKit rev-parse HEAD)"
 
       - name: Build unsigned archive
         run: |
