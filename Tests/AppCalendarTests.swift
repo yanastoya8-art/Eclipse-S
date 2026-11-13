@@ -66,6 +66,47 @@ final class AppCalendarTests: XCTestCase {
         }
     }
 
+    func testDailyScheduleRefreshRunsOnlyOnceAfterSuccessPerLocalDay() throws {
+        let formatter = ISO8601DateFormatter()
+        let first = try XCTUnwrap(formatter.date(from: "2026-11-13T08:00:00Z"))
+        let later = try XCTUnwrap(formatter.date(from: "2026-11-13T20:00:00Z"))
+        let nextDay = try XCTUnwrap(formatter.date(from: "2026-11-14T00:01:00Z"))
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+
+        XCTAssertTrue(DailyScheduleRefreshPolicy.shouldRefresh(
+            now: first, lastSuccessfulRefresh: nil, lastAttempt: nil, calendar: calendar
+        ))
+        XCTAssertFalse(DailyScheduleRefreshPolicy.shouldRefresh(
+            now: later, lastSuccessfulRefresh: first, lastAttempt: first, calendar: calendar
+        ))
+        XCTAssertTrue(DailyScheduleRefreshPolicy.shouldRefresh(
+            now: nextDay, lastSuccessfulRefresh: first, lastAttempt: first, calendar: calendar
+        ))
+    }
+
+    func testDailyScheduleRefreshRetriesFailedAttemptsAfterCooldown() throws {
+        let formatter = ISO8601DateFormatter()
+        let attempted = try XCTUnwrap(formatter.date(from: "2026-11-13T08:00:00Z"))
+        let withinCooldown = try XCTUnwrap(formatter.date(from: "2026-11-13T09:59:59Z"))
+        let afterCooldown = try XCTUnwrap(formatter.date(from: "2026-11-13T10:00:00Z"))
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+
+        XCTAssertFalse(DailyScheduleRefreshPolicy.shouldRefresh(
+            now: withinCooldown,
+            lastSuccessfulRefresh: nil,
+            lastAttempt: attempted,
+            calendar: calendar
+        ))
+        XCTAssertTrue(DailyScheduleRefreshPolicy.shouldRefresh(
+            now: afterCooldown,
+            lastSuccessfulRefresh: nil,
+            lastAttempt: attempted,
+            calendar: calendar
+        ))
+    }
+
     func testScheduleWindowsIgnoreNonGregorianCalendarIdentifiers() throws {
         let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-11-01T06:00:00Z"))
         for timeZone in ["America/New_York", "Asia/Tokyo", "Pacific/Kiritimati"] {

@@ -24,3 +24,25 @@ enum AppCalendar {
         1950...max(1950, gregorian(matching: calendar).component(.year, from: now))
     }
 }
+
+/// Pure policy for the once-per-local-day schedule refresh.
+enum DailyScheduleRefreshPolicy {
+    static let retryInterval: TimeInterval = 2 * 60 * 60
+
+    static func shouldRefresh(
+        now: Date,
+        lastSuccessfulRefresh: Date?,
+        lastAttempt: Date?,
+        calendar: Calendar = AppCalendar.current
+    ) -> Bool {
+        if let lastSuccessfulRefresh,
+           calendar.isDate(lastSuccessfulRefresh, inSameDayAs: now) {
+            return false
+        }
+        if let lastAttempt,
+           now.timeIntervalSince(lastAttempt) < retryInterval {
+            return false
+        }
+        return true
+    }
+}

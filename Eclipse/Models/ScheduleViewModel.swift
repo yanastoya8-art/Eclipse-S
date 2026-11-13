@@ -320,25 +320,29 @@ final class ScheduleViewModel: ObservableObject {
 
     init() {}
 
-    /// Refreshes the visible schedule at most once per local calendar day.
-    /// The refresh runs when the app is active; iOS may suspend apps in the
-    /// background, so this is deliberately not presented as an exact-time job.
+    /// Refreshes the visible calendar once per local day, retrying failures
+    /// after a cooldown. iOS may suspend background work, so execution time
+    /// remains controlled by the operating system.
     @MainActor
-    func refreshCalendarIfNeeded(now: Date = Date()) async {
-        guard !dailyCalendarRefreshInProgress else { return }
-        let calendar = AppCalendar.current
-        let today = calendar.startOfDay(for: now)
-        let key = "animeCalendarLastAutomaticRefreshDayV1"
-        if let lastRefresh = UserDefaults.standard.object(forKey: key) as? Date,
-           calendar.isDate(lastRefresh, inSameDayAs: today) {
-            return
+    func refreshCalendarIfNeeded(now: Date = Date()) async -> Bool {
+        guard !dailyCalendarRefreshInProgress else { return true }
+        let defaults = UserDefaults.standard
+        let successKey = "animeCalendarLastAutomaticRefreshSuccessV1"
+        let attemptKey = "animeCalendarLastAutomaticRefreshAttemptV1"
+        let lastSuccess = defaults.object(forKey: successKey) as? Date
+        let lastAttempt = defaults.object(forKey: attemptKey) as? Date
+        guard DailyScheduleRefreshPolicy.shouldRefresh(
+            now: now,
+            lastSuccessfulRefresh: lastSuccess,
+            lastAttempt: lastAttempt
+        ) else {
+            return true
         }
 
         dailyCalendarRefreshInProgress = true
         defer { dailyCalendarRefreshInProgress = false }
-        // Persist the attempt before awaiting network work so the five-minute
-        // foreground maintenance timer cannot repeatedly restart a failed fetch.
-        UserDefaults.standard.set(now, forKey: key)
+        defaults.set(now, forKey: attemptKey)
+        let revisionBeforeRefresh = scheduleEntriesRevision
         let mode = loadedScheduleMode ?? .anime
         await MyDubListDubFilter.shared.refresh()
         await loadSchedule(
@@ -346,11 +350,21 @@ final class ScheduleViewModel: ObservableObject {
             localTimeZone: currentLocalTimeZone,
             forceRefresh: true
         )
-        if errorMessage == nil, !isLoading {
+
+        let didPublishFreshSchedule = scheduleEntriesRevision != revisionBeforeRefresh
+            && !isLoading
+            && errorMessage == nil
+        if didPublishFreshSchedule {
+            defaults.set(now, forKey: successKey)
             Logger.shared.log("Schedule calendar: completed daily automatic refresh", type: "Anime")
-        } else {
-            Logger.shared.log("Schedule calendar: daily automatic refresh did not complete: \(errorMessage ?? "unknown error")", type: "Anime")
+            return true
         }
+
+        Logger.shared.log(
+            "Schedule calendar: automatic refresh failed; it will retry after the cooldown. \(errorMessage ?? "No fresh schedule was published.")",
+            type: "Anime"
+        )
+        return false
     }
 
     func loadSchedule(
@@ -670,29 +684,18 @@ final class ScheduleViewModel: ObservableObject {
                 let result = try await self.retryOnceAfterTransientCancellation(operationName: "AniList schedule") {
                     try await AniListService.shared.fetchAiringScheduleResult(daysAhead: dayCount)
                 }
-                let mappedEntries = result.entries.map(ScheduleEntry.init(animeEntry:))
+                // Anime schedule records carry AniList/MAL identity, but no
+                // TMDB show ID or season number. JustWatch's episode endpoint
+                // requires a verified show + season identity; passing these
+                // records through it would query season 0 and drop valid dates.
+                // Anime dub dates therefore remain governed by the anime schedule
+                // provider and its language-aware fallback policy.
+                let entries = result.entries.map(ScheduleEntry.init(animeEntry:))
                 try Task.checkCancellation()
-                let selectedLanguages = MyDubListDubFilter.shared.selectedLanguages
-                // Resolve actual dubbed episode availability dates from JustWatch
-                // provider offers (e.g. Crunchyroll, Netflix, Hulu, HIDIVE) instead
-                // of displaying the Japanese broadcast date as a Spanish dub date.
-                let entries = selectedLanguages.isEmpty
-                    ? mappedEntries
-                    : await JustWatchScheduleService.shared.filter(
-                        entries: mappedEntries,
-                        selectedLanguages: selectedLanguages
-                    )
-                try Task.checkCancellation()
-                let providerNotice: String?
-                if !selectedLanguages.isEmpty, !mappedEntries.isEmpty, entries.isEmpty {
-                    providerNotice = "No provider-confirmed episode dates were found for the selected dub languages in your JustWatch region."
-                } else {
-                    providerNotice = result.notice
-                }
                 let loadResult = AnimeScheduleLoadResult(
                     entries: entries,
                     isAuthoritativeForNotifications: result.isAuthoritativeForNotifications,
-                    notice: providerNotice
+                    notice: result.notice
                 )
                 if self.animeScheduleLoadID == loadID {
                     self.animeScheduleResult = loadResult

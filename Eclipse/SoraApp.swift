@@ -70,8 +70,8 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         }
         task.expirationHandler = { refreshWork.cancel() }
         Task {
-            await refreshWork.value
-            task.setTaskCompleted(success: !refreshWork.isCancelled)
+            let succeeded = await refreshWork.value
+            task.setTaskCompleted(success: succeeded)
         }
     }
 #endif
@@ -454,17 +454,18 @@ struct SoraApp: App {
                     MediaStateSyncBootstrap.syncOnActivation()
                     ExperimentalCloudSyncManager.shared.syncOnActivationIfNeeded(reason: "active")
                     Task {
+                        _ = await ScheduleViewModel.shared.refreshCalendarIfNeeded()
                         await LocalNotificationManager.shared.refreshAuthorizationStatus()
                         await LocalNotificationManager.shared.syncDeliveredNotificationHistory()
                         guard scheduleWarmupComplete else { return }
-                        await ScheduleViewModel.shared.refreshCalendarIfNeeded()
                         await LocalNotificationManager.shared.refreshSchedulesIfNeeded()
                     }
                 }
             }
             .onReceive(notificationMaintenanceTimer) { _ in
-                guard scenePhase == .active, scheduleWarmupComplete else { return }
-                Task { await ScheduleViewModel.shared.refreshCalendarIfNeeded() }
+                guard scenePhase == .active else { return }
+                Task { _ = await ScheduleViewModel.shared.refreshCalendarIfNeeded() }
+                guard scheduleWarmupComplete else { return }
                 let today = AppCalendar.current.startOfDay(for: Date())
                 guard today != lastNotificationMaintenanceDay else { return }
                 lastNotificationMaintenanceDay = today
@@ -537,6 +538,11 @@ struct SoraApp: App {
     private func markStartupReady() {
         guard !startupReady else { return }
         startupReady = true
+        Task(priority: .utility) {
+            try? await Task.sleep(nanoseconds: 750_000_000)
+            guard !Task.isCancelled else { return }
+            _ = await ScheduleViewModel.shared.refreshCalendarIfNeeded()
+        }
         warmSchedulesAfterStartup()
     }
 
@@ -552,7 +558,7 @@ struct SoraApp: App {
 
             try? await Task.sleep(nanoseconds: 750_000_000)
             guard !Task.isCancelled else { return }
-            await ScheduleViewModel.shared.refreshCalendarIfNeeded()
+            // Daily refresh is scheduled independently by markStartupReady().
 #if os(tvOS)
             let requestedDayCount = ScheduleWindow.current.rawValue
             _ = await ScheduleViewModel.shared.notificationScheduleSnapshot(

@@ -10,11 +10,10 @@ on:
 permissions:
   contents: read
 
-# Give each commit its own slot. GitHub otherwise replaces the single pending
-# run for a branch when another push arrives, marking the previous build
-# cancelled before its runner has even started.
+# Let an active build finish, but keep only the newest pending build
+# for each branch/PR. This prevents stale commits from filling the macOS queue.
 concurrency:
-  group: ios-pr-build-${{ github.run_id }}
+  group: ios-pr-build-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
