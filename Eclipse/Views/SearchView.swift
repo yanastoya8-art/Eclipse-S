@@ -2076,6 +2076,9 @@ private struct BrowseMediaView: View {
 
             filters.selectedYears = selected.sorted()
             filters.excludedYears = excludedYearSet.sorted()
+            if !excluded {
+                filters.showsUpcomingOnly = false
+            }
         }
     }
 
