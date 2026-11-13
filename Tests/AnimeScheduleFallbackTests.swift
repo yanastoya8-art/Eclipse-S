@@ -696,6 +696,11 @@ final class ScheduleReleaseDatePolicyTests: XCTestCase {
 
 
 final class NonAnimeMovieSchedulePolicyTests: XCTestCase {
+
+    func testMoviesIsASeparatePersistableScheduleMode() {
+        XCTAssertEqual(ScheduleMode.sanitized("movies"), .movies)
+        XCTAssertEqual(ScheduleMode.movies.displayName, "Movies")
+    }
     func testJapaneseAnimationIsExcludedFromMovieSchedule() {
         XCTAssertTrue(MovieSchedulePolicy.isAnime(language: "ja", genres: ["animation"]))
     }
