@@ -6880,7 +6880,10 @@ struct MediaDetailContentView: View {
     @MainActor
     private func resumeOptionalPresentationIfNeeded() {
 #if os(iOS)
-        guard isDetailVisible, errorMessage == nil,
+        guard hasLoadedContent, !isLoading, isDetailVisible, errorMessage == nil,
+              detailLoadedLanguage == selectedLanguage,
+              detailLoadedIdentity == searchResult.stableIdentity,
+              searchResult.isMovie ? movieDetail?.id == searchResult.id : tvShowDetail?.id == searchResult.id,
               optionalPresentationTask == nil,
               !optionalPresentationIsComplete || (shouldAnalyzeAlternatePoster && !alternatePosterWasResolved) else { return }
 #else
