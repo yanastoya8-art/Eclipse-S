@@ -490,4 +490,41 @@ final class AnimeDubEpisodeVisibilityTests: XCTestCase {
         )
         XCTAssertEqual(MyDubListLanguage.english.episodeMetadataLanguageCodes, ["en"])
     }
+
+    func testAnidubParserKeepsRegionalCountsAndIgnoresStaleOrUnreleasedRows() throws {
+        let payload: [String: Any] = [
+            "anilistId": 101,
+            "dubs": [
+                ["language": "es-419", "status": "dubbed", "dubbedEpisodes": 8, "stale": false],
+                ["language": "es-ES", "status": "dubbed", "dubbedEpisodes": 5, "stale": false],
+                ["language": "en", "status": "in_production", "dubbedEpisodes": 2, "stale": false],
+                ["language": "es", "status": "dubbed", "dubbedEpisodes": 12, "stale": true],
+                ["language": "es-419", "status": "dubbed", "dubbedEpisodes": NSNull(), "stale": false]
+            ]
+        ]
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        let counts = try AnidubAnimeDubMetadataService.parseEpisodeDubCounts(
+            from: data,
+            anilistID: 101
+        )
+
+        XCTAssertEqual(counts["es-419"], 8)
+        XCTAssertEqual(counts["es-es"], 5)
+        XCTAssertNil(counts["en"])
+        XCTAssertNil(counts["es"])
+    }
+
+    func testAnidubParserRejectsMismatchedAnimeIdentity() throws {
+        let payload: [String: Any] = [
+            "anilistId": 202,
+            "dubs": [
+                ["language": "es-419", "status": "dubbed", "dubbedEpisodes": 8, "stale": false]
+            ]
+        ]
+        let data = try JSONSerialization.data(withJSONObject: payload)
+
+        XCTAssertThrowsError(
+            try AnidubAnimeDubMetadataService.parseEpisodeDubCounts(from: data, anilistID: 101)
+        )
+    }
 }
