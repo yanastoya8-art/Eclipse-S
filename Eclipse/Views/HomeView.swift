@@ -576,6 +576,7 @@ struct HomeView: View {
     @State private var selectedHeroForDetail: TMDBSearchResult?
     @State private var showingHeroDetail = false
     @State private var heroLogoURL: String?
+    @State private var heroLogoLookupComplete = false
     @State private var heroAlternatePosterURL: String?
     @State private var heroTVMazePosterURLs: [String: String] = [:]
     @State private var heroArtworkIdentity: String?
@@ -666,7 +667,7 @@ struct HomeView: View {
 
     private var shouldAnalyzeHeroAlternatePoster: Bool {
 #if os(iOS)
-        !usesWideHomeLayout && mediaDetailTitleArtworkEnabled && mediaDetailAlternatePosterEnabled
+        !usesWideHomeLayout && mediaDetailAlternatePosterEnabled
 #else
         false
 #endif
@@ -1244,10 +1245,12 @@ struct HomeView: View {
 
     @ViewBuilder
     private func macHeroTitle(_ hero: TMDBSearchResult, layout: MacHomeHeroLayout) -> some View {
-        if let logoURL = currentHeroLogoURL(for: hero) {
+        if heroArtworkIdentity == hero.stableIdentity && !heroLogoLookupComplete {
+            Color.clear.frame(width: layout.logoWidth, height: layout.logoHeight)
+        } else if let logoURL = currentHeroLogoURL(for: hero) {
             KFImage(URL(string: logoURL))
                 .setProcessor(DownsamplingImageProcessor(size: homeImageDecodeSize(width: layout.logoWidth, height: layout.logoHeight)))
-                .placeholder { macHeroTitleText(hero, layout: layout) }
+                .placeholder { Color.clear }
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(maxWidth: layout.logoWidth, maxHeight: layout.logoHeight, alignment: .leading)
@@ -1728,7 +1731,7 @@ struct HomeView: View {
             }
             let cacheKey = heroAlternatePosterCacheKey(hero.stableIdentity, language: selectedLanguage)
             guard resolvedHeroAlternatePosterKeys.contains(cacheKey) else { return nil }
-            return heroTVMazePosterURLs[hero.stableIdentity] ?? hero.fullPosterURL ?? hero.fullBackdropURL
+            return heroTVMazePosterURLs[hero.stableIdentity] ?? hero.fullPosterURL ?? hero.animeArtworkURL ?? hero.fullBackdropURL
         }
 #endif
         return hero.fullBackdropURL ?? hero.fullPosterURL
@@ -1866,12 +1869,13 @@ struct HomeView: View {
 
     @ViewBuilder
     private func heroTitleArtwork(_ hero: TMDBSearchResult) -> some View {
-        if let logoURL = currentHeroLogoURL(for: hero) {
+        if heroArtworkIdentity == hero.stableIdentity && !heroLogoLookupComplete {
+            Color.clear
+                .frame(maxWidth: heroLogoMaxWidth, maxHeight: heroLogoMaxHeight)
+        } else if let logoURL = currentHeroLogoURL(for: hero) {
             KFImage(URL(string: logoURL))
                 .setProcessor(DownsamplingImageProcessor(size: heroLogoDecodeSize))
-                .placeholder {
-                    heroTitleText(hero)
-                }
+                .placeholder { Color.clear }
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(maxWidth: heroLogoMaxWidth, maxHeight: heroLogoMaxHeight)
@@ -2091,6 +2095,7 @@ struct HomeView: View {
                       selectedLanguage == language else { return }
                 heroArtworkIdentity = nil
                 heroLogoURL = nil
+                heroLogoLookupComplete = true
                 heroAlternatePosterURL = nil
             }
             return
@@ -2105,6 +2110,7 @@ struct HomeView: View {
                   selectedLanguage == language else { return }
             heroArtworkIdentity = identity
             heroLogoURL = nil
+            heroLogoLookupComplete = false
             heroAlternatePosterURL = nil
         }
 
@@ -2120,6 +2126,7 @@ struct HomeView: View {
                       selectedLanguage == language else { return }
                 heroArtworkIdentity = identity
                 heroLogoURL = logoURL
+                heroLogoLookupComplete = true
             }
             guard !Task.isCancelled, analyzesAlternate, shouldAnalyzeHeroAlternatePoster, heroArtworkIsActive,
                   homeViewModel.heroContent?.stableIdentity == identity,
@@ -2162,6 +2169,7 @@ struct HomeView: View {
                 }
                 heroArtworkIdentity = identity
                 heroLogoURL = nil
+                heroLogoLookupComplete = true
                 heroAlternatePosterURL = nil
             }
         }
