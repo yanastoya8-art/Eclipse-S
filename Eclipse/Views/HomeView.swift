@@ -1741,11 +1741,16 @@ struct HomeView: View {
 
     private func heroImageFallbackURLs(for hero: TMDBSearchResult) -> [String] {
         guard let primary = heroImageURL(for: hero) else { return [] }
-        return [
-            hero.fullPosterURL, hero.fullBackdropURL, hero.animeArtworkURL,
-            heroTVMazePosterURLs[hero.stableIdentity],
-            currentHeroAlternatePosterURL(for: hero)
-        ].compactMap { $0 }.filter { $0 != primary }
+        var candidates: [String?] = [
+            hero.fullPosterURL, hero.fullBackdropURL, hero.animeArtworkURL
+        ]
+#if os(iOS)
+        if shouldAnalyzeHeroAlternatePoster {
+            candidates.append(heroTVMazePosterURLs[hero.stableIdentity])
+            candidates.append(currentHeroAlternatePosterURL(for: hero))
+        }
+#endif
+        return candidates.compactMap { $0 }.filter { $0 != primary }
     }
 
     private func currentHeroAlternatePosterURL(for hero: TMDBSearchResult) -> String? {
