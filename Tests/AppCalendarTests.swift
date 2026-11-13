@@ -62,6 +62,23 @@ final class AppCalendarTests: XCTestCase {
         }
     }
 
+    func testNextDailyRefreshDateUsesNextLocalThreeAMBoundary() throws {
+        let formatter = ISO8601DateFormatter()
+        let beforeThree = try XCTUnwrap(formatter.date(from: "2026-11-13T01:30:00Z"))
+        let afterThree = try XCTUnwrap(formatter.date(from: "2026-11-13T08:00:00Z"))
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+
+        XCTAssertEqual(
+            AppCalendar.nextDailyRefreshDate(after: beforeThree, calendar: calendar),
+            try XCTUnwrap(formatter.date(from: "2026-11-13T03:00:00Z"))
+        )
+        XCTAssertEqual(
+            AppCalendar.nextDailyRefreshDate(after: afterThree, calendar: calendar),
+            try XCTUnwrap(formatter.date(from: "2026-11-14T03:00:00Z"))
+        )
+    }
+
     func testDailyScheduleRefreshRunsOnlyOnceAfterSuccessPerLocalDay() throws {
         let formatter = ISO8601DateFormatter()
         let first = try XCTUnwrap(formatter.date(from: "2026-11-13T08:00:00Z"))

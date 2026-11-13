@@ -52,7 +52,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 
     private func scheduleNextAnimeScheduleRefresh() {
         let request = BGAppRefreshTaskRequest(identifier: animeScheduleRefreshIdentifier)
-        request.earliestBeginDate = Date().addingTimeInterval(24 * 60 * 60)
+        request.earliestBeginDate = AppCalendar.nextDailyRefreshDate(after: Date())
         do {
             try BGTaskScheduler.shared.submit(request)
         } catch {
