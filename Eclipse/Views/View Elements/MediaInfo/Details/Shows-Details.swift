@@ -615,6 +615,7 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
         .onReceive(NotificationCenter.default.publisher(for: .activeProfileDidChange)) { _ in
             animeDubEpisodeCountsBySeason.removeAll()
             animeDubPremiereDatesBySeason.removeAll()
+            animeDubFilterRevision += 1
             seasonLoadGeneration += 1
             seasonLoadTask?.cancel()
             seasonLoadTask = nil
@@ -1285,7 +1286,10 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
         animeDubEpisodeCountsBySeason[seasonNumber] = [:]
         animeDubPremiereDatesBySeason[seasonNumber] = nil
         selectedEpisodeForSearch = nil
-        selectedEpisodePageStartByKey["season-\(selectedSeason?.id ?? 0)-\(seasonNumber)"] = 0
+        selectedEpisodePlaybackContext = nil
+        if let detail = activeSeasonDetail, detail.seasonNumber == seasonNumber {
+            selectedEpisodePageStartByKey[episodePageKey(for: detail)] = 0
+        }
 
         let canonicalID = providerID > 0 ? (animeProviderAliases[providerID] ?? providerID) : nil
         let malID = providerID < 0 ? RemoteMediaNumericBoundary.positiveMagnitude(providerID) : nil
@@ -1333,6 +1337,7 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
             animeDubPremiereDatesBySeason[seasonNumber] = nil
             if let detail = activeSeasonDetail, detail.seasonNumber == seasonNumber {
                 selectedEpisodeForSearch = nil
+                selectedEpisodePlaybackContext = nil
             }
             Logger.shared.log(
                 "AnimeDub: failed to load episode availability season=\(seasonNumber) providerID=\(providerID): \(error.localizedDescription)",
