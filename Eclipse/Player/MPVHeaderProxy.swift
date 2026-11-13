@@ -6149,7 +6149,7 @@ final class LocalFileLANServer {
               FileManager.default.fileExists(atPath: resolvedURL.path, isDirectory: &isDirectory),
               !isDirectory.boolValue,
               let attributes = try? FileManager.default.attributesOfItem(atPath: resolvedURL.path),
-              (attributes[.size] as? NSNumber)?.int64Value ?? 0 > 0,
+              ((attributes[.size] as? NSNumber)?.int64Value ?? 0) > 0,
               ensureStarted(),
               let port = waitForPort() else { return nil }
 
@@ -6173,6 +6173,24 @@ final class LocalFileLANServer {
             components.queryItems = [URLQueryItem(name: "download", value: "1")]
         }
         return components.url
+    }
+
+    func isPublishedURL(_ url: URL) -> Bool {
+        guard url.path.hasPrefix("/file/") else { return false }
+        let token = String(url.path.dropFirst("/file/".count))
+        lock.lock()
+        defer { lock.unlock() }
+        guard let entry = files[token], entry.expiresAt > Date() else { return false }
+        return true
+    }
+
+    func mimeType(forPublishedURL url: URL) -> String? {
+        guard url.path.hasPrefix("/file/") else { return nil }
+        let token = String(url.path.dropFirst("/file/".count))
+        lock.lock()
+        defer { lock.unlock() }
+        guard let entry = files[token], entry.expiresAt > Date() else { return nil }
+        return Self.mimeType(for: entry.url)
     }
 
     private func ensureStarted() -> Bool {
