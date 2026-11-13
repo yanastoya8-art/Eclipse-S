@@ -1909,19 +1909,16 @@ struct MediaDetailContentView: View {
             let fadeStart = min(max(0.78 - 0.16 * designMetrics.tuning.heroFadeDistanceScale, 0.3), 0.82)
             let bleed = min(max(theme.scopedBleedStrength(), 0), 1.25)
             ZStack {
-                KFImage(URL(string: detailHeroImageURL ?? ""))
-                    .setProcessor(DownsamplingImageProcessor(size: homeImageDecodeSize(
-                        width: geometry.size.width,
-                        height: geometry.size.height
-                    )))
-                    .placeholder { Color.clear }
-                    .onSuccess { result in
-                        ambientColor = Color.ambientColor(from: result.image)
-                    }
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topTrailing)
-                    .clipped()
+                ResilientArtworkImage(
+                    urls: ([detailHeroImageURL].compactMap { $0 } + detailHeroFallbackImageURLs),
+                    decodeSize: homeImageDecodeSize(width: geometry.size.width, height: geometry.size.height),
+                    contentMode: .fill,
+                    onImageLoaded: { color in ambientColor = color }
+                ) {
+                    Color.clear
+                }
+                .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topTrailing)
+                .clipped()
 
                 LinearGradient(
                     stops: [
@@ -1959,30 +1956,30 @@ struct MediaDetailContentView: View {
     }
 
     private func macDetailPoster(width: CGFloat) -> some View {
-        let posterURL = searchResult.isMovie
-            ? movieDetail?.fullPosterURL ?? searchResult.fullPosterURL
-            : tvShowDetail?.fullPosterURL ?? searchResult.fullPosterURL ?? searchResult.animeArtworkURL
-        return KFImage(URL(string: posterURL ?? ""))
-            .setProcessor(DownsamplingImageProcessor(size: homeImageDecodeSize(width: width, height: width * 1.5)))
-            .placeholder {
-                Rectangle()
-                    .fill(.white.opacity(0.06))
-                    .overlay {
-                        Image(systemName: searchResult.isMovie ? "film" : "tv")
-                            .font(.largeTitle)
-                            .foregroundStyle(.white.opacity(0.4))
-                    }
-            }
-            .resizable()
-            .aspectRatio(contentMode: .fill)
-            .frame(width: width, height: width * 1.5)
-            .clipShape(RoundedRectangle(cornerRadius: min(designMetrics.cardRadius, 16)))
-            .overlay {
-                RoundedRectangle(cornerRadius: min(designMetrics.cardRadius, 16))
-                    .strokeBorder(.white.opacity(0.12), lineWidth: 1)
-            }
-            .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
-            .accessibilityHidden(true)
+        let candidates: [String?] = searchResult.isMovie
+            ? [movieDetail?.fullPosterURL, searchResult.fullPosterURL, movieDetail?.fullBackdropURL, searchResult.fullBackdropURL]
+            : [tvShowDetail?.fullPosterURL, searchResult.fullPosterURL, searchResult.animeArtworkURL, tvShowDetail?.fullBackdropURL, searchResult.fullBackdropURL]
+        return ResilientArtworkImage(
+            urls: candidates.compactMap { $0 },
+            decodeSize: homeImageDecodeSize(width: width, height: width * 1.5),
+            contentMode: .fill
+        ) {
+            Rectangle()
+                .fill(.white.opacity(0.06))
+                .overlay {
+                    Image(systemName: searchResult.isMovie ? "film" : "tv")
+                        .font(.largeTitle)
+                        .foregroundStyle(.white.opacity(0.4))
+                }
+        }
+        .frame(width: width, height: width * 1.5)
+        .clipShape(RoundedRectangle(cornerRadius: min(designMetrics.cardRadius, 16)))
+        .overlay {
+            RoundedRectangle(cornerRadius: min(designMetrics.cardRadius, 16))
+                .strokeBorder(.white.opacity(0.12), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
+        .accessibilityHidden(true)
     }
 
     @ViewBuilder
