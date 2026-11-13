@@ -598,6 +598,41 @@ class TMDBContentFilter: ObservableObject {
         }
     }
 
+    private static func shouldHideForReleaseDate(
+        _ result: TMDBSearchResult,
+        defaults: UserDefaults
+    ) -> Bool {
+        shouldHideForReleaseDate(
+            rawDate: result.isMovie ? result.releaseDate : (result.firstAirDate ?? result.releaseDate),
+            isAnime: isAnimeResult(result),
+            isMovie: result.isMovie,
+            defaults: defaults
+        )
+    }
+
+    private static func shouldHideForReleaseDate(
+        rawDate: String?,
+        isAnime: Bool,
+        isMovie: Bool,
+        defaults: UserDefaults
+    ) -> Bool {
+        guard let rawDate, rawDate.count >= 10, !rawDate.hasPrefix("0001-") else { return false }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withFullDate]
+        guard let releaseDate = formatter.date(from: String(rawDate.prefix(10))) else { return false }
+        let before1994Key = isAnime ? "catalogHidePre1994Anime"
+            : (isMovie ? "catalogHidePre1994Movies" : "catalogHidePre1994TVShows")
+        let unreleasedKey = isAnime ? "catalogHideUnreleasedAnime"
+            : (isMovie ? "catalogHideUnreleasedMovies" : "catalogHideUnreleasedTVShows")
+        if defaults.bool(forKey: before1994Key),
+           Calendar(identifier: .gregorian).component(.year, from: releaseDate) < 1994 {
+            return true
+        }
+        let calendar = Calendar.current
+        return defaults.bool(forKey: unreleasedKey)
+            && calendar.startOfDay(for: releaseDate) > calendar.startOfDay(for: Date())
+    }
+
     private func shouldIncludeCatalogTitle(_ title: String) -> Bool {
         let normalized = Self.normalizedCatalogText(title)
         return !explicitCatalogTitleDenylist.contains(normalized)
