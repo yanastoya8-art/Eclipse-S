@@ -16827,17 +16827,6 @@ private enum LGWebOSCastPolicy {
               url.user == nil, url.password == nil else {
             return "LG webOS casting requires a direct HTTP or HTTPS stream URL."
         }
-        let normalizedHost = host.lowercased()
-        guard normalizedHost != "localhost",
-              normalizedHost != "127.0.0.1",
-              normalizedHost != "::1" else {
-            return "The TV cannot access a stream hosted only on this iPhone."
-        }
-        let safeHeaders: Set<String> = ["user-agent", "accept", "accept-language", "connection", "range"]
-        let requiredHeaders = headers.keys.filter { !safeHeaders.contains($0.lowercased()) }
-        guard requiredHeaders.isEmpty else {
-            return "This stream requires authentication or a provider-specific HTTP header (such as Referer, Cookie or X-Api-Key). LG's native media player cannot receive those headers, so Eclipse cannot cast this URL directly."
-        }
         guard mimeType(for: url) != nil else {
             return "The stream format is not recognized for direct LG webOS playback."
         }
@@ -16885,12 +16874,26 @@ private final class LGWebOSCastCoordinator {
             URL(string: "ws://\(address):3000")
         ].compactMap { $0 }
 
+        guard let proxiedURL = MPVHeaderProxy.shared.makeLANProxyURL(
+            for: url,
+            headers: headers,
+            logType: "LGWebOSCast"
+        ) else {
+            throw LGWebOSCastError.proxyUnavailable
+        }
+
         var lastError: Error?
         for socketURL in socketURLs {
             let socket = session.webSocketTask(with: socketURL)
             socket.resume()
             do {
-                try await performCast(url: url, title: title, address: address, socket: socket)
+                try await performCast(
+                    url: proxiedURL,
+                    title: title,
+                    address: address,
+                    socket: socket,
+                    mimeType: LGWebOSCastPolicy.mimeType(for: url) ?? "application/octet-stream"
+                )
                 socket.cancel(with: .goingAway, reason: nil)
                 UserDefaults.standard.set(address, forKey: addressKey)
                 return
@@ -16906,7 +16909,8 @@ private final class LGWebOSCastCoordinator {
         url: URL,
         title: String,
         address: String,
-        socket: URLSessionWebSocketTask
+        socket: URLSessionWebSocketTask,
+        mimeType: String
     ) async throws {
         let savedKey = LGWebOSClientKeyStore.load(for: address)
         let registerID = "eclipse-register-\(UUID().uuidString)"
@@ -16930,7 +16934,7 @@ private final class LGWebOSCastCoordinator {
                 "target": url.absoluteString,
                 "title": title,
                 "mediaType": "movie",
-                "mimeType": LGWebOSCastPolicy.mimeType(for: url) ?? "application/octet-stream"
+                "mimeType": mimeType
             ]
         ]
         try await socket.send(.string(try Self.jsonString(mediaRequest)))
@@ -17063,6 +17067,7 @@ private enum LGWebOSClientKeyStore {
 
 private enum LGWebOSCastError: LocalizedError {
     case invalidAddress
+    case proxyUnavailable
     case invalidMessage
     case noTVResponse
     case pairingNotCompleted
@@ -17074,6 +17079,8 @@ private enum LGWebOSCastError: LocalizedError {
         switch self {
         case .invalidAddress:
             return "Enter the LG TV's local IPv4 address, for example 192.168.1.100."
+        case .proxyUnavailable:
+            return "Eclipse could not create a secure local-network stream proxy. Check that Local Network access is enabled."
         case .invalidMessage:
             return "Eclipse could not create the LG webOS request."
         case .noTVResponse:
