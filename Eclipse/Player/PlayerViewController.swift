@@ -6203,9 +6203,12 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         }
         #endif
 
-        // Do not infer Dolby Vision from addon labels, URLs, codec names, or HDR transfer metadata.
-        // The current MPVKit renderer diagnostics do not expose decoded Dolby Vision RPU/config data.
-        let dolbyVisionStatus = MPVDolbyVisionDetectionPolicy.status(bitstreamHasDolbyVisionRPU: nil)
+        // This flag comes from FFmpeg decoded-frame Dolby Vision side data (RPU/metadata),
+        // never from addon labels, URLs, codec names, or container metadata.
+        let bitstreamHasDolbyVisionRPU = metalPerformanceDiagnostics()?.videoHasDolbyVisionRPU
+        let dolbyVisionStatus = MPVDolbyVisionDetectionPolicy.status(
+            bitstreamHasDolbyVisionRPU: bitstreamHasDolbyVisionRPU
+        )
         let dolbyVisionLabel: String
         let dolbyVisionColor: UIColor
         switch dolbyVisionStatus {
