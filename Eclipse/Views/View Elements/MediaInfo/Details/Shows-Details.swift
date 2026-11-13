@@ -1280,10 +1280,17 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
     private func loadDubMetadataForSelectedSeason() async {
         guard isAnime,
               specialEpisodeContext == nil,
-              let seasonNumber = selectedSeason?.seasonNumber,
-              let providerID = animeSeasonAniListIds[seasonNumber] else { return }
+              let seasonNumber = selectedSeason?.seasonNumber else { return }
         let selectedLanguages = MyDubListDubFilter.shared.selectedLanguages
-        guard !selectedLanguages.isEmpty else { return }
+        guard !selectedLanguages.isEmpty else {
+            if let detail = activeSeasonDetail,
+               detail.seasonNumber == seasonNumber,
+               selectedEpisodeForSearch == nil {
+                selectedEpisodeForSearch = preferredEpisodeAfterSeasonLoad(detail)
+            }
+            return
+        }
+        guard let providerID = animeSeasonAniListIds[seasonNumber] else { return }
 
         // Fail closed immediately when preferences or season identity change; do
         // not keep showing episodes allowed by the previous language selection.
