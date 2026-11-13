@@ -348,6 +348,7 @@ class TMDBContentFilter: ObservableObject {
     private let animeEligibilityLock = NSLock()
     private var animeAgeRatingsByID: [Int: MaturityRating] = [:]
     private var animeAudioEligibleIDs: Set<Int> = []
+    private var animeAudioCheckedIDs: Set<Int> = []
 
     private var cancellables = Set<AnyCancellable>()
 
@@ -525,31 +526,37 @@ class TMDBContentFilter: ObservableObject {
         guard requireVerifiedAudio, !animeResults.isEmpty else { return }
         // Taizen exposes one title per request. Bound concurrency instead of
         // serially waiting for every anime in every home catalog.
-        await withTaskGroup(of: (Int, Bool).self) { group in
+        await withTaskGroup(of: (Int, Bool?).self) { group in
             var iterator = animeResults.makeIterator()
             let concurrencyLimit = 6
             for _ in 0..<min(concurrencyLimit, animeResults.count) {
                 guard let result = iterator.next(),
                       let id = result.animeIdentitySeed?.anilistId else { continue }
                 group.addTask {
-                    let counts = (try? await TaizenAnimeDubMetadataService.shared.episodeDubCounts(
+                    guard let counts = try? await TaizenAnimeDubMetadataService.shared.episodeDubCounts(
                         anilistID: id,
                         malID: result.animeIdentitySeed?.malId
-                    )) ?? [:]
+                    ) else {
+                        return (id, nil)
+                    }
                     let eligible = (counts["en"] ?? 0) > 0 || (counts["es"] ?? 0) > 0
                         || (counts["es-419"] ?? 0) > 0 || (counts["es-es"] ?? 0) > 0
                     return (id, eligible)
                 }
             }
             while let (id, eligible) = await group.next() {
-                storeAnimeAudioEligibility(eligible, for: id)
+                if let eligible {
+                    storeAnimeAudioEligibility(eligible, for: id)
+                }
                 if let result = iterator.next(),
                    let nextID = result.animeIdentitySeed?.anilistId {
                     group.addTask {
-                        let counts = (try? await TaizenAnimeDubMetadataService.shared.episodeDubCounts(
+                        guard let counts = try? await TaizenAnimeDubMetadataService.shared.episodeDubCounts(
                             anilistID: nextID,
                             malID: result.animeIdentitySeed?.malId
-                        )) ?? [:]
+                        ) else {
+                            return (nextID, nil)
+                        }
                         let eligible = (counts["en"] ?? 0) > 0 || (counts["es"] ?? 0) > 0
                             || (counts["es-419"] ?? 0) > 0 || (counts["es-es"] ?? 0) > 0
                         return (nextID, eligible)
@@ -824,6 +831,7 @@ class TMDBContentFilter: ObservableObject {
 
     private func storeAnimeAudioEligibility(_ isEligible: Bool, for id: Int) {
         animeEligibilityLock.lock()
+        animeAudioCheckedIDs.insert(id)
         if isEligible {
             animeAudioEligibleIDs.insert(id)
         } else {
