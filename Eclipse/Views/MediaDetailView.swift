@@ -543,7 +543,6 @@ struct MediaDetailContentView: View {
     private static let notificationEpisodesAnchor = "media-detail-notification-episodes"
 
     @Environment(\.presentationMode) var presentationMode
-    @Environment(\.eclipseHorizontalSizeClass) private var horizontalSizeClass
     @Environment(\.eclipseVerticalSizeClass) private var verticalSizeClass
     @Environment(\.scenePhase) private var scenePhase
 #if os(macOS)
