@@ -61,13 +61,13 @@ jobs:
         with:
           repository: yanastoya8-art/MPVKit-S
           ref: fee7aa27869ed4775ff2984de4438484d902e67b
-          path: MPVKit
+          path: SourcePackages/checkouts/mpvkit-s
       - name: Verify immutable MPVKit checkout
         env:
           MPVKIT_SOURCE_REVISION: fee7aa27869ed4775ff2984de4438484d902e67b
-        run: test "$(git -C MPVKit rev-parse HEAD)" = "$MPVKIT_SOURCE_REVISION"
+        run: test "$(git -C SourcePackages/checkouts/mpvkit-s rev-parse HEAD)" = "$MPVKIT_SOURCE_REVISION"
       - name: Expose sibling MPVKit package
-        run: ln -sfn "$GITHUB_WORKSPACE/MPVKit" "$GITHUB_WORKSPACE/../MPVKit"
+        run: ln -sfn "$GITHUB_WORKSPACE/SourcePackages/checkouts/mpvkit-s" "$GITHUB_WORKSPACE/../MPVKit"
 
       - name: Build patched MPVKit for iPhone and iPad
         run: |
@@ -77,9 +77,9 @@ jobs:
           python3 -m venv "$MPVKIT_BUILD_VENV"
           "$MPVKIT_BUILD_VENV/bin/python" -m pip install --disable-pip-version-check meson==1.4.2
           export PATH="$MPVKIT_BUILD_VENV/bin:$PATH"
-          make -C MPVKit build enable-gpl version=0.41.0 platform=ios
-          test -f MPVKit/dist/release/Package.swift
-          echo "MPVKIT_LOCAL_ARTIFACTS_DIR=$GITHUB_WORKSPACE/MPVKit/dist/release" >> "$GITHUB_ENV"
+          make -C SourcePackages/checkouts/mpvkit-s build enable-gpl version=0.41.0 platform=ios
+          test -f SourcePackages/checkouts/mpvkit-s/dist/release/Package.swift
+          echo "MPVKIT_LOCAL_ARTIFACTS_DIR=$GITHUB_WORKSPACE/SourcePackages/checkouts/mpvkit-s/dist/release" >> "$GITHUB_ENV"
 
       - name: Set up Xcode
         uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
@@ -171,7 +171,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          SOURCE_PACKAGES_DIR="$RUNNER_TEMP/SourcePackages"
+          SOURCE_PACKAGES_DIR="$GITHUB_WORKSPACE/SourcePackages"
           rm -rf "$SOURCE_PACKAGES_DIR"
           xcodebuild -resolvePackageDependencies \
             -project Eclipse.xcodeproj \
@@ -185,8 +185,8 @@ jobs:
           # linker-visible symbol providers in its _MPVKit-GPL target. Validate that
           # reviewed bridge source instead of incorrectly requiring the symbols inside
           # the prebuilt Libmpv.xcframework itself.
-          BRIDGE_SOURCE="MPVKit/Sources/_MPVKit-GPL/dummy.c"
-          BRIDGE_HEADER="MPVKit/Sources/_MPVKit-GPL/include/dummy.h"
+          BRIDGE_SOURCE="SourcePackages/checkouts/mpvkit-s/Sources/_MPVKit-GPL/dummy.c"
+          BRIDGE_HEADER="SourcePackages/checkouts/mpvkit-s/Sources/_MPVKit-GPL/include/dummy.h"
           test -f "$BRIDGE_SOURCE"
           test -f "$BRIDGE_HEADER"
           python3 - "$BRIDGE_SOURCE" "$BRIDGE_HEADER" <<'PY'
