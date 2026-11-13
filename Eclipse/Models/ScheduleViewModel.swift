@@ -478,7 +478,7 @@ final class ScheduleViewModel: ObservableObject {
                 activeLoadDayCount = nil
                 isLoading = false
                 scheduleEntries = entries
-                scheduleNotice = mode == .anime ? animeScheduleResult?.notice : nil
+                scheduleNotice = (mode == .western || mode == .movies) ? nil : animeScheduleResult?.notice
                 loadedScheduleMode = mode
                 loadedScheduleDayCount = requestedDayCount
                 currentDayAnchor = Date()
