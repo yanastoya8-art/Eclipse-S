@@ -169,7 +169,7 @@ struct ScheduleEntry: Identifiable, Sendable {
     let romajiTitle: String?
     let nativeTitle: String?
     let format: String?
-    let hasKnownAiringTime: Bool
+    var hasKnownAiringTime: Bool
     var isStreamingRelease: Bool
     let tmdbId: Int?
     let originalLanguage: String?
@@ -271,6 +271,7 @@ struct ScheduleEntry: Identifiable, Sendable {
         var copy = self
         copy.airingAt = date
         copy.isStreamingRelease = isStreamingRelease
+        if isStreamingRelease { copy.hasKnownAiringTime = false }
         return copy
     }
 }
@@ -1804,6 +1805,10 @@ private actor JustWatchScheduleService {
     private func resolveShowID(for entry: ScheduleEntry, apiKey: String) async throws -> String {
         let cacheKey = "\(entry.tmdbId.map(String.init) ?? "title")|\(entry.title.lowercased())|\(entry.releaseYear.map(String.init) ?? "0")"
         if let cached = showIDCache[cacheKey] { return cached }
+        if let persisted = UserDefaults.standard.string(forKey: "justWatchShowIDV1.\(cacheKey)"), persisted.hasPrefix("ts") {
+            showIDCache[cacheKey] = persisted
+            return persisted
+        }
 
         var components = URLComponents(url: baseURL.appendingPathComponent("search"), resolvingAgainstBaseURL: false)
         components?.queryItems = [
@@ -1825,8 +1830,11 @@ private actor JustWatchScheduleService {
             if let exactTMDB {
                 return Self.stringValue(title["tmdb_id"]) == exactTMDB
             }
-            let candidateTitle = Self.normalizedTitle(title["title"] as? String ?? "")
-            guard candidateTitle == normalizedTitle else { return false }
+            let candidateTitles = [
+                title["title"] as? String,
+                title["original_title"] as? String
+            ].compactMap { $0 }.map(Self.normalizedTitle)
+            guard candidateTitles.contains(normalizedTitle) else { return false }
             if let year = entry.releaseYear, let candidateYear = Self.intValue(title["year"]) {
                 return abs(candidateYear - year) <= 1
             }
@@ -1836,6 +1844,7 @@ private actor JustWatchScheduleService {
             throw JustWatchScheduleError.titleNotFound
         }
         showIDCache[cacheKey] = id
+        UserDefaults.standard.set(id, forKey: "justWatchShowIDV1.\(cacheKey)")
         return id
     }
 
