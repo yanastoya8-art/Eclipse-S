@@ -976,6 +976,8 @@ struct SettingsView: View {
                 Toggle("Require English/Spanish original audio or verified anime dub", isOn: $requireEnglishSpanishAudio)
                     .onChange(of: requireEnglishSpanishAudio) { _ in NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil) }
                     .accessibilityIdentifier("settings.contentFilters.audioLanguages")
+            } footer: {
+                Text("For movies and non-anime TV, public metadata verifies original language only. Anime can also qualify through episode-level English or Spanish dub counts. General movie and TV dub tracks require a JustWatch partner feed and token.")
             }
 
             Section("Basic") {
