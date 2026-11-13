@@ -2574,7 +2574,7 @@ struct MediaDetailContentView: View {
         let isAnimeTitle = searchResult.animeIdentitySeed != nil || searchResult.isAnimeHint == true
         if isAnimeTitle {
 #if !os(tvOS) && !os(macOS)
-            if !usesWideDetailLayout, mediaDetailAlternatePosterEnabled,
+            if !usesWideDetailLayout, (mediaDetailAlternatePosterEnabled || searchResult.fullPosterURL == nil),
                let alternatePosterURL {
                 return alternatePosterURL
             }
@@ -2586,7 +2586,7 @@ struct MediaDetailContentView: View {
                 ?? searchResult.fullBackdropURL
         }
 #if !os(tvOS) && !os(macOS)
-        if !usesWideDetailLayout, mediaDetailAlternatePosterEnabled {
+        if !usesWideDetailLayout, (mediaDetailAlternatePosterEnabled || searchResult.fullPosterURL == nil) {
             if let alternatePosterURL { return alternatePosterURL }
             if !searchResult.isMovie, let tvMazePosterURL { return tvMazePosterURL }
         }
@@ -6825,7 +6825,7 @@ struct MediaDetailContentView: View {
 
     private var shouldAnalyzeAlternatePoster: Bool {
 #if os(iOS)
-        !usesWideDetailLayout && mediaDetailAlternatePosterEnabled
+        !usesWideDetailLayout && (mediaDetailAlternatePosterEnabled || searchResult.fullPosterURL == nil)
 #else
         false
 #endif
