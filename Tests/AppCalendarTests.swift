@@ -1,9 +1,5 @@
 import XCTest
-#if os(macOS)
-@testable import EclipseMac
-#else
 @testable import Eclipse
-#endif
 
 final class AppCalendarTests: XCTestCase {
     private let identifiers: [Calendar.Identifier] = [

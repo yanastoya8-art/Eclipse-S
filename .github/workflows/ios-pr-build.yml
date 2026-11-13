@@ -8,6 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: write
   contents: read
 
 # Let an active build finish, but keep only the newest pending build
@@ -17,9 +18,32 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  prune-stale-ios-builds:
+    name: Cancel superseded queued iOS builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Cancel older queued builds for this branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH_NAME: ${{ github.ref_name }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if ! queued_runs="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow .github/workflows/ios-pr-build.yml --branch "$BRANCH_NAME" --status queued --limit 100 --json databaseId --jq '.[].databaseId')"; then
+            echo "::warning::Could not list queued runs; continuing with the current build."
+            exit 0
+          fi
+          while IFS= read -r run_id; do
+            [[ -z "$run_id" || "$run_id" == "$CURRENT_RUN_ID" ]] && continue
+            echo "Cancelling superseded queued run $run_id"
+            gh run cancel "$run_id" --repo "$GITHUB_REPOSITORY" || echo "::warning::Could not cancel queued run $run_id"
+          done <<< "$queued_runs"
+
   ios-build-and-tests:
     name: Build and test iPhone/iPad app
-    runs-on: macos-26
+    needs: prune-stale-ios-builds
+    runs-on: macos-26-intel
     timeout-minutes: 180
 
     steps:
