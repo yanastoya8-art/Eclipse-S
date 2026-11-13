@@ -13,6 +13,7 @@ case "$PLATFORM" in
     ios|iOS)
         PLATFORM="ios"
         SCHEME="$PROJECT_NAME"
+        SDK="iphoneos"
         XCODE_DESTINATION="generic/platform=iOS"
         ;;
     *)
