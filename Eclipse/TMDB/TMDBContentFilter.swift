@@ -1437,3 +1437,13 @@ actor TaizenAnimeAgeRatingService {
         return resolved
     }
 }
+
+
+enum AnimeSpecialDubFilterPolicy {
+    static func shouldInclude(
+        selectedLanguages: Set<String>,
+        isVerifiedForSelection: Bool
+    ) -> Bool {
+        selectedLanguages.isEmpty || isVerifiedForSelection
+    }
+}
