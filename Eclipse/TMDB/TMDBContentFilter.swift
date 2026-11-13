@@ -782,9 +782,10 @@ class TMDBContentFilter: ObservableObject {
         if Self.shouldHideForReleaseDate(result, defaults: defaults) { return false }
 
         if defaults.bool(forKey: "catalogRequireEnglishSpanishAudio") {
-            let originalLanguage = result.originalLanguage?.lowercased()
-            let hasNativeAudio = originalLanguage?.hasPrefix("en") == true
-                || originalLanguage?.hasPrefix("es") == true
+            guard let originalLanguage = result.originalLanguage?.lowercased() else {
+                return true
+            }
+            let hasNativeAudio = originalLanguage.hasPrefix("en") || originalLanguage.hasPrefix("es")
             if hasNativeAudio { return true }
             guard isAnime else { return false }
             guard let anilistID = result.animeIdentitySeed?.anilistId else {
