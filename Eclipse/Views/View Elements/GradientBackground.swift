@@ -463,19 +463,10 @@ struct SettingsGradientBackground: View {
 
     @ViewBuilder
     private var baseBackground: some View {
-#if !os(tvOS)
-        let style = theme.scopedAtmosphereStyle()
-        if style.isMultiGradient {
-            AtmosphereBackdrop(
-                input: theme.atmosphereInput(dominant: nil, hasHeroBleed: false, heroHeight: 0, fadeDistance: 1),
-                scrollOffset: 0
-            )
-        } else {
-            legacyBackground
-        }
-#else
-        legacyBackground
-#endif
+        AtmosphereBackdrop(
+            input: theme.atmosphereInput(dominant: nil, hasHeroBleed: false, heroHeight: 0, fadeDistance: 1),
+            scrollOffset: 0
+        )
     }
 
     private var legacyBackground: some View {
@@ -1550,19 +1541,10 @@ struct GlobalGradientBackground: View {
 
     @ViewBuilder
     private var baseBackground: some View {
-#if !os(tvOS)
-        let style = theme.scopedAtmosphereStyle()
-        if style.isMultiGradient {
-            AtmosphereBackdrop(
-                input: theme.atmosphereInput(dominant: overrideColor, hasHeroBleed: false, heroHeight: 0, fadeDistance: 1),
-                scrollOffset: scrollOffset
-            )
-        } else {
-            legacyBackground
-        }
-#else
-        legacyBackground
-#endif
+        AtmosphereBackdrop(
+            input: theme.atmosphereInput(dominant: overrideColor, hasHeroBleed: false, heroHeight: 0, fadeDistance: 1),
+            scrollOffset: scrollOffset
+        )
     }
 
     private var legacyBackground: some View {
@@ -2279,6 +2261,7 @@ enum AtmosphereBackgroundMode: Equatable {
 
 struct AtmosphereInput: Equatable {
     var mode: AtmosphereBackgroundMode
+    var style: AtmosphereStyle
     var palette: AtmospherePalette
     var classicColor: Color
     var baseColor: Color
@@ -2347,7 +2330,19 @@ private struct AtmosphereBaseLayer: View {
         case .classicGradient:
             classicGradient
         case .multiGradient:
+#if !os(tvOS)
+            if input.style == .aurora || input.style == .ember {
+                ExperimentalGradientBackground(
+                    dominantColor: input.dominant,
+                    scrollOffset: 0,
+                    style: input.style
+                )
+            } else {
+                AtmosphereMeshLayer(palette: input.palette, intensity: input.backgroundIntensity, size: size)
+            }
+#else
             AtmosphereMeshLayer(palette: input.palette, intensity: input.backgroundIntensity, size: size)
+#endif
         }
     }
 
