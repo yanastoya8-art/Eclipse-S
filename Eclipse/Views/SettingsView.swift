@@ -497,12 +497,16 @@ struct SettingsView: View {
                 GlassSection(header: "Content Filters") {
                     VStack(alignment: .leading, spacing: 12) {
                         Toggle("Hide movies below PG-13", isOn: $hideBelowPG13Movies)
+                    .onChange(of: hideBelowPG13Movies) { _ in NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil) }
                             .accessibilityIdentifier("settings.contentFilters.moviesPG13")
                         Toggle("Hide TV shows below TV-14", isOn: $hideBelowTV14Shows)
+                    .onChange(of: hideBelowTV14Shows) { _ in NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil) }
                             .accessibilityIdentifier("settings.contentFilters.tv14")
                         Toggle("Hide anime below PG-13", isOn: $hideBelowPG13Anime)
+                    .onChange(of: hideBelowPG13Anime) { _ in NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil) }
                             .accessibilityIdentifier("settings.contentFilters.animePG13")
                         Toggle("Require English or Spanish audio", isOn: $requireEnglishSpanishAudio)
+                    .onChange(of: requireEnglishSpanishAudio) { _ in NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil) }
                             .accessibilityIdentifier("settings.contentFilters.audioLanguages")
                         Text("Age filters hide titles with lower or unknown ratings. Audio eligibility uses verified original-language metadata for movies and non-anime TV; anime additionally uses episode-level dub counts. Dub tracks for non-anime titles require a licensed partner metadata feed.")
                             .font(.caption)
@@ -961,12 +965,16 @@ struct SettingsView: View {
         Group {
             Section("Content Filters") {
                 Toggle("Hide movies below PG-13", isOn: $hideBelowPG13Movies)
+                    .onChange(of: hideBelowPG13Movies) { _ in NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil) }
                     .accessibilityIdentifier("settings.contentFilters.moviesPG13")
                 Toggle("Hide TV shows below TV-14", isOn: $hideBelowTV14Shows)
+                    .onChange(of: hideBelowTV14Shows) { _ in NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil) }
                     .accessibilityIdentifier("settings.contentFilters.tv14")
                 Toggle("Hide anime below PG-13", isOn: $hideBelowPG13Anime)
+                    .onChange(of: hideBelowPG13Anime) { _ in NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil) }
                     .accessibilityIdentifier("settings.contentFilters.animePG13")
                 Toggle("Require English or Spanish audio", isOn: $requireEnglishSpanishAudio)
+                    .onChange(of: requireEnglishSpanishAudio) { _ in NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil) }
                     .accessibilityIdentifier("settings.contentFilters.audioLanguages")
             }
 
