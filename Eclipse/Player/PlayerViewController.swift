@@ -13278,7 +13278,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             ?? candidates.first
         let lgRejection = lgURL.flatMap { LGWebOSCastPolicy.rejectionReason(for: $0, headers: headers) }
         lgCastButton.isHidden = !isMPVRenderer
-        lgCastButton.isEnabled = lgURL != nil && lgRejection == nil
+        lgCastButton.isEnabled = lgURL != nil
         lgCastButton.accessibilityHint = lgRejection ?? "Send the current stream URL to your paired LG webOS TV."
         let castTint = activePlayerSkinAppearance.primary
         castButton.tintColor = castButton.isEnabled ? castTint : castTint.withAlphaComponent(0.35)
@@ -16838,7 +16838,7 @@ private enum LGWebOSCastPolicy {
         let safeHeaders: Set<String> = ["user-agent", "accept", "accept-language", "connection", "range"]
         let requiredHeaders = headers.keys.filter { !safeHeaders.contains($0.lowercased()) }
         guard requiredHeaders.isEmpty else {
-            return "This stream requires authentication or a custom Referer/Cookie header. LG's native media player cannot receive those headers, so Eclipse cannot cast this URL directly."
+            return "This stream requires authentication or a provider-specific HTTP header (such as Referer, Cookie or X-Api-Key). LG's native media player cannot receive those headers, so Eclipse cannot cast this URL directly."
         }
         guard mimeType(for: url) != nil else {
             return "The stream format is not recognized for direct LG webOS playback."
