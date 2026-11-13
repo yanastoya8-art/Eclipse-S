@@ -237,7 +237,7 @@ struct SettingsView: View {
 
 #if os(iOS) && !targetEnvironment(macCatalyst)
         if #available(iOS 26.0, *), PlatformCapabilities.current.supportsHLSBackgroundDownloads {
-            entries.append(.init(id: "hls-background-downloads", title: "Background Downloads", location: "Storage > Video Downloads", icon: "arrow.down.circle", color: .blue, keywords: ["background", "HLS", "direct", "video", "download", "continue"], action: .destination(.storage)))
+            entries.append(.init(id: "background-downloads", title: "Background Downloads", location: "Storage > Video Downloads", icon: "arrow.down.circle", color: .blue, keywords: ["background", "HLS", "direct", "video", "download", "continue"], action: .destination(.storage)))
         }
 #endif
 
