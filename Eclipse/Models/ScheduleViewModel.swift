@@ -2469,7 +2469,14 @@ private actor JustWatchScheduleService {
         var dates: [Date] = []
         let upcoming = episode["upcoming_releases"] as? [[String: Any]] ?? []
         for release in upcoming {
-            let nestedOffers = release["offers"] as? [[String: Any]] ?? [release]
+            let nestedOffers: [[String: Any]]
+            if let offers = release["offers"] as? [[String: Any]] {
+                nestedOffers = offers
+            } else if let offersByCountry = release["offers"] as? [String: [[String: Any]]] {
+                nestedOffers = offersByCountry.values.flatMap { $0 }
+            } else {
+                nestedOffers = [release]
+            }
             for offer in nestedOffers where languages(offer["audio_languages"], match: selectedCodes) {
                 if let date = date(in: offer) ?? date(in: release) {
                     dates.append(date)
