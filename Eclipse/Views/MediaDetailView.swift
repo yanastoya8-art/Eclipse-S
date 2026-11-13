@@ -1989,10 +1989,11 @@ struct MediaDetailContentView: View {
     private func macDetailTitle(compact: Bool) -> some View {
         if mediaDetailTitleArtworkEnabled && !titleArtworkLookupComplete {
             Color.clear.frame(width: compact ? 330 : 480, height: compact ? 88 : 112)
-        } else if mediaDetailTitleArtworkEnabled, let logoURL {
+        } else if mediaDetailTitleArtworkEnabled, let logoURL, failedTitleLogoURL != logoURL {
             KFImage(URL(string: logoURL))
                 .setProcessor(DownsamplingImageProcessor(size: homeImageDecodeSize(width: 480, height: 112)))
                 .placeholder { Color.clear }
+                .onFailure { _ in failedTitleLogoURL = logoURL }
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(maxWidth: compact ? 330 : 480, maxHeight: compact ? 88 : 112, alignment: .leading)
@@ -2193,18 +2194,16 @@ struct MediaDetailContentView: View {
         EclipseTheme.shared.backgroundBase
             .ignoresSafeArea()
 
-        KFImage(URL(string: detailHeroImageURL ?? ""))
-
-            .setProcessor(DownsamplingImageProcessor(size: homeImageDecodeSize(width: proxy.size.width, height: proxy.size.height)))
-            .placeholder {
-                Rectangle()
-                    .fill(EclipseTheme.shared.backgroundBase)
-            }
-            .onSuccess { result in
-                ambientColor = Color.ambientColor(from: result.image)
-            }
-            .resizable()
-            .aspectRatio(contentMode: .fill)
+        ResilientArtworkImage(
+            urls: ([detailHeroImageURL].compactMap { $0 } + detailHeroFallbackImageURLs),
+            decodeSize: homeImageDecodeSize(width: proxy.size.width, height: proxy.size.height),
+            contentMode: .fill
+        ) {
+            Rectangle().fill(EclipseTheme.shared.backgroundBase)
+        }
+        .onSuccess { result in
+            ambientColor = Color.ambientColor(from: result.image)
+        }
             .frame(width: proxy.size.width, height: proxy.size.height)
             .clipped()
             .ignoresSafeArea()
@@ -2288,10 +2287,11 @@ struct MediaDetailContentView: View {
     private var iPadImmersiveTitle: some View {
         if mediaDetailTitleArtworkEnabled && !titleArtworkLookupComplete {
             Color.clear.frame(width: 380, height: 118)
-        } else if mediaDetailTitleArtworkEnabled, let logoURL {
+        } else if mediaDetailTitleArtworkEnabled, let logoURL, failedTitleLogoURL != logoURL {
             KFImage(URL(string: logoURL))
                 .setProcessor(DownsamplingImageProcessor(size: homeImageDecodeSize(width: 380, height: 118)))
                 .placeholder { Color.clear }
+                .onFailure { _ in failedTitleLogoURL = logoURL }
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(maxWidth: 380, maxHeight: 118, alignment: .leading)
@@ -2573,7 +2573,7 @@ struct MediaDetailContentView: View {
     }
 
     private var detailHeroFallbackImageURLs: [String] {
-        let primary = detailHeroImageURL
+        guard let primary = detailHeroImageURL else { return [] }
         let candidates: [String?] = [
             alternatePosterURL, tvMazePosterURL, searchResult.fullBackdropURL,
             searchResult.fullPosterURL, searchResult.animeArtworkURL,
@@ -7075,6 +7075,7 @@ struct MediaDetailContentView: View {
                 self.synopsis = cached.synopsis
                 self.romajiTitle = cached.romajiTitle
                 self.logoURL = cached.logoURL
+                self.failedTitleLogoURL = nil
                 self.alternatePosterURL = cached.alternatePosterURL
                 self.optionalPresentationIsComplete = cached.optionalPresentationIsComplete
                 self.titleArtworkLookupComplete = cached.logoURL != nil || cached.optionalPresentationIsComplete
