@@ -32,6 +32,13 @@ jobs:
         with:
           xcode-version: latest-stable
 
+      - name: Parse all iOS app and test Swift sources
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' source; do
+            swiftc -frontend -parse "$source"
+          done < <(find Eclipse Tests EclipseUITests -type f -name '*.swift' -print0)
+
       - name: Checkout pinned MPVKit
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
