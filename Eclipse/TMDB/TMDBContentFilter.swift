@@ -124,6 +124,17 @@ final class MyDubListDubFilter: @unchecked Sendable {
             .filter { MyDubListLanguage(rawValue: $0) != nil })
     }
 
+    var selectedLanguagesIncludingCatalogAudioRequirement: Set<String> {
+        var languages = selectedLanguages
+        if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
+            languages.formUnion([
+                MyDubListLanguage.english.rawValue,
+                MyDubListLanguage.spanish.rawValue
+            ])
+        }
+        return languages
+    }
+
     func setSelectedLanguages(_ languages: Set<String>) {
         let valid = languages.filter { MyDubListLanguage(rawValue: $0) != nil }
         ProfileSettingsStore.active.set(valid.sorted(), forKey: Self.selectedLanguagesKey)
