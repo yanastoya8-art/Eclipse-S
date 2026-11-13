@@ -94,7 +94,10 @@ final class HomeViewModel: ObservableObject {
     private func reapplyCatalogFilters() async {
         guard hasLoadedContent, let contentFilter = activeContentFilter else { return }
         let catalogSnapshot = unfilteredCatalogResults.isEmpty ? catalogResults : unfilteredCatalogResults
-        let widgetSnapshot = unfilteredWidgetData.isEmpty ? widgetData : unfilteredWidgetData
+        var widgetSnapshot = unfilteredWidgetData
+        for (key, value) in widgetData where widgetSnapshot[key] == nil {
+            widgetSnapshot[key] = value
+        }
         let allResults = Array(catalogSnapshot.values.joined()) + Array(widgetSnapshot.values.joined())
         await contentFilter.prepareMaturityRatings(for: allResults)
 
@@ -603,12 +606,14 @@ final class HomeViewModel: ObservableObject {
                 ("bestMovies", "topRatedMovies"),
                 ("bestAnime", "topRatedAnime")
             ]
-            let currentResults = await MainActor.run { self.catalogResults }
+            let currentResults = await MainActor.run { (self.catalogResults, self.unfilteredCatalogResults) }
             for mapping in rankedMappings {
                 if enabledCatalogs.contains(where: { $0.id == mapping.catalogId }),
-                   let items = currentResults[mapping.sourceKey], !items.isEmpty {
+                   let items = currentResults.0[mapping.sourceKey], !items.isEmpty {
+                    let rawItems = currentResults.1[mapping.sourceKey] ?? items
                     await MainActor.run {
                         guard self.loadGeneration == generation else { return }
+                        self.unfilteredWidgetData[mapping.catalogId] = rawItems
                         self.widgetData[mapping.catalogId] = items
                         self.applyHeroBannerSelection()
                     }
@@ -616,18 +621,20 @@ final class HomeViewModel: ObservableObject {
             }
 
             if enabledCatalogs.contains(where: { $0.id == "networks" }) {
-                await withTaskGroup(of: (Int, [TMDBSearchResult]).self) { group in
+                await withTaskGroup(of: (Int, [TMDBSearchResult], [TMDBSearchResult]).self) { group in
                     for network in WidgetNetwork.active {
                         group.addTask {
-                            let results = await contentFilter.filterSearchResultsResolvingRatings((try? await tmdbService.discoverByNetwork(networkId: network.id)) ?? [])
-                            return (network.id, results)
+                            let raw = (try? await tmdbService.discoverByNetwork(networkId: network.id)) ?? []
+                            let filtered = await contentFilter.filterSearchResultsResolvingRatings(raw)
+                            return (network.id, raw, filtered)
                         }
                     }
-                    for await (networkId, results) in group {
+                    for await (networkId, raw, results) in group {
                         guard !Task.isCancelled else { return }
                         if !results.isEmpty {
                             await MainActor.run {
                                 guard self.loadGeneration == generation else { return }
+                                self.unfilteredWidgetData["network_\(networkId)"] = raw
                                 self.widgetData["network_\(networkId)"] = results
                                 self.applyHeroBannerSelection()
                             }
@@ -637,18 +644,20 @@ final class HomeViewModel: ObservableObject {
             }
 
             if enabledCatalogs.contains(where: { $0.id == "genres" }) {
-                await withTaskGroup(of: (Int, [TMDBSearchResult]).self) { group in
+                await withTaskGroup(of: (Int, [TMDBSearchResult], [TMDBSearchResult]).self) { group in
                     for genre in WidgetGenre.active {
                         group.addTask {
-                            let results = await contentFilter.filterSearchResultsResolvingRatings((try? await tmdbService.discoverByGenre(genreId: genre.id)) ?? [])
-                            return (genre.id, results)
+                            let raw = (try? await tmdbService.discoverByGenre(genreId: genre.id)) ?? []
+                            let filtered = await contentFilter.filterSearchResultsResolvingRatings(raw)
+                            return (genre.id, raw, filtered)
                         }
                     }
-                    for await (genreId, results) in group {
+                    for await (genreId, raw, results) in group {
                         guard !Task.isCancelled else { return }
                         if !results.isEmpty {
                             await MainActor.run {
                                 guard self.loadGeneration == generation else { return }
+                                self.unfilteredWidgetData["genre_\(genreId)"] = raw
                                 self.widgetData["genre_\(genreId)"] = results
                                 self.applyHeroBannerSelection()
                             }
@@ -658,18 +667,20 @@ final class HomeViewModel: ObservableObject {
             }
 
             if enabledCatalogs.contains(where: { $0.id == "companies" }) {
-                await withTaskGroup(of: (Int, [TMDBSearchResult]).self) { group in
+                await withTaskGroup(of: (Int, [TMDBSearchResult], [TMDBSearchResult]).self) { group in
                     for company in WidgetCompany.active {
                         group.addTask {
-                            let results = await contentFilter.filterSearchResultsResolvingRatings((try? await tmdbService.discoverByCompany(companyId: company.id)) ?? [])
-                            return (company.id, results)
+                            let raw = (try? await tmdbService.discoverByCompany(companyId: company.id)) ?? []
+                            let filtered = await contentFilter.filterSearchResultsResolvingRatings(raw)
+                            return (company.id, raw, filtered)
                         }
                     }
-                    for await (companyId, results) in group {
+                    for await (companyId, raw, results) in group {
                         guard !Task.isCancelled else { return }
                         if !results.isEmpty {
                             await MainActor.run {
                                 guard self.loadGeneration == generation else { return }
+                                self.unfilteredWidgetData["company_\(companyId)"] = raw
                                 self.widgetData["company_\(companyId)"] = results
                                 self.applyHeroBannerSelection()
                             }
@@ -681,10 +692,12 @@ final class HomeViewModel: ObservableObject {
             if enabledCatalogs.contains(where: { $0.id == "featured" }) {
                 guard !Task.isCancelled else { return }
                 guard let randomGenre = WidgetGenre.activeTV.randomElement() else { return }
-                let results = await contentFilter.filterSearchResultsResolvingRatings((try? await tmdbService.discoverByGenre(genreId: randomGenre.id, mediaType: "tv")) ?? [])
+                let rawResults = (try? await tmdbService.discoverByGenre(genreId: randomGenre.id, mediaType: "tv")) ?? []
+                let results = await contentFilter.filterSearchResultsResolvingRatings(rawResults)
                 if !results.isEmpty {
                     await MainActor.run {
                         guard self.loadGeneration == generation else { return }
+                        self.unfilteredWidgetData["featured"] = rawResults
                         self.widgetData["featured"] = results
                         self.widgetData["featured_genreName"] = []
                         self.applyHeroBannerSelection()
