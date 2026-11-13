@@ -44,6 +44,38 @@ enum MyDubListLanguage: String, CaseIterable, Identifiable, Sendable {
         case .vietnamese: return "Vietnamese"
         }
     }
+
+    /// Taizen uses primary BCP-47 language subtags. Its catalogue currently
+    /// combines regional Spanish variants into the single "es" entry.
+    var taizenLanguageCode: String {
+        switch self {
+        case .english: return "en"
+        case .spanish: return "es"
+        case .german: return "de"
+        case .french: return "fr"
+        case .italian: return "it"
+        case .chinese: return "zh"
+        case .portuguese: return "pt"
+        case .korean: return "ko"
+        case .tagalog: return "tl"
+        case .arabic: return "ar"
+        case .polish: return "pl"
+        case .hindi: return "hi"
+        case .hungarian: return "hu"
+        case .hebrew: return "he"
+        case .swedish: return "sv"
+        case .norwegian: return "no"
+        case .dutch: return "nl"
+        case .thai: return "th"
+        case .indonesian: return "id"
+        case .russian: return "ru"
+        case .danish: return "da"
+        case .finnish: return "fi"
+        case .turkish: return "tr"
+        case .catalan: return "ca"
+        case .vietnamese: return "vi"
+        }
+    }
 }
 
 final class MyDubListDubFilter: @unchecked Sendable {
@@ -721,5 +753,131 @@ extension TMDBContentFilter {
             type: "TMDB"
         )
         return .denied
+    }
+}
+
+
+enum TaizenDubMetadataError: Error, LocalizedError {
+    case missingIdentifier
+    case invalidURL
+    case invalidResponse
+    case http(Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .missingIdentifier: return "No AniList or MyAnimeList identifier is available for this anime season."
+        case .invalidURL: return "The Taizen metadata URL is invalid."
+        case .invalidResponse: return "Taizen returned invalid episode dub metadata."
+        case .http(let status): return "Taizen metadata request failed (HTTP \(status))."
+        }
+    }
+}
+
+/// Fetches episode-level dub counts for the exact AniList/MAL season identity.
+/// Results are cached because Taizen refreshes its catalogue at most hourly.
+actor TaizenAnimeDubMetadataService {
+    static let shared = TaizenAnimeDubMetadataService()
+
+    private struct CachedCounts {
+        let fetchedAt: Date
+        let counts: [String: Int]
+    }
+
+    private var cache: [String: CachedCounts] = [:]
+    private let cacheLifetime: TimeInterval = 6 * 60 * 60
+    private let maximumResponseBytes = 2 * 1_024 * 1_024
+
+    func episodeDubCounts(anilistID: Int?, malID: Int?) async throws -> [String: Int] {
+        let identity: String
+        let lookup: String
+        if let anilistID, (1...1_000_000_000).contains(anilistID) {
+            identity = "anilist-\(anilistID)"
+            lookup = "id: \(anilistID)"
+        } else if let malID, (1...1_000_000_000).contains(malID) {
+            identity = "mal-\(malID)"
+            lookup = "idMal: \(malID)"
+        } else {
+            throw TaizenDubMetadataError.missingIdentifier
+        }
+
+        if let cached = cache[identity],
+           Date().timeIntervalSince(cached.fetchedAt) < cacheLifetime {
+            return cached.counts
+        }
+
+        let query = "{ anime(\(lookup)) { episodes episodeLanguages { lang dubEpisodes dubSource } } }"
+        guard var components = URLComponents(string: "https://taizen.moe/api/graphql") else {
+            throw TaizenDubMetadataError.invalidURL
+        }
+        components.queryItems = [URLQueryItem(name: "query", value: query)]
+        guard let url = components.url else { throw TaizenDubMetadataError.invalidURL }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 20
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try Task.checkCancellation()
+
+        guard data.count <= maximumResponseBytes,
+              let http = response as? HTTPURLResponse else {
+            throw TaizenDubMetadataError.invalidResponse
+        }
+        guard http.statusCode == 200 else {
+            throw TaizenDubMetadataError.http(http.statusCode)
+        }
+        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              (root["errors"] as? [Any])?.isEmpty != false,
+              let payload = root["data"] as? [String: Any],
+              let anime = payload["anime"] as? [String: Any],
+              let rows = anime["episodeLanguages"] as? [[String: Any]] else {
+            throw TaizenDubMetadataError.invalidResponse
+        }
+
+        let totalEpisodes = (anime["episodes"] as? NSNumber)?.intValue
+        var counts: [String: Int] = [:]
+        for row in rows {
+            guard let language = row["lang"] as? String,
+                  language.count <= 16,
+                  let rawCount = row["dubEpisodes"] as? NSNumber else { continue }
+            let count = rawCount.intValue
+            guard count >= 0, count <= 20_000 else { continue }
+            let boundedCount = min(count, totalEpisodes ?? count)
+            counts[language.lowercased()] = boundedCount
+        }
+
+        cache[identity] = CachedCounts(fetchedAt: Date(), counts: counts)
+        return counts
+    }
+}
+
+/// OR-based episode filtering: an episode is visible when its number is covered
+/// by at least one selected language's reported dub count. Missing metadata is
+/// deliberately fail-closed while a language filter is active.
+enum AnimeDubEpisodeVisibilityPolicy {
+    static func availableEpisodeLimit(
+        selectedLanguages: Set<String>,
+        dubCountsByLanguage: [String: Int]
+    ) -> Int? {
+        guard !selectedLanguages.isEmpty else { return nil }
+        let selectedCodes = selectedLanguages.compactMap { rawValue in
+            MyDubListLanguage(rawValue: rawValue)?.taizenLanguageCode
+        }
+        return selectedCodes.compactMap { dubCountsByLanguage[$0] }.max() ?? 0
+    }
+
+    static func includes(
+        episodeNumber: Int,
+        selectedLanguages: Set<String>,
+        dubCountsByLanguage: [String: Int]
+    ) -> Bool {
+        guard episodeNumber > 0 else { return false }
+        guard let limit = availableEpisodeLimit(
+            selectedLanguages: selectedLanguages,
+            dubCountsByLanguage: dubCountsByLanguage
+        ) else {
+            return selectedLanguages.isEmpty
+        }
+        return episodeNumber <= limit
     }
 }
