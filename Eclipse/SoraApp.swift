@@ -327,7 +327,9 @@ struct SoraApp: App {
                 trackerManager.checkForExpiredTrackerSessions()
             }
 #if !os(tvOS)
-            .animation(modeSwitchAnimationEnabled ? .timingCurve(0.2, 0.75, 0.25, 1, duration: 0.82) : nil, value: showKanzen)
+            // Mode changes are animated explicitly at the switch controls. Avoid a root-level
+            // implicit animation, which also animates unrelated state updates throughout both
+            // large app trees and can cause dropped frames during the cross-mode transition.
             .onChange(of: showKanzen) { newValue in
                 if modeSwitchTransitionCoordinator.activeBurst == nil {
                     modeSwitchTransitionCoordinator.beginBurst(toReaderMode: newValue)
