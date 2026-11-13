@@ -1236,7 +1236,7 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
                 .font(.subheadline)
                 .foregroundColor(.white.opacity(0.82))
             HStack {
-                Text("Official dub premiere")
+                Text("Scheduled dub premiere")
                     .font(.caption.weight(.semibold))
                     .foregroundColor(.white.opacity(0.65))
                 Spacer()
@@ -1265,6 +1265,9 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
                         .accessibilityIdentifier("mediaDetail.dubPremiereTBA")
                 }
             }
+            Text("English schedule data: AnimeSchedule.net")
+                .font(.caption2)
+                .foregroundColor(.white.opacity(0.48))
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
