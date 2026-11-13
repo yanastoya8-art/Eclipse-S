@@ -7,6 +7,9 @@
 
 import SwiftUI
 import Combine
+#if os(iOS)
+import BackgroundTasks
+#endif
 import GoogleCast
 #if canImport(Kingfisher)
 import Kingfisher
@@ -22,8 +25,56 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         EclipseCastCoordinator.shared.configure()
+#if os(iOS)
+        registerAnimeScheduleRefresh()
+#endif
         return true
     }
+
+#if os(iOS)
+    private var animeScheduleRefreshIdentifier: String {
+        "\(Bundle.main.bundleIdentifier ?? "app.Eclipse.Soupy").anime-schedule-refresh"
+    }
+
+    private func registerAnimeScheduleRefresh() {
+        BGTaskScheduler.shared.register(
+            forTaskWithIdentifier: animeScheduleRefreshIdentifier,
+            using: nil
+        ) { [weak self] task in
+            guard let self, let refreshTask = task as? BGAppRefreshTask else {
+                task.setTaskCompleted(success: false)
+                return
+            }
+            self.handleAnimeScheduleRefresh(refreshTask)
+        }
+        scheduleNextAnimeScheduleRefresh()
+    }
+
+    private func scheduleNextAnimeScheduleRefresh() {
+        let request = BGAppRefreshTaskRequest(identifier: animeScheduleRefreshIdentifier)
+        request.earliestBeginDate = Date().addingTimeInterval(24 * 60 * 60)
+        do {
+            try BGTaskScheduler.shared.submit(request)
+        } catch {
+            Logger.shared.log(
+                "Daily anime schedule background refresh could not be scheduled: \(error.localizedDescription)",
+                type: "Anime"
+            )
+        }
+    }
+
+    private func handleAnimeScheduleRefresh(_ task: BGAppRefreshTask) {
+        scheduleNextAnimeScheduleRefresh()
+        let refreshWork = Task {
+            await ScheduleViewModel.shared.refreshCalendarIfNeeded()
+        }
+        task.expirationHandler = { refreshWork.cancel() }
+        Task {
+            await refreshWork.value
+            task.setTaskCompleted(success: !refreshWork.isCancelled)
+        }
+    }
+#endif
 
 #if !os(tvOS)
     private static var orientationLocksByScene: [String: UIInterfaceOrientationMask] = [:]
