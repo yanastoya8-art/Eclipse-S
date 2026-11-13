@@ -229,7 +229,6 @@ struct SettingsView: View {
             .init(id: "download-skip-filler", title: "Skip Filler in Download All", location: "Storage > Downloads", icon: "forward.end.fill", color: .yellow, keywords: ["anime", "batch", "filler"], action: .destination(.storage)),
             .init(id: "backup", title: "Backup & Restore", location: "Data", icon: "arrow.triangle.2.circlepath", color: .teal, keywords: ["export", "import", "settings"], action: .destination(.backup)),
             .init(id: "logger", title: "Logger", location: "Data", icon: "doc.text", color: .yellow, keywords: ["logs", "diagnostics", "errors", "export"], action: .destination(.logger)),
-            .init(id: "support", title: Bundle.main.allowsExternalDonationLinks ? "Support on Ko-fi" : "Support Eclipse", location: "Support", icon: "heart.fill", color: .pink, keywords: ["tip", "donate", "Ko-fi", "Discord"], action: .anchor("settings-support")),
             .init(id: "reader-mode", title: "Switch to Reader Mode", location: "Others", icon: "book.fill", color: .orange, keywords: ["Kanzen", "manga", "reader"], action: .readerMode),
             .init(id: "legal", title: "Legal & Source", location: "Others", icon: "scroll.fill", color: .cyan, keywords: ["privacy", "license", "GitHub", "source code"], action: .destination(.legal))
         ]
@@ -492,59 +491,6 @@ struct SettingsView: View {
                 LazyVStack(spacing: ExperimentalFeatureState.isEnabledAtLaunch ? 22 : 28) {
                     if settingsSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
 
-                GlassSection(header: "Support") {
-                    VStack(spacing: 0) {
-                        if Bundle.main.allowsExternalDonationLinks {
-                            Text("Help support the app. Any amount helps keep the app free for everyone. Thanks for using the app and supporting development!")
-                                .font(.subheadline)
-                                .foregroundColor(.white.opacity(0.62))
-                                .fixedSize(horizontal: false, vertical: true)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 12)
-
-                            GlassDivider(leadingInset: 14)
-
-                            Link(destination: koFiURL) {
-                                GlassSettingsRow(icon: "cup.and.saucer.fill", iconColor: .cyan, title: "Support on Ko-fi") {
-                                    Text("Optional")
-                                        .font(.subheadline)
-                                        .foregroundColor(.white.opacity(0.5))
-                                }
-                            }
-                            .buttonStyle(.plain)
-
-                            GlassDivider()
-                        } else {
-                            #if canImport(StoreKit)
-                            NavigationLink(destination: settingsSearchableContent(StoreKitSupportView())) {
-                                GlassSettingsRow(icon: "heart.fill", iconColor: .pink, title: "Support Eclipse") {
-                                    HStack(spacing: 4) {
-                                        Text("Tips")
-                                            .font(.subheadline)
-                                            .foregroundColor(.white.opacity(0.5))
-                                        Image(systemName: "chevron.right")
-                                            .font(.system(size: 13, weight: .semibold))
-                                            .foregroundColor(.white.opacity(0.3))
-                                    }
-                                }
-                            }
-                            .buttonStyle(.plain)
-
-                            GlassDivider()
-                            #endif
-                        }
-
-                        Link(destination: discordURL) {
-                            GlassSettingsRow(icon: "bubble.left.and.bubble.right.fill", iconColor: .indigo, title: "Join Discord") {
-                                Text("Community")
-                                    .font(.subheadline)
-                                    .foregroundColor(.white.opacity(0.5))
-                            }
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .id("settings-support")
 
                 GlassSection(header: "Basic") {
                     VStack(spacing: 0) {
