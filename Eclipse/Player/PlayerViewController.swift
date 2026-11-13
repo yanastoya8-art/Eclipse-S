@@ -13267,10 +13267,13 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             showPlayerNotice("This playback does not have a stream URL that can be cast.")
             return
         }
-        if url.isFileURL || url.pathExtension.lowercased() == "mkv" {
+        let headers = playbackLaunchContext?.headers ?? initialHeaders ?? [:]
+        let requiresHeaderProxy = headers.keys.contains { key in
+            !["user-agent", "accept", "accept-language", "connection", "range"].contains(key.lowercased())
+        }
+        if url.isFileURL || url.pathExtension.lowercased() == "mkv" || requiresHeaderProxy {
             prepareLGWebOSCastForCurrentStream()
         } else {
-            let headers = playbackLaunchContext?.headers ?? initialHeaders ?? [:]
             guard let castableURL = candidates.first(where: {
                 CastMediaPolicy.rejectionReason(for: $0, headers: headers) == nil
             }) else {
@@ -13309,7 +13312,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     @objc private func prepareLGWebOSCastForCurrentStream() {
         let headers = playbackLaunchContext?.headers ?? initialHeaders ?? [:]
         let candidates = [playbackLaunchContext?.streamURL.flatMap { URL(string: $0) }, initialURL].compactMap { $0 }
-        guard let sourceURL = candidates.first else {
+        guard let sourceURL = candidates.first(where: { $0.isFileURL }) ?? candidates.first else {
             showPlayerNotice("This playback does not have a stream URL that can be cast.")
             return
         }
