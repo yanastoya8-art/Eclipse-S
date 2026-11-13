@@ -72,14 +72,20 @@ enum MediaLanguageCatalog {
 
     static func filterLanguage(for value: String) -> Entry? {
         let key = lookupKey(value)
-        if key.hasPrefix("language:") { return language(for: value) }
-        let tokens = Set(key.split { !$0.isLetter && !$0.isNumber }.map(String.init))
-        let latinoMarkers: Set<String> = ["lat", "latin", "latino", "latam", "419", "latinoamerican", "latinamerican"]
+        let unwrapped = key.hasPrefix("language:") ? String(key.dropFirst("language:".count)) : key
+        if key.hasPrefix("language:") {
+            if unwrapped == "es-419" || unwrapped == "es-es" || unwrapped.hasPrefix("es-") {
+                return language(for: "es")
+            }
+            return language(for: value)
+        }
+        let tokens = Set(unwrapped.split { !$0.isLetter && !$0.isNumber }.map(String.init))
+        let latinoMarkers: Set<String> = ["lat", "latin", "latino", "latam", "419", "latinoamerican", "latinamerican", "castellano", "castilian"]
         // Treat every Spanish regional variant (Castellano, Latin American,
         // and generic Spanish) as one filter language. The source metadata remains
         // untouched so the actual audio-track region can still be displayed.
         if !tokens.isDisjoint(with: latinoMarkers),
-           !tokens.isDisjoint(with: ["es", "spa", "spanish", "lat", "latin", "latino", "latam"]) {
+           !tokens.isDisjoint(with: ["es", "spa", "spanish", "espanol", "lat", "latin", "latino", "latam", "castellano", "castilian"]) {
             return language(for: "es")
         }
         if unwrapped == "es-419" || unwrapped == "es-es" || unwrapped.hasPrefix("es-") {
