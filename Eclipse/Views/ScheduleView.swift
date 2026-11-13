@@ -1391,6 +1391,9 @@ struct ScheduleView: View {
     }
 
     private func formattedTime(for item: ScheduleEntry) -> String {
+        if item.isMovie {
+            return item.isStreamingRelease ? "Streaming" : "Release date"
+        }
         if item.hasKnownAiringTime {
             return formattedTime(item.airingAt)
         }
