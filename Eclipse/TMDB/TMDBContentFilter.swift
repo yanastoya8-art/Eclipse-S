@@ -912,7 +912,7 @@ enum AnidubAnimeDubMetadataError: Error, LocalizedError {
 actor AnidubAnimeDubMetadataService {
     static let shared = AnidubAnimeDubMetadataService()
 
-    private struct CachedCounts {
+    private struct CachedCounts: Codable {
         let fetchedAt: Date
         let counts: [String: Int]
     }
@@ -920,14 +920,14 @@ actor AnidubAnimeDubMetadataService {
     private var cache: [Int: CachedCounts] = [:]
     private let cacheLifetime: TimeInterval = 6 * 60 * 60
     private let maximumResponseBytes = 1 * 1_024 * 1_024
+    private let cacheKeyPrefix = "anidubEpisodeDubCountsV1."
 
     func episodeDubCounts(anilistID: Int) async throws -> [String: Int] {
         guard (1...1_000_000_000).contains(anilistID) else {
             throw AnidubAnimeDubMetadataError.invalidResponse
         }
-        if let cached = cache[anilistID],
-           Date().timeIntervalSince(cached.fetchedAt) < cacheLifetime {
-            return cached.counts
+        if let cached = cachedCounts(for: anilistID) {
+            return cached
         }
 
         guard let url = URL(string: "https://api.anidub.moe/v1/anime/\(anilistID)") else {
@@ -948,7 +948,34 @@ actor AnidubAnimeDubMetadataService {
         guard http.statusCode == 200 else {
             throw AnidubAnimeDubMetadataError.http(http.statusCode)
         }
-        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+
+        let counts = try Self.parseEpisodeDubCounts(from: data, anilistID: anilistID)
+        let cached = CachedCounts(fetchedAt: Date(), counts: counts)
+        cache[anilistID] = cached
+        if let encoded = try? JSONEncoder().encode(cached) {
+            UserDefaults.standard.set(encoded, forKey: cacheKeyPrefix + String(anilistID))
+        }
+        return counts
+    }
+
+    private func cachedCounts(for anilistID: Int) -> [String: Int]? {
+        if let cached = cache[anilistID],
+           Date().timeIntervalSince(cached.fetchedAt) < cacheLifetime {
+            return cached.counts
+        }
+        guard let data = UserDefaults.standard.data(forKey: cacheKeyPrefix + String(anilistID)),
+              let cached = try? JSONDecoder().decode(CachedCounts.self, from: data),
+              Date().timeIntervalSince(cached.fetchedAt) >= 0,
+              Date().timeIntervalSince(cached.fetchedAt) < cacheLifetime else {
+            return nil
+        }
+        cache[anilistID] = cached
+        return cached.counts
+    }
+
+    static func parseEpisodeDubCounts(from data: Data, anilistID: Int) throws -> [String: Int] {
+        guard data.count <= 1 * 1_024 * 1_024,
+              let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               let responseID = root["anilistId"] as? NSNumber,
               responseID.intValue == anilistID,
               let rows = root["dubs"] as? [[String: Any]] else {
@@ -957,7 +984,8 @@ actor AnidubAnimeDubMetadataService {
 
         var counts: [String: Int] = [:]
         for row in rows {
-            guard let rawLanguage = row["language"] as? String,
+            guard row["stale"] as? Bool != true,
+                  let rawLanguage = row["language"] as? String,
                   rawLanguage.utf8.count <= 32,
                   let rawStatus = row["status"] as? String,
                   rawStatus == "dubbed",
@@ -969,8 +997,6 @@ actor AnidubAnimeDubMetadataService {
                     || language == "es-419" || language == "es-es" else { continue }
             counts[language] = max(counts[language] ?? 0, count)
         }
-
-        cache[anilistID] = CachedCounts(fetchedAt: Date(), counts: counts)
         return counts
     }
 }
