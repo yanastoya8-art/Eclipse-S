@@ -1289,9 +1289,12 @@ final class AnimeMetadataService {
         // main catalog. Apply the same selected-language identity gate here so
         // undubbed extras cannot bypass the catalog filter.
         let filtered = entries.filter { entry in
-            MyDubListDubFilter.shared.shouldInclude(
-                anilistID: entry.canonicalAniListId,
-                malID: entry.malId
+            AnimeSpecialDubFilterPolicy.shouldInclude(
+                selectedLanguages: selectedLanguages,
+                isVerifiedForSelection: MyDubListDubFilter.shared.shouldInclude(
+                    anilistID: entry.canonicalAniListId,
+                    malID: entry.malId
+                )
             )
         }
         Logger.shared.log(
