@@ -1756,7 +1756,7 @@ struct MediaDetailContentView: View {
 #if os(macOS)
         macDetailLayout
 #else
-        if usesWideDetailLayout && horizontalSizeClass == .regular {
+        if usesWideDetailLayout {
             iPadImmersiveDetailLayout
         } else {
             ScrollViewReader { proxy in
@@ -2143,7 +2143,9 @@ struct MediaDetailContentView: View {
                     ScrollView(showsIndicators: false) {
                         VStack(alignment: .leading, spacing: 24) {
                             Color.clear
-                                .frame(height: max(150, proxy.size.height * 0.16))
+                                .frame(height: proxy.size.height < 500
+                                    ? 72
+                                    : max(150, proxy.size.height * 0.16))
 
                             iPadImmersiveHeroCard
 
@@ -8050,6 +8052,8 @@ private var usesWideDetailLayout: Bool {
 #if os(macOS)
     EclipseViewport.bounds.width >= 1000
 #else
-    isIPad
+    let viewport = EclipseViewport.bounds
+    let isLandscapePhoneOrTablet = viewport.width > viewport.height && viewport.width >= 700
+    return isIPad || isLandscapePhoneOrTablet
 #endif
 }
