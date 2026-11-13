@@ -2541,7 +2541,7 @@ final class DownloadManager: NSObject, ObservableObject {
     private var hlsBackgroundDownloadsEnabled: Bool {
         if let hlsBackgroundEnabledOverride { return hlsBackgroundEnabledOverride() }
         guard isolatedDownloadsDirectory == nil, PlatformCapabilities.current.supportsHLSBackgroundDownloads else { return false }
-        if #available(iOS 26.0, *) { return HLSBackgroundDownloadSettings.isEnabled() }
+        if #available(iOS 26.0, *) { return BackgroundDownloadSettings.isEnabled() }
         return false
     }
 
