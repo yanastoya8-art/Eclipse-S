@@ -225,6 +225,10 @@ final class PlayerSettingsStore: ObservableObject {
         didSet { profileStore.set(mpvDolbyAtmosEnabled, forKey: "mpvDolbyAtmosEnabled") }
     }
 
+    @Published var mpvTrueHDAtmosEnabled: Bool {
+        didSet { profileStore.set(mpvTrueHDAtmosEnabled, forKey: "mpvTrueHDAtmosEnabled") }
+    }
+
     @Published var mpvHDRMode: MPVHDRMode {
         didSet { profileStore.set(mpvHDRMode.rawValue, forKey: "mpvHDRMode") }
     }
@@ -464,6 +468,7 @@ final class PlayerSettingsStore: ObservableObject {
         self.mpvHDRMode = MPVHDRMode(rawValue: hdrModeRaw) ?? .defaultMode
         self.mpvDolbyVisionEnabled = store.object(forKey: "mpvDolbyVisionEnabled") as? Bool ?? true
         self.mpvDolbyAtmosEnabled = store.object(forKey: "mpvDolbyAtmosEnabled") as? Bool ?? true
+        self.mpvTrueHDAtmosEnabled = store.object(forKey: "mpvTrueHDAtmosEnabled") as? Bool ?? false
         let audioComfortModeRaw = store.string(forKey: "audioComfortMode") ?? AudioComfortMode.defaultMode.rawValue
         self.audioComfortMode = AudioComfortMode(rawValue: audioComfortModeRaw) ?? .defaultMode
         if let rawScopes = store.array(forKey: "audioComfortScopeCategories") as? [String] {
@@ -561,6 +566,7 @@ enum PlayerSettingsSearchTarget: String, Hashable {
     case hdrOutput
     case dolbyVision
     case dolbyAtmos
+    case trueHDAtmos
     case surroundSound
     case comfortAudio
     case comfortAudioApplyToAll
@@ -579,7 +585,7 @@ enum PlayerSettingsSearchTarget: String, Hashable {
         switch self {
         case .moltenVKQuality, .upscaling, .neuralUpscaling, .hdrOutput:
             return compatibility.supportsEnhancedMPVRendering
-        case .dolbyAtmos:
+        case .dolbyAtmos, .trueHDAtmos:
             return compatibility.supportsAtmosPassthrough
         case .pictureInPicture, .pipWhenLeavingApp:
             let selection: PlaybackEngine
@@ -705,6 +711,7 @@ enum PlayerSettingsSearchTarget: String, Hashable {
              .hdrOutput,
              .dolbyVision,
              .dolbyAtmos,
+             .trueHDAtmos,
              .surroundSound,
              .comfortAudio,
              .comfortAudioApplyToAll,
@@ -2489,7 +2496,7 @@ private struct MPVPlayerSettingsPage: View {
                 }
                 settingsToggleRow(
                     title: "Performance Overlay",
-                    detail: "Show resolution, frame rate, dropped frames, and decoder on screen. Applies on the next playback.",
+                    detail: "Show live CPU, memory, thermal, rendering, stream, and Dolby Vision metadata. Can also be toggled from the player controls.",
                     binding: $store.mpvPerformanceOverlayEnabled
                 )
                 .id(PlayerSettingsSearchTarget.performanceOverlay.anchorID)
@@ -2531,10 +2538,18 @@ private struct MPVPlayerSettingsPage: View {
                 GlassDivider(leadingInset: 16)
                 settingsToggleRow(
                     title: "Dolby Atmos",
-                    detail: "Preserve Dolby Digital Plus Atmos on compatible audio routes. Requires Surround Sound, normal speed, and no audio processing. Off keeps ordinary surround sound. TrueHD Atmos is not supported. Applies on next MPV playback.",
+                    detail: "Preserve Dolby Digital Plus Atmos on compatible audio routes. Requires Surround Sound, normal speed, and no audio processing. Off keeps ordinary surround sound. Enable the separate TrueHD Dolby Atmos option below to request TrueHD passthrough.",
                     binding: $store.mpvDolbyAtmosEnabled
                 )
                 .id(PlayerSettingsSearchTarget.dolbyAtmos.anchorID)
+
+                GlassDivider(leadingInset: 16)
+                settingsToggleRow(
+                    title: "TrueHD Dolby Atmos",
+                    detail: "Experimental TrueHD bitstream passthrough. Requires Dolby Atmos and Surround Sound to be enabled, plus an HDMI audio route and receiver that explicitly support Dolby TrueHD. Unsupported routes may fall back to decoded audio or reject passthrough. Applies on next MPV playback.",
+                    binding: $store.mpvTrueHDAtmosEnabled
+                )
+                .id(PlayerSettingsSearchTarget.trueHDAtmos.anchorID)
             }
 
             GlassDivider(leadingInset: 16)

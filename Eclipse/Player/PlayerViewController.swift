@@ -792,6 +792,20 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         return button
     }()
 
+    private let performanceOverlayButton: UIButton = {
+        let button = UIButton(type: .system)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        let configuration = UIImage.SymbolConfiguration(pointSize: 16, weight: .semibold)
+        button.setImage(UIImage(systemName: "chart.xyaxis.line", withConfiguration: configuration), for: .normal)
+        button.tintColor = .white
+        button.alpha = 0.0
+        button.isHidden = true
+        button.accessibilityLabel = "Performance overlay"
+        button.accessibilityHint = "Shows or hides playback performance and Dolby Vision detection"
+        button.accessibilityIdentifier = "player.performanceOverlay"
+        return button
+    }()
+
     private let playerSourceButtonsStackView: UIStackView = {
         let stack = UIStackView()
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -3937,11 +3951,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         return enabled
     }
     private var isMetalPerformanceOverlayActive: Bool {
-#if os(iOS) && ECLIPSE_MPVKIT_MOLTENVK_INLINE_RENDERER && ECLIPSE_MPVKIT_SAMPLE_BUFFER_PIP_BRIDGE
-        return (metalMPVRenderer != nil || gpuMPVRenderer != nil) && Settings.shared.mpvPerformanceOverlayEnabled
-#else
-        return false
-#endif
+        isMPVRenderer && Settings.shared.mpvPerformanceOverlayEnabled
     }
 
     private var originalSpeed: Double = 1.0
@@ -5736,6 +5746,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             videoContainer.addSubview(playerSourceButtonsStackView)
             playerSourceButtonsStackView.addArrangedSubview(episodeBrowserButton)
             playerSourceButtonsStackView.addArrangedSubview(servicesButton)
+            playerSourceButtonsStackView.addArrangedSubview(performanceOverlayButton)
             videoContainer.addSubview(speedButton)
             videoContainer.addSubview(audioButton)
         }
@@ -5933,6 +5944,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             servicesWidth.priority = .init(999)
             let episodeBrowserWidth = episodeBrowserButton.widthAnchor.constraint(equalToConstant: 32)
             episodeBrowserWidth.priority = .init(999)
+            let performanceOverlayWidth = performanceOverlayButton.widthAnchor.constraint(equalToConstant: 32)
+            performanceOverlayWidth.priority = .init(999)
             NSLayoutConstraint.activate([
                 playerSourceButtonsStackView.trailingAnchor.constraint(equalTo: progressContainer.trailingAnchor),
                 playerSourceButtonsStackView.centerYAnchor.constraint(equalTo: subtitleButton.centerYAnchor),
@@ -5942,6 +5955,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
                 episodeBrowserWidth,
                 episodeBrowserButton.heightAnchor.constraint(equalToConstant: 32),
+                performanceOverlayWidth,
+                performanceOverlayButton.heightAnchor.constraint(equalToConstant: 32),
 
                 speedButton.trailingAnchor.constraint(equalTo: subtitleButton.leadingAnchor, constant: -8),
                 speedButton.centerYAnchor.constraint(equalTo: subtitleButton.centerYAnchor),
@@ -6147,8 +6162,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             text.append(metalPerformanceOverlayRow(label: "Stream", value: clipped, valueColor: .white))
         }
 
+        var bitstreamHasDolbyVisionRPU: Bool?
         #if os(iOS) && ECLIPSE_MPVKIT_MOLTENVK_INLINE_RENDERER && ECLIPSE_MPVKIT_SAMPLE_BUFFER_PIP_BRIDGE
         if let diag = metalPerformanceDiagnostics() {
+            bitstreamHasDolbyVisionRPU = diag.videoHasDolbyVisionRPU
             text.append(NSAttributedString(string: "\n"))
             text.append(metalPerformanceOverlayRow(
                 label: "PiP",
@@ -6187,6 +6204,31 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             text.append(metalPerformanceOverlayRow(label: "Subs", value: subValue, valueColor: diag.subtitleCodec == "ass" ? .systemYellow : .white))
         }
         #endif
+
+        // This flag comes from FFmpeg decoded-frame Dolby Vision side data (RPU/metadata),
+        // never from addon labels, URLs, codec names, or container metadata.
+        let dolbyVisionStatus = MPVDolbyVisionDetectionPolicy.status(
+            bitstreamHasDolbyVisionRPU: bitstreamHasDolbyVisionRPU
+        )
+        let dolbyVisionLabel: String
+        let dolbyVisionColor: UIColor
+        switch dolbyVisionStatus {
+        case .detected:
+            dolbyVisionLabel = "Detected"
+            dolbyVisionColor = .systemGreen
+        case .notDetected:
+            dolbyVisionLabel = "Not detected"
+            dolbyVisionColor = .white
+        case .unavailable:
+            dolbyVisionLabel = "Stream inspection unavailable"
+            dolbyVisionColor = .secondaryLabel
+        }
+        text.append(NSAttributedString(string: "\n"))
+        text.append(metalPerformanceOverlayRow(
+            label: "Dolby Vision",
+            value: dolbyVisionLabel,
+            valueColor: dolbyVisionColor
+        ))
 
         return text
     }
@@ -6474,6 +6516,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             subtitleButton.addTarget(self, action: #selector(subtitleButtonTapped), for: .touchUpInside)
             subtitleButton.addTarget(self, action: #selector(playerMenuButtonTouchDown(_:)), for: .touchDown)
             servicesButton.addTarget(self, action: #selector(servicesButtonTapped), for: .touchUpInside)
+            performanceOverlayButton.addTarget(self, action: #selector(performanceOverlayButtonTapped), for: .touchUpInside)
             episodeBrowserButton.addTarget(self, action: #selector(episodeBrowserButtonTapped), for: .touchUpInside)
             speedButton.addTarget(self, action: #selector(speedButtonTapped), for: .touchUpInside)
             speedButton.addTarget(self, action: #selector(playerMenuButtonTouchDown(_:)), for: .touchDown)
@@ -6488,7 +6531,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
         if supportsSharedPlayerControls {
             [centerPlayPauseButton, closeButton, pipButton, skipBackwardButton,
-             skipForwardButton, subtitleButton, servicesButton, episodeBrowserButton, speedButton, audioButton].forEach {
+             skipForwardButton, subtitleButton, servicesButton, episodeBrowserButton, performanceOverlayButton, speedButton, audioButton].forEach {
                 $0.isUserInteractionEnabled = true
             }
 #if os(iOS)
@@ -7186,6 +7229,12 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             && PlayerServicesButtonSettings.isEnabled()
             && servicesSelectionContext != nil
 
+        let shouldShowPerformanceOverlay = supportsSharedPlayerControls && isMPVRenderer
+        performanceOverlayButton.isHidden = !shouldShowPerformanceOverlay
+        performanceOverlayButton.alpha = shouldShowPerformanceOverlay && controlsVisible ? 1.0 : 0.0
+        performanceOverlayButton.isSelected = Settings.shared.mpvPerformanceOverlayEnabled
+        performanceOverlayButton.tintColor = performanceOverlayButton.isSelected ? .systemGreen : .white
+
         episodeBrowserButton.isHidden = !shouldShowEpisodeBrowser
         servicesButton.isHidden = !shouldShowServices
         if !shouldShowEpisodeBrowser {
@@ -7196,7 +7245,16 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         episodeBrowserButton.alpha = shouldShowEpisodeBrowser && controlsVisible ? 1.0 : 0.0
         servicesButton.alpha = shouldShowServices && controlsVisible ? 1.0 : 0.0
 
-        subtitleTrailingToSourceButtonsConstraint?.constant = shouldShowEpisodeBrowser || shouldShowServices ? -8 : 0
+        subtitleTrailingToSourceButtonsConstraint?.constant = shouldShowEpisodeBrowser || shouldShowServices || shouldShowPerformanceOverlay ? -8 : 0
+    }
+
+    @objc private func performanceOverlayButtonTapped() {
+        guard isMPVRenderer else { return }
+        Settings.shared.mpvPerformanceOverlayEnabled.toggle()
+        performanceOverlayButton.isSelected = Settings.shared.mpvPerformanceOverlayEnabled
+        performanceOverlayButton.tintColor = performanceOverlayButton.isSelected ? .systemGreen : .white
+        updateMetalPerformanceOverlayVisibility()
+        showControlsTemporarily()
     }
 
     @objc private func servicesButtonTapped() {
@@ -13970,6 +14028,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         controlsVisibilityGeneration += 1
         let visibilityGeneration = controlsVisibilityGeneration
         controlsVisible = true
+        updateEpisodeBrowserButtonVisibility()
 
         warmMPVPictureInPictureForForegroundPlaybackIfNeeded(source: "controls-shown-track", minInterval: 10.0)
         updateBrightnessControlVisibility()
@@ -14076,6 +14135,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         controlsVisibilityGeneration += 1
         let visibilityGeneration = controlsVisibilityGeneration
         controlsVisible = false
+        updateEpisodeBrowserButtonVisibility()
         hideOverlayMenu(animated: false)
 #if !os(tvOS)
         isBrightnessControlActive = false

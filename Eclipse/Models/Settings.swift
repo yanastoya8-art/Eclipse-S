@@ -8653,6 +8653,11 @@ class Settings: ObservableObject {
         set { ProfileSettingsStore.active.set(newValue, forKey: "mpvDolbyAtmosEnabled") }
     }
 
+    var mpvTrueHDAtmosEnabled: Bool {
+        get { ProfileSettingsStore.active.object(forKey: "mpvTrueHDAtmosEnabled") as? Bool ?? false }
+        set { ProfileSettingsStore.active.set(newValue, forKey: "mpvTrueHDAtmosEnabled") }
+    }
+
     var mpvHDRMode: MPVHDRMode {
         get {
             let raw = ProfileSettingsStore.active.string(forKey: "mpvHDRMode")

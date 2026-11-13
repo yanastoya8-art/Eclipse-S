@@ -18,28 +18,40 @@ jobs:
   ios-build-and-tests:
     name: Build and test iPhone/iPad app
     runs-on: macos-26
-    timeout-minutes: 90
+    timeout-minutes: 180
 
     steps:
       - name: Checkout Eclipse
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
-      - name: Checkout pinned MPVKit
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-        with:
-          repository: Soupy-dev/MPVKit
-          ref: 4410f4665eb137e72fb96a09f9d1542809842c4a
-          path: MPVKit
-
-      - name: Verify MPVKit revision
-        run: |
-          test "$(git -C MPVKit rev-parse HEAD)" = "4410f4665eb137e72fb96a09f9d1542809842c4a"
-          ln -sfn "$GITHUB_WORKSPACE/MPVKit" "$GITHUB_WORKSPACE/../MPVKit"
-
       - name: Set up Xcode
         uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
         with:
           xcode-version: latest-stable
+
+      - name: Checkout pinned MPVKit
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          repository: yanastoya8-art/MPVKit-S
+          ref: 9f9a68f841aefe247bb0c670e997a04702f5e247
+          path: MPVKit
+
+      - name: Build patched MPVKit for iOS and Apple platforms
+        run: |
+          set -euo pipefail
+          brew install autoconf automake libtool ninja nasm
+          python3 -m pip install meson==1.4.2
+          make -C MPVKit build enable-gpl version=0.41.0
+          test -f MPVKit/dist/release/Package.swift
+          echo "MPVKIT_LOCAL_ARTIFACTS_DIR=$GITHUB_WORKSPACE/MPVKit/dist/release" >> "$GITHUB_ENV"
+          ln -sfn "$GITHUB_WORKSPACE/MPVKit" "$GITHUB_WORKSPACE/../MPVKit"
+
+      - name: Verify patched MPVKit source and local frameworks
+        run: |
+          set -euo pipefail
+          test "$(git -C MPVKit rev-parse HEAD)" = "9f9a68f841aefe247bb0c670e997a04702f5e247"
+          grep -q 'dovi_metadata' MPVKit/Sources/BuildScripts/patch/libmpv/0017-expose-decoded-dolby-vision-rpu.patch
+          grep -q 'videoHasDolbyVisionRPU' MPVKit/Sources/MPVKitSampleBufferGPL/MPVGPUPlayerRenderer.swift
 
       - name: Resolve Swift packages
         run: |
