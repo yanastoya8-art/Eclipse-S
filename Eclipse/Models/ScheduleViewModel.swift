@@ -319,6 +319,31 @@ final class ScheduleViewModel: ObservableObject {
 
     init() {}
 
+    /// Refreshes the visible schedule at most once per local calendar day.
+    /// The refresh runs when the app is active; iOS may suspend apps in the
+    /// background, so this is deliberately not presented as an exact-time job.
+    @MainActor
+    func refreshCalendarIfNeeded(now: Date = Date()) async {
+        let calendar = AppCalendar.current
+        let today = calendar.startOfDay(for: now)
+        let key = "animeCalendarLastAutomaticRefreshDayV1"
+        if let lastRefresh = UserDefaults.standard.object(forKey: key) as? Date,
+           calendar.isDate(lastRefresh, inSameDayAs: today) {
+            return
+        }
+
+        let mode = loadedScheduleMode ?? .anime
+        await MyDubListDubFilter.shared.refresh()
+        await loadSchedule(
+            mode: mode,
+            localTimeZone: currentLocalTimeZone,
+            forceRefresh: true
+        )
+        guard errorMessage == nil, !isLoading else { return }
+        UserDefaults.standard.set(now, forKey: key)
+        Logger.shared.log("Schedule calendar: completed daily automatic refresh", type: "Anime")
+    }
+
     func loadSchedule(
         mode: ScheduleMode,
         localTimeZone: Bool,
