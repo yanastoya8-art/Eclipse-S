@@ -65,11 +65,40 @@ final class HomeViewModel: ObservableObject {
         }
     }
     private var activeLoadTask: Task<Void, Never>?
+    private weak var activeContentFilter: TMDBContentFilter?
+    private var catalogFilterObserver: NSObjectProtocol?
 
     private var loadGeneration = UUID()
 
     init() {
+        catalogFilterObserver = NotificationCenter.default.addObserver(
+            forName: TMDBContentFilter.catalogFiltersDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                await self?.reapplyCatalogFilters()
+            }
+        }
+    }
 
+    deinit {
+        if let catalogFilterObserver {
+            NotificationCenter.default.removeObserver(catalogFilterObserver)
+        }
+    }
+
+    @MainActor
+    private func reapplyCatalogFilters() async {
+        guard hasLoadedContent, let contentFilter = activeContentFilter else { return }
+        let catalogSnapshot = catalogResults
+        let widgetSnapshot = widgetData
+        let allResults = Array(catalogSnapshot.values.joined()) + Array(widgetSnapshot.values.joined())
+        await contentFilter.prepareMaturityRatings(for: allResults)
+
+        catalogResults = catalogSnapshot.mapValues { contentFilter.filterSearchResults($0) }
+        widgetData = widgetSnapshot.mapValues { contentFilter.filterSearchResults($0) }
+        applyHeroBannerSelection()
     }
 
     func loadContent(
@@ -78,6 +107,10 @@ final class HomeViewModel: ObservableObject {
         contentFilter: TMDBContentFilter,
         showLoading: Bool = true
     ) {
+
+        Task { @MainActor [weak self] in
+            self?.activeContentFilter = contentFilter
+        }
 
         guard !hasLoadedContent else {
             return
