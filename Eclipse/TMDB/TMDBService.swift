@@ -1951,12 +1951,34 @@ class TMDBService: ObservableObject {
         request.timeoutInterval = 8
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         do {
-            let (data, response) = try await URLSession.shared.boundedData(for: request, maximumResponseBytes: 512 * 1024)
-            guard let response = response as? HTTPURLResponse, response.statusCode == 200 else {
+            let (lookupData, lookupResponse) = try await URLSession.shared.boundedData(for: request, maximumResponseBytes: 512 * 1024)
+            guard let lookupHTTP = lookupResponse as? HTTPURLResponse else {
                 detailCache.set(key: cacheKey, value: "-")
                 return nil
             }
-            let decoded = try JSONDecoder().decode(TVMazeShowLookupResponse.self, from: data)
+            var showData = lookupData
+            if let finalURL = lookupResponse.url,
+               finalURL.host?.lowercased() == "www.tvmaze.com",
+               finalURL.pathComponents.count >= 3,
+               finalURL.pathComponents[1] == "shows",
+               let showID = Int(finalURL.pathComponents[2]), showID > 0 {
+                // TVmaze's documented lookup endpoint redirects to the public
+                // show page. Resolve that ID through the JSON show endpoint.
+                guard let showAPIURL = URL(string: "https://api.tvmaze.com/shows/\(showID)") else { return nil }
+                var showRequest = URLRequest(url: showAPIURL)
+                showRequest.timeoutInterval = 8
+                showRequest.setValue("application/json", forHTTPHeaderField: "Accept")
+                let (resolvedData, resolvedResponse) = try await URLSession.shared.boundedData(for: showRequest, maximumResponseBytes: 512 * 1024)
+                guard let resolvedHTTP = resolvedResponse as? HTTPURLResponse, resolvedHTTP.statusCode == 200 else {
+                    detailCache.set(key: cacheKey, value: "-")
+                    return nil
+                }
+                showData = resolvedData
+            } else if lookupHTTP.statusCode != 200 {
+                detailCache.set(key: cacheKey, value: "-")
+                return nil
+            }
+            let decoded = try JSONDecoder().decode(TVMazeShowLookupResponse.self, from: showData)
             let candidate = decoded.image?.original ?? decoded.image?.medium
             guard let candidate, let imageURL = URL(string: candidate),
                   imageURL.scheme?.lowercased() == "https",
