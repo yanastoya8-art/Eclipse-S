@@ -347,6 +347,8 @@ class TMDBContentFilter: ObservableObject {
 
     private let animeEligibilityLock = NSLock()
     private var animeAgeRatingsByID: [Int: MaturityRating] = [:]
+    private var animeAgeCheckedIDs: Set<Int> = []
+    private var animeAgeLoadingIDs: Set<Int> = []
     private var animeAudioEligibleIDs: Set<Int> = []
     private var animeAudioCheckedIDs: Set<Int> = []
     private var animeAudioLoadingIDs: Set<Int> = []
@@ -517,10 +519,8 @@ class TMDBContentFilter: ObservableObject {
 
         if hideBelowAnime {
             let identifiers = Array(uniqueAnime.keys)
-            if let ratings = try? await TaizenAnimeAgeRatingService.shared.ratings(anilistIDs: identifiers) {
-                for (id, rating) in ratings {
-                    storeAnimeAgeRating(rating, for: id)
-                }
+            Task(priority: .utility) {
+                await self.resolveAnimeAgeRatings(for: identifiers)
             }
         }
 
@@ -529,6 +529,41 @@ class TMDBContentFilter: ObservableObject {
         // audio track. Unknown metadata stays visible until the batch finishes.
         Task(priority: .utility) {
             await self.resolveAnimeAudioMetadata(for: animeResults)
+        }
+    }
+
+    private func resolveAnimeAgeRatings(for identifiers: [Int]) async {
+        let unresolved = identifiers.filter { id in
+            animeEligibilityLock.lock()
+            defer { animeEligibilityLock.unlock() }
+            guard !animeAgeCheckedIDs.contains(id), !animeAgeLoadingIDs.contains(id) else { return false }
+            animeAgeLoadingIDs.insert(id)
+            return true
+        }
+        guard !unresolved.isEmpty else { return }
+
+        guard let ratings = try? await TaizenAnimeAgeRatingService.shared.ratings(anilistIDs: unresolved) else {
+            animeEligibilityLock.lock()
+            animeAgeLoadingIDs.subtract(unresolved)
+            animeEligibilityLock.unlock()
+            return
+        }
+
+        var didResolveAny = false
+        for (id, rating) in ratings {
+            storeAnimeAgeRating(rating, for: id)
+            didResolveAny = true
+        }
+        animeEligibilityLock.lock()
+        animeAgeLoadingIDs.subtract(unresolved)
+        animeAgeCheckedIDs.formUnion(unresolved)
+        animeEligibilityLock.unlock()
+
+        if didResolveAny {
+            NotificationCenter.default.post(
+                name: TMDBContentFilter.catalogFiltersDidChangeNotification,
+                object: nil
+            )
         }
     }
 
@@ -693,6 +728,8 @@ class TMDBContentFilter: ObservableObject {
     private func storeAnimeAgeRating(_ rating: MaturityRating, for id: Int) {
         animeEligibilityLock.lock()
         animeAgeRatingsByID[id] = rating
+        animeAgeLoadingIDs.remove(id)
+        animeAgeCheckedIDs.insert(id)
         animeEligibilityLock.unlock()
     }
 
