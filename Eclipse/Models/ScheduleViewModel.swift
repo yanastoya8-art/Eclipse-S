@@ -1961,7 +1961,7 @@ private actor JustWatchScheduleService {
     }
 
     private static func date(in object: [String: Any]) -> Date? {
-        for key in ["release_date", "releaseDate", "date", "available_from", "availableFrom", "added"] {
+        for key in ["release_date", "releaseDate", "date", "available_from", "availableFrom"] {
             if let raw = object[key] as? String, let parsed = parseDate(raw) {
                 return parsed
             }
