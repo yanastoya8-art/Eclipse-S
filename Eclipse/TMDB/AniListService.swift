@@ -5406,33 +5406,63 @@ final class AniListService {
         daysAhead: Int = 7,
         perPage: Int = 50
     ) async throws -> AnimeAiringScheduleResult {
-        let result = try await AnimeScheduleFallback.load(aniList: {
-            let dubSchedule = try await AnimeScheduleService.shared.fetchSchedule(
-                daysAhead: daysAhead,
-                preferredLanguageCode: self.preferredLanguageCode
-            )
-            Logger.shared.log("DubOnly: loaded English dub schedule entries=\(dubSchedule.entries.count)", type: "Schedule")
-            return dubSchedule
-        }, animeSchedule: {
-            let fallback = try await self.fetchAiringScheduleFromAniList(daysAhead: daysAhead, perPage: perPage)
-            AnimeProviderHealthCenter.shared.recordAniListSuccess()
-            Logger.shared.log("DubOnly: AniList broadcast fallback loaded entries=\(fallback.entries.count)", type: "Schedule")
-            return AnimeAiringScheduleResult(
-                entries: fallback.entries,
-                isAuthoritativeForNotifications: fallback.isAuthoritativeForNotifications,
-                notice: "DubOnly English dub timetable unavailable · Showing AniList broadcast schedule fallback."
-            )
-        }, mal: {
-            AnimeProviderHealthCenter.shared.notifyMALFallbackIfNeeded(reason: "schedule")
+        let selectedLanguages = MyDubListDubFilter.shared.selectedLanguages
+        let result: AnimeAiringScheduleResult
+
+        if !selectedLanguages.isEmpty {
+            // A broadcast schedule is not a dub schedule. Falling back to AniList or
+            // MAL here would put the newly aired Japanese episode back into a
+            // language-filtered calendar. Keep the schedule fail-closed instead.
+            guard selectedLanguages.contains(MyDubListLanguage.english.rawValue) else {
+                return AnimeAiringScheduleResult(
+                    entries: [],
+                    isAuthoritativeForNotifications: false,
+                    notice: "The schedule provider currently publishes English-dub release dates only. Select English to see dubbed episodes."
+                )
+            }
+
             do {
-                let fallback = try await MALMetadataService.shared.fetchAiringSchedule(daysAhead: daysAhead, perPage: perPage)
-                return AnimeAiringScheduleResult(entries: fallback, isAuthoritativeForNotifications: false, notice: "MAL fallback · Estimated broadcast dates.")
+                result = try await AnimeScheduleService.shared.fetchSchedule(
+                    daysAhead: daysAhead,
+                    preferredLanguageCode: self.preferredLanguageCode
+                )
+                Logger.shared.log("DubOnly: loaded filtered English dub schedule entries=\(result.entries.count)", type: "Schedule")
             } catch {
                 try AnimeScheduleService.rethrowCancellation(error)
-                AnimeProviderHealthCenter.shared.recordMALFailure(error)
-                throw error
+                Logger.shared.log("DubOnly: filtered dub schedule unavailable; broadcast fallback suppressed: \(error.localizedDescription)", type: "Schedule")
+                return AnimeAiringScheduleResult(
+                    entries: [],
+                    isAuthoritativeForNotifications: false,
+                    notice: "The selected-language dub schedule is temporarily unavailable. Undubbed broadcast episodes are hidden until dub dates can be verified."
+                )
             }
-        }, permitsFallback: { _ in true })
+        } else {
+            result = try await AnimeScheduleFallback.load(aniList: {
+                try await AnimeScheduleService.shared.fetchSchedule(
+                    daysAhead: daysAhead,
+                    preferredLanguageCode: self.preferredLanguageCode
+                )
+            }, animeSchedule: {
+                let fallback = try await self.fetchAiringScheduleFromAniList(daysAhead: daysAhead, perPage: perPage)
+                AnimeProviderHealthCenter.shared.recordAniListSuccess()
+                Logger.shared.log("DubOnly: AniList broadcast fallback loaded entries=\(fallback.entries.count)", type: "Schedule")
+                return AnimeAiringScheduleResult(
+                    entries: fallback.entries,
+                    isAuthoritativeForNotifications: fallback.isAuthoritativeForNotifications,
+                    notice: "DubOnly English dub timetable unavailable · Showing AniList broadcast schedule fallback."
+                )
+            }, mal: {
+                AnimeProviderHealthCenter.shared.notifyMALFallbackIfNeeded(reason: "schedule")
+                do {
+                    let fallback = try await MALMetadataService.shared.fetchAiringSchedule(daysAhead: daysAhead, perPage: perPage)
+                    return AnimeAiringScheduleResult(entries: fallback, isAuthoritativeForNotifications: false, notice: "MAL fallback · Estimated broadcast dates.")
+                } catch {
+                    try AnimeScheduleService.rethrowCancellation(error)
+                    AnimeProviderHealthCenter.shared.recordMALFailure(error)
+                    throw error
+                }
+            }, permitsFallback: { _ in true })
+        }
 
         let filteredEntries = result.entries.filter { entry in
             let anilistID = entry.mediaId > 0 ? entry.mediaId : nil
@@ -5442,13 +5472,7 @@ final class AniListService {
         return AnimeAiringScheduleResult(
             entries: filteredEntries,
             isAuthoritativeForNotifications: result.isAuthoritativeForNotifications,
-            notice: {
-                let selectedLanguages = MyDubListDubFilter.shared.selectedLanguages
-                if !selectedLanguages.isEmpty && !selectedLanguages.contains("english") {
-                    return "DubOnly currently publishes an English-dub schedule only. Select English to display upcoming dub releases."
-                }
-                return result.notice
-            }()
+            notice: result.notice
         )
     }
 
