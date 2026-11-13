@@ -3781,19 +3781,23 @@ struct MyDubListDubsSettingsView: View {
                     }
                 }
 
-                GlassSectionFooter("Multiple languages use OR logic: English + Spanish means either dub qualifies. With no languages selected, no dub filtering is applied. MyDubList supplies title-level language matching; Taizen supplies season-specific dubbed episode counts. Spanish is one combined data category: the current sources do not distinguish Latino from Castellano, so either regional variant may qualify but cannot be identified separately.")
+                GlassSectionFooter("Multiple languages use OR logic: English + Spanish means either dub qualifies. With no languages selected, no dub filtering is applied. MyDubList supplies broad title-level language matching; Taizen and anidub supply season-specific episode counts. anidub can distinguish Spanish (Latino, es-419) and Spanish (Castellano, es-ES) when its evidence contains those locale tags; generic Spanish records remain region-unspecified.")
 
                 GlassSection(header: "Data & Attribution") {
                     VStack(alignment: .leading, spacing: 12) {
                         Text(refreshMessage)
                             .font(.caption)
                             .foregroundColor(.white.opacity(0.65))
-                        Text("Dub data © MyDubList (CC BY 4.0). Episode counts are provided by Taizen, using MyDubList and AnimeSchedule data. Eclipse matches each season by its AniList or MyAnimeList identity.")
+                        Text("Dub data © MyDubList (CC BY 4.0). Season episode counts are cross-checked with Taizen and anidub. anidub derives dub status from AnimeSchedule availability, verified community submissions, Anime News Network and Crunchyroll News evidence. Eclipse matches each season by AniList identity where available.")
                             .font(.caption)
                             .foregroundColor(.white.opacity(0.65))
                         Link("Powered by MyDubList", destination: URL(string: "https://mydublist.com")!)
                             .font(.subheadline)
                         Link("Taizen episode metadata & API", destination: URL(string: "https://taizen.moe/api-docs")!)
+                            .font(.subheadline)
+                        Link("anidub regional dub API & methodology", destination: URL(string: "https://www.anidub.moe/api-docs")!)
+                            .font(.subheadline)
+                        Link("anidub evidence methodology", destination: URL(string: "https://www.anidub.moe/methodology")!)
                             .font(.subheadline)
                         Link("Dataset license: CC BY 4.0", destination: URL(string: "https://creativecommons.org/licenses/by/4.0/")!)
                             .font(.subheadline)
@@ -4458,6 +4462,10 @@ private struct ThirdPartyAcknowledgementsView: View {
         .init("TVmaze", detail: "Supplemental television poster artwork and schedule metadata. TVmaze data is licensed under CC BY-SA 4.0.", project: "https://www.tvmaze.com", licenseName: "CC BY-SA 4.0", license: "https://creativecommons.org/licenses/by-sa/4.0/"),
         .init("DubOnly", detail: "English-dub anime release schedule interface. Episode dates are supplied by AnimeSchedule.net.", project: "https://dubonly.com/schedule/"),
         .init("Taizen", detail: "Anime episode metadata and dubbed-episode counts. Its dub data is powered by AnimeSchedule.net, MyDubList, and RockinChaos/AniSchedule.", project: "https://taizen.moe", licenseName: "API documentation", license: "https://taizen.moe/api-docs"),
+        .init("anidub", detail: "Dub status and episode counts by BCP-47 audio language, including Spanish locale tags when evidence is available. Evidence is derived from AnimeSchedule, verified community submissions, Anime News Network and Crunchyroll News.", project: "https://www.anidub.moe", licenseName: "API documentation", license: "https://www.anidub.moe/api-docs"),
+        .init("guianime", detail: "Latin American Spanish anime dub guide and regional episode release calendar. Used as a reference source; no unverified scraping is performed.", project: "https://guianime.com/quienes-somos/"),
+        .init("Doblaje Wiki", detail: "Community-maintained Spanish dubbing reference for regional cast and season release verification.", project: "https://doblaje.fandom.com/es/"),
+        .init("Doblaje España Wiki", detail: "Community-maintained Castilian Spanish dubbing reference.", project: "https://doblaje-espana.fandom.com/es/"),
         .init("MyDubList", detail: "Open-source multilingual anime dub database. Dataset licensed under CC BY 4.0.", project: "https://mydublist.com", licenseName: "CC BY 4.0", license: "https://creativecommons.org/licenses/by/4.0/"),
         .init("RockinChaos / AniSchedule", detail: "Episode release history used by Taizen for dub episode counts.", project: "https://github.com/RockinChaos/AniSchedule"),
         .init("Jikan", detail: "Unofficial MyAnimeList API used for supplemental anime episode metadata.", project: "https://jikan.moe"),
