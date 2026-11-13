@@ -957,46 +957,28 @@ class TMDBContentFilter: ObservableObject {
 
     private func resolveRuntimeMetadata(for results: [TMDBSearchResult]) async {
         let candidates = results.filter { $0.id > 0 && ($0.isMovie || $0.isTVShow) }
-        var pending: [TMDBSearchResult] = []
+        var pending: [(result: TMDBSearchResult, key: String)] = []
         runtimeMetadataLock.lock()
         for result in candidates {
             let key = runtimeCacheKey(for: result)
             if runtimeCheckedKeys.contains(key) || runtimeLoadingKeys.contains(key) { continue }
             runtimeLoadingKeys.insert(key)
-            pending.append(result)
+            pending.append((result, key))
         }
         runtimeMetadataLock.unlock()
         guard !pending.isEmpty else { return }
 
         await withTaskGroup(of: (String, Int?, Bool).self) { group in
-            for result in pending {
-                let key = runtimeCacheKey(for: result)
+            var iterator = pending.makeIterator()
+            for _ in 0..<min(6, pending.count) {
+                guard let item = iterator.next() else { continue }
                 group.addTask {
-                    if result.isMovie {
-                        do {
-                            let detail = try await TMDBService.shared.getMovieDetails(id: result.id)
-                            return (key, detail.runtime, true)
-                        } catch {
-                            return (key, nil, false)
-                        }
-                    }
-                    do {
-                        let detail = try await TMDBService.shared.getTVShowDetails(id: result.id)
-                        let values = (detail.episodeRunTime ?? []).filter { $0 > 0 }.sorted()
-                        guard !values.isEmpty else { return (key, nil, true) }
-                        let middle = values.count / 2
-                        let median = values.count.isMultiple(of: 2)
-                            ? (values[middle - 1] + values[middle]) / 2
-                            : values[middle]
-                        return (key, median, true)
-                    } catch {
-                        return (key, nil, false)
-                    }
+                    await Self.fetchRuntimeMetadata(for: item.result, key: item.key)
                 }
             }
 
             var didResolveAny = false
-            for await (key, runtime, succeeded) in group {
+            while let (key, runtime, succeeded) = await group.next() {
                 runtimeMetadataLock.lock()
                 runtimeLoadingKeys.remove(key)
                 if succeeded {
@@ -1007,6 +989,12 @@ class TMDBContentFilter: ObservableObject {
                     didResolveAny = true
                 }
                 runtimeMetadataLock.unlock()
+
+                if let next = iterator.next() {
+                    group.addTask {
+                        await Self.fetchRuntimeMetadata(for: next.result, key: next.key)
+                    }
+                }
             }
             if didResolveAny {
                 NotificationCenter.default.post(
@@ -1014,6 +1002,32 @@ class TMDBContentFilter: ObservableObject {
                     object: nil
                 )
             }
+        }
+    }
+
+    private static func fetchRuntimeMetadata(
+        for result: TMDBSearchResult,
+        key: String
+    ) async -> (String, Int?, Bool) {
+        if result.isMovie {
+            do {
+                let detail = try await TMDBService.shared.getMovieDetails(id: result.id)
+                return (key, detail.runtime, true)
+            } catch {
+                return (key, nil, false)
+            }
+        }
+        do {
+            let detail = try await TMDBService.shared.getTVShowDetails(id: result.id)
+            let values = (detail.episodeRunTime ?? []).filter { $0 > 0 }.sorted()
+            guard !values.isEmpty else { return (key, nil, true) }
+            let middle = values.count / 2
+            let median = values.count.isMultiple(of: 2)
+                ? (values[middle - 1] + values[middle]) / 2
+                : values[middle]
+            return (key, median, true)
+        } catch {
+            return (key, nil, false)
         }
     }
 
