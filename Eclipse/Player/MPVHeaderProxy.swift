@@ -6181,6 +6181,7 @@ final class LocalFileLANServer {
 
         let token = UUID().uuidString.lowercased()
         lock.lock()
+        files = files.filter { $0.value.expiresAt > Date() }
         files[token] = PublishedFile(url: resolvedURL, expiresAt: Date().addingTimeInterval(60 * 60))
         lock.unlock()
 
@@ -6263,7 +6264,7 @@ final class LocalFileLANServer {
     }
 
     private func waitForPort() -> UInt16? {
-        let deadline = Date().addingTimeInterval(2)
+        let deadline = Date().addingTimeInterval(1)
         while Date() < deadline {
             lock.lock()
             let value = ready ? port : nil
@@ -6360,7 +6361,7 @@ final class LocalFileLANServer {
                     end = min(end, upper)
                 }
             }
-            guard start < fileSize, end >= start else {
+            guard start >= 0, start < fileSize, end >= start else {
                 sendRangeError(fileSize, on: connection)
                 return
             }
