@@ -4021,6 +4021,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         NotificationCenter.default.addObserver(self, selector: #selector(handleLoggerNotification(_:)), name: NSNotification.Name("LoggerNotification"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleCastMediaLoaded), name: EclipseCastCoordinator.didLoadMediaNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleCastSessionEnded), name: EclipseCastCoordinator.didEndSessionNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleCastMediaFailed(_:)), name: EclipseCastCoordinator.didFailMediaNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(invalidateSkipDataForProfileChange), name: .activeProfileDidChange, object: nil)
         NotificationCenter.default.addObserver(
             self,
@@ -13222,6 +13223,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
     @objc private func handleCastSessionEnded() {
         showPlayerNotice("Casting ended. Tap Play to continue on this device.")
+    }
+
+    @objc private func handleCastMediaFailed(_ notification: Notification) {
+        showPlayerNotice(notification.object as? String ?? "The TV could not start this stream.")
     }
 
     private func applyVLCSubtitleModeSettingIfNeeded() {
