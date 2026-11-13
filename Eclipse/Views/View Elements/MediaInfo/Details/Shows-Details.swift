@@ -324,7 +324,7 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
         )
         guard isAnime, specialEpisodeContext == nil else { return airedEpisodes }
 
-        let selectedLanguages = MyDubListDubFilter.shared.selectedLanguages
+        let selectedLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
         guard !selectedLanguages.isEmpty else { return airedEpisodes }
         let counts = animeDubEpisodeCountsBySeason[detail.seasonNumber] ?? [:]
         return airedEpisodes.filter { episode in
@@ -1213,7 +1213,7 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
         guard isAnime,
               specialEpisodeContext == nil,
               let seasonNumber = selectedSeason?.seasonNumber else { return "none" }
-        let languages = MyDubListDubFilter.shared.selectedLanguages.sorted().joined(separator: ",")
+        let languages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement.sorted().joined(separator: ",")
         guard !languages.isEmpty else { return "none" }
         let providerID = animeSeasonAniListIds[seasonNumber] ?? 0
         return "\(seasonNumber):\(providerID):\(languages):\(animeDubFilterRevision)"
@@ -1221,7 +1221,7 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
 
     private func shouldShowDubPremiereNotice(for seasonNumber: Int) -> Bool {
         guard isAnime, specialEpisodeContext == nil else { return false }
-        let selectedLanguages = MyDubListDubFilter.shared.selectedLanguages
+        let selectedLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
         guard !selectedLanguages.isEmpty else { return false }
         let counts = animeDubEpisodeCountsBySeason[seasonNumber] ?? [:]
         return (AnimeDubEpisodeVisibilityPolicy.availableEpisodeLimit(
@@ -1281,7 +1281,7 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
         guard isAnime,
               specialEpisodeContext == nil,
               let seasonNumber = selectedSeason?.seasonNumber else { return }
-        let selectedLanguages = MyDubListDubFilter.shared.selectedLanguages
+        let selectedLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
         guard !selectedLanguages.isEmpty else {
             if let detail = activeSeasonDetail,
                detail.seasonNumber == seasonNumber,
@@ -1586,7 +1586,7 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
 #endif
 
     private func pageSourceEpisodes(for detail: TMDBSeasonDetail) -> [TMDBEpisode] {
-        let hasDubFilter = !MyDubListDubFilter.shared.selectedLanguages.isEmpty
+        let hasDubFilter = !MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement.isEmpty
         return isAnime && specialEpisodeContext == nil && !hasDubFilter
             ? detail.episodes
             : visibleEpisodes(for: detail)
