@@ -45,7 +45,7 @@ enum CastMediaPolicy {
         guard rejectionReason(for: url, headers: headers) == nil,
               let contentType = contentType(for: url) else { return nil }
 
-        let metadata = GCKMediaMetadata(metadataType: .generic)
+        let metadata = GCKMediaMetadata()
         let cleanedTitle = String(title.trimmingCharacters(in: .whitespacesAndNewlines).prefix(180))
         metadata.setString(cleanedTitle.isEmpty ? "Eclipse" : cleanedTitle, forKey: kGCKMetadataKeyTitle)
 
@@ -58,13 +58,15 @@ enum CastMediaPolicy {
 }
 
 @MainActor
-final class EclipseCastCoordinator: NSObject, GCKSessionManagerListener {
+final class EclipseCastCoordinator: NSObject, GCKSessionManagerListener, GCKRequestDelegate {
     static let shared = EclipseCastCoordinator()
     static let didLoadMediaNotification = Notification.Name("EclipseCastDidLoadMedia")
     static let didEndSessionNotification = Notification.Name("EclipseCastDidEndSession")
+    static let didFailMediaNotification = Notification.Name("EclipseCastDidFailMedia")
 
     private var isConfigured = false
     private var pendingMediaInformation: GCKMediaInformation?
+    private var activeLoadRequest: GCKRequest?
 
     func configure() {
         guard !isConfigured else { return }
@@ -87,7 +89,7 @@ final class EclipseCastCoordinator: NSObject, GCKSessionManagerListener {
             return "Eclipse could not prepare this stream for casting."
         }
         pendingMediaInformation = mediaInformation
-        if GCKCastContext.sharedInstance().sessionManager.currentCastSession != nil {
+        if GCKCastContext.sharedInstance().sessionManager.currentSession != nil {
             loadPendingMediaIfConnected()
         }
         return nil
@@ -95,12 +97,19 @@ final class EclipseCastCoordinator: NSObject, GCKSessionManagerListener {
 
     private func loadPendingMediaIfConnected() {
         guard let mediaInformation = pendingMediaInformation,
-              let remoteClient = GCKCastContext.sharedInstance().sessionManager.currentCastSession?.remoteMediaClient else {
+              let remoteClient = GCKCastContext.sharedInstance().sessionManager.currentSession?.remoteMediaClient else {
             return
         }
         pendingMediaInformation = nil
-        _ = remoteClient.loadMedia(mediaInformation)
-        NotificationCenter.default.post(name: Self.didLoadMediaNotification, object: nil)
+        guard let request = remoteClient.loadMedia(mediaInformation) else {
+            NotificationCenter.default.post(
+                name: Self.didFailMediaNotification,
+                object: "The TV receiver did not accept this stream."
+            )
+            return
+        }
+        activeLoadRequest = request
+        request.delegate = self
     }
 
     func sessionManager(_ sessionManager: GCKSessionManager, didStart session: GCKSession) {
@@ -114,6 +123,18 @@ final class EclipseCastCoordinator: NSObject, GCKSessionManagerListener {
     func sessionManager(_ sessionManager: GCKSessionManager, didEnd session: GCKSession, withError error: Error?) {
         pendingMediaInformation = nil
         NotificationCenter.default.post(name: Self.didEndSessionNotification, object: nil)
+    }
+
+    func requestDidComplete(_ request: GCKRequest) {
+        guard activeLoadRequest === request else { return }
+        activeLoadRequest = nil
+        NotificationCenter.default.post(name: Self.didLoadMediaNotification, object: nil)
+    }
+
+    func request(_ request: GCKRequest, didFailWithError error: GCKError) {
+        guard activeLoadRequest === request else { return }
+        activeLoadRequest = nil
+        NotificationCenter.default.post(name: Self.didFailMediaNotification, object: error.localizedDescription)
     }
 }
 #endif
