@@ -454,6 +454,7 @@ struct MediaDetailContentView: View {
     @State private var romajiTitle: String?
     @State private var logoURL: String?
     @State private var alternatePosterURL: String?
+    @State private var tvMazePosterURL: String?
     @State private var isAnimeShow = false
     @State private var animeRating: AnimeMetadataRating?
     @State private var anilistEpisodes: [AniListEpisode]? = nil
@@ -2582,7 +2583,8 @@ struct MediaDetailContentView: View {
         }
 #if !os(tvOS) && !os(macOS)
         if !usesWideDetailLayout, mediaDetailTitleArtworkEnabled, mediaDetailAlternatePosterEnabled {
-            return alternatePosterURL
+            if let alternatePosterURL { return alternatePosterURL }
+            if !searchResult.isMovie, let tvMazePosterURL { return tvMazePosterURL }
         }
 
         if ExperimentalFeatureState.isEnabledAtLaunch && !usesWideDetailLayout && !isTvOS {
@@ -6900,6 +6902,10 @@ struct MediaDetailContentView: View {
                       shouldAnalyzeAlternatePoster else { return }
                 alternatePosterURL = alternate.poster?.fullURL
                 alternatePosterWasResolved = alternate.isComplete
+                if alternate.poster == nil, !isMovie,
+                   let imdbID = tvShowDetail?.externalIds?.imdbId {
+                    tvMazePosterURL = await tmdbService.getTVMazePosterURL(imdbID: imdbID)
+                }
                 cacheOptionalPresentation(key: cacheKey)
             }
             let romaji = await romajiResult
