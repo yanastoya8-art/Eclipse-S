@@ -18,7 +18,7 @@ enum MyDubListLanguage: String, CaseIterable, Identifiable, Sendable {
     var displayName: String {
         switch self {
         case .english: return "English"
-        case .spanish: return "Spanish"
+        case .spanish: return "Spanish (Latino or Castellano)"
         case .german: return "German"
         case .french: return "French"
         case .italian: return "Italian"
