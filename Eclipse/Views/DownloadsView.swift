@@ -40,7 +40,6 @@ struct DownloadsView: View {
     @State private var showingDeleteCompletedConfirmation = false
     @State private var showingDeleteSeriesConfirmation = false
     @State private var seriesToDelete: (tmdbId: Int, title: String)? = nil
-    @State private var selectedTab: DownloadsTab = .downloads
     @AppStorage(DownloadLibraryPosterSize.storageKey) private var libraryPosterSizeRaw = DownloadLibraryPosterSize.standard.rawValue
 
     private var libraryPosterSize: DownloadLibraryPosterSize {
@@ -49,11 +48,6 @@ struct DownloadsView: View {
 #if os(iOS)
     @Environment(\.eclipseWindowSceneSessionIdentifier) private var presentationSceneIdentifier
 #endif
-
-    private enum DownloadsTab: String, CaseIterable {
-        case downloads = "Downloads"
-        case library = "Library"
-    }
 
     @State private var kidsBlockedDownloads: Set<DownloadIdentity> = []
 
@@ -180,21 +174,7 @@ struct DownloadsView: View {
                             .multilineTextAlignment(.center)
                             .padding()
                     }
-                    Picker("View", selection: $selectedTab) {
-                        ForEach(DownloadsTab.allCases, id: \.self) { tab in
-                            Text(tab.rawValue).tag(tab)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal)
-                    .padding(.top, 8)
-
-                    switch selectedTab {
-                    case .downloads:
-                        downloadsList
-                    case .library:
-                        libraryView
-                    }
+                    libraryView
                 }
             }
         }
@@ -647,7 +627,7 @@ struct DownloadsView: View {
     private var groupedDownloads: [ShowGroup] {
         var showMap: [DownloadIdentity: ShowGroup] = [:]
 
-        for item in completedDownloads {
+        for item in (completedDownloads + activeDownloads) {
             let identity = DownloadIdentity(isMovie: item.isMovie, id: item.tmdbId)
             if showMap[identity] == nil {
                 showMap[identity] = ShowGroup(
@@ -697,9 +677,15 @@ struct DownloadsView: View {
                         if show.isMovie {
 
                             if let item = show.seasons.first?.episodes.first {
-                                completedDownloadRow(item)
-                                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                                    .listRowBackground(Color.clear)
+                                if item.status == .completed {
+                                    completedDownloadRow(item)
+                                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                                        .listRowBackground(Color.clear)
+                                } else {
+                                    activeDownloadRow(item)
+                                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                                        .listRowBackground(Color.clear)
+                                }
                             }
                         } else {
 
@@ -724,29 +710,12 @@ struct DownloadsView: View {
                                             .foregroundColor(.white)
                                             .lineLimit(2)
 
-                                        let totalEps = show.seasons.reduce(0) { $0 + $1.episodes.count }
-                                        Text("\(totalEps) episode\(totalEps == 1 ? "" : "s")")
+                                        let allEpisodes = show.seasons.flatMap(\.episodes)
+                                        let completedCount = allEpisodes.filter { $0.status == .completed }.count
+                                        let activeCount = allEpisodes.count - completedCount
+                                        Text("\(completedCount) downloaded • \(activeCount) downloading")
                                             .font(.caption)
                                             .foregroundColor(.secondary)
-
-                                        let watchedCount = show.seasons.flatMap(\.episodes).filter {
-                                            ProgressManager.shared.isEpisodeWatched(
-                                                showId: $0.tmdbId,
-                                                seasonNumber: $0.seasonNumber ?? 1,
-                                                episodeNumber: $0.episodeNumber ?? 1,
-                                                playbackContext: $0.episodePlaybackContext
-                                            )
-                                        }.count
-                                        if watchedCount > 0 {
-                                            HStack(spacing: 3) {
-                                                Image(systemName: "checkmark.circle.fill")
-                                                    .font(.caption2)
-                                                    .foregroundColor(.blue)
-                                                Text("\(watchedCount)/\(totalEps) watched")
-                                                    .font(.caption2)
-                                                    .foregroundColor(.secondary)
-                                            }
-                                        }
                                     }
 
                                     Spacer()
