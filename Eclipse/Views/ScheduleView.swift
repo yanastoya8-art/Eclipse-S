@@ -479,9 +479,20 @@ struct ScheduleView: View {
         EclipseEmptyState(
             icon: "calendar",
             title: "No Upcoming Episodes",
-            message: "No \(selectedScheduleMode.displayName.lowercased()) episodes scheduled in the next \(scheduleWindow.rawValue) days."
+            message: viewModel.scheduleNotice ?? "No \(selectedScheduleMode.displayName.lowercased()) episodes scheduled in the next \(scheduleWindow.rawValue) days."
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func scheduleNoticeBanner(_ notice: String) -> some View {
+        Text(notice)
+            .font(.caption)
+            .foregroundColor(.white.opacity(0.72))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .padding(.horizontal)
     }
 
     @ViewBuilder
@@ -494,6 +505,9 @@ struct ScheduleView: View {
                 scheduleModePickerSection
 
                 timeZoneToggleSection
+                if let notice = viewModel.scheduleNotice {
+                    scheduleNoticeBanner(notice)
+                }
                 if viewModel.isLoading {
                     loadingView
                         .frame(minHeight: 360)
@@ -521,6 +535,9 @@ struct ScheduleView: View {
             VStack(alignment: .leading, spacing: 24) {
                 tvScheduleHeader
 
+                if let notice = viewModel.scheduleNotice {
+                    scheduleNoticeBanner(notice)
+                }
                 if viewModel.isLoading {
                     loadingView
                         .frame(minHeight: 520)
