@@ -1,4 +1,5 @@
 name: iOS Build and Tests
+# Cancellation fix validation branch: independent run IDs keep every attempt queued.
 
 on:
   push:
