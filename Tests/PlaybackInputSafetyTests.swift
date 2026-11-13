@@ -1499,33 +1499,18 @@ final class MPVDolbyPlaybackSettingsTests: XCTestCase {
 
 
 final class MPVDolbyVisionDetectionPolicyTests: XCTestCase {
-    func testDetectsExplicitDolbyVisionStreamAndCodecMarkers() {
-        XCTAssertTrue(MPVDolbyVisionDetectionPolicy.isDetected(
-            streamName: "Movie 2160p Dolby Vision",
-            streamURL: nil,
-            dynamicRange: "HDR PQ",
-            videoCodec: "hevc"
-        ))
-        XCTAssertTrue(MPVDolbyVisionDetectionPolicy.isDetected(
-            streamName: nil,
-            streamURL: "https://cdn.example/movie-dvhe.08.06.mkv",
-            dynamicRange: nil,
-            videoCodec: nil
-        ))
-        XCTAssertTrue(MPVDolbyVisionDetectionPolicy.isDetected(
-            streamName: nil,
-            streamURL: nil,
-            dynamicRange: nil,
-            videoCodec: "dvhe.05.06"
-        ))
-    }
-
-    func testHDR10OrGenericHEVCIsNotMisreportedAsDolbyVision() {
-        XCTAssertFalse(MPVDolbyVisionDetectionPolicy.isDetected(
-            streamName: "Movie 2160p HDR10",
-            streamURL: "https://cdn.example/movie-hevc.mkv",
-            dynamicRange: "HDR PQ",
-            videoCodec: "hevc"
-        ))
+    func testOnlyBitstreamRPUResultCanConfirmDolbyVision() {
+        XCTAssertEqual(
+            MPVDolbyVisionDetectionPolicy.status(bitstreamHasDolbyVisionRPU: true),
+            .detected
+        )
+        XCTAssertEqual(
+            MPVDolbyVisionDetectionPolicy.status(bitstreamHasDolbyVisionRPU: false),
+            .notDetected
+        )
+        XCTAssertEqual(
+            MPVDolbyVisionDetectionPolicy.status(bitstreamHasDolbyVisionRPU: nil),
+            .unavailable
+        )
     }
 }
