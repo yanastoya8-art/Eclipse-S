@@ -10,6 +10,7 @@ import Foundation
 enum ScheduleMode: String, CaseIterable, Identifiable, Sendable {
     case anime
     case western
+    case movies
     case combined
 
     var id: String { rawValue }
@@ -20,6 +21,8 @@ enum ScheduleMode: String, CaseIterable, Identifiable, Sendable {
             return "Anime"
         case .western:
             return "Western"
+        case .movies:
+            return "Movies"
         case .combined:
             return "Combined"
         }
@@ -31,6 +34,8 @@ enum ScheduleMode: String, CaseIterable, Identifiable, Sendable {
             return nil
         case .western:
             return "Western TV and streaming episodes from Trakt."
+        case .movies:
+            return "Upcoming non-anime movie releases, including selected dubbed-language dates."
         case .combined:
             return "Anime and Western episodes together."
         }
@@ -103,10 +108,13 @@ enum ScheduleProvider: String, Codable, Sendable {
     case animeSchedule
     case dubOnly
     case trakt
+    case traktMovie
     case tvMaze
 
     func metadataCacheKey(mediaID: Int, tmdbID: Int?, entryID: String) -> String {
-        if let tmdbID, tmdbID > 0 { return "tmdb-tv-\(tmdbID)" }
+        if let tmdbID, tmdbID > 0 {
+            return rawValue == "traktMovie" ? "tmdb-movie-\(tmdbID)" : "tmdb-tv-\(tmdbID)"
+        }
         return mediaID > 0 ? "\(rawValue)-\(mediaID)" : "\(rawValue)-entry-\(entryID)"
     }
 }
@@ -177,6 +185,7 @@ struct ScheduleEntry: Identifiable, Sendable {
     var runtimeMinutes: Int?
     let animeMALID: Int?
     let airingTimeWithdrawn: Bool
+    let isMovie: Bool
 
     var animeMediaIDs: Set<Int> {
         guard source == .anime else { return [] }
@@ -213,6 +222,7 @@ struct ScheduleEntry: Identifiable, Sendable {
         originalLanguage = nil
         releaseYear = nil
         runtimeMinutes = nil
+        isMovie = false
     }
 
     fileprivate init(westernEpisode: TVMazeScheduleEpisode, airing: TVMazeAiringInfo) {
@@ -237,6 +247,7 @@ struct ScheduleEntry: Identifiable, Sendable {
         originalLanguage = westernEpisode.show.isoLanguageCode
         releaseYear = westernEpisode.show.releaseYear
         runtimeMinutes = westernEpisode.runtime
+        isMovie = false
     }
 
     fileprivate init(traktItem: TraktCalendarItem, airingAt: Date, tmdbDetail: TMDBTVShowDetail?) {
@@ -265,6 +276,34 @@ struct ScheduleEntry: Identifiable, Sendable {
         originalLanguage = traktItem.show.language?.lowercased()
         releaseYear = traktItem.show.year
         runtimeMinutes = traktItem.episode.runtime
+        isMovie = false
+    }
+
+    fileprivate init(traktMovieItem: TraktMovieCalendarItem, releaseDate: Date) {
+        animeMALID = nil
+        airingTimeWithdrawn = false
+        let movie = traktMovieItem.movie
+        let stableID = movie.ids.tmdb ?? movie.ids.trakt ?? 0
+        id = "trakt-movie-\(stableID)-\(movie.year ?? 0)"
+        source = .western
+        provider = .traktMovie
+        sourceMediaId = stableID
+        title = movie.title
+        airingAt = releaseDate
+        episode = 0
+        season = nil
+        coverImage = nil
+        englishTitle = movie.title
+        romajiTitle = nil
+        nativeTitle = nil
+        format = "MOVIE"
+        hasKnownAiringTime = false
+        isStreamingRelease = false
+        tmdbId = movie.ids.tmdb
+        originalLanguage = movie.language?.lowercased()
+        releaseYear = movie.year
+        runtimeMinutes = movie.runtime
+        isMovie = true
     }
 
     func withAiringAt(_ date: Date, isStreamingRelease: Bool) -> ScheduleEntry {
@@ -309,6 +348,10 @@ final class ScheduleViewModel: ObservableObject {
     private var westernScheduleLastFailureAt: Date?
     private var westernScheduleLoadTask: Task<[ScheduleEntry], Error>?
     private var westernScheduleLoadID: UUID?
+    private var movieScheduleEntries: [ScheduleEntry]?
+    private var movieScheduleFetchedAt: Date?
+    private var movieScheduleDayCount = 0
+    private var movieScheduleLastFailureAt: Date?
     private var activeLoadID: UUID?
     private var activeLoadMode: ScheduleMode?
     private var activeLoadDayCount: Int?
@@ -430,7 +473,7 @@ final class ScheduleViewModel: ObservableObject {
                 activeLoadDayCount = nil
                 isLoading = false
                 scheduleEntries = entries
-                scheduleNotice = mode == .western ? nil : animeScheduleResult?.notice
+                scheduleNotice = mode == .anime ? animeScheduleResult?.notice : nil
                 loadedScheduleMode = mode
                 loadedScheduleDayCount = requestedDayCount
                 currentDayAnchor = Date()
@@ -444,12 +487,14 @@ final class ScheduleViewModel: ObservableObject {
             }
             guard didPublish else { return }
 #if os(iOS) || os(macOS)
-            await LocalNotificationManager.shared.reconcileScheduleEntries(
-                entries,
-                successfulSources: loadResult.successfulSources,
-                authoritativeSources: loadResult.authoritativeSources,
-                coveredDayCount: requestedDayCount
-            )
+            if mode != .movies {
+                await LocalNotificationManager.shared.reconcileScheduleEntries(
+                    entries,
+                    successfulSources: loadResult.successfulSources,
+                    authoritativeSources: loadResult.authoritativeSources,
+                    coveredDayCount: requestedDayCount
+                )
+            }
 #endif
         } catch {
             if Self.isIntentionalCancellation(error) {
@@ -577,6 +622,12 @@ final class ScheduleViewModel: ObservableObject {
                 entries: try await westernEntries(dayCount: dayCount, forceRefresh: forceRefresh),
                 successfulSources: [.western],
                 authoritativeSources: [.western]
+            )
+        case .movies:
+            return ScheduleLoadResult(
+                entries: try await movieEntries(dayCount: dayCount, forceRefresh: forceRefresh),
+                successfulSources: [],
+                authoritativeSources: []
             )
         case .combined:
             async let animeResult = scheduleSourceResult {
@@ -832,6 +883,41 @@ final class ScheduleViewModel: ObservableObject {
         return try await westernEntries(dayCount: dayCount, forceRefresh: forceRefresh)
     }
 
+    @MainActor
+    private func movieEntries(dayCount: Int, forceRefresh: Bool) async throws -> [ScheduleEntry] {
+        if !forceRefresh,
+           scheduleCacheIsFresh(
+                movieScheduleFetchedAt,
+                cachedDayCount: movieScheduleDayCount,
+                requiredDayCount: dayCount
+           ),
+           let cached = movieScheduleEntries {
+            return entries(cached, within: dayCount)
+        }
+        if !forceRefresh, retryIsCoolingDown(since: movieScheduleLastFailureAt) {
+            throw ScheduleSourceLoadError.retryDeferred("Movies")
+        }
+        do {
+            let rawEntries = try await retryOnceAfterTransientCancellation(operationName: "Trakt movie calendar") {
+                try await TraktScheduleService.shared.fetchMovieSchedule(dayCount: dayCount)
+            }
+            try Task.checkCancellation()
+            let languageFiltered = await JustWatchScheduleService.shared.filterMovies(
+                entries: rawEntries,
+                selectedLanguages: MyDubListDubFilter.shared.selectedLanguages
+            )
+            try Task.checkCancellation()
+            movieScheduleEntries = languageFiltered
+            movieScheduleDayCount = dayCount
+            movieScheduleFetchedAt = Date()
+            movieScheduleLastFailureAt = nil
+            return entries(languageFiltered, within: dayCount)
+        } catch {
+            movieScheduleLastFailureAt = Date()
+            throw error
+        }
+    }
+
     private func applyShortRuntimeScheduleFilter(_ entries: [ScheduleEntry]) async -> [ScheduleEntry] {
         guard UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") else {
             return entries
@@ -999,50 +1085,58 @@ final class ScheduleViewModel: ObservableObject {
 
     @MainActor
     private func startPosterHydrationIfNeeded(for entries: [ScheduleEntry], loadID: UUID) {
-        let westernEntries = entries.filter {
-            guard $0.source == .western,
-                  let tmdbId = $0.tmdbId,
-                  $0.coverImage == nil else {
-                return false
-            }
+        let tvEntries = entries.filter {
+            guard $0.source == .western, !$0.isMovie,
+                  let tmdbId = $0.tmdbId, $0.coverImage == nil else { return false }
             return !posterHydrationAttemptedTMDBIDs.contains(tmdbId)
         }
-        guard !westernEntries.isEmpty else { return }
+        let movieEntries = entries.filter {
+            guard $0.isMovie, let tmdbId = $0.tmdbId, $0.coverImage == nil else { return false }
+            return !posterHydrationAttemptedTMDBIDs.contains(tmdbId)
+        }
+        guard !tvEntries.isEmpty || !movieEntries.isEmpty else { return }
 
         activePosterHydrationID = loadID
         posterHydrationTask = Task { @MainActor [weak self] in
             guard let self else { return }
-            let details = await TraktScheduleService.shared.fetchTMDBDetails(for: westernEntries)
+            async let tvDetailsTask = TraktScheduleService.shared.fetchTMDBDetails(for: tvEntries)
+            async let moviePostersTask = TraktScheduleService.shared.fetchTMDBMoviePosters(for: movieEntries)
+            let (details, moviePosters) = await (tvDetailsTask, moviePostersTask)
             guard !Task.isCancelled, self.activePosterHydrationID == loadID else { return }
-            posterHydrationAttemptedTMDBIDs.formUnion(westernEntries.compactMap(\.tmdbId))
+            posterHydrationAttemptedTMDBIDs.formUnion((tvEntries + movieEntries).compactMap(\.tmdbId))
 
-            if !details.isEmpty {
-                var hydratedEntries = self.scheduleEntries
-                for index in hydratedEntries.indices {
-                    guard let tmdbId = hydratedEntries[index].tmdbId,
-                          let detail = details[tmdbId] else {
-                        continue
-                    }
+            var hydratedEntries = self.scheduleEntries
+            for index in hydratedEntries.indices {
+                guard let tmdbId = hydratedEntries[index].tmdbId else { continue }
+                if hydratedEntries[index].isMovie, let poster = moviePosters[tmdbId] {
+                    hydratedEntries[index].coverImage = poster
+                } else if let detail = details[tmdbId] {
                     hydratedEntries[index].coverImage = detail.fullPosterURL
                 }
-
-                scheduleEntries = hydratedEntries
-                if var cachedWesternEntries = westernScheduleEntries {
-                    for index in cachedWesternEntries.indices {
-                        guard let tmdbId = cachedWesternEntries[index].tmdbId,
-                              let detail = details[tmdbId] else {
-                            continue
-                        }
-                        cachedWesternEntries[index].coverImage = detail.fullPosterURL
-                    }
-                    westernScheduleEntries = cachedWesternEntries
-                }
-                updateBuckets(
-                    with: hydratedEntries,
-                    localTimeZone: currentLocalTimeZone,
-                    dayCount: loadedScheduleDayCount ?? ScheduleWindow.current.rawValue
-                )
             }
+            scheduleEntries = hydratedEntries
+
+            if var cachedWesternEntries = westernScheduleEntries {
+                for index in cachedWesternEntries.indices {
+                    guard let tmdbId = cachedWesternEntries[index].tmdbId,
+                          let detail = details[tmdbId] else { continue }
+                    cachedWesternEntries[index].coverImage = detail.fullPosterURL
+                }
+                westernScheduleEntries = cachedWesternEntries
+            }
+            if var cachedMovieEntries = movieScheduleEntries {
+                for index in cachedMovieEntries.indices {
+                    guard let tmdbId = cachedMovieEntries[index].tmdbId,
+                          let poster = moviePosters[tmdbId] else { continue }
+                    cachedMovieEntries[index].coverImage = poster
+                }
+                movieScheduleEntries = cachedMovieEntries
+            }
+            updateBuckets(
+                with: hydratedEntries,
+                localTimeZone: currentLocalTimeZone,
+                dayCount: loadedScheduleDayCount ?? ScheduleWindow.current.rawValue
+            )
             activePosterHydrationID = nil
             posterHydrationTask = nil
         }
@@ -1075,8 +1169,14 @@ final class ScheduleViewModel: ObservableObject {
     }
 
     private func performTMDBLookup(for entry: ScheduleEntry) async -> TMDBSearchResult? {
-        if let tmdbId = entry.tmdbId,
-           let detail = try? await TMDBService.shared.getTVShowDetails(id: tmdbId) {
+        if entry.isMovie {
+            if let tmdbId = entry.tmdbId,
+               let movies = try? await TMDBService.shared.searchMovies(query: entry.title),
+               let exact = movies.first(where: { $0.id == tmdbId }) {
+                return exact.asSearchResult
+            }
+        } else if let tmdbId = entry.tmdbId,
+                  let detail = try? await TMDBService.shared.getTVShowDetails(id: tmdbId) {
             return tmdbSearchResult(from: detail)
         }
 
@@ -1091,7 +1191,7 @@ final class ScheduleViewModel: ObservableObject {
         let candidates = titleCandidates.isEmpty ? [entry.title] : titleCandidates
         let tmdbService = TMDBService.shared
         let preferAnimation = entry.source == .anime
-        let isMovie = preferAnimation && entry.format?.uppercased() == "MOVIE"
+        let isMovie = entry.isMovie || (preferAnimation && entry.format?.uppercased() == "MOVIE")
 
         for candidate in candidates {
             if isMovie {
@@ -1373,6 +1473,30 @@ private final class TraktScheduleService {
         return candidates.filter { !dailyShowIds.contains($0.showKey) }
     }
 
+    func fetchTMDBMoviePosters(for entries: [ScheduleEntry]) async -> [Int: String] {
+        let candidates = entries.compactMap { entry -> (Int, String)? in
+            guard let id = entry.tmdbId else { return nil }
+            return (id, entry.title)
+        }
+        return await withTaskGroup(of: (Int, String?).self) { group in
+            for (id, title) in candidates.prefix(80) {
+                group.addTask {
+                    guard let movies = try? await TMDBService.shared.searchMovies(query: title),
+                          let movie = movies.first(where: { $0.id == id }),
+                          let path = movie.posterPath, !path.isEmpty else {
+                        return (id, nil)
+                    }
+                    return (id, "https://image.tmdb.org/t/p/w500\\(path)")
+                }
+            }
+            var posters: [Int: String] = [:]
+            for await (id, poster) in group {
+                if let poster { posters[id] = poster }
+            }
+            return posters
+        }
+    }
+
     func fetchTMDBDetails(for entries: [ScheduleEntry]) async -> [Int: TMDBTVShowDetail] {
         var seen = Set<Int>()
         let ids = entries
@@ -1399,10 +1523,67 @@ private final class TraktScheduleService {
     private static func parseDate(_ value: String) -> Date? {
         let fractional = ISO8601DateFormatter()
         fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = fractional.date(from: value) {
-            return date
+        if let date = fractional.date(from: value) { return date }
+        if let date = ISO8601DateFormatter().date(from: value) { return date }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: value)
+    }
+
+    func fetchMovieSchedule(dayCount: Int) async throws -> [ScheduleEntry] {
+        guard !clientId.isEmpty else { throw TraktScheduleError.missingClientId }
+        let window = ScheduleDateWindow.envelope(dayCount: dayCount)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
+        let formatter = AppCalendar.dateFormatter()
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        var cursor = calendar.startOfDay(for: window.start)
+        var items: [TraktMovieCalendarItem] = []
+        while cursor < window.end {
+            try Task.checkCancellation()
+            let remaining = calendar.dateComponents([.day], from: cursor, to: window.end).day ?? 0
+            let chunkDays = min(30, max(1, remaining + 1))
+            items += try await fetchMovieCalendarItems(
+                startDate: formatter.string(from: cursor),
+                dayCount: chunkDays
+            )
+            guard let next = calendar.date(byAdding: .day, value: chunkDays, to: cursor), next > cursor else { break }
+            cursor = next
         }
-        return ISO8601DateFormatter().date(from: value)
+
+        let grouped = Dictionary(grouping: items.compactMap { item -> (TraktMovieCalendarItem, Date)? in
+            guard item.isNonAnimeMovie, let date = Self.parseDate(item.released) else { return nil }
+            return (item, date)
+        }, by: { item, _ in item.movie.stableScheduleKey })
+        var result: [ScheduleEntry] = []
+        for group in grouped.values {
+            guard let earliest = group.min(by: { $0.1 < $1.1 }) else { continue }
+            result.append(ScheduleEntry(traktMovieItem: earliest.0, releaseDate: earliest.1))
+        }
+        return result.sorted { $0.airingAt < $1.airingAt }
+    }
+
+    private func fetchMovieCalendarItems(startDate: String, dayCount: Int) async throws -> [TraktMovieCalendarItem] {
+        var components = URLComponents(
+            string: "\(baseURL.absoluteString)/calendars/all/movies/\(startDate)/\(dayCount)"
+        )
+        components?.queryItems = [URLQueryItem(name: "extended", value: "full")]
+        guard let url = components?.url else { throw TraktScheduleError.invalidURL }
+        var request = URLRequest(url: url)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(clientId, forHTTPHeaderField: "trakt-api-key")
+        request.setValue("2", forHTTPHeaderField: "trakt-api-version")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw TraktScheduleError.invalidResponse }
+        guard (200...299).contains(http.statusCode) else {
+            throw TraktScheduleError.httpStatus(http.statusCode)
+        }
+        return try JSONDecoder().decode([TraktMovieCalendarItem].self, from: data)
     }
 }
 
@@ -1446,6 +1627,34 @@ fileprivate struct TraktCalendarItem: Decodable {
         let isLikelyAnime = genres.contains("anime")
             || (genres.contains("animation") && ["ja", "zh", "ko"].contains(show.language?.lowercased() ?? ""))
         return !isLikelyAnime && genres.isDisjoint(with: excludedGenres)
+    }
+}
+
+fileprivate struct TraktMovieCalendarItem: Decodable {
+    let released: String
+    let movie: TraktCalendarMovie
+
+    var isNonAnimeMovie: Bool {
+        let genres = Set((movie.genres ?? []).map { $0.lowercased() })
+        let language = movie.language?.lowercased() ?? ""
+        let isAnime = genres.contains("anime")
+            || (genres.contains("animation") && ["ja", "zh", "ko"].contains(language))
+        return !isAnime
+    }
+}
+
+fileprivate struct TraktCalendarMovie: Decodable {
+    let title: String
+    let year: Int?
+    let ids: TraktCalendarIDs
+    let language: String?
+    let genres: [String]?
+    let runtime: Int?
+
+    var stableScheduleKey: String {
+        if let tmdb = ids.tmdb { return "tmdb-\(tmdb)" }
+        if let trakt = ids.trakt { return "trakt-\(trakt)" }
+        return "\(title.lowercased())-\(year ?? 0)"
     }
 }
 
@@ -1861,11 +2070,141 @@ private actor JustWatchScheduleService {
         let fetchedAt: Date
         let datesByEpisode: [String: String]
     }
+    private struct CachedMovieDates: Codable {
+        let fetchedAt: Date
+        let dates: [Date]
+    }
 
     private let baseURL = URL(string: "https://api.api.sh/justwatch/v1")!
     private let cacheLifetime: TimeInterval = 12 * 60 * 60
     private var showIDCache: [String: String] = [:]
     private var seasonDateCache: [String: CachedEpisodeDates] = [:]
+    private var movieIDCache: [String: String] = [:]
+    private var movieDateCache: [String: CachedMovieDates] = [:]
+
+    func filterMovies(
+        entries: [ScheduleEntry],
+        selectedLanguages: Set<String>
+    ) async -> [ScheduleEntry] {
+        guard !selectedLanguages.isEmpty else { return entries }
+        let selectedCodes = Set(selectedLanguages.flatMap { raw in
+            MyDubListLanguage(rawValue: raw)?.episodeMetadataLanguageCodes.map { $0.lowercased() } ?? []
+        })
+        guard !selectedCodes.isEmpty else { return entries }
+        var filtered: [ScheduleEntry] = []
+        for entry in entries {
+            let nativeDate = Self.language(entry.originalLanguage, matches: selectedCodes) ? entry.airingAt : nil
+            guard let apiKey = JustWatchAPIKeyStore.load(),
+                  !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  let movieID = try? await resolveMovieID(for: entry, apiKey: apiKey),
+                  let dubbedDates = try? await movieReleaseDates(
+                    movieID: movieID,
+                    selectedCodes: selectedCodes,
+                    apiKey: apiKey
+                  ) else {
+                if let nativeDate {
+                    filtered.append(entry.withAiringAt(nativeDate, isStreamingRelease: false))
+                }
+                continue
+            }
+            let dubbedDate = dubbedDates.min()
+            guard let earliest = ScheduleReleaseDatePolicy.earliest(native: nativeDate, dubbed: dubbedDate) else {
+                continue
+            }
+            filtered.append(entry.withAiringAt(
+                earliest,
+                isStreamingRelease: ScheduleReleaseDatePolicy.usesDubbedDate(
+                    native: nativeDate,
+                    dubbed: dubbedDate
+                )
+            ))
+        }
+        return filtered.sorted { $0.airingAt < $1.airingAt }
+    }
+
+    private func resolveMovieID(for entry: ScheduleEntry, apiKey: String) async throws -> String {
+        let cacheKey = "\(entry.tmdbId.map(String.init) ?? "title")|\(entry.title.lowercased())|\(entry.releaseYear.map(String.init) ?? "0")"
+        if let cached = movieIDCache[cacheKey] { return cached }
+        if let persisted = UserDefaults.standard.string(forKey: "justWatchMovieIDV1.\(cacheKey)"),
+           persisted.hasPrefix("tm") {
+            movieIDCache[cacheKey] = persisted
+            return persisted
+        }
+        var components = URLComponents(url: baseURL.appendingPathComponent("search"), resolvingAgainstBaseURL: false)
+        components?.queryItems = [
+            URLQueryItem(name: "q", value: entry.title),
+            URLQueryItem(name: "country", value: "BG"),
+            URLQueryItem(name: "type", value: "movie"),
+            URLQueryItem(name: "limit", value: "40")
+        ]
+        guard let url = components?.url else { throw JustWatchScheduleError.invalidURL }
+        let payload = try await requestJSON(url: url, apiKey: apiKey)
+        guard let titles = payload["titles"] as? [[String: Any]] else {
+            throw JustWatchScheduleError.invalidResponse
+        }
+        let exactTMDB = entry.tmdbId.map(String.init)
+        let normalized = Self.normalizedTitle(entry.title)
+        let candidates = titles.filter { title in
+            guard (title["type"] as? String)?.uppercased() == "MOVIE" else { return false }
+            if let exactTMDB { return Self.stringValue(title["tmdb_id"]) == exactTMDB }
+            let names = [title["title"] as? String, title["original_title"] as? String]
+                .compactMap { $0 }.map(Self.normalizedTitle)
+            guard names.contains(normalized) else { return false }
+            if let year = entry.releaseYear, let candidateYear = Self.intValue(title["year"]) {
+                return abs(candidateYear - year) <= 1
+            }
+            return true
+        }
+        guard let id = candidates.first?["id"] as? String, id.hasPrefix("tm") else {
+            throw JustWatchScheduleError.titleNotFound
+        }
+        movieIDCache[cacheKey] = id
+        UserDefaults.standard.set(id, forKey: "justWatchMovieIDV1.\(cacheKey)")
+        return id
+    }
+
+    private func movieReleaseDates(
+        movieID: String,
+        selectedCodes: Set<String>,
+        apiKey: String
+    ) async throws -> [Date] {
+        let languageKey = selectedCodes.sorted().joined(separator: ",")
+        let cacheKey = "\(movieID)|BG|\(languageKey)"
+        let now = Date()
+        if let cached = movieDateCache[cacheKey],
+           JustWatchScheduleCachePolicy.isFresh(fetchedAt: cached.fetchedAt, now: now, lifetime: cacheLifetime) {
+            return cached.dates
+        }
+        if let data = UserDefaults.standard.data(forKey: "justWatchMovieReleaseDatesV1.\(cacheKey)"),
+           let cached = try? JSONDecoder().decode(CachedMovieDates.self, from: data),
+           JustWatchScheduleCachePolicy.isFresh(fetchedAt: cached.fetchedAt, now: now, lifetime: cacheLifetime) {
+            movieDateCache[cacheKey] = cached
+            return cached.dates
+        }
+        var components = URLComponents(url: baseURL.appendingPathComponent("title"), resolvingAgainstBaseURL: false)
+        components?.queryItems = [
+            URLQueryItem(name: "id", value: movieID),
+            URLQueryItem(name: "countries", value: "BG"),
+            URLQueryItem(name: "language", value: "en")
+        ]
+        guard let url = components?.url else { throw JustWatchScheduleError.invalidURL }
+        let payload = try await requestJSON(url: url, apiKey: apiKey)
+        var dates = Self.matchingReleaseDates(in: payload, selectedCodes: selectedCodes)
+        if let offersByCountry = payload["offers"] as? [String: [[String: Any]]] {
+            for offers in offersByCountry.values {
+                for offer in offers where Self.languages(offer["audio_languages"], match: selectedCodes) {
+                    if let date = Self.date(in: offer) { dates.append(date) }
+                }
+            }
+        }
+        let uniqueDates = Array(Set(dates)).sorted()
+        let cached = CachedMovieDates(fetchedAt: Date(), dates: uniqueDates)
+        movieDateCache[cacheKey] = cached
+        if let data = try? JSONEncoder().encode(cached) {
+            UserDefaults.standard.set(data, forKey: "justWatchMovieReleaseDatesV1.\(cacheKey)")
+        }
+        return uniqueDates
+    }
 
     func filter(
         entries: [ScheduleEntry],
