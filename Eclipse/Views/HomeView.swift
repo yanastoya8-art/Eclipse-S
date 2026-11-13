@@ -1245,7 +1245,7 @@ struct HomeView: View {
 
     @ViewBuilder
     private func macHeroTitle(_ hero: TMDBSearchResult, layout: MacHomeHeroLayout) -> some View {
-        if heroArtworkIdentity == hero.stableIdentity && !heroLogoLookupComplete {
+        if heroArtworkIdentity != hero.stableIdentity || !heroLogoLookupComplete {
             Color.clear.frame(width: layout.logoWidth, height: layout.logoHeight)
         } else if let logoURL = currentHeroLogoURL(for: hero) {
             KFImage(URL(string: logoURL))
@@ -1734,7 +1734,7 @@ struct HomeView: View {
             return heroTVMazePosterURLs[hero.stableIdentity] ?? hero.fullPosterURL ?? hero.animeArtworkURL ?? hero.fullBackdropURL
         }
 #endif
-        return hero.fullBackdropURL ?? hero.fullPosterURL
+        return hero.fullBackdropURL ?? hero.fullPosterURL ?? hero.animeArtworkURL
     }
 
     private func currentHeroAlternatePosterURL(for hero: TMDBSearchResult) -> String? {
