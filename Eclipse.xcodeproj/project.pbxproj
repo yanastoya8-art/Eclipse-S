@@ -3227,7 +3227,6 @@
 				INFOPLIST_KEY_UISupportsDocumentBrowser = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 15.6;
 				/* Do not change or else TestFlight will have issues. Use ECLIPSE_RELEASE_VERSION for GitHub updater releases. */
 				MARKETING_VERSION = 2.3.0;
 				OTHER_LDFLAGS = "$(inherited)";
@@ -3289,7 +3288,6 @@
 				INFOPLIST_KEY_UISupportsDocumentBrowser = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 15.6;
 				/* Do not change or else TestFlight will have issues. Use ECLIPSE_RELEASE_VERSION for GitHub updater releases. */
 				MARKETING_VERSION = 2.3.0;
 				OTHER_LDFLAGS = "$(inherited)";
