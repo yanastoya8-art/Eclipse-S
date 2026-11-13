@@ -168,17 +168,6 @@ struct DownloadedShowDetailView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
 
-                let watchedCount = seasons.flatMap(\.episodes).filter { episodeIsWatched($0) }.count
-                if watchedCount > 0 {
-                    HStack(spacing: 4) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.caption)
-                            .foregroundColor(.blue)
-                        Text("\(watchedCount)/\(totalEps) watched")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
             }
 
             Spacer()
@@ -203,79 +192,51 @@ struct DownloadedShowDetailView: View {
     }
 
     private func episodeCard(_ item: DownloadItem) -> some View {
-        let isWatched = episodeIsWatched(item)
-        let progress = episodeProgress(item)
+        let isComplete = item.status == .completed
+        return HStack(spacing: 12) {
+            if isComplete {
+                Button(action: { playDownloadedItem(item) }) {
+                    Image(systemName: "play.circle.fill")
+                        .font(.title2)
+                        .foregroundColor(.white)
+                        .frame(width: 36, height: 36)
+                }
+                .buttonStyle(.plain)
+            } else {
+                Image(systemName: item.status == .paused ? "pause.circle.fill" : "arrow.down.circle.fill")
+                    .font(.title2)
+                    .foregroundColor(item.status == .paused ? .orange : .blue)
+                    .frame(width: 36, height: 36)
+            }
 
-        return ZStack(alignment: .trailing) {
-            Button(action: { playDownloadedItem(item) }) {
-                VStack(spacing: 0) {
-                    HStack(spacing: 12) {
-
-                        ZStack {
-                            Circle()
-                                .fill(isWatched ? Color.blue : Color.gray.opacity(0.3))
-                                .frame(width: 36, height: 36)
-
-                            if isWatched {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 14, weight: .bold))
-                                    .foregroundColor(.white)
-                            } else {
-                                Text("\(item.episodeNumber ?? 0)")
-                                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                                    .foregroundColor(.white)
-                            }
-                        }
-
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("Episode \(item.episodeNumber ?? 0)")
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.white)
-
-                            if let name = item.episodeName, !name.isEmpty {
-                                Text(name)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                    .lineLimit(1)
-                            }
-
-                            episodeMetadata(item, isWatched: isWatched, progress: progress)
-                        }
-
-                        Spacer()
-
-                        HStack(spacing: 12) {
-                            Image(systemName: "play.circle.fill")
-                                .font(.title3)
-                                .foregroundColor(.white)
-
-                            Color.clear
-                                .frame(width: 32, height: 36)
-                        }
-                    }
-
-                    if progress > 0 && !isWatched {
-                        GeometryReader { geo in
-                            ZStack(alignment: .leading) {
-                                Capsule()
-                                    .fill(Color.white.opacity(0.15))
-                                    .frame(height: 3)
-
-                                Capsule()
-                                    .fill(Color.blue)
-                                    .frame(width: geo.size.width * CGFloat(progress), height: 3)
-                            }
-                        }
-                        .frame(height: 3)
-                        .padding(.top, 8)
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Episode \\(item.episodeNumber ?? 0)")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(.white)
+                if let name = item.episodeName, !name.isEmpty {
+                    Text(name)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+                if isComplete {
+                    Text(DownloadByteCountFormatter.string(fromByteCount: item.totalBytes))
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                } else {
+                    Text(item.status == .paused ? "Paused" : item.status == .queued ? "Queued" : "Downloading")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    if item.status == .downloading || item.status == .paused {
+                        ProgressView(value: item.progress)
+                            .tint(item.status == .paused ? .orange : .blue)
+                        Text("\\(Int(item.progress * 100))% • \\(item.formattedSize)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
                     }
                 }
-                .padding(12)
-                .applyLiquidGlassBackground(cornerRadius: 12)
             }
-            .buttonStyle(PlainButtonStyle())
-
+            Spacer(minLength: 8)
             Button(action: {
                 itemToDelete = item
                 showingDeleteConfirmation = true
@@ -283,35 +244,27 @@ struct DownloadedShowDetailView: View {
                 Image(systemName: "trash")
                     .font(.subheadline)
                     .foregroundColor(.red.opacity(0.8))
-                    .frame(width: 44, height: 44)
+                    .frame(width: 40, height: 40)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(PlainButtonStyle())
-            .padding(.trailing, 4)
+            .buttonStyle(.plain)
         }
+        .padding(12)
+        .applyLiquidGlassBackground(cornerRadius: 12)
         .contextMenu {
-            Button(action: { playDownloadedItem(item) }) {
-                Label("Play", systemImage: "play.fill")
-            }
-
-            if isWatched {
-                Button(action: { markAsUnwatched(item) }) {
-                    Label("Mark as Unwatched", systemImage: "eye.slash")
+            if isComplete {
+                Button(action: { playDownloadedItem(item) }) {
+                    Label("Play", systemImage: "play.fill")
                 }
-            } else {
-                Button(action: { markAsWatched(item) }) {
-                    Label("Mark as Watched", systemImage: "eye")
+            } else if item.status == .paused {
+                Button(action: { downloadManager.resumeDownload(id: item.id) }) {
+                    Label("Resume download", systemImage: "play.fill")
                 }
-            }
-
-#if os(iOS) || os(macOS)
-            if downloadManager.localFileURL(for: item) != nil {
-                Button(action: { shareItem(item) }) {
-                    Label("Share", systemImage: "square.and.arrow.up")
+            } else if item.status == .downloading || item.status == .queued {
+                Button(action: { downloadManager.pauseDownload(id: item.id) }) {
+                    Label("Pause download", systemImage: "pause.fill")
                 }
             }
-#endif
-
             Button(role: .destructive, action: {
                 itemToDelete = item
                 showingDeleteConfirmation = true
@@ -319,56 +272,6 @@ struct DownloadedShowDetailView: View {
                 Label("Delete", systemImage: "trash")
             }
         }
-    }
-
-    @ViewBuilder
-    private func episodeMetadata(_ item: DownloadItem, isWatched: Bool, progress: Double) -> some View {
-        if #available(iOS 16.0, macOS 13.0, tvOS 16.0, *) {
-            ViewThatFits(in: .horizontal) {
-                inlineEpisodeMetadata(item, isWatched: isWatched, progress: progress)
-                stackedEpisodeMetadata(item, isWatched: isWatched, progress: progress)
-            }
-        } else {
-
-            stackedEpisodeMetadata(item, isWatched: isWatched, progress: progress)
-        }
-    }
-
-    @ViewBuilder
-    private func inlineEpisodeMetadata(_ item: DownloadItem, isWatched: Bool, progress: Double) -> some View {
-        HStack(spacing: 6) {
-            Text(DownloadByteCountFormatter.string(fromByteCount: item.totalBytes))
-                .fixedSize(horizontal: true, vertical: false)
-
-            if isWatched {
-                Text("• Watched")
-                    .fixedSize(horizontal: true, vertical: false)
-                    .foregroundColor(.blue)
-            } else if progress > 0 {
-                Text("• \(Int(progress * 100))%")
-                    .fixedSize(horizontal: true, vertical: false)
-            }
-        }
-        .font(.caption2)
-        .foregroundColor(.secondary)
-        .lineLimit(1)
-    }
-
-    @ViewBuilder
-    private func stackedEpisodeMetadata(_ item: DownloadItem, isWatched: Bool, progress: Double) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(DownloadByteCountFormatter.string(fromByteCount: item.totalBytes))
-
-            if isWatched {
-                Text("Watched")
-                    .foregroundColor(.blue)
-            } else if progress > 0 {
-                Text("\(Int(progress * 100))%")
-            }
-        }
-        .font(.caption2)
-        .foregroundColor(.secondary)
-        .lineLimit(1)
     }
 
     private func episodeIsWatched(_ item: DownloadItem) -> Bool {
