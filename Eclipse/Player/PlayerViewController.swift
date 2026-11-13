@@ -7233,7 +7233,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         episodeBrowserButton.alpha = shouldShowEpisodeBrowser && controlsVisible ? 1.0 : 0.0
         servicesButton.alpha = shouldShowServices && controlsVisible ? 1.0 : 0.0
 
-        subtitleTrailingToSourceButtonsConstraint?.constant = shouldShowEpisodeBrowser || shouldShowServices ? -8 : 0
+        subtitleTrailingToSourceButtonsConstraint?.constant = shouldShowEpisodeBrowser || shouldShowServices || shouldShowPerformanceOverlay ? -8 : 0
     }
 
     @objc private func performanceOverlayButtonTapped() {
@@ -14016,6 +14016,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         controlsVisibilityGeneration += 1
         let visibilityGeneration = controlsVisibilityGeneration
         controlsVisible = true
+        updateEpisodeBrowserButtonVisibility()
 
         warmMPVPictureInPictureForForegroundPlaybackIfNeeded(source: "controls-shown-track", minInterval: 10.0)
         updateBrightnessControlVisibility()
@@ -14122,6 +14123,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         controlsVisibilityGeneration += 1
         let visibilityGeneration = controlsVisibilityGeneration
         controlsVisible = false
+        updateEpisodeBrowserButtonVisibility()
         hideOverlayMenu(animated: false)
 #if !os(tvOS)
         isBrightnessControlActive = false
