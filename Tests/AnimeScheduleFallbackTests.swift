@@ -546,3 +546,27 @@ final class StremioDownloadRefreshPolicyTests: XCTestCase {
         )
     }
 }
+
+
+final class AnimeSpecialDubFilterPolicyTests: XCTestCase {
+    func testNoSelectedLanguagesLeavesSpecialsAndOVAsVisible() {
+        XCTAssertTrue(AnimeSpecialDubFilterPolicy.shouldInclude(
+            selectedLanguages: [],
+            isVerifiedForSelection: false
+        ))
+    }
+
+    func testSelectedLanguageHidesUnverifiedSpecialsAndOVAs() {
+        XCTAssertFalse(AnimeSpecialDubFilterPolicy.shouldInclude(
+            selectedLanguages: ["english"],
+            isVerifiedForSelection: false
+        ))
+    }
+
+    func testSelectedLanguageIncludesVerifiedSpecialsAndOVAs() {
+        XCTAssertTrue(AnimeSpecialDubFilterPolicy.shouldInclude(
+            selectedLanguages: ["english", "spanish"],
+            isVerifiedForSelection: true
+        ))
+    }
+}
