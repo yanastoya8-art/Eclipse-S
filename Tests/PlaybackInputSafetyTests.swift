@@ -1473,10 +1473,10 @@ final class MPVDolbyPlaybackSettingsTests: XCTestCase {
 
     func testAddonDescriptionFallbackKeepsAllOriginalLines() throws {
         let json = """
-        {"url":"https://media.example/file.mkv","description":"  Provider heading  \\nSecond formatted line\\nThird line"}
+        {"url":"https://media.example/file.mkv","description":"  Provider heading  \nSecond formatted line\nThird line"}
         """
         let stream = try JSONDecoder().decode(StremioStream.self, from: Data(json.utf8))
-        XCTAssertEqual(stream.displayName, "  Provider heading  \\nSecond formatted line\\nThird line")
+        XCTAssertEqual(stream.displayName, "  Provider heading  \nSecond formatted line\nThird line")
     }
 
     func testStremioStreamDisplayNamePreservesAddonFormattingVerbatim() throws {
