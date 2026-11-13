@@ -5014,7 +5014,15 @@ private final class MPVHeaderProxyCore {
                 }
             }
 
-            let responseHeaders = proxy.filteredResponseHeaders(from: http)
+            var responseHeaders = proxy.filteredResponseHeaders(from: http)
+            if logType == "Download" {
+                let filename = (targetURL.lastPathComponent.isEmpty ? "download" : targetURL.lastPathComponent)
+                    .replacingOccurrences(of: "\\\"", with: "_")
+                    .replacingOccurrences(of: "\\r", with: "_")
+                    .replacingOccurrences(of: "\\n", with: "_")
+                responseHeaders["Content-Disposition"] = "attachment; filename=\\"\(filename)\\""
+                responseHeaders["Cache-Control"] = "no-store"
+            }
             if method == "HEAD" {
                 proxy.sendResponse(connection, statusCode: http.statusCode, headers: responseHeaders, body: Data())
                 completionHandler(.cancel)
@@ -5644,7 +5652,15 @@ private final class MPVHeaderProxyCore {
             mode = .stream
             let sendFlow = flowControl
 
-            let responseHeaders = proxy.filteredResponseHeaders(from: http)
+            var responseHeaders = proxy.filteredResponseHeaders(from: http)
+            if logType == "Download" {
+                let filename = (targetURL.lastPathComponent.isEmpty ? "download" : targetURL.lastPathComponent)
+                    .replacingOccurrences(of: "\\\"", with: "_")
+                    .replacingOccurrences(of: "\\r", with: "_")
+                    .replacingOccurrences(of: "\\n", with: "_")
+                responseHeaders["Content-Disposition"] = "attachment; filename=\\"\(filename)\\""
+                responseHeaders["Cache-Control"] = "no-store"
+            }
             responseHeadersSent = true
             pendingDownstreamSends += 1
             pendingDownstreamBytes += initialData.count
@@ -6012,8 +6028,17 @@ final class MPVHeaderProxy {
 
     private init() {}
 
-    func makeLANProxyURL(for targetURL: URL, headers: [String: String], logType: String = "LANCast") -> URL? {
-        lanProxy.makeProxyURL(for: targetURL, headers: headers, logType: logType)
+    func makeLANProxyURL(
+        for targetURL: URL,
+        headers: [String: String],
+        logType: String = "LANCast",
+        asDownload: Bool = false
+    ) -> URL? {
+        lanProxy.makeProxyURL(
+            for: targetURL,
+            headers: headers,
+            logType: asDownload ? "Download" : logType
+        )
     }
 
 #if DEBUG
