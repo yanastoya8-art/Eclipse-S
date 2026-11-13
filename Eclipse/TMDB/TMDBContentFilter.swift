@@ -469,9 +469,24 @@ class TMDBContentFilter: ObservableObject {
             || defaults.bool(forKey: "catalogHideBelowTV14Shows")
         if needsTMDBRatings {
             let ratingResults = kidsModeEnabled ? results : results.filter { !Self.isAnimeResult($0) }
-            await TMDBMaturityRatingStore.shared.resolve(
-                ratingResults.map { (isMovie: $0.isMovie, id: $0.id) }
-            )
+            let ratingLookups = ratingResults.map { (isMovie: $0.isMovie, id: $0.id) }
+            if kidsModeEnabled {
+                await TMDBMaturityRatingStore.shared.resolve(ratingLookups)
+            } else {
+                // Ordinary catalog age filters can render immediately using cached
+                // certifications. Resolve missing values in the background and
+                // refresh screens only when the cache actually changes.
+                let revisionBeforeLookup = TMDBMaturityRatingStore.shared.revision
+                Task(priority: .utility) {
+                    await TMDBMaturityRatingStore.shared.resolve(ratingLookups)
+                    if TMDBMaturityRatingStore.shared.revision != revisionBeforeLookup {
+                        NotificationCenter.default.post(
+                            name: TMDBContentFilter.catalogFiltersDidChangeNotification,
+                            object: nil
+                        )
+                    }
+                }
+            }
         }
 
         let hideBelowAnime = defaults.bool(forKey: "catalogHideBelowPG13Anime")
