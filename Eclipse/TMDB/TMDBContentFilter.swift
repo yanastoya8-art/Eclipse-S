@@ -225,6 +225,14 @@ final class MyDubListDubFilter: @unchecked Sendable {
                 && (result.originalLanguage?.lowercased() == "ja"
                     || result.originCountry?.contains("JP") == true))
         guard isLikelyAnime else { return true }
+        if let originalLanguage = result.originalLanguage?.lowercased(),
+           languages.contains(where: { rawLanguage in
+               guard let language = MyDubListLanguage(rawValue: rawLanguage) else { return false }
+               let code = language.taizenLanguageCode
+               return originalLanguage == code || originalLanguage.hasPrefix(code + "-")
+           }) {
+            return true
+        }
         guard let seed = result.animeIdentitySeed else { return true }
 
         lock.lock()
