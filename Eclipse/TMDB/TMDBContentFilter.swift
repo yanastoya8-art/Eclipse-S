@@ -235,11 +235,11 @@ final class MyDubListDubFilter: @unchecked Sendable {
            }) {
             return true
         }
-        guard let seed = result.animeIdentitySeed else { return true }
+        guard let seed = result.animeIdentitySeed else { return false }
 
         lock.lock()
         defer { lock.unlock() }
-        guard isLoaded, loadedLanguages == languages else { return true }
+        guard isLoaded, loadedLanguages == languages else { return false }
         if allowedAniListIDs.contains(seed.anilistId) { return true }
         if let malID = seed.malId, allowedMALIDs.contains(malID) { return true }
         return false
