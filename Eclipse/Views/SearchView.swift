@@ -115,6 +115,14 @@ struct SearchView: View {
             .providerNavigationStyle()
         }
 #endif
+        .onReceive(NotificationCenter.default.publisher(for: TMDBContentFilter.catalogFiltersDidChangeNotification)) { _ in
+            guard !searchResults.isEmpty else { return }
+            let snapshot = searchResults
+            Task {
+                await contentFilter.prepareMaturityRatings(for: snapshot)
+                searchResults = contentFilter.filterSearchResults(snapshot)
+            }
+        }
     }
 
     private var searchContent: some View {
@@ -1449,6 +1457,9 @@ private struct BrowseMediaView: View {
 
         .onReceive(NotificationCenter.default.publisher(for: .activeProfileDidChange)) { _ in
             applyProfileChange()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: TMDBContentFilter.catalogFiltersDidChangeNotification)) { _ in
+            reloadResults()
         }
     }
 
