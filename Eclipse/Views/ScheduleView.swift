@@ -487,10 +487,14 @@ struct ScheduleView: View {
     }
 
     private var emptyStateView: some View {
+        let isMovieSchedule = selectedScheduleMode == .movies
         EclipseEmptyState(
-            icon: "calendar",
-            title: "No Upcoming Episodes",
-            message: viewModel.scheduleNotice ?? "No \(selectedScheduleMode.displayName.lowercased()) episodes scheduled in the next \(scheduleWindow.rawValue) days."
+            icon: isMovieSchedule ? "film" : "calendar",
+            title: isMovieSchedule ? "No Upcoming Movies" : "No Upcoming Episodes",
+            message: viewModel.scheduleNotice
+                ?? (isMovieSchedule
+                    ? "No movie releases scheduled in the next \(scheduleWindow.rawValue) days."
+                    : "No \(selectedScheduleMode.displayName.lowercased()) episodes scheduled in the next \(scheduleWindow.rawValue) days.")
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -577,7 +581,7 @@ struct ScheduleView: View {
                     .font(.system(size: 46, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
 
-                Text("See what’s airing next")
+                Text(selectedScheduleMode == .movies ? "See upcoming movie releases" : "See what’s airing next")
                     .font(.title3)
                     .foregroundColor(.white.opacity(0.62))
             }
@@ -764,7 +768,9 @@ struct ScheduleView: View {
                         .font(.system(size: 34, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
 
-                    Text(items.count == 1 ? "1 episode" : "\(items.count) episodes")
+                    Text(selectedScheduleMode == .movies
+                        ? (items.count == 1 ? "1 movie" : "\(items.count) movies")
+                        : (items.count == 1 ? "1 episode" : "\(items.count) episodes"))
                         .font(.title3.weight(.medium))
                         .foregroundColor(.white.opacity(0.52))
 
@@ -772,7 +778,7 @@ struct ScheduleView: View {
                 }
 
                 if items.isEmpty {
-                    Text("No episodes scheduled")
+                    Text(selectedScheduleMode == .movies ? "No movie releases scheduled" : "No episodes scheduled")
                         .font(.title3)
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity, minHeight: 220, alignment: .center)
@@ -811,7 +817,7 @@ struct ScheduleView: View {
                     .tint(.white)
             }
         }
-        .accessibilityIdentifier("schedule.episode.\(item.id)")
+        .accessibilityIdentifier("schedule.\(item.isMovie ? "movie" : "episode").\(item.id)")
     }
 
     private func tvScheduleItemContent(item: ScheduleEntry) -> some View {
@@ -1038,14 +1044,16 @@ struct ScheduleView: View {
 
                     Spacer()
 
-                    Text("\(visibleToProfile(bucket.items).count) airing")
+                    Text(selectedScheduleMode == .movies
+                        ? "\(visibleToProfile(bucket.items).count) releases"
+                        : "\(visibleToProfile(bucket.items).count) airing")
                         .font(.caption.weight(.medium))
                         .foregroundColor(.secondary)
                 }
                 .padding(.horizontal)
 
                 if visibleToProfile(bucket.items).isEmpty {
-                    Text("No episodes scheduled")
+                    Text(selectedScheduleMode == .movies ? "No movie releases scheduled" : "No episodes scheduled")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1166,45 +1174,49 @@ struct ScheduleView: View {
 #if !os(tvOS)
     @ViewBuilder
     private func scheduleNotificationButton(for item: ScheduleEntry) -> some View {
-        let state = notificationManager.episodeState(for: item)
-        if state != .unavailable {
-            Button {
-                guard updatingNotificationEntryIDs.insert(item.id).inserted else { return }
-                Task {
-                    let result = await notificationManager.toggleEpisodeReminder(for: item)
-                    notificationNotice = LocalNotificationNotice.from(result)
-                    updatingNotificationEntryIDs.remove(item.id)
-                    if result == .enabled,
-                       notificationManager.episodeState(for: item) == .explicit,
-                       item.tmdbId == nil {
-                        Task(priority: .utility) {
-                            guard let resolved = await viewModel.lookupTMDBResult(for: item) else { return }
-                            await notificationManager.enrichEpisodeReminderTMDBIdentity(
-                                for: item,
-                                result: resolved
-                            )
+        if !item.isMovie {
+            let state = notificationManager.episodeState(for: item)
+            if state != .unavailable {
+                Button {
+                    guard updatingNotificationEntryIDs.insert(item.id).inserted else { return }
+                    Task {
+                        let result = await notificationManager.toggleEpisodeReminder(for: item)
+                        notificationNotice = LocalNotificationNotice.from(result)
+                        updatingNotificationEntryIDs.remove(item.id)
+                        if result == .enabled,
+                           notificationManager.episodeState(for: item) == .explicit,
+                           item.tmdbId == nil {
+                            Task(priority: .utility) {
+                                guard let resolved = await viewModel.lookupTMDBResult(for: item) else { return }
+                                await notificationManager.enrichEpisodeReminderTMDBIdentity(
+                                    for: item,
+                                    result: resolved
+                                )
+                            }
                         }
                     }
-                }
-            } label: {
-                ZStack {
-                    if updatingNotificationEntryIDs.contains(item.id) {
-                        ProgressView()
-                            .tint(notificationColor(for: state))
-                    } else {
-                        Image(systemName: notificationIcon(for: state))
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundColor(notificationColor(for: state))
+                } label: {
+                    ZStack {
+                        if updatingNotificationEntryIDs.contains(item.id) {
+                            ProgressView()
+                                .tint(notificationColor(for: state))
+                        } else {
+                            Image(systemName: notificationIcon(for: state))
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundColor(notificationColor(for: state))
+                        }
                     }
+                    .frame(width: 44, height: 44)
+                    .background(Color.white.opacity(0.07), in: Circle())
+                    .contentShape(Circle())
                 }
-                .frame(width: 44, height: 44)
-                .background(Color.white.opacity(0.07), in: Circle())
-                .contentShape(Circle())
+                .buttonStyle(.plain)
+                .disabled(updatingNotificationEntryIDs.contains(item.id))
+                .accessibilityLabel(notificationAccessibilityLabel(for: item, state: state))
+                .accessibilityHint(state == .followed ? "Mutes this episode without unfollowing the show." : "Updates the local reminder for this episode.")
             }
-            .buttonStyle(.plain)
-            .disabled(updatingNotificationEntryIDs.contains(item.id))
-            .accessibilityLabel(notificationAccessibilityLabel(for: item, state: state))
-            .accessibilityHint(state == .followed ? "Mutes this episode without unfollowing the show." : "Updates the local reminder for this episode.")
+        } else {
+            EmptyView()
         }
     }
 
@@ -1268,6 +1280,7 @@ struct ScheduleView: View {
     }
 
     private func episodeOnlyLabel(for item: ScheduleEntry) -> String {
+        if item.isMovie { return "Feature film" }
         if item.source != .anime {
             if let season = item.season, item.episode > 0 {
                 return "S\(season) · Ep \(item.episode)"
@@ -1279,7 +1292,9 @@ struct ScheduleView: View {
 
     @ViewBuilder
     private func formatTypeBadge(for item: ScheduleEntry) -> some View {
-        if item.source == .anime,
+        if item.isMovie {
+            EclipseStatusBadge(text: "Movie", tint: formatTint("MOVIE"))
+        } else if item.source == .anime,
            let raw = item.format?.uppercased(),
            ["MOVIE", "OVA", "ONA", "SPECIAL", "MUSIC"].contains(raw) {
             let label: String = {
