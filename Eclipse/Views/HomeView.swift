@@ -576,6 +576,7 @@ struct HomeView: View {
     @State private var selectedHeroForDetail: TMDBSearchResult?
     @State private var showingHeroDetail = false
     @State private var heroLogoURL: String?
+    @State private var prefetchedHeroLogoURLs: [String: String] = [:]
     @State private var heroLogoLookupComplete = false
     @State private var heroAlternatePosterURL: String?
     @State private var heroTVMazePosterURLs: [String: String] = [:]
@@ -1239,7 +1240,8 @@ struct HomeView: View {
     @ViewBuilder
     private func macHeroTitle(_ hero: TMDBSearchResult, layout: MacHomeHeroLayout) -> some View {
         if heroArtworkIdentity != hero.stableIdentity || !heroLogoLookupComplete {
-            Color.clear.frame(width: layout.logoWidth, height: layout.logoHeight)
+            macHeroTitleText(hero, layout: layout)
+                .frame(width: layout.logoWidth, height: layout.logoHeight, alignment: .leading)
         } else if let logoURL = currentHeroLogoURL(for: hero) {
             ResilientArtworkImage(
                 urls: [logoURL],
@@ -1880,7 +1882,7 @@ struct HomeView: View {
     @ViewBuilder
     private func heroTitleArtwork(_ hero: TMDBSearchResult) -> some View {
         if heroArtworkIdentity != hero.stableIdentity || !heroLogoLookupComplete {
-            Color.clear
+            heroTitleText(hero)
                 .frame(maxWidth: heroLogoMaxWidth, maxHeight: heroLogoMaxHeight)
         } else if let logoURL = currentHeroLogoURL(for: hero) {
             ResilientArtworkImage(
@@ -1900,7 +1902,7 @@ struct HomeView: View {
 
     private func currentHeroLogoURL(for hero: TMDBSearchResult) -> String? {
         guard heroArtworkIdentity == hero.stableIdentity else { return nil }
-        return heroLogoURL
+        return heroLogoURL ?? prefetchedHeroLogoURLs[heroAlternatePosterCacheKey(hero.stableIdentity, language: selectedLanguage)]
     }
 
     @ViewBuilder
@@ -2121,25 +2123,46 @@ struct HomeView: View {
                   homeViewModel.heroContent?.stableIdentity == identity,
                   selectedLanguage == language else { return }
             heroArtworkIdentity = identity
-            heroLogoURL = nil
-            heroLogoLookupComplete = false
+            heroLogoURL = prefetchedHeroLogoURLs[cacheKey]
+            heroLogoLookupComplete = prefetchedHeroLogoURLs[cacheKey] != nil
             heroAlternatePosterURL = nil
         }
 
-        do {
-            let images = hero.isMovie
-                ? try await tmdbService.getMovieImages(id: hero.id, preferredLanguage: language)
-                : try await tmdbService.getTVShowImages(id: hero.id, preferredLanguage: language)
-            guard !Task.isCancelled else { return }
-            let logoURL = tmdbService.getBestLogo(from: images, preferredLanguage: language)?.fullURL
-            await MainActor.run {
-                guard !Task.isCancelled, heroArtworkIsActive,
-                      homeViewModel.heroContent?.stableIdentity == identity,
-                      selectedLanguage == language else { return }
-                heroArtworkIdentity = identity
-                heroLogoURL = logoURL
-                heroLogoLookupComplete = true
-            }
+        // Warm the exact hero image and resolve the title logo at the same time.
+        // The view can consume the already-cached image as soon as it is rendered.
+        async let heroImagePrefetch: Bool = {
+            guard let imageURL = heroImageURL(for: hero) else { return false }
+            return await prefetchHeroImage(
+                imageURL,
+                processor: DownsamplingImageProcessor(size: heroImageDecodeSize)
+            )
+        }()
+        let images = try await (hero.isMovie
+            ? tmdbService.getMovieImages(id: hero.id, preferredLanguage: language)
+            : tmdbService.getTVShowImages(id: hero.id, preferredLanguage: language))
+        guard !Task.isCancelled else { return }
+        let logoURL = tmdbService.getBestLogo(from: images, preferredLanguage: language)?.fullURL
+        if let logoURL, let url = URL(string: logoURL) {
+            // Start decoding/caching the logo before it is needed by the title view.
+            KingfisherManager.shared.retrieveImage(
+                with: url,
+                options: [
+                    .processor(DownsamplingImageProcessor(size: heroLogoDecodeSize)),
+                    .scaleFactor(EclipseViewport.scale),
+                    .backgroundDecode
+                ]
+            ) { _ in }
+        }
+        await MainActor.run {
+            guard !Task.isCancelled, heroArtworkIsActive,
+                  homeViewModel.heroContent?.stableIdentity == identity,
+                  selectedLanguage == language else { return }
+            heroArtworkIdentity = identity
+            heroLogoURL = logoURL
+            if let logoURL { prefetchedHeroLogoURLs[cacheKey] = logoURL }
+            heroLogoLookupComplete = true
+        }
+        _ = await heroImagePrefetch
             guard !Task.isCancelled, analyzesAlternate, shouldAnalyzeHeroAlternatePoster, heroArtworkIsActive,
                   homeViewModel.heroContent?.stableIdentity == identity,
                   selectedLanguage == language,
