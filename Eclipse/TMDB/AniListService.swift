@@ -5505,7 +5505,7 @@ final class AniListService {
                 return AnimeAiringScheduleResult(
                     entries: fallback.entries,
                     isAuthoritativeForNotifications: fallback.isAuthoritativeForNotifications,
-                    notice: "DubOnly English dub timetable unavailable · Showing AniList broadcast schedule fallback."
+                    notice: "Showing the AniList broadcast schedule."
                 )
             }, mal: {
                 AnimeProviderHealthCenter.shared.notifyMALFallbackIfNeeded(reason: "schedule")
