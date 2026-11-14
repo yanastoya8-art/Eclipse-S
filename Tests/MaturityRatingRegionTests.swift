@@ -209,6 +209,12 @@ final class MaturityRatingRegionTests: XCTestCase {
         XCTAssertEqual(MaturityRating.classify(certification: "14"), .age14)
     }
 
+    func testAgeTwelveIsBelowThirteenPlusKidsThreshold() {
+        XCTAssertTrue(MaturityRating.age12.isBlockedForKids)
+        XCTAssertFalse(MaturityRating.teen.isBlockedForKids)
+        XCTAssertFalse(MaturityRating.age14.isBlockedForKids)
+    }
+
     func testTelevisionCertificationUsesEuropeanProvidersOnly() throws {
         let mixed = TMDBContentRatings(results: [
             TMDBContentRating(descriptors: nil, iso31661: "US", rating: "TV-MA"),
