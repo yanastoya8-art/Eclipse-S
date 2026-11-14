@@ -540,7 +540,7 @@ final class HomeViewModel: ObservableObject {
         }
         guard !flattened.isEmpty else { return catalogs }
 
-        return await withTaskGroup(of: (String, Int, TMDBSearchResult).self) { group in
+        let resolved = await withTaskGroup(of: (String, Int, TMDBSearchResult).self) { group in
             var iterator = flattened.makeIterator()
             let concurrencyLimit = 8
             for _ in 0..<min(concurrencyLimit, flattened.count) {
@@ -566,6 +566,19 @@ final class HomeViewModel: ObservableObject {
                 output[catalogID] = results.enumerated().map { replacements[$0.offset] ?? $0.element }
             }
             return output
+        }
+
+        let artworkByID = await TaizenAnimeArtworkService.shared.artworks(
+            forAniListIDs: resolved.values.flatMap { $0.compactMap { $0.animeIdentitySeed?.anilistId } }
+        )
+        return resolved.mapValues { results in
+            results.map { result in
+                guard let anilistID = result.animeIdentitySeed?.anilistId,
+                      let artwork = artworkByID[anilistID] else { return result }
+                return result
+                    .withAnimeArtworkURL(artwork.posterURL ?? result.animeArtworkURL)
+                    .withAnimeLogoURL(artwork.logoURL ?? result.animeLogoURL)
+            }
         }
     }
 
@@ -617,7 +630,8 @@ final class HomeViewModel: ObservableObject {
                 kitsuId: mapping?.kitsuId,
                 format: mapping?.mediaType
             ),
-            animeArtworkURL: posterURL
+            animeArtworkURL: posterURL,
+            animeLogoURL: result.animeLogoURL
         )
         return (catalogID, index, enriched)
     }
