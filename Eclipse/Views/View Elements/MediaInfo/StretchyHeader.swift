@@ -82,6 +82,7 @@ struct StretchyHeaderView: View {
     var imageDecodeSize: CGSize? = nil
     var placeholderColor: Color = Color.gray.opacity(0.3)
     var fallbackImageURLs: [String] = []
+    var preservesArtworkComposition: Bool = false
 
     @State private var localAmbientColor: Color = Color.black
     @State private var failedImageURLs: Set<String> = []
@@ -118,19 +119,45 @@ struct StretchyHeaderView: View {
                 Color.clear
                     .overlay {
                         if let imageURL = resolvedBackdropURL {
-                            KFImage(URL(string: imageURL))
-                                .setProcessor(DownsamplingImageProcessor(size: resolvedImageDecodeSize))
-                                .placeholder { Rectangle().fill(placeholderColor) }
-                                .onSuccess { result in
-                                    guard resolvedBackdropURL == imageURL else { return }
-                                    updateAmbientColor(from: result.image, url: imageURL)
+                            if preservesArtworkComposition {
+                                ZStack {
+                                    KFImage(URL(string: imageURL))
+                                        .setProcessor(DownsamplingImageProcessor(size: resolvedImageDecodeSize))
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                        .blur(radius: 26)
+                                        .overlay(Color.black.opacity(0.22))
+
+                                    KFImage(URL(string: imageURL))
+                                        .setProcessor(DownsamplingImageProcessor(size: resolvedImageDecodeSize))
+                                        .placeholder { Rectangle().fill(placeholderColor) }
+                                        .onSuccess { result in
+                                            guard resolvedBackdropURL == imageURL else { return }
+                                            updateAmbientColor(from: result.image, url: imageURL)
+                                        }
+                                        .onFailure { _ in
+                                            guard resolvedBackdropURL == imageURL else { return }
+                                            failedImageURLs.insert(imageURL)
+                                        }
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fit)
+                                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                                 }
-                                .onFailure { _ in
-                                    guard resolvedBackdropURL == imageURL else { return }
-                                    failedImageURLs.insert(imageURL)
-                                }
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
+                            } else {
+                                KFImage(URL(string: imageURL))
+                                    .setProcessor(DownsamplingImageProcessor(size: resolvedImageDecodeSize))
+                                    .placeholder { Rectangle().fill(placeholderColor) }
+                                    .onSuccess { result in
+                                        guard resolvedBackdropURL == imageURL else { return }
+                                        updateAmbientColor(from: result.image, url: imageURL)
+                                    }
+                                    .onFailure { _ in
+                                        guard resolvedBackdropURL == imageURL else { return }
+                                        failedImageURLs.insert(imageURL)
+                                    }
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                            }
                         } else {
                             Rectangle().fill(placeholderColor)
                         }

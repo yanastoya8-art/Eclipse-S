@@ -61,8 +61,6 @@ struct AlternativeUIView: View {
     @AppStorage(MediaDetailPlatformDefaults.horizontalEpisodeListKey) private var horizontalEpisodeList = MediaDetailPlatformDefaults.prefersHorizontalEpisodes
     @AppStorage(MediaDetailEpisodeVisibilitySettings.showUnairedEpisodesKey) private var showUnairedEpisodes = MediaDetailEpisodeVisibilitySettings.defaultShowUnairedEpisodes
     @AppStorage(ImageDataSaverSettings.enabledKey, store: .standard) private var imageDataSaverEnabled = false
-    @AppStorage(MediaDetailTitleArtworkSettings.enabledKey) private var mediaDetailTitleArtworkEnabled = MediaDetailTitleArtworkSettings.defaultEnabled
-    @AppStorage(MediaDetailAlternatePosterSettings.enabledKey) private var mediaDetailAlternatePosterEnabled = MediaDetailAlternatePosterSettings.defaultEnabled
     @AppStorage(MediaDetailAgeRatingSettings.enabledKey) private var mediaDetailAgeRatingEnabled = MediaDetailAgeRatingSettings.defaultEnabled
     @AppStorage(MediaDetailSimilarTitlesSettings.enabledKey) private var mediaDetailSimilarTitlesEnabled = MediaDetailSimilarTitlesSettings.defaultEnabled
     @AppStorage(LibraryDisplaySettings.showBookmarksSectionKey) private var showsBookmarksSection = LibraryDisplaySettings.defaultShowBookmarksSection
@@ -517,19 +515,6 @@ struct AlternativeUIView: View {
                 isOn: $showUnairedEpisodes
             )
             .id(AppearanceSettingsSearchTarget.showUnairedEpisodes.anchorID)
-            toggleRow(
-                title: "TMDB Title Art",
-                description: "Use TMDB logo artwork for media titles when available.",
-                isOn: $mediaDetailTitleArtworkEnabled
-            )
-            .id(AppearanceSettingsSearchTarget.tmdbTitleArt.anchorID)
-            if MediaDetailAlternatePosterSettings.isSupportedOnThisDevice {
-                toggleRow(
-                    title: "Alternate Detail Poster",
-                    description: "Use a trusted text-free TMDB poster behind title art on phone detail pages; otherwise keep the regular poster.",
-                    isOn: $mediaDetailAlternatePosterEnabled
-                )
-            }
             toggleRow(
                 title: "Show Age Rating",
                 description: "Display the available content age rating on movie and series detail pages.",
@@ -1048,10 +1033,6 @@ struct AlternativeUIView: View {
         modeSwitchAnimationEnabled = ModeSwitchAnimationSettings.defaultEnabled
         hideSplashScreen = false
 #endif
-        mediaDetailTitleArtworkEnabled = MediaDetailTitleArtworkSettings.defaultEnabled
-        if MediaDetailAlternatePosterSettings.isSupportedOnThisDevice {
-            mediaDetailAlternatePosterEnabled = MediaDetailAlternatePosterSettings.defaultEnabled
-        }
         mediaDetailAgeRatingEnabled = MediaDetailAgeRatingSettings.defaultEnabled
         showUnairedEpisodes = MediaDetailEpisodeVisibilitySettings.defaultShowUnairedEpisodes
         mediaDetailSimilarTitlesEnabled = MediaDetailSimilarTitlesSettings.defaultEnabled

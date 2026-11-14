@@ -576,6 +576,7 @@ struct HomeView: View {
     @State private var selectedHeroForDetail: TMDBSearchResult?
     @State private var showingHeroDetail = false
     @State private var heroLogoURL: String?
+    @State private var prefetchedHeroLogoURLs: [String: String] = [:]
     @State private var heroLogoLookupComplete = false
     @State private var heroAlternatePosterURL: String?
     @State private var heroTVMazePosterURLs: [String: String] = [:]
@@ -600,8 +601,6 @@ struct HomeView: View {
     @StateObject private var tmdbService = TMDBService.shared
     @StateObject private var contentFilter = TMDBContentFilter.shared
     @ObservedObject private var theme = EclipseTheme.shared
-    @AppStorage(MediaDetailTitleArtworkSettings.enabledKey) private var mediaDetailTitleArtworkEnabled = MediaDetailTitleArtworkSettings.defaultEnabled
-    @AppStorage(MediaDetailAlternatePosterSettings.enabledKey) private var mediaDetailAlternatePosterEnabled = MediaDetailAlternatePosterSettings.defaultEnabled
     @AppStorage("heroBannerCatalogId") private var heroBannerCatalogId = "trending"
     @AppStorage("heroBannerBehavior") private var heroBannerBehavior = HeroBannerBehavior.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundSettings.enabledKey) private var homeAnimatedBackgroundEnabled = HomeAnimatedBackgroundSettings.defaultEnabled
@@ -657,19 +656,11 @@ struct HomeView: View {
         return heroImageURL(for: hero)
     }
     private var heroLogoLoadKey: String {
-        "\(selectedLanguage)|\(homeViewModel.heroContent?.stableIdentity ?? "empty")|\(shouldAnalyzeHeroAlternatePoster)"
+        "\(selectedLanguage)|\(homeViewModel.heroContent?.stableIdentity ?? "empty")"
     }
 
     private var heroArtworkIsActive: Bool {
         effectiveIsActive && !showingSettings && !showingHeroDetail
-    }
-
-    private var shouldAnalyzeHeroAlternatePoster: Bool {
-#if os(iOS)
-        !usesWideHomeLayout && (mediaDetailAlternatePosterEnabled || homeViewModel.heroContent?.fullPosterURL == nil)
-#else
-        false
-#endif
     }
 
     private func heroAlternatePosterCacheKey(_ identity: String, language: String) -> String {
@@ -1238,21 +1229,7 @@ struct HomeView: View {
 
     @ViewBuilder
     private func macHeroTitle(_ hero: TMDBSearchResult, layout: MacHomeHeroLayout) -> some View {
-        if heroArtworkIdentity != hero.stableIdentity || !heroLogoLookupComplete {
-            Color.clear.frame(width: layout.logoWidth, height: layout.logoHeight)
-        } else if let logoURL = currentHeroLogoURL(for: hero) {
-            ResilientArtworkImage(
-                urls: [logoURL],
-                decodeSize: homeImageDecodeSize(width: layout.logoWidth, height: layout.logoHeight),
-                contentMode: .fit
-            ) {
-                macHeroTitleText(hero, layout: layout)
-            }
-            .frame(maxWidth: layout.logoWidth, maxHeight: layout.logoHeight, alignment: .leading)
-            .accessibilityLabel(hero.displayTitle)
-        } else {
-            macHeroTitleText(hero, layout: layout)
-        }
+        EmptyView()
     }
 
     private func macHeroTitleText(_ hero: TMDBSearchResult, layout: MacHomeHeroLayout) -> some View {
@@ -1372,7 +1349,10 @@ struct HomeView: View {
             Color.clear
                 .navigationDestination(isPresented: $showingHeroDetail) {
                     if let selectedHeroForDetail {
-                        MediaDetailView(searchResult: selectedHeroForDetail)
+                        MediaDetailView(
+                            searchResult: selectedHeroForDetail,
+                            preloadedArtworkURL: heroImageURL(for: selectedHeroForDetail)
+                        )
                     }
                 }
         } else {
@@ -1380,7 +1360,10 @@ struct HomeView: View {
                 isActive: $showingHeroDetail,
                 destination: {
                     if let selectedHeroForDetail {
-                        MediaDetailView(searchResult: selectedHeroForDetail)
+                        MediaDetailView(
+                            searchResult: selectedHeroForDetail,
+                            preloadedArtworkURL: heroImageURL(for: selectedHeroForDetail)
+                        )
                     }
                 },
                 label: { EmptyView() }
@@ -1414,7 +1397,7 @@ struct HomeView: View {
                     homeViewModel.ambientColor = color
                 },
                 imageDecodeSize: heroImageDecodeSize,
-                placeholderColor: shouldAnalyzeHeroAlternatePoster ? .clear : Color.gray.opacity(0.3),
+                placeholderColor: Color.gray.opacity(0.3),
                 fallbackImageURLs: homeViewModel.heroContent.map(heroImageFallbackURLs(for:)) ?? []
             )
             .id("hero-image-\(heroIdentity)")
@@ -1716,191 +1699,20 @@ struct HomeView: View {
     }
 
     private func heroImageURL(for hero: TMDBSearchResult) -> String? {
-#if os(iOS)
-        if shouldAnalyzeHeroAlternatePoster {
-            // Match the detail page: keep the artwork blank until the verified
-            // alternate poster has finished resolving instead of flashing the
-            // original poster or backdrop first. If no textless TMDB alternative
-            // exists, use AniList's large cover as a secondary artwork source.
-            if let alternate = currentHeroAlternatePosterURL(for: hero) {
-                return alternate
-            }
-            let cacheKey = heroAlternatePosterCacheKey(hero.stableIdentity, language: selectedLanguage)
-            guard resolvedHeroAlternatePosterKeys.contains(cacheKey) else { return nil }
-            return heroTVMazePosterURLs[hero.stableIdentity] ?? hero.fullPosterURL ?? hero.animeArtworkURL ?? hero.fullBackdropURL
-        }
-#endif
-        return hero.fullBackdropURL ?? hero.fullPosterURL ?? hero.animeArtworkURL
+        // Keep one poster asset as the source of truth for Home and Detail.
+        return hero.fullPosterURL ?? hero.animeArtworkURL ?? hero.fullBackdropURL
     }
 
     private func heroImageFallbackURLs(for hero: TMDBSearchResult) -> [String] {
         guard let primary = heroImageURL(for: hero) else { return [] }
-        var candidates: [String?] = [
-            hero.fullPosterURL, hero.fullBackdropURL, hero.animeArtworkURL
-        ]
-#if os(iOS)
-        if shouldAnalyzeHeroAlternatePoster {
-            candidates.append(heroTVMazePosterURLs[hero.stableIdentity])
-            candidates.append(currentHeroAlternatePosterURL(for: hero))
-        }
-#endif
-        return candidates.compactMap { $0 }.filter { $0 != primary }
+        return [hero.fullPosterURL, hero.animeArtworkURL, hero.fullBackdropURL]
+            .compactMap { $0 }
+            .filter { $0 != primary }
     }
-
-    private func currentHeroAlternatePosterURL(for hero: TMDBSearchResult) -> String? {
-        guard shouldAnalyzeHeroAlternatePoster else { return nil }
-        let cacheKey = heroAlternatePosterCacheKey(hero.stableIdentity, language: selectedLanguage)
-        if let prefetchedURL = prefetchedHeroAlternatePosterURLs[cacheKey] {
-            return prefetchedURL
-        }
-        guard heroArtworkIdentity == hero.stableIdentity else { return nil }
-        return heroAlternatePosterURL
-    }
-
-    private func isAnimeHero(_ hero: TMDBSearchResult) -> Bool {
-        guard hero.genreIds?.contains(16) == true else { return false }
-
-        let animeOriginCountries: Set<String> = ["JP", "CN", "KR", "TW"]
-        if hero.originCountry?.contains(where: { animeOriginCountries.contains($0) }) == true {
-            return true
-        }
-
-        guard let originalLanguage = hero.originalLanguage?.lowercased() else { return false }
-        return ["ja", "zh", "ko"].contains(originalLanguage)
-    }
-
-    private func experimentalHeroShouldShowTitle(_ hero: TMDBSearchResult) -> Bool {
-        currentHeroLogoURL(for: hero) != nil || hero.fullPosterURL == nil
-    }
-
-    private func heroOverview(_ hero: TMDBSearchResult) -> String? {
-        guard let rawOverview = hero.overview?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !rawOverview.isEmpty else {
-            return nil
-        }
-        let limit = usesWideHomeLayout ? 180 : 125
-        return rawOverview.count > limit ? "\(rawOverview.prefix(limit))..." : rawOverview
-    }
-
-    @ViewBuilder
-    private func heroRatingsRow(_ hero: TMDBSearchResult) -> some View {
-        let chips = heroRatingChips(for: hero)
-        if !chips.isEmpty {
-            HStack(spacing: isTvOS ? 24 : (usesWideHomeLayout ? 14 : 10)) {
-                ForEach(chips) { chip in
-                    HeroScoreChipView(chip: chip)
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, isTvOS ? 60 : (usesWideHomeLayout ? 80 : 18))
-        }
-    }
-
-    private func heroRatingChips(for hero: TMDBSearchResult) -> [HeroScoreChip] {
-        var chips: [HeroScoreChip] = []
-
-        if let voteAverage = hero.voteAverage, voteAverage > 0 {
-            chips.append(HeroScoreChip(
-                id: "tmdb",
-                label: "TMDB",
-                value: String(format: "%.1f", voteAverage),
-                systemImage: nil,
-                tint: Color(red: 0.19, green: 0.78, blue: 0.76)
-            ))
-        }
-
-        if let userRating = UserRatingManager.shared.aggregateRating(for: hero.id, isMovie: hero.isMovie), userRating > 0 {
-            chips.append(HeroScoreChip(
-                id: "you",
-                label: UserRatingManager.shared.rating(for: hero.id, isMovie: hero.isMovie) == nil ? "Your avg" : "You",
-                value: String(format: "%.1f", userRating),
-                systemImage: "checkmark.seal.fill",
-                tint: Color(red: 0.90, green: 0.24, blue: 0.78)
-            ))
-        }
-
-        if let voteCount = hero.voteCount, voteCount > 0, chips.count < 3 {
-            chips.append(HeroScoreChip(
-                id: "votes",
-                label: "Votes",
-                value: compactCount(voteCount),
-                systemImage: "person.2.fill",
-                tint: Color(red: 1.00, green: 0.68, blue: 0.22)
-            ))
-        }
-
-        return chips
-    }
-
-    private func compactCount(_ count: Int) -> String {
-        if count >= 1_000_000 {
-            return String(format: "%.1fM", Double(count) / 1_000_000)
-        }
-        if count >= 1_000 {
-            return String(format: "%.1fK", Double(count) / 1_000)
-        }
-        return "\(count)"
-    }
-
-    private func genreNames(for hero: TMDBSearchResult) -> [String] {
-        guard let genreIds = hero.genreIds else { return [] }
-        return genreIds.compactMap { Self.tmdbGenreNames[$0] }
-    }
-
-    private static let tmdbGenreNames: [Int: String] = [
-        12: "Adventure",
-        14: "Fantasy",
-        16: "Animation",
-        18: "Drama",
-        27: "Horror",
-        28: "Action",
-        35: "Comedy",
-        36: "History",
-        37: "Western",
-        53: "Thriller",
-        80: "Crime",
-        99: "Documentary",
-        878: "Sci-Fi",
-        9648: "Mystery",
-        10402: "Music",
-        10749: "Romance",
-        10751: "Family",
-        10752: "War",
-        10759: "Action Adventure",
-        10762: "Kids",
-        10763: "News",
-        10764: "Reality",
-        10765: "Sci-Fi Fantasy",
-        10766: "Soap",
-        10767: "Talk",
-        10768: "War Politics",
-        10770: "TV Movie"
-    ]
 
     @ViewBuilder
     private func heroTitleArtwork(_ hero: TMDBSearchResult) -> some View {
-        if heroArtworkIdentity != hero.stableIdentity || !heroLogoLookupComplete {
-            Color.clear
-                .frame(maxWidth: heroLogoMaxWidth, maxHeight: heroLogoMaxHeight)
-        } else if let logoURL = currentHeroLogoURL(for: hero) {
-            ResilientArtworkImage(
-                urls: [logoURL],
-                decodeSize: heroLogoDecodeSize,
-                contentMode: .fit
-            ) {
-                heroTitleText(hero)
-            }
-            .frame(maxWidth: heroLogoMaxWidth, maxHeight: heroLogoMaxHeight)
-            .shadow(color: .black.opacity(0.55), radius: 8, x: 0, y: 4)
-            .accessibilityLabel(Text(hero.displayTitle))
-        } else {
-            heroTitleText(hero)
-        }
-    }
-
-    private func currentHeroLogoURL(for hero: TMDBSearchResult) -> String? {
-        guard heroArtworkIdentity == hero.stableIdentity else { return nil }
-        return heroLogoURL
+        EmptyView()
     }
 
     @ViewBuilder
@@ -2102,156 +1914,36 @@ struct HomeView: View {
     private func loadHeroArtwork(for hero: TMDBSearchResult?, language: String) async {
         guard !Task.isCancelled else { return }
         guard let hero else {
-            await MainActor.run {
-                guard !Task.isCancelled, homeViewModel.heroContent == nil,
-                      selectedLanguage == language else { return }
-                heroArtworkIdentity = nil
-                heroLogoURL = nil
-                heroLogoLookupComplete = true
-                heroAlternatePosterURL = nil
-            }
+            heroArtworkIdentity = nil
+            heroLogoURL = nil
+            heroLogoLookupComplete = true
+            heroAlternatePosterURL = nil
             return
         }
 
         let identity = hero.stableIdentity
-        let analyzesAlternate = shouldAnalyzeHeroAlternatePoster
-        let cacheKey = heroAlternatePosterCacheKey(identity, language: language)
-        await MainActor.run {
-            guard !Task.isCancelled, heroArtworkIsActive,
-                  homeViewModel.heroContent?.stableIdentity == identity,
-                  selectedLanguage == language else { return }
-            heroArtworkIdentity = identity
-            heroLogoURL = nil
-            heroLogoLookupComplete = false
-            heroAlternatePosterURL = nil
-        }
+        guard heroArtworkIsActive,
+              homeViewModel.heroContent?.stableIdentity == identity,
+              selectedLanguage == language else { return }
+        heroArtworkIdentity = identity
+        heroLogoURL = nil
+        heroLogoLookupComplete = true
+        heroAlternatePosterURL = nil
 
-        do {
-            let images = hero.isMovie
-                ? try await tmdbService.getMovieImages(id: hero.id, preferredLanguage: language)
-                : try await tmdbService.getTVShowImages(id: hero.id, preferredLanguage: language)
-            guard !Task.isCancelled else { return }
-            let logoURL = tmdbService.getBestLogo(from: images, preferredLanguage: language)?.fullURL
-            await MainActor.run {
-                guard !Task.isCancelled, heroArtworkIsActive,
-                      homeViewModel.heroContent?.stableIdentity == identity,
-                      selectedLanguage == language else { return }
-                heroArtworkIdentity = identity
-                heroLogoURL = logoURL
-                heroLogoLookupComplete = true
-            }
-            guard !Task.isCancelled, analyzesAlternate, shouldAnalyzeHeroAlternatePoster, heroArtworkIsActive,
-                  homeViewModel.heroContent?.stableIdentity == identity,
-                  selectedLanguage == language,
-                  !resolvedHeroAlternatePosterKeys.contains(cacheKey) else { return }
-            let alternateResolution = await tmdbService.resolveAlternatePoster(
-                from: images, excluding: [hero.posterPath], matching: hero.posterPath,
-                mediaType: hero.isMovie ? .movie : .tv
-            )
-            guard !Task.isCancelled else { return }
-            let alternatePosterURL = alternateResolution.poster?.fullURL
-            var tvMazePosterURL: String?
-            if alternatePosterURL == nil, !hero.isMovie,
-               let details = try? await tmdbService.getTVShowDetails(id: hero.id),
-               let imdbID = details.externalIds?.imdbId {
-                tvMazePosterURL = await tmdbService.getTVMazePosterURL(imdbID: imdbID)
-            }
-            await MainActor.run {
-                guard !Task.isCancelled, heroArtworkIsActive, shouldAnalyzeHeroAlternatePoster,
-                      homeViewModel.heroContent?.stableIdentity == identity,
-                      selectedLanguage == language else { return }
-                heroAlternatePosterURL = alternatePosterURL
-                // Once the alternate lookup has completed, use the strongest
-                // available fallback instead of leaving the hero blank.
-                resolvedHeroAlternatePosterKeys.insert(cacheKey)
-                if let alternatePosterURL {
-                    prefetchedHeroAlternatePosterURLs[cacheKey] = alternatePosterURL
-                }
-                if let tvMazePosterURL {
-                    heroTVMazePosterURLs[identity] = tvMazePosterURL
-                }
-            }
-        } catch {
-            guard !Task.isCancelled else { return }
-            var tvMazePosterURL: String?
-            if analyzesAlternate, !hero.isMovie,
-               let details = try? await tmdbService.getTVShowDetails(id: hero.id),
-               let imdbID = details.externalIds?.imdbId {
-                tvMazePosterURL = await tmdbService.getTVMazePosterURL(imdbID: imdbID)
-            }
-            await MainActor.run {
-                guard !Task.isCancelled, heroArtworkIsActive,
-                      homeViewModel.heroContent?.stableIdentity == identity,
-                      selectedLanguage == language else {
-                    return
-                }
-                heroArtworkIdentity = identity
-                heroLogoURL = nil
-                heroLogoLookupComplete = true
-                heroAlternatePosterURL = nil
-                if let tvMazePosterURL {
-                    heroTVMazePosterURLs[identity] = tvMazePosterURL
-                }
-                if analyzesAlternate {
-                    resolvedHeroAlternatePosterKeys.insert(cacheKey)
-                }
-            }
+        // Warm the poster before navigation. The detail screen receives this
+        // exact URL and consumes the same Kingfisher cache entry.
+        if let imageURL = heroImageURL(for: hero) {
+            let processor = DownsamplingImageProcessor(size: heroImageDecodeSize)
+            _ = await prefetchHeroImage(imageURL, processor: processor)
         }
     }
 
     private func prefetchUpcomingHeroImages() async {
         let processor = DownsamplingImageProcessor(size: heroImageDecodeSize)
-        let upcomingHeroes = homeViewModel.upcomingHeroCarouselItems(limit: 2)
-        for hero in upcomingHeroes {
-            guard let imageURL = heroImageURL(for: hero),
-                  let url = URL(string: imageURL) else { continue }
-            KingfisherManager.shared.retrieveImage(
-                with: url,
-                options: [
-                    .processor(processor),
-                    .scaleFactor(EclipseViewport.scale),
-                    .backgroundDecode
-                ]
-            ) { _ in }
+        for hero in homeViewModel.upcomingHeroCarouselItems(limit: 2) {
+            guard !Task.isCancelled, let imageURL = heroImageURL(for: hero) else { continue }
+            _ = await prefetchHeroImage(imageURL, processor: processor)
         }
-
-#if os(iOS)
-        guard shouldAnalyzeHeroAlternatePoster, heroArtworkIsActive else { return }
-        let language = selectedLanguage
-        for hero in upcomingHeroes {
-            let cacheKey = heroAlternatePosterCacheKey(hero.stableIdentity, language: language)
-            guard !Task.isCancelled, selectedLanguage == language,
-                  prefetchedHeroAlternatePosterURLs[cacheKey] == nil,
-                  !resolvedHeroAlternatePosterKeys.contains(cacheKey) else { continue }
-            do {
-                let images = hero.isMovie
-                    ? try await tmdbService.getMovieImages(id: hero.id, preferredLanguage: language)
-                    : try await tmdbService.getTVShowImages(id: hero.id, preferredLanguage: language)
-                guard !Task.isCancelled, heroArtworkIsActive, shouldAnalyzeHeroAlternatePoster,
-                      selectedLanguage == language else { return }
-                let alternateResolution = await tmdbService.resolveAlternatePoster(
-                    from: images,
-                    excluding: [hero.posterPath],
-                    matching: hero.posterPath,
-                    mediaType: hero.isMovie ? .movie : .tv
-                )
-                guard !Task.isCancelled else { continue }
-                if let alternatePosterURL = alternateResolution.poster?.fullURL {
-                    guard await prefetchHeroImage(alternatePosterURL, processor: processor) else { continue }
-                }
-                guard heroArtworkIsActive, shouldAnalyzeHeroAlternatePoster,
-                      selectedLanguage == language else { return }
-                if alternateResolution.isComplete {
-                    resolvedHeroAlternatePosterKeys.insert(cacheKey)
-                }
-                if let alternatePosterURL = alternateResolution.poster?.fullURL {
-                    prefetchedHeroAlternatePosterURLs[cacheKey] = alternatePosterURL
-                }
-            } catch {
-                continue
-            }
-        }
-#endif
     }
 
     private func prefetchHeroImage(

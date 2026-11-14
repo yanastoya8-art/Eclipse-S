@@ -254,6 +254,7 @@ private final class MediaDetailCacheStore {
 
 struct MediaDetailView: View {
     let searchResult: TMDBSearchResult
+    private let preloadedArtworkURL: String?
     private let initialNotificationSelection: MediaDetailInitialNotificationSelection?
     private let trackerPlaybackIntent: TrackerLibraryPlaybackIntent?
 
@@ -266,10 +267,12 @@ struct MediaDetailView: View {
 
     init(
         searchResult: TMDBSearchResult,
+        preloadedArtworkURL: String? = nil,
         initialNotificationSelection: MediaDetailInitialNotificationSelection? = nil,
         trackerPlaybackIntent: TrackerLibraryPlaybackIntent? = nil
     ) {
         self.searchResult = searchResult
+        self.preloadedArtworkURL = preloadedArtworkURL
         self.initialNotificationSelection = initialNotificationSelection
         self.trackerPlaybackIntent = trackerPlaybackIntent
 
@@ -299,6 +302,7 @@ struct MediaDetailView: View {
             case .allowed:
                 MediaDetailContentView(
                     searchResult: searchResult,
+                    preloadedArtworkURL: preloadedArtworkURL,
                     initialNotificationSelection: initialNotificationSelection,
                     trackerPlaybackIntent: trackerPlaybackIntent
                 )
@@ -411,6 +415,7 @@ struct MediaDetailContentView: View {
 #endif
 
     let searchResult: TMDBSearchResult
+    let preloadedArtworkURL: String?
     private let initialNotificationSelection: MediaDetailInitialNotificationSelection?
     private let trackerPlaybackIntent: TrackerLibraryPlaybackIntent?
 
@@ -421,6 +426,7 @@ struct MediaDetailContentView: View {
     @State private var selectedSeason: TMDBSeason?
     @State private var seasonDetail: TMDBSeasonDetail?
     @State private var isLoading = true
+    @State private var isShowingSearchResultPreview = false
     @State private var errorMessage: String?
     @State private var ambientColor: Color = Color.black
     @State private var scrollOffset: CGFloat = 0
@@ -555,8 +561,6 @@ struct MediaDetailContentView: View {
     @AppStorage("mediaDetailHiddenElements") private var mediaDetailHiddenElements = ""
     @AppStorage("showCastSection") private var legacyShowCastSection = true
     @AppStorage(MediaDetailPlatformDefaults.seasonMenuKey) private var useSeasonMenu = MediaDetailPlatformDefaults.prefersCompactSeasonMenu
-    @AppStorage(MediaDetailTitleArtworkSettings.enabledKey) private var mediaDetailTitleArtworkEnabled = MediaDetailTitleArtworkSettings.defaultEnabled
-    @AppStorage(MediaDetailAlternatePosterSettings.enabledKey) private var mediaDetailAlternatePosterEnabled = MediaDetailAlternatePosterSettings.defaultEnabled
     @AppStorage(MediaDetailAgeRatingSettings.enabledKey) private var mediaDetailAgeRatingEnabled = MediaDetailAgeRatingSettings.defaultEnabled
     @AppStorage(MediaDetailSimilarTitlesSettings.enabledKey) private var mediaDetailSimilarTitlesEnabled = MediaDetailSimilarTitlesSettings.defaultEnabled
     @AppStorage(ExperimentalMediaDesignPreset.storageKey) private var experimentalDesignPreset = ExperimentalMediaDesignPreset.defaultValue.rawValue
@@ -967,14 +971,18 @@ struct MediaDetailContentView: View {
 #elseif os(tvOS)
         detailViewportHeight * 0.8
 #else
+        let portraitPosterHeight = EclipseViewport.bounds.width * 1.5
         if ExperimentalFeatureState.isEnabledAtLaunch {
             let measuredHeight = designMetrics.detailHeroHeight(
                 screenHeight: detailViewportHeight,
                 isIPad: usesWideDetailLayout
             )
-            return usesWideDetailLayout ? min(measuredHeight, 640) : measuredHeight
+            return usesWideDetailLayout
+                ? min(measuredHeight, 640)
+                : max(measuredHeight, portraitPosterHeight + 80)
         }
-        return usesWideDetailLayout ? 640 : min(max(detailViewportHeight * 0.76, 620), 780)
+        let measuredHeight = min(max(detailViewportHeight * 0.76, 620), 780)
+        return usesWideDetailLayout ? 640 : max(measuredHeight, portraitPosterHeight + 80)
 #endif
     }
 
@@ -2008,22 +2016,7 @@ struct MediaDetailContentView: View {
 
     @ViewBuilder
     private func macDetailTitle(compact: Bool) -> some View {
-        if mediaDetailTitleArtworkEnabled && !titleArtworkLookupComplete {
-            Color.clear.frame(width: compact ? 330 : 480, height: compact ? 88 : 112)
-        } else if mediaDetailTitleArtworkEnabled, let logoURL {
-            ResilientArtworkImage(
-                urls: [logoURL],
-                decodeSize: homeImageDecodeSize(width: 480, height: 112),
-                contentMode: .fit
-            ) {
-                macDetailTitleText(compact: compact)
-            }
-            .frame(maxWidth: compact ? 330 : 480, maxHeight: compact ? 88 : 112, alignment: .leading)
-            .accessibilityLabel(searchResult.displayTitle)
-            .accessibilityAddTraits(.isHeader)
-        } else {
-            macDetailTitleText(compact: compact)
-        }
+        EmptyView()
     }
 
     private func macDetailTitleText(compact: Bool) -> some View {
@@ -2307,21 +2300,7 @@ struct MediaDetailContentView: View {
 
     @ViewBuilder
     private var iPadImmersiveTitle: some View {
-        if mediaDetailTitleArtworkEnabled && !titleArtworkLookupComplete {
-            Color.clear.frame(width: 380, height: 118)
-        } else if mediaDetailTitleArtworkEnabled, let logoURL {
-            ResilientArtworkImage(
-                urls: [logoURL],
-                decodeSize: homeImageDecodeSize(width: 380, height: 118),
-                contentMode: .fit
-            ) {
-                iPadImmersiveTitleText
-            }
-            .frame(maxWidth: 380, maxHeight: 118, alignment: .leading)
-            .shadow(color: .black.opacity(0.48), radius: 8, x: 0, y: 4)
-        } else {
-            iPadImmersiveTitleText
-        }
+        EmptyView()
     }
 
     private var iPadImmersiveTitleText: some View {
@@ -2475,8 +2454,12 @@ struct MediaDetailContentView: View {
                     .frame(height: headerHeight)
 
                 VStack(spacing: 0) {
+                    // Portrait posters are shown at their natural 2:3 presentation ratio.
+                    // Reserve their full display height before placing metadata/actions.
                     Spacer(minLength: 0)
-                        .frame(height: headerHeight * (usesWideDetailLayout ? 0.12 : 0.40))
+                        .frame(height: usesWideDetailLayout
+                            ? headerHeight * 0.16
+                            : min(EclipseViewport.bounds.width * 1.5, headerHeight - 80))
                     headerSection
                         .frame(maxWidth: .infinity, alignment: usesWideDetailLayout ? .trailing : .center)
                         .padding(.horizontal, usesWideDetailLayout ? 48 : 0)
@@ -2502,7 +2485,8 @@ struct MediaDetailContentView: View {
                     ambientColor = color
                 },
                 placeholderColor: shouldAnalyzeAlternatePoster ? .clear : Color.gray.opacity(0.3),
-                fallbackImageURLs: detailHeroFallbackImageURLs
+                fallbackImageURLs: detailHeroFallbackImageURLs,
+                preservesArtworkComposition: true
             )
 #if DEBUG
             if ProcessInfo.processInfo.environment["ECLIPSE_UI_POSTER_AUDIT"] == "1" {
@@ -2568,15 +2552,15 @@ struct MediaDetailContentView: View {
             LinearGradient(
                 gradient: Gradient(stops: [
                     .init(color: .clear, location: 0.0),
-                    .init(color: heroBlendColor.opacity(0.30), location: 0.32),
-                    .init(color: heroBlendColor.opacity(0.64), location: 0.60),
-                    .init(color: heroBlendColor.opacity(0.90), location: 0.84),
+                    .init(color: heroBlendColor.opacity(0.08), location: 0.48),
+                    .init(color: heroBlendColor.opacity(0.28), location: 0.70),
+                    .init(color: heroBlendColor.opacity(0.68), location: 0.88),
                     .init(color: heroBlendColor.opacity(1.0), location: 1.0)
                 ]),
                 startPoint: .top,
                 endPoint: .bottom
             )
-            .frame(height: max(designMetrics.heroBottomFadeHeight + 150, usesWideDetailLayout ? 680 : 570))
+            .frame(height: max(designMetrics.heroBottomFadeHeight + 90, usesWideDetailLayout ? 560 : 430))
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             .allowsHitTesting(false)
         } else {
@@ -2597,18 +2581,11 @@ struct MediaDetailContentView: View {
 
     private var detailHeroFallbackImageURLs: [String] {
         guard let primary = detailHeroImageURL else { return [] }
-        var candidates: [String?] = [
-            searchResult.fullBackdropURL, searchResult.fullPosterURL,
-            searchResult.animeArtworkURL, movieDetail?.fullBackdropURL,
-            movieDetail?.fullPosterURL, tvShowDetail?.fullBackdropURL,
-            tvShowDetail?.fullPosterURL
+        let candidates: [String?] = [
+            searchResult.fullPosterURL,
+            searchResult.animeArtworkURL,
+            searchResult.fullBackdropURL
         ]
-#if os(iOS)
-        if shouldAnalyzeAlternatePoster {
-            candidates.insert(alternatePosterURL, at: 0)
-            candidates.insert(tvMazePosterURL, at: 1)
-        }
-#endif
         var seen: Set<String> = []
         return candidates.compactMap { $0 }.filter { value in
             guard value != primary,
@@ -2620,44 +2597,14 @@ struct MediaDetailContentView: View {
     }
 
     private var detailHeroImageURL: String? {
-        let isAnimeTitle = searchResult.animeIdentitySeed != nil || searchResult.isAnimeHint == true
-        if isAnimeTitle {
-#if !os(tvOS) && !os(macOS)
-            if !usesWideDetailLayout, (mediaDetailAlternatePosterEnabled || searchResult.fullPosterURL == nil),
-               let alternatePosterURL {
-                return alternatePosterURL
-            }
-#endif
-            return searchResult.fullPosterURL
-                ?? searchResult.animeArtworkURL
-                ?? tvShowDetail?.fullPosterURL
-                ?? tvShowDetail?.fullBackdropURL
-                ?? searchResult.fullBackdropURL
-        }
-#if !os(tvOS) && !os(macOS)
-        if !usesWideDetailLayout, (mediaDetailAlternatePosterEnabled || searchResult.fullPosterURL == nil) {
-            if let alternatePosterURL { return alternatePosterURL }
-            if !searchResult.isMovie, let tvMazePosterURL { return tvMazePosterURL }
-        }
-
-        if ExperimentalFeatureState.isEnabledAtLaunch && !usesWideDetailLayout && !isTvOS {
-            if searchResult.isMovie {
-                return movieDetail?.fullPosterURL
-                    ?? searchResult.fullPosterURL
-                    ?? movieDetail?.fullBackdropURL
-                    ?? searchResult.fullBackdropURL
-            }
-            return tvShowDetail?.fullPosterURL
-                ?? searchResult.fullPosterURL
-                ?? tvShowDetail?.fullBackdropURL
-                ?? searchResult.fullBackdropURL
-        }
-#endif
-
-        if searchResult.isMovie {
-            return movieDetail?.fullBackdropURL ?? searchResult.fullBackdropURL ?? movieDetail?.fullPosterURL ?? searchResult.fullPosterURL
-        }
-        return tvShowDetail?.fullBackdropURL ?? searchResult.fullBackdropURL ?? tvShowDetail?.fullPosterURL ?? searchResult.fullPosterURL
+        preloadedArtworkURL
+            ?? searchResult.fullPosterURL
+            ?? searchResult.animeArtworkURL
+            ?? movieDetail?.fullPosterURL
+            ?? tvShowDetail?.fullPosterURL
+            ?? searchResult.fullBackdropURL
+            ?? movieDetail?.fullBackdropURL
+            ?? tvShowDetail?.fullBackdropURL
     }
 
     @ViewBuilder
@@ -2760,26 +2707,9 @@ struct MediaDetailContentView: View {
 
     @ViewBuilder
     private var titleArtwork: some View {
-        if !mediaDetailTitleArtworkEnabled {
-            EmptyView()
-        } else if let logoURL = logoURL {
-            ResilientArtworkImage(
-                urls: [logoURL],
-                decodeSize: homeImageDecodeSize(width: isTvOS ? 720 : (usesWideDetailLayout ? 420 : 334), height: isTvOS ? 250 : 140),
-                contentMode: .fit
-            ) {
-                titleText
-            }
-            .frame(
-                maxWidth: ExperimentalFeatureState.isEnabledAtLaunch ? (isTvOS ? 720 : (usesWideDetailLayout ? 420 : 334)) : (usesWideDetailLayout ? 400 : 280),
-                maxHeight: ExperimentalFeatureState.isEnabledAtLaunch ? (isTvOS ? 250 : 132) : (usesWideDetailLayout ? 140 : 100)
-            )
-            .shadow(color: .black.opacity(0.52), radius: 6, x: 0, y: 3)
-            .padding(.horizontal, ExperimentalFeatureState.isEnabledAtLaunch ? (isTvOS ? 60 : (usesWideDetailLayout ? 36 : 26)) : 0)
-        } else {
-            titleText
-                .padding(.horizontal, ExperimentalFeatureState.isEnabledAtLaunch ? (isTvOS ? 60 : (usesWideDetailLayout ? 36 : 26)) : 0)
-        }
+        // The selected poster already carries its title treatment. Reuse it
+        // rather than requesting a separate logo asset.
+        EmptyView()
     }
 
     @ViewBuilder
@@ -6897,7 +6827,7 @@ struct MediaDetailContentView: View {
 
     private var shouldAnalyzeAlternatePoster: Bool {
 #if os(iOS)
-        !usesWideDetailLayout && (mediaDetailAlternatePosterEnabled || searchResult.fullPosterURL == nil)
+        false
 #else
         false
 #endif
@@ -6926,20 +6856,13 @@ struct MediaDetailContentView: View {
 
     @MainActor
     private func resumeOptionalPresentationIfNeeded() {
-#if os(iOS)
         guard hasLoadedContent, !isLoading, isDetailVisible, errorMessage == nil,
               detailLoadedLanguage == selectedLanguage,
               detailLoadedIdentity == searchResult.stableIdentity,
               searchResult.isMovie ? movieDetail?.id == searchResult.id : tvShowDetail?.id == searchResult.id,
               optionalPresentationTask == nil,
-              !optionalPresentationIsComplete || (shouldAnalyzeAlternatePoster && !alternatePosterWasResolved) else { return }
-#else
-        guard hasLoadedContent, !isLoading, isDetailVisible, errorMessage == nil,
-              detailLoadedLanguage == selectedLanguage, detailLoadedIdentity == searchResult.stableIdentity,
-              searchResult.isMovie ? movieDetail?.id == searchResult.id : tvShowDetail?.id == searchResult.id,
-              optionalPresentationTask == nil,
-              !optionalPresentationIsComplete || (shouldAnalyzeAlternatePoster && !alternatePosterWasResolved) else { return }
-#endif
+              !optionalPresentationIsComplete else { return }
+
         let generation = UUID()
         optionalPresentationGeneration = generation
         let identity = searchResult.stableIdentity
@@ -6947,65 +6870,29 @@ struct MediaDetailContentView: View {
         let id = searchResult.id
         let isMovie = searchResult.isMovie
         let cacheKey = detailCacheKeyForCurrentRoute()
-        let primaryPath = (isMovie ? movieDetail?.posterPath : tvShowDetail?.posterPath) ?? searchResult.posterPath
-        let excludedPaths = [primaryPath, searchResult.posterPath]
-        let analyzeAlternate = shouldAnalyzeAlternatePoster && !alternatePosterWasResolved
         let startedAt = ProcessInfo.processInfo.systemUptime
         optionalPresentationTask = Task { @MainActor in
             defer {
                 if optionalPresentationGeneration == generation { optionalPresentationTask = nil }
             }
-            async let imagesResult: TMDBImagesResponse? = try? loadOptionalPresentationImages(id: id, isMovie: isMovie, language: language)
+
+            // Only load non-visual supporting metadata here. Poster and title
+            // artwork are already available from Home and must not trigger
+            // another images/logo/alternate-poster request.
             async let romajiResult = tmdbService.getRomajiTitle(for: isMovie ? "movie" : "tv", id: id)
             async let creditsResult: TMDBCreditsResponse? = try? loadOptionalPresentationCredits(id: id, isMovie: isMovie)
-            let images = await imagesResult
-            guard !Task.isCancelled, isDetailVisible, optionalPresentationGeneration == generation,
-                  searchResult.stableIdentity == identity, selectedLanguage == language else { return }
-            titleArtworkLookupComplete = true
-            if let images {
-                logoURL = tmdbService.getBestLogo(from: images, preferredLanguage: language)?.fullURL
-            }
-            cacheOptionalPresentation(key: cacheKey)
-            if analyzeAlternate, shouldAnalyzeAlternatePoster, let images {
-#if DEBUG
-                if ProcessInfo.processInfo.environment["ECLIPSE_UI_POSTER_AUDIT"] == "1" {
-                    posterAuditSelectorIsPending = true
-                    do {
-                        try await Task.sleep(nanoseconds: 4_000_000_000)
-                    } catch {
-                        return
-                    }
-                }
-#endif
-                let alternate = await tmdbService.resolveAlternatePoster(
-                    from: images, excluding: excludedPaths, matching: primaryPath,
-                    mediaType: isMovie ? .movie : .tv
-                )
-                guard !Task.isCancelled, isDetailVisible, optionalPresentationGeneration == generation,
-                      searchResult.stableIdentity == identity, selectedLanguage == language,
-                      shouldAnalyzeAlternatePoster else { return }
-                alternatePosterURL = alternate.poster?.fullURL
-                alternatePosterWasResolved = alternate.isComplete
-                if alternate.poster == nil, !isMovie,
-                   let imdbID = tvShowDetail?.externalIds?.imdbId {
-                    tvMazePosterURL = await tmdbService.getTVMazePosterURL(imdbID: imdbID)
-                }
-                cacheOptionalPresentation(key: cacheKey)
-            } else if analyzeAlternate, shouldAnalyzeAlternatePoster {
-                if !isMovie, let imdbID = tvShowDetail?.externalIds?.imdbId {
-                    tvMazePosterURL = await tmdbService.getTVMazePosterURL(imdbID: imdbID)
-                }
-                alternatePosterWasResolved = true
-                cacheOptionalPresentation(key: cacheKey)
-            }
             let romaji = await romajiResult
             let credits = await creditsResult
+
             guard !Task.isCancelled, isDetailVisible, optionalPresentationGeneration == generation,
                   searchResult.stableIdentity == identity, selectedLanguage == language else { return }
             romajiTitle = romaji
             if let credits { castMembers = credits.cast }
-            optionalPresentationIsComplete = images != nil && credits != nil
+            titleArtworkLookupComplete = true
+            // A failed credits request must not be cached as a completed enrichment pass.
+            optionalPresentationIsComplete = credits != nil
             cacheOptionalPresentation(key: cacheKey)
+
             let elapsedMs = Int(((ProcessInfo.processInfo.systemUptime - startedAt) * 1_000).rounded())
             Logger.shared.log(
                 "MediaDetailTiming: tmdbId=\(id) stage=optional-presentation-ready elapsedMs=\(elapsedMs)",
@@ -7014,9 +6901,21 @@ struct MediaDetailContentView: View {
         }
     }
 
-    private func loadOptionalPresentationImages(id: Int, isMovie: Bool, language: String) async throws -> TMDBImagesResponse {
-        if isMovie { return try await tmdbService.getMovieImages(id: id, preferredLanguage: language) }
-        return try await tmdbService.getTVShowImages(id: id, preferredLanguage: language)
+    private func prefetchDetailHeroImage() {
+        guard let imageURL = detailHeroImageURL,
+              let url = URL(string: imageURL) else { return }
+        let decodeSize = CGSize(
+            width: max(EclipseViewport.bounds.width * EclipseViewport.scale, 1),
+            height: max(headerHeight * EclipseViewport.scale, 1)
+        )
+        KingfisherManager.shared.retrieveImage(
+            with: url,
+            options: [
+                .processor(DownsamplingImageProcessor(size: decodeSize)),
+                .scaleFactor(EclipseViewport.scale),
+                .backgroundDecode
+            ]
+        ) { _ in }
     }
 
     private func loadOptionalPresentationCredits(id: Int, isMovie: Bool) async throws -> TMDBCreditsResponse {
@@ -7174,6 +7073,7 @@ struct MediaDetailContentView: View {
                     self.selectedSpecialEpisodeContext = nil
                     self.selectedEpisodeForSearch = nil
                 }
+                self.isShowingSearchResultPreview = false
                 self.isLoading = false
                 self.hasLoadedContent = true
                 self.isLoadingAnimeSpecials = shouldResumeAnimeSpecials
@@ -7198,6 +7098,8 @@ struct MediaDetailContentView: View {
         }
 
         isLoading = true
+        isShowingSearchResultPreview = true
+        synopsis = searchResult.overview ?? ""
 #if os(iOS)
         romajiTitle = nil
         logoURL = nil
@@ -7227,6 +7129,8 @@ struct MediaDetailContentView: View {
         isLoadingSimilarTitles = false
         selectedSpecialEpisodeContext = nil
         let detailLoadStartedAt = ProcessInfo.processInfo.systemUptime
+        titleArtworkLookupComplete = true
+        prefetchDetailHeroImage()
 
         detailLoadTask = Task {
             do {
@@ -7242,6 +7146,7 @@ struct MediaDetailContentView: View {
                         self.optionalPresentationCacheWritable = true
                         self.movieDetail = detail
                         self.synopsis = detail.overview ?? ""
+                        self.isShowingSearchResultPreview = false
 #if !os(iOS)
                         self.romajiTitle = nil
                         self.logoURL = nil
@@ -7310,6 +7215,7 @@ struct MediaDetailContentView: View {
                               self.selectedLanguage == detailLanguage else { return }
                         self.tvShowDetail = detail
                         self.synopsis = detail.overview ?? ""
+                        self.isShowingSearchResultPreview = false
                         self.isAnimeShow = (detail.originCountry?.contains(where: { ["JP", "CN", "KR", "TW"].contains($0) }) ?? false)
                             && detail.genres.contains(where: { $0.id == 16 })
                         self.selectedSeason = detail.seasons
@@ -7806,6 +7712,7 @@ struct MediaDetailContentView: View {
                           self.searchResult.stableIdentity == routeIdentity,
                           self.selectedLanguage == detailLanguage else { return }
                     self.errorMessage = error.localizedDescription
+                    self.isShowingSearchResultPreview = false
                     self.isLoading = false
                     self.hasLoadedContent = true
                 }
