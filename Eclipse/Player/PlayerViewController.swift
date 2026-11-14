@@ -1509,6 +1509,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     private var mpvForegroundRecoveryRetryCount = 0
     private var mpvForegroundRecoveryTask: Task<Void, Never>?
     private var rendererPlaybackIntentGeneration = 0
+    private var rendererPlaybackIntentIsPlaying = false
     private var mpvAutomaticPictureInPictureAuthorization: MPVAutomaticPictureInPictureAuthorization?
     private var mpvBackgroundFallbackAutoPaused = false
     private var mpvBackgroundFallbackPauseIntentGeneration: Int?
@@ -1595,7 +1596,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     private var midPlaybackStallLastPosition: Double?
 #endif
     private var lastIgnoredMPVBridgeDurationLogValue: Double = -1
-    private struct BackgroundRecoveryProgressGate {
+    private struct BackgroundRecoveryProgressGate: Sendable {
         let id: Int
         let mediaKey: String
         let source: String
@@ -1603,6 +1604,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         let armedAt: Date
         let baselinePosition: Double
         let baselineDuration: Double
+        let wasPlaying: Bool
+        let playbackIntentGeneration: Int
+        let loadGeneration: Int
         var foregroundedAt: Date?
         var lastSuppressionLogBucket: Int = -1
     }
@@ -1766,6 +1770,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     private func rendererPlay(recordingPlaybackIntent: Bool = true) {
         if recordingPlaybackIntent {
             autoplayEndGeneration = nil
+            rendererPlaybackIntentIsPlaying = true
             rendererPlaybackIntentGeneration &+= 1
             mpvBackgroundFallbackAutoPaused = false
             mpvBackgroundFallbackPauseIntentGeneration = nil
@@ -1785,6 +1790,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     ) {
         autoplayEndGeneration = nil
         if !preservingBackgroundFallbackOwnership {
+            rendererPlaybackIntentIsPlaying = false
             rendererPlaybackIntentGeneration &+= 1
             mpvBackgroundFallbackAutoPaused = false
             mpvBackgroundFallbackPauseIntentGeneration = nil
@@ -1801,6 +1807,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
     private func rendererTogglePause() {
         autoplayEndGeneration = nil
+        rendererPlaybackIntentIsPlaying = rendererIsPausedState()
         rendererPlaybackIntentGeneration &+= 1
         mpvBackgroundFallbackAutoPaused = false
         mpvBackgroundFallbackPauseIntentGeneration = nil
@@ -2089,7 +2096,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             return
         }
 
-        let wasPlaying = !rendererIsPausedState() && (playbackDidStart || cachedPosition > 0.1)
+        // Use the last user/app playback intent, not the renderer's current
+        // pause flag: iOS may already have paused the renderer before the
+        // didEnterBackground notification reaches this controller.
+        let wasPlaying = rendererPlaybackIntentIsPlaying && (playbackDidStart || cachedPosition > 0.1)
         guard wasPlaying else {
             if backgroundRecoveryProgressGate?.mediaKey == mediaKey {
                 return
@@ -2113,7 +2123,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             rendererName: rendererName,
             armedAt: now,
             baselinePosition: max(0, cachedPosition),
-            baselineDuration: max(0, cachedDuration)
+            baselineDuration: max(0, cachedDuration),
+            wasPlaying: wasPlaying,
+            playbackIntentGeneration: rendererPlaybackIntentGeneration,
+            loadGeneration: playbackLoadGeneration
         )
         Logger.shared.log("[PlayerVC.Recovery] armed progress gate id=\(backgroundRecoveryProgressGateID) source=\(source) renderer=\(rendererName) media=\(mediaKey) baseline=\(secondsText(cachedPosition))/\(secondsText(cachedDuration))", type: "Progress")
     }
@@ -2128,6 +2141,39 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         }
 
         let gateID = gate.id
+        if gate.wasPlaying {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+                guard let self,
+                      self.backgroundRecoveryProgressGate?.id == gateID,
+                      gate.loadGeneration == self.playbackLoadGeneration,
+                      gate.playbackIntentGeneration == self.rendererPlaybackIntentGeneration,
+                      self.currentMediaProgressKey() == gate.mediaKey,
+                      self.isRunning, !self.isClosing,
+                      self.owningPlaybackSceneIsForegroundActive() else { return }
+
+                let pipState = self.mpvPictureInPictureControllerState()
+                guard !pipState.active, !pipState.pending else {
+                    self.logPictureInPicture(
+                        "foreground playback restoration deferred while PiP owns renderer source=\(source)"
+                    )
+                    return
+                }
+
+                // iOS/AVKit can leave the renderer paused after returning from
+                // background even when the PiP handoff never completed. Resume
+                // only when playback was active before backgrounding and the
+                // user has not changed playback intent since then.
+                self.rendererResumeForegroundRendering(reason: "background-return-\(source)")
+                if self.rendererIsPausedState() {
+                    self.rendererPlay(recordingPlaybackIntent: false)
+                }
+                self.rendererSchedulePictureInPicturePlaybackStateUpdate()
+                self.logPictureInPicture(
+                    "foreground playback restoration checked source=\(source) wasPaused=\(self.rendererIsPausedState()) generation=\(gate.loadGeneration)"
+                )
+            }
+        }
+
         DispatchQueue.main.asyncAfter(deadline: .now() + backgroundRecoveryProgressMaxGuardWindow) { [weak self] in
             guard let self,
                   self.backgroundRecoveryProgressGate?.id == gateID else {
@@ -4622,6 +4668,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
     private func applyPlaybackIntentAfterLoad(shouldResume: Bool, source: String) {
         logMPV("applying post-load playback intent source=\(source) shouldResume=\(shouldResume)")
+        rendererPlaybackIntentIsPlaying = shouldResume
         rendererPlaybackIntentGeneration &+= 1
         mpvBackgroundFallbackAutoPaused = false
         mpvBackgroundFallbackPauseIntentGeneration = nil
@@ -4790,6 +4837,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         pendingInitialResumeRetryCount = 0
         pendingInitialResumeLastRetryAt = nil
         releaseBackgroundRecoveryProgressGate(reason: "new-load")
+        rendererPlaybackIntentIsPlaying = false
         mpvRecoveryProgressState = nil
         setVLCSubtitleStyleReloadProgressGate(active: false, reason: "new-load")
         if let info = mediaInfo {
@@ -6372,7 +6420,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
     private func applyInteractiveRenderThrottle() {
 #if os(iOS) && ECLIPSE_MPVKIT_MOLTENVK_INLINE_RENDERER && ECLIPSE_MPVKIT_SAMPLE_BUFFER_PIP_BRIDGE
-        metalMPVRenderer?.setInteractiveRenderThrottle(controlsVisible)
+        // The performance overlay is a diagnostic surface, not an interactive
+        // control. Never drop video to the low-FPS controls throttle while it is
+        // enabled, otherwise audio continues while the picture appears frozen.
+        let shouldThrottle = controlsVisible && !Settings.shared.mpvPerformanceOverlayEnabled
+        metalMPVRenderer?.setInteractiveRenderThrottle(shouldThrottle)
 #endif
     }
 
@@ -7301,6 +7353,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         Settings.shared.mpvPerformanceOverlayEnabled.toggle()
         performanceOverlayButton.isSelected = Settings.shared.mpvPerformanceOverlayEnabled
         performanceOverlayButton.tintColor = performanceOverlayButton.isSelected ? .systemGreen : .white
+        applyInteractiveRenderThrottle()
         updateMetalPerformanceOverlayVisibility()
         showControlsTemporarily()
     }
@@ -16147,9 +16200,13 @@ extension PlayerViewController: PiPControllerDelegate {
             case .retryInlineRestore:
                 guard self.mpvForegroundRecoveryRetryCount < 3,
                       self.owningPlaybackSceneIsForegroundActive() else {
+                    let fallbackResumed = self.resumeMPVBackgroundFallbackPauseForPictureInPictureIfNeeded(
+                        source: "\(source)-retry-exhausted"
+                    )
+                    self.rendererResumeForegroundRendering(reason: "\(source)-retry-exhausted")
                     self.mpvBackgroundLifecycleIsArmed = false
                     self.logPictureInPicture(
-                        "serialized foreground recovery abandoned after bounded inline retries source=\(source) generation=\(generation)"
+                        "serialized foreground recovery abandoned after bounded inline retries source=\(source) generation=\(generation) fallbackResumed=\(fallbackResumed)"
                     )
                     return
                 }
@@ -16162,12 +16219,19 @@ extension PlayerViewController: PiPControllerDelegate {
                     )
                 }
             case .failed:
+                // The background audio fallback may have paused MPV while
+                // waiting for PiP. A failed PiP/decoder handoff must not leave
+                // that automatic pause in place after the app is foregrounded.
+                let fallbackResumed = self.resumeMPVBackgroundFallbackPauseForPictureInPictureIfNeeded(
+                    source: "\(source)-foreground-recovery-failed"
+                )
+                self.rendererResumeForegroundRendering(reason: "\(source)-foreground-recovery-failed")
                 self.mpvBackgroundLifecycleIsArmed = false
                 self.mpvBackgroundFallbackAutoPaused = false
                 self.mpvBackgroundFallbackPauseIntentGeneration = nil
                 self.mpvBackgroundFallbackPauseLifecycleGeneration = nil
                 self.logPictureInPicture(
-                    "serialized foreground recovery failed source=\(source) generation=\(generation)"
+                    "serialized foreground recovery failed source=\(source) generation=\(generation) fallbackResumed=\(fallbackResumed)"
                 )
             }
         }

@@ -5502,7 +5502,7 @@ final class AniListService {
                 return AnimeAiringScheduleResult(
                     entries: fallback.entries,
                     isAuthoritativeForNotifications: fallback.isAuthoritativeForNotifications,
-                    notice: "Showing the AniList broadcast schedule."
+                    notice: "Showing the AniList broadcast schedule. Add an AnimeSchedule API token in Settings → Language & Content Filters to enable English dub release dates."
                 )
             }, mal: {
                 AnimeProviderHealthCenter.shared.notifyMALFallbackIfNeeded(reason: "schedule")

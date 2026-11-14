@@ -11,20 +11,61 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
     case adult = 3
 
     case unknown = 4
+    case age12 = 5
+    case age14 = 6
+    case age16 = 7
+    case age17 = 8
+    case age6 = 9
+    case age7 = 10
+    case age8 = 11
+    case age9 = 12
+    case age10 = 13
+    case age11 = 14
+
+    private var comparisonAge: Int {
+        switch self {
+        case .general: return 0
+        case .age6: return 6
+        case .age7: return 7
+        case .age8: return 8
+        case .age9: return 9
+        case .age10: return 10
+        case .age11: return 11
+        case .age12: return 12
+        case .teen: return 13
+        case .age14: return 14
+        case .mature: return 15
+        case .age16: return 16
+        case .age17: return 17
+        case .adult: return 18
+        case .unknown: return Int.max
+        }
+    }
 
     static func < (lhs: MaturityRating, rhs: MaturityRating) -> Bool {
-        lhs.rawValue < rhs.rawValue
+        lhs.comparisonAge < rhs.comparisonAge
     }
 
     var isBlockedForKids: Bool {
-        self == .mature || self == .adult || self == .unknown
+        self == .age12 || self == .mature || self == .age16
+            || self == .age17 || self == .adult || self == .unknown
     }
 
     var ageBand: String {
         switch self {
         case .general: return "All ages"
-        case .teen: return "12+"
+        case .age6: return "6+"
+        case .age7: return "7+"
+        case .age8: return "8+"
+        case .age9: return "9+"
+        case .age10: return "10+"
+        case .age11: return "11+"
+        case .age12: return "12+"
+        case .teen: return "13+"
+        case .age14: return "14+"
         case .mature: return "15+"
+        case .age16: return "16+"
+        case .age17: return "17+"
         case .adult: return "18+"
         case .unknown: return "Not rated"
         }
@@ -70,11 +111,19 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
             || compact.hasPrefix("X18") || compact.hasPrefix("AO") || compact.hasPrefix("RX") {
             return .adult
         }
-        if compact.hasPrefix("MA") || compact.hasPrefix("R15") || compact.hasPrefix("R16")
-            || compact.hasPrefix("R17") || compact.hasPrefix("TVMA") {
+        if compact.hasPrefix("TVMA") || compact.hasPrefix("R17") {
+            return .age17
+        }
+        if compact.hasPrefix("R16") {
+            return .age16
+        }
+        if compact.hasPrefix("MA") || compact.hasPrefix("R15") {
             return .mature
         }
-        if compact.hasPrefix("TV14") || compact.hasPrefix("PG13") || compact.hasPrefix("R13") {
+        if compact.hasPrefix("TV14") {
+            return .age14
+        }
+        if compact.hasPrefix("PG13") || compact.hasPrefix("R13") {
             return .teen
         }
         if compact.hasPrefix("TVY") || compact.hasPrefix("TVG") {
@@ -97,9 +146,19 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
 
     private static func tier(forMinimumAge age: Int) -> MaturityRating {
         switch age {
-        case ..<12: return .general
-        case 12..<15: return .teen
-        case 15..<18: return .mature
+        case ..<6: return .general
+        case 6: return .age6
+        case 7: return .age7
+        case 8: return .age8
+        case 9: return .age9
+        case 10: return .age10
+        case 11: return .age11
+        case 12: return .age12
+        case 13: return .teen
+        case 14: return .age14
+        case 15: return .mature
+        case 16: return .age16
+        case 17: return .age17
         default: return .adult
         }
     }
@@ -108,6 +167,43 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
         certifications.reduce(MaturityRating.unknown) { result, value in
             strictest(result, classify(certification: value, region: region))
         }
+    }
+
+    static let europeanRegionCodes: Set<String> = [
+        "AT", "BE", "BG", "CH", "CY", "CZ", "DE", "DK", "EE", "ES",
+        "FI", "FR", "GB", "GR", "HR", "HU", "IE", "IS", "IT", "LI",
+        "LT", "LU", "LV", "MT", "NL", "NO", "PL", "PT", "RO", "SE",
+        "SI", "SK"
+    ]
+
+    static var preferredEuropeanRegions: [String] {
+        var regions: [String] = []
+        if #available(iOS 16.0, tvOS 16.0, macOS 13.0, *) {
+            if let region = Locale.current.region?.identifier,
+               europeanRegionCodes.contains(region) {
+                regions.append(region)
+            }
+        } else if let region = Locale.current.regionCode,
+                  europeanRegionCodes.contains(region) {
+            regions.append(region)
+        }
+        for region in ["BG", "GB", "DE", "FR", "ES", "IT", "NL", "SE", "NO", "DK", "FI", "PL", "IE", "PT", "AT", "BE", "CH", "CZ", "GR", "RO", "HU"] where !regions.contains(region) {
+            regions.append(region)
+        }
+        return regions
+    }
+
+    static func preferredEuropeanCertification(
+        certificationsByRegion: [String: [String]]
+    ) -> Certification? {
+        let european = certificationsByRegion.filter {
+            europeanRegionCodes.contains($0.key.uppercased())
+        }
+        guard !european.isEmpty else { return nil }
+        return preferredCertification(
+            certificationsByRegion: european,
+            regions: preferredEuropeanRegions
+        )
     }
 
     static var preferredRegions: [String] {
@@ -188,56 +284,64 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
     private static let regionalRatings: [String: [String: MaturityRating]] = [
         // India: CBFC certificates are not interchangeable with US/UK labels.
         "IN": [
-            "U": .general, "UA": .teen, "UA7PLUS": .general,
-            "UA13PLUS": .teen, "UA16PLUS": .mature, "A": .adult, "S": .adult
+            "U": .general, "UA": .age12, "UA7PLUS": .general,
+            "UA13PLUS": .teen, "UA16PLUS": .age16, "A": .adult, "S": .adult
         ],
         // Canada: provincial boards use 14A/18A; A is adult-only.
         "CA": [
-            "G": .general, "PG": .general, "14A": .teen,
+            "G": .general, "PG": .general, "14A": .age14,
             "18A": .adult, "R": .adult, "A": .adult
         ],
         "GB": [
-            "U": .general, "PG": .general, "12A": .teen,
-            "12": .teen, "15": .mature, "18": .adult, "R18": .adult
+            "U": .general, "PG": .general, "12A": .age12,
+            "12": .age12, "15": .mature, "18": .adult, "R18": .adult
         ],
         // Bulgaria: A/B/C/D/X are national age-category labels.
         "BG": [
-            "A": .general, "B": .teen, "C": .mature, "D": .adult, "X": .adult
+            "A": .general, "B": .age12, "C": .age16, "D": .adult, "X": .adult
         ],
         "ES": [
-            "APTA": .general, "7": .general, "12": .teen,
-            "16": .mature, "18": .adult, "X": .adult
+            "APTA": .general, "7": .age7, "12": .age12,
+            "16": .age16, "18": .adult, "X": .adult
         ],
         "JP": [
-            "G": .general, "PG12": .teen, "R15PLUS": .mature, "R18PLUS": .adult
+            "G": .general, "PG12": .age12, "R15PLUS": .mature, "R18PLUS": .adult
         ],
         "KR": [
-            "ALL": .general, "12": .teen, "15": .mature, "19": .adult
+            "ALL": .general, "12": .age12, "15": .mature, "19": .adult
         ],
         "AU": [
-            "G": .general, "PG": .general, "M": .teen,
+            "G": .general, "PG": .general, "M": .mature,
             "MA15": .mature, "MA15PLUS": .mature, "R18PLUS": .adult, "X18PLUS": .adult
         ],
         "DE": [
-            "0": .general, "6": .general, "12": .teen, "16": .mature, "18": .adult
+            "0": .general, "6": .age6, "12": .age12, "16": .age16, "18": .adult
         ],
         "FR": [
-            "U": .general, "10": .general, "12": .teen, "16": .mature, "18": .adult
+            "U": .general, "10": .age10, "12": .age12, "16": .age16, "18": .adult
         ],
+        "SE": ["7": .age7, "11": .age11, "15": .mature],
+        "DK": ["7": .age7, "11": .age11, "15": .mature],
+        "NO": ["6": .age6, "9": .age9, "12": .age12, "15": .mature, "18": .adult],
+        "FI": ["7": .age7, "12": .age12, "16": .age16, "18": .adult],
+        "PL": ["7": .age7, "12": .age12, "16": .age16, "18": .adult],
+        "BE": ["0": .general, "6": .age6, "9": .age9, "12": .age12, "14": .age14, "16": .age16, "18": .adult],
+        "AT": ["6": .age6, "10": .age10, "12": .age12, "16": .age16, "18": .adult],
+        "IE": ["G": .general, "PG": .general, "12A": .age12, "15A": .mature, "16": .age16, "18": .adult],
         "IT": [
-            "T": .general, "VM14": .teen, "VM18": .adult
+            "T": .general, "VM14": .age14, "VM18": .adult
         ],
         "NL": [
-            "AL": .general, "6": .general, "9": .general,
-            "12": .teen, "14": .teen, "16": .mature, "18": .adult
+            "AL": .general, "6": .age6, "9": .age9,
+            "12": .age12, "14": .age14, "16": .age16, "18": .adult
         ],
         "BR": [
-            "L": .general, "10": .general, "12": .teen,
-            "14": .teen, "16": .mature, "18": .adult
+            "L": .general, "10": .age10, "12": .age12,
+            "14": .age14, "16": .age16, "18": .adult
         ],
         "SG": [
             "G": .general, "PG": .general, "PG13": .teen,
-            "NC16": .mature, "M18": .adult, "R21": .adult
+            "NC16": .age16, "M18": .adult, "R21": .adult
         ]
     ]
 
@@ -245,31 +349,32 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
 
         "G": .general, "TVY": .general, "TVY7": .general, "TVY7FV": .general,
         "TVG": .general, "PG": .general, "TVPG": .general,
-        "PG13": .teen, "TV14": .teen,
-        "R": .mature, "TVMA": .mature,
+        "PG13": .teen, "TV14": .age14,
+        "R": .age17, "TVMA": .age17,
         "NC17": .adult, "X": .adult, "XXX": .adult, "AO": .adult,
         "ADULT": .adult, "ADULTONLY": .adult, "UNRATED": .unknown, "NR": .unknown,
 
         "U": .general, "UC": .general,
-        "12": .teen, "12A": .teen,
-        "15": .mature,
+        "12": .age12, "12A": .age12, "13": .teen, "14": .age14,
+        "15": .mature, "16": .age16, "17": .age17,
         "18": .adult, "R18": .adult,
 
         "E": .general, "M": .mature, "MA15": .mature, "MA15PLUS": .mature,
-        "R13": .teen, "R15": .mature, "R16": .mature,
+        "R13": .teen, "R15": .mature, "R16": .age16,
         "R18PLUS": .adult, "X18PLUS": .adult, "RC": .adult,
 
-        "PG12": .teen, "R15PLUS": .mature,
+        "PG12": .age12, "R15PLUS": .mature,
         "T": .teen, "TPLUS": .mature, "A": .general,
-        "R17": .mature, "RPLUS": .mature, "RX": .adult,
+        "R17": .age17, "RPLUS": .age17, "RX": .adult,
 
         "ALL": .general, "19": .adult,
 
-        "L": .general, "10": .general, "14": .teen, "16": .mature,
+        "L": .general,
 
-        "PG13SG": .teen, "NC16": .mature, "M18": .adult, "R21": .adult,
+        "PG13SG": .teen, "NC16": .age16, "M18": .adult, "R21": .adult,
 
-        "0": .general, "6": .general, "7": .general, "9": .general,
+        "0": .general, "6": .age6, "7": .age7, "8": .age8,
+        "9": .age9, "10": .age10, "11": .age11,
         "AL": .general, "TP": .general
     ]
 

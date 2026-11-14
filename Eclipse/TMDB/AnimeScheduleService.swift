@@ -1,4 +1,5 @@
 import Foundation
+import Security
 
 enum AnimeScheduleError: Error, LocalizedError {
     case unconfigured
@@ -8,7 +9,7 @@ enum AnimeScheduleError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .unconfigured: return "DubOnly English dub schedule is not configured in this build."
+        case .unconfigured: return "English dub schedule needs an AnimeSchedule API token. Add it in Settings → Language & Content Filters."
         case .invalidResponse: return "The DubOnly English dub schedule returned an invalid response."
         case .http(let status): return "DubOnly English dub schedule request failed (HTTP \(status))."
         case .unavailable: return "DubOnly has no available English dub timetable for these dates."
@@ -177,7 +178,65 @@ enum AnimeScheduleEntryMapper {
     }
 }
 
+enum AnimeScheduleAPIKeyStore {
+    private static let service = "app.eclipse.animeschedule"
+    private static let account = "application-api-token"
+
+    static func load() -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var result: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let data = result as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    static var hasToken: Bool {
+        let keychainValue = load()?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let bundleValue = Bundle.main.object(forInfoDictionaryKey: "AnimeScheduleAPIToken") as? String ?? ""
+        return !keychainValue.isEmpty || !bundleValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    static func save(_ value: String) throws {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lookup: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+        guard !trimmed.isEmpty else {
+            let status = SecItemDelete(lookup as CFDictionary)
+            guard status == errSecSuccess || status == errSecItemNotFound else {
+                throw NSError(domain: NSOSStatusErrorDomain, code: Int(status))
+            }
+            return
+        }
+
+        let attributes: [String: Any] = [
+            kSecValueData as String: Data(trimmed.utf8),
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        ]
+        let status = SecItemUpdate(lookup as CFDictionary, attributes as CFDictionary)
+        if status == errSecItemNotFound {
+            var insert = lookup
+            attributes.forEach { insert[$0.key] = $0.value }
+            let addStatus = SecItemAdd(insert as CFDictionary, nil)
+            guard addStatus == errSecSuccess else {
+                throw NSError(domain: NSOSStatusErrorDomain, code: Int(addStatus))
+            }
+        } else if status != errSecSuccess {
+            throw NSError(domain: NSOSStatusErrorDomain, code: Int(status))
+        }
+    }
+}
+
 actor AnimeScheduleService {
+    static let credentialsDidChangeNotification = Notification.Name("animeScheduleCredentialsDidChange")
     static let shared = AnimeScheduleService()
 
     private struct CachedWeek: Codable {
@@ -202,7 +261,7 @@ actor AnimeScheduleService {
     }
 
     private let session: URLSession
-    private let token: String
+    private var token: String
     private let cacheURL: URL?
     private let requestSpacing: TimeInterval
     private var nextRequestAt = Date.distantPast
@@ -212,11 +271,22 @@ actor AnimeScheduleService {
 
     init(session: URLSession = .shared, token: String? = nil, cacheURL: URL? = nil, requestSpacing: TimeInterval = 0.55) {
         self.session = session
-        let configured = token ?? Bundle.main.object(forInfoDictionaryKey: "AnimeScheduleAPIToken") as? String ?? ""
+        let configured = token
+            ?? AnimeScheduleAPIKeyStore.load()
+            ?? Bundle.main.object(forInfoDictionaryKey: "AnimeScheduleAPIToken") as? String
+            ?? ""
         let trimmed = configured.trimmingCharacters(in: .whitespacesAndNewlines)
         self.token = trimmed.contains("$(") || trimmed.utf8.count > 512 ? "" : trimmed
         self.cacheURL = cacheURL ?? (token == nil ? FileManager.default.eclipseCachesDirectories.first?.appendingPathComponent("dubonly-english-schedule-v1.json") : nil)
         self.requestSpacing = requestSpacing
+    }
+
+    func updateToken(_ value: String?) {
+        let trimmed = (value ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        token = trimmed.contains("$(") || trimmed.utf8.count > 512 ? "" : trimmed
+        cache = Cache()
+        didLoadCache = false
+        catalogFetchedAt = nil
     }
 
     func fetchSchedule(daysAhead: Int, now: Date = Date(), preferredLanguageCode: String = "en") async throws -> AnimeAiringScheduleResult {

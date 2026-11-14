@@ -279,6 +279,44 @@ struct AlternativeUIView: View {
                     }
                     .padding(.vertical, 2)
                 }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Background Atmosphere")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(AtmosphereStyle.allCases) { style in
+                                let selected = backgroundStyleBinding.wrappedValue == style
+                                Button {
+                                    backgroundStyleBinding.wrappedValue = style
+                                } label: {
+                                    HStack(spacing: 5) {
+                                        if selected {
+                                            Image(systemName: "checkmark")
+                                        }
+                                        Text(style.displayName)
+                                    }
+                                    .font(.caption.weight(.semibold))
+                                    .padding(.horizontal, 11)
+                                    .padding(.vertical, 8)
+                                    .background(
+                                        Capsule().fill(selected
+                                            ? Color.accentColor.opacity(0.28)
+                                            : Color.white.opacity(0.08))
+                                    )
+                                    .overlay(Capsule().stroke(
+                                        Color.white.opacity(selected ? 0.42 : 0.12),
+                                        lineWidth: 1
+                                    ))
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityIdentifier("settings.appearance.atmosphere.\(style.rawValue)")
+                            }
+                        }
+                    }
+                    .id(AppearanceSettingsSearchTarget.backgroundStyle.anchorID)
+                }
             }
             .padding(.vertical, 4)
             .id(AppearanceSettingsSearchTarget.palette.anchorID)
@@ -297,19 +335,6 @@ struct AlternativeUIView: View {
                 .id(AppearanceSettingsSearchTarget.customBackgroundColor.anchorID)
             }
 #endif
-
-            settingRow(
-                title: "Background Style",
-                description: "Choose a palette-aware classic gradient, a flat solid colour, a blended multi-gradient, or the Aurora and Ember atmospheres."
-            ) {
-                Picker("", selection: backgroundStyleBinding) {
-                    ForEach(AtmosphereStyle.allCases) { style in
-                        Text(style.displayName).tag(style)
-                    }
-                }
-                .pickerStyle(.menu)
-                .id(AppearanceSettingsSearchTarget.backgroundStyle.anchorID)
-            }
 
             if backgroundStyleBinding.wrappedValue == .solid {
                 settingRow(

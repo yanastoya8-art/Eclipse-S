@@ -1334,7 +1334,7 @@ struct TMDBContentRatings: Codable {
     }
 
     var preferredCertification: MaturityRating.Certification? {
-        MaturityRating.preferredCertification(certificationsByRegion: certificationsByRegion)
+        MaturityRating.preferredEuropeanCertification(certificationsByRegion: certificationsByRegion)
     }
 }
 
