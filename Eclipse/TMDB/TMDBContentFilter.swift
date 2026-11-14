@@ -352,6 +352,7 @@ class TMDBContentFilter: ObservableObject {
     private var animeAudioEligibleIDs: Set<Int> = []
     private var animeAudioCheckedIDs: Set<Int> = []
     private var animeAudioLoadingIDs: Set<Int> = []
+    private var animeAudioRetryAfterByID: [Int: Date] = [:]
     private let runtimeMetadataLock = NSLock()
     private var runtimeMinutesByKey: [String: Int] = [:]
     private var runtimeCheckedKeys = Set<String>()
@@ -599,7 +600,9 @@ class TMDBContentFilter: ObservableObject {
             guard let id = result.animeIdentitySeed?.anilistId, id > 0 else { return false }
             animeEligibilityLock.lock()
             defer { animeEligibilityLock.unlock() }
-            guard !animeAudioCheckedIDs.contains(id), !animeAudioLoadingIDs.contains(id) else { return false }
+            guard !animeAudioCheckedIDs.contains(id),
+                  !animeAudioLoadingIDs.contains(id),
+                  Date() >= (animeAudioRetryAfterByID[id] ?? .distantPast) else { return false }
             animeAudioLoadingIDs.insert(id)
             return true
         }
@@ -628,6 +631,10 @@ class TMDBContentFilter: ObservableObject {
                 } else {
                     animeEligibilityLock.lock()
                     animeAudioLoadingIDs.remove(id)
+                    // Missing provider data is not evidence of a dub. Keep the
+                    // result excluded, but retry later so temporary API outages
+                    // do not permanently poison the in-memory eligibility cache.
+                    animeAudioRetryAfterByID[id] = Date().addingTimeInterval(10 * 60)
                     animeEligibilityLock.unlock()
                 }
 
@@ -995,6 +1002,7 @@ class TMDBContentFilter: ObservableObject {
     private func storeAnimeAudioEligibility(_ isEligible: Bool, for id: Int) {
         animeEligibilityLock.lock()
         animeAudioLoadingIDs.remove(id)
+        animeAudioRetryAfterByID.removeValue(forKey: id)
         animeAudioCheckedIDs.insert(id)
         if isEligible {
             animeAudioEligibleIDs.insert(id)
