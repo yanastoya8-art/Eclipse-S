@@ -227,8 +227,9 @@ struct SettingsView: View {
             .init(id: "ratings-follow-season", title: "Lock Ratings & Notes to Season", location: "Ratings & Notes", icon: "lock", color: .yellow, keywords: ["reviews", "ratings", "season selector", "anime", "score"], action: .destination(.ratings)),
             .init(id: "deep-tracker-library", title: "Deep Library Integration", location: "Trackers", icon: "books.vertical", color: .blue, keywords: ["AniList", "MAL", "Trakt", "manga", "watchlist", "status", "score", "progress"], action: .destination(.trackers)),
             .init(id: "storage", title: "Storage", location: "Data", icon: "internaldrive", color: .gray, keywords: ["downloads", "cache", "files", "clear"], action: .destination(.storage)),
-            .init(id: "download-concurrency", title: "Concurrent Downloads", location: "Storage > Downloads", icon: "arrow.down.circle", color: .gray, keywords: ["parallel", "simultaneous", "HLS"], action: .destination(.storage)),
-            .init(id: "download-skip-filler", title: "Skip Filler in Download All", location: "Storage > Downloads", icon: "forward.end.fill", color: .yellow, keywords: ["anime", "batch", "filler"], action: .destination(.storage)),
+            .init(id: "download-settings", title: "Download Settings", location: "Downloads", icon: "arrow.down.circle.fill", color: .blue, keywords: ["downloads", "offline", "background", "poster size"], action: .destination(.downloads)),
+            .init(id: "download-concurrency", title: "Concurrent Downloads", location: "Downloads", icon: "arrow.down.circle", color: .gray, keywords: ["parallel", "simultaneous", "HLS"], action: .destination(.downloads)),
+            .init(id: "download-skip-filler", title: "Skip Filler in Download All", location: "Downloads", icon: "forward.end.fill", color: .yellow, keywords: ["anime", "batch", "filler"], action: .destination(.downloads)),
             .init(id: "backup", title: "Backup & Restore", location: "Data", icon: "arrow.triangle.2.circlepath", color: .teal, keywords: ["export", "import", "settings"], action: .destination(.backup)),
             .init(id: "logger", title: "Logger", location: "Data", icon: "doc.text", color: .yellow, keywords: ["logs", "diagnostics", "errors", "export"], action: .destination(.logger)),
             .init(id: "reader-mode", title: "Switch to Reader Mode", location: "Others", icon: "book.fill", color: .orange, keywords: ["Kanzen", "manga", "reader"], action: .readerMode),
@@ -237,7 +238,7 @@ struct SettingsView: View {
 
 #if os(iOS) && !targetEnvironment(macCatalyst)
         if #available(iOS 26.0, *), PlatformCapabilities.current.supportsHLSBackgroundDownloads {
-            entries.append(.init(id: "background-downloads", title: "Background Downloads", location: "Storage > Video Downloads", icon: "arrow.down.circle", color: .blue, keywords: ["background", "HLS", "direct", "video", "download", "continue"], action: .destination(.storage)))
+            entries.append(.init(id: "background-downloads", title: "Background Downloads", location: "Downloads", icon: "arrow.down.circle", color: .blue, keywords: ["background", "HLS", "direct", "video", "download", "continue"], action: .destination(.downloads)))
         }
 #endif
 
@@ -494,6 +495,24 @@ struct SettingsView: View {
                     if settingsSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
 
 
+                GlassSection(header: "Profiles") {
+                    VStack(spacing: 0) {
+                        NavigationLink(destination: settingsSearchableContent(ProfilesSettingsView())) {
+                            GlassSettingsRow(icon: "person.2.fill", iconColor: .mint, title: "Profiles") {
+                                HStack(spacing: 4) {
+                                    Text(activeProfileSummary)
+                                        .font(.subheadline)
+                                        .foregroundColor(.white.opacity(0.5))
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundColor(.white.opacity(0.3))
+                                }
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
                 GlassSection(header: "Content Filters") {
                     VStack(spacing: 0) {
                         NavigationLink(destination: settingsSearchableContent(AgeFiltersSettingsView(
@@ -516,8 +535,15 @@ struct SettingsView: View {
 
                         GlassDivider()
 
-                        NavigationLink(destination: settingsSearchableContent(AnimeRuntimeFiltersSettingsView())) {
-                            GlassSettingsRow(icon: "slider.horizontal.3", iconColor: .mint, title: "Anime & Runtime Filters")
+                        NavigationLink(destination: settingsSearchableContent(AnimeFiltersSettingsView())) {
+                            GlassSettingsRow(icon: "play.rectangle.on.rectangle", iconColor: .mint, title: "Anime Filters")
+                        }
+                        .buttonStyle(.plain)
+
+                        GlassDivider()
+
+                        NavigationLink(destination: settingsSearchableContent(RuntimeFiltersSettingsView())) {
+                            GlassSettingsRow(icon: "timer", iconColor: .orange, title: "Runtime Filters")
                         }
                         .buttonStyle(.plain)
 
@@ -576,19 +602,6 @@ struct SettingsView: View {
 
                         GlassDivider()
 
-                        NavigationLink(destination: settingsSearchableContent(MyDubListDubsSettingsView())) {
-                            GlassSettingsRow(icon: "character.bubble", iconColor: .purple, title: "Anime Dub Languages") {
-                                Text(MyDubListDubFilter.shared.selectedLanguages.count == 0
-                                     ? "Disabled"
-                                     : "\(MyDubListDubFilter.shared.selectedLanguages.count) selected")
-                                    .font(.subheadline)
-                                    .foregroundColor(.white.opacity(0.5))
-                            }
-                        }
-                        .buttonStyle(.plain)
-
-                        GlassDivider()
-
                         NavigationLink(destination: settingsSearchableContent(NotificationSettingsView())) {
                             GlassSettingsRow(icon: "bell.badge.fill", iconColor: .orange, title: "Notifications") {
                                 HStack(spacing: 4) {
@@ -619,22 +632,11 @@ struct SettingsView: View {
                     }
                 }
 
-                GlassSection(header: "Profiles") {
-                    VStack(spacing: 0) {
-                        NavigationLink(destination: settingsSearchableContent(ProfilesSettingsView())) {
-                            GlassSettingsRow(icon: "person.2.fill", iconColor: .mint, title: "Profiles") {
-                                HStack(spacing: 4) {
-                                    Text(activeProfileSummary)
-                                        .font(.subheadline)
-                                        .foregroundColor(.white.opacity(0.5))
-                                    Image(systemName: "chevron.right")
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .foregroundColor(.white.opacity(0.3))
-                                }
-                            }
-                        }
-                        .buttonStyle(.plain)
+                GlassSection(header: "Downloads") {
+                    NavigationLink(destination: settingsSearchableContent(DownloadsSettingsView())) {
+                        GlassSettingsRow(icon: "arrow.down.circle.fill", iconColor: .blue, title: "Download Settings")
                     }
+                    .buttonStyle(.plain)
                 }
 
                 GlassSection(header: "Data") {
@@ -959,6 +961,8 @@ struct SettingsView: View {
             return AnyView(settingsSearchableContent(RatingsSettingsView()))
         case .storage:
             return AnyView(settingsSearchableContent(StorageView()))
+        case .downloads:
+            return AnyView(settingsSearchableContent(DownloadsSettingsView()))
         case .backup:
             return AnyView(settingsSearchableContent(BackupManagementView()))
         case .cloud:
@@ -978,6 +982,12 @@ struct SettingsView: View {
 #if os(tvOS)
     private var settingsListContent: some View {
         Group {
+            Section("Profiles") {
+                NavigationLink(destination: ProfilesSettingsView().eclipseHideTabBar()) {
+                    LabeledContent("Profiles", value: activeProfileSummary)
+                }
+            }
+
             Section("Content Filters") {
                 NavigationLink(destination: AgeFiltersSettingsView(
                     hideBelowPG13Movies: $hideBelowPG13Movies,
@@ -991,8 +1001,11 @@ struct SettingsView: View {
                 )) {
                     Text("Language Filters")
                 }
-                NavigationLink(destination: AnimeRuntimeFiltersSettingsView()) {
-                    Text("Anime & Runtime Filters")
+                NavigationLink(destination: AnimeFiltersSettingsView()) {
+                    Text("Anime Filters")
+                }
+                NavigationLink(destination: RuntimeFiltersSettingsView()) {
+                    Text("Runtime Filters")
                 }
                 NavigationLink(destination: ReleaseDateFiltersSettingsView()) {
                     Text("Release Date Filters")
@@ -1026,9 +1039,6 @@ struct SettingsView: View {
                     Text("Ratings & Notes")
                 }
                 .accessibilityIdentifier("tv.settings.ratings")
-                NavigationLink(destination: ProfilesSettingsView().eclipseHideTabBar()) {
-                    LabeledContent("Profiles", value: activeProfileSummary)
-                }
                 NavigationLink(destination: AlternativeUIView().eclipseHideTabBar()) {
                     Text("Appearance")
                 }
@@ -1040,6 +1050,12 @@ struct SettingsView: View {
                     Text("Catalogs")
                 }
                 .accessibilityIdentifier("tv.settings.catalogs")
+            }
+
+            Section("Downloads") {
+                NavigationLink(destination: DownloadsSettingsView().eclipseHideTabBar()) {
+                    Text("Download Settings")
+                }
             }
 
             Section("Data") {
@@ -1841,6 +1857,7 @@ private enum SettingsSearchDestination: Hashable {
     case trackers
     case ratings
     case storage
+    case downloads
     case backup
     case cloud
     case logger
@@ -3800,7 +3817,7 @@ struct MyDubListDubsSettingsView: View {
 
                 GlassSection(header: "Available Dub Languages") {
                     VStack(spacing: 0) {
-                        ForEach(Array(MyDubListLanguage.allCases.enumerated()), id: \.element.id) { index, language in
+                        ForEach(Array([MyDubListLanguage.english, .spanish].enumerated()), id: \.element.id) { index, language in
                             GlassSelectionRow(
                                 title: language.displayName,
                                 subtitle: language.rawValue.capitalized,
@@ -3809,7 +3826,7 @@ struct MyDubListDubsSettingsView: View {
                             ) {
                                 toggle(language)
                             }
-                            if index < MyDubListLanguage.allCases.count - 1 {
+                            if index < 1 {
                                 GlassDivider(leadingInset: 16)
                             }
                         }
@@ -5404,6 +5421,8 @@ private struct LanguageFiltersSettingsView: View {
     @Binding var requireEnglishSpanishAudio: Bool
     @State private var selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguages
 
+    private let supportedAnimeDubLanguages: [MyDubListLanguage] = [.english, .spanish]
+
     private func saveDubLanguages(_ languages: Set<String>) {
         MyDubListDubFilter.shared.setSelectedLanguages(languages)
         NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil)
@@ -5426,7 +5445,7 @@ private struct LanguageFiltersSettingsView: View {
             }
 
             Section {
-                ForEach(MyDubListLanguage.allCases) { language in
+                ForEach(supportedAnimeDubLanguages) { language in
                     Toggle(language.displayName, isOn: Binding(
                         get: { selectedDubLanguages.contains(language.rawValue) },
                         set: { isSelected in
@@ -5443,14 +5462,22 @@ private struct LanguageFiltersSettingsView: View {
                     .accessibilityIdentifier("settings.contentFilters.dubLanguage.\(language.rawValue)")
                 }
             } header: {
-                Text("Dub Languages")
+                Text("Anime Dub Languages")
             } footer: {
-                Text("Select one or more languages. Anime catalogs require a verified dub in at least one selected language. The Western TV schedule keeps original air dates when the original audio matches your selection; otherwise, it uses only verified JustWatch episode release dates. Configure your API.SH key in Settings → Services → JustWatch. Without a key or a matching release date, non-native entries are hidden.")
+                Text("Only English and Spanish (Latino or Castellano) are available. Select one or both; anime catalogs require a verified dub in at least one selected language. The Series schedule keeps original air dates when the original audio matches your selection; otherwise, it uses only verified JustWatch episode release dates. Configure your API key in Settings → Services → JustWatch. Without a key or a matching release date, non-native entries are hidden.")
             }
         }
         .eclipsePageTitle("Language Filters")
         .eclipseSettingsStyle()
         .preferredColorScheme(.dark)
+        .task {
+            let supported = Set(supportedAnimeDubLanguages.map(\.rawValue))
+            let retained = selectedDubLanguages.intersection(supported)
+            if retained != selectedDubLanguages {
+                selectedDubLanguages = retained
+                saveDubLanguages(retained)
+            }
+        }
     }
 }
 
@@ -5506,10 +5533,9 @@ private struct ReleaseDateFiltersSettingsView: View {
 }
 
 
-private struct AnimeRuntimeFiltersSettingsView: View {
+private struct AnimeFiltersSettingsView: View {
     @AppStorage("catalogHideAnime", store: .standard) private var hideAnime = false
     @AppStorage("catalogHideAnimeSpecialsAndOVAs", store: .standard) private var hideAnimeSpecialsAndOVAs = false
-    @AppStorage("catalogHideUnder20MinuteContent", store: .standard) private var hideUnder20MinuteContent = false
 
     private func filtersDidChange() {
         NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil)
@@ -5522,18 +5548,28 @@ private struct AnimeRuntimeFiltersSettingsView: View {
                 Toggle("Hide anime", isOn: $hideAnime)
                     .onChange(of: hideAnime) { _ in filtersDidChange() }
                     .accessibilityIdentifier("settings.contentFilters.hideAnime")
-            } footer: {
-                Text("Hides identified anime from filtered catalogs, home sections and the Schedule. Anime identification uses the app's AniList identity and TMDB genre, language and country metadata.")
-            }
-
-            Section {
                 Toggle("Exclude anime specials and OVAs", isOn: $hideAnimeSpecialsAndOVAs)
                     .onChange(of: hideAnimeSpecialsAndOVAs) { _ in filtersDidChange() }
                     .accessibilityIdentifier("settings.contentFilters.hideAnimeSpecialsAndOVAs")
             } footer: {
-                Text("Hides anime identified by AniList as SPECIAL or OVA. Regular TV series, movies and ONAs are not affected.")
+                Text("Hides identified anime from filtered catalogs, home sections and the Schedule. The specials option hides titles identified by AniList as SPECIAL or OVA; regular TV series, movies and ONAs are not affected.")
             }
+        }
+        .eclipsePageTitle("Anime Filters")
+        .eclipseSettingsStyle()
+        .preferredColorScheme(.dark)
+    }
+}
 
+private struct RuntimeFiltersSettingsView: View {
+    @AppStorage("catalogHideUnder20MinuteContent", store: .standard) private var hideUnder20MinuteContent = false
+
+    private func filtersDidChange() {
+        NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil)
+    }
+
+    var body: some View {
+        List {
             Section {
                 Toggle("Hide movies and TV shows under 20 minutes", isOn: $hideUnder20MinuteContent)
                     .onChange(of: hideUnder20MinuteContent) { _ in filtersDidChange() }
@@ -5542,7 +5578,7 @@ private struct AnimeRuntimeFiltersSettingsView: View {
                 Text("Movie runtime and typical TV episode runtime are read from TMDB. TV shows use the median of the reported episode runtimes. Only confirmed runtimes below 20 minutes are hidden; missing runtime data is not guessed.")
             }
         }
-        .eclipsePageTitle("Anime & Runtime Filters")
+        .eclipsePageTitle("Runtime Filters")
         .eclipseSettingsStyle()
         .preferredColorScheme(.dark)
     }
