@@ -2192,6 +2192,7 @@ private struct BrowseMediaView: View {
                         keywordIds: selectedKeywordIDs,
                         excludedKeywordIds: excludedKeywordIDs,
                         year: year,
+                        dateGte: upcomingOnly ? Self.todayDateString() : nil,
                         originCountries: effectiveCountries,
                         originalLanguage: effectiveLanguage,
                         sortBy: tmdbSortValue,
