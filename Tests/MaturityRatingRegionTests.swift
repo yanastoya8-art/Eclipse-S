@@ -103,7 +103,7 @@ final class MaturityRatingRegionTests: XCTestCase {
 
     func testCommonBoardsAreUnaffectedByTheRegionParameter() {
         XCTAssertEqual(MaturityRating.classify(certification: "TV-MA", region: "US"), .age17)
-        XCTAssertEqual(MaturityRating.classify(certification: "R", region: "US"), .mature)
+        XCTAssertEqual(MaturityRating.classify(certification: "R", region: "US"), .age17)
         XCTAssertEqual(MaturityRating.classify(certification: "NC-17", region: "US"), .adult)
         XCTAssertEqual(MaturityRating.classify(certification: "18", region: "GB"), .adult)
         XCTAssertEqual(MaturityRating.classify(certification: "U", region: "GB"), .general)
@@ -112,7 +112,7 @@ final class MaturityRatingRegionTests: XCTestCase {
     func testStrictestWithinOneRegionStillWins() {
 
         XCTAssertEqual(
-            MaturityRating.classify(certifications: ["TV-14", "TV-MA"], region: "US"), .mature
+            MaturityRating.classify(certifications: ["TV-14", "TV-MA"], region: "US"), .age17
         )
     }
 
@@ -143,7 +143,7 @@ final class MaturityRatingRegionTests: XCTestCase {
         ))
 
         XCTAssertEqual(selected.value, "TV-MA")
-        XCTAssertEqual(selected.rating, .mature)
+        XCTAssertEqual(selected.rating, .age17)
         XCTAssertFalse(BrowseAgeRating.adult.includes(selected.rating))
     }
 
@@ -500,7 +500,7 @@ final class MaturityRatingRegionTests: XCTestCase {
         XCTAssertEqual(MaturityRating.classify(certification: "R18", region: "GB"), .adult)
 
         XCTAssertEqual(MaturityRating.classify(certification: "7", region: "ES"), .general)
-        XCTAssertEqual(MaturityRating.classify(certification: "16", region: "ES"), .mature)
+        XCTAssertEqual(MaturityRating.classify(certification: "16", region: "ES"), .age16)
         XCTAssertEqual(MaturityRating.classify(certification: "18", region: "ES"), .adult)
 
         XCTAssertEqual(MaturityRating.classify(certification: "PG12", region: "JP"), .age12)
@@ -512,7 +512,7 @@ final class MaturityRatingRegionTests: XCTestCase {
         XCTAssertEqual(MaturityRating.classify(certification: "18", region: "DE"), .adult)
 
         XCTAssertEqual(MaturityRating.classify(certification: "PG13", region: "SG"), .teen)
-        XCTAssertEqual(MaturityRating.classify(certification: "NC16", region: "SG"), .mature)
+        XCTAssertEqual(MaturityRating.classify(certification: "NC16", region: "SG"), .age16)
         XCTAssertEqual(MaturityRating.classify(certification: "R21", region: "SG"), .adult)
     }
 
@@ -537,7 +537,7 @@ final class MaturityRatingRegionTests: XCTestCase {
     func testRegionalClassificationDoesNotLeakAcrossCountries() {
         XCTAssertEqual(MaturityRating.classify(certification: "A", region: "IN"), .adult)
         XCTAssertEqual(MaturityRating.classify(certification: "A", region: "ES"), .general)
-        XCTAssertEqual(MaturityRating.classify(certification: "R", region: "US"), .mature)
+        XCTAssertEqual(MaturityRating.classify(certification: "R", region: "US"), .age17)
         XCTAssertEqual(MaturityRating.classify(certification: "R", region: "CA"), .adult)
     }
 
