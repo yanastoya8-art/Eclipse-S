@@ -193,6 +193,8 @@ jobs:
           import os
           from pathlib import Path
           manifest = Path(os.environ["MPVKIT_PACKAGE_CHECKOUT"]) / "Package.swift"
+          # SwiftPM git checkouts are read-only; make this CI-only manifest copy writable.
+          manifest.chmod(0o644)
           source = manifest.read_text()
           old = '"Libmpv", "MoltenVK", "Libplacebo", "Libavcodec"'
           new = '"Libmpv", "Libavcodec"'
