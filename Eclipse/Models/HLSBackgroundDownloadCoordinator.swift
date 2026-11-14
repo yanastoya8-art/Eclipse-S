@@ -9,6 +9,10 @@ enum BackgroundDownloadSettings {
     }
 }
 
+// Compatibility name used by the HLS background-download test suite and settings UI.
+// Keep the implementation in one place so both names share the same persisted key.
+typealias HLSBackgroundDownloadSettings = BackgroundDownloadSettings
+
 protocol HLSBackgroundDownloadScheduling: AnyObject {
     func request(
         attemptID: UUID,
