@@ -198,6 +198,10 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
             "U": .general, "PG": .general, "12A": .teen,
             "12": .teen, "15": .mature, "18": .adult, "R18": .adult
         ],
+        // Bulgaria: A/B/C/D/X are national age-category labels.
+        "BG": [
+            "A": .general, "B": .teen, "C": .mature, "D": .adult, "X": .adult
+        ],
         "ES": [
             "APTA": .general, "7": .general, "12": .teen,
             "16": .mature, "18": .adult, "X": .adult
