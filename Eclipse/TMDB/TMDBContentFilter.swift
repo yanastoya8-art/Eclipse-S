@@ -484,8 +484,8 @@ class TMDBContentFilter: ObservableObject {
             Task(priority: .utility) { await self.resolveRuntimeMetadata(for: results) }
         }
         let needsTMDBRatings = kidsModeEnabled
-            || defaults.bool(forKey: "catalogHideBelowPG13Movies")
-            || defaults.bool(forKey: "catalogHideBelowTV14Shows")
+            || Self.ageFilterEnabled("catalogHideBelowPG13Movies", defaults: defaults)
+            || Self.ageFilterEnabled("catalogHideBelowTV14Shows", defaults: defaults)
         if needsTMDBRatings {
             let ratingResults = kidsModeEnabled ? results : results.filter { !Self.isAnimeResult($0) }
             let ratingLookups = ratingResults.map { (isMovie: $0.isMovie, id: $0.id) }
@@ -1085,8 +1085,8 @@ class TMDBContentFilter: ObservableObject {
             animeEligibilityLock.unlock()
             if let rating, rating != .unknown, rating < .teen { return false }
         } else if !isAnime {
-            let shouldCheckMovie = result.isMovie && defaults.bool(forKey: "catalogHideBelowPG13Movies")
-            let shouldCheckTV = result.isTVShow && defaults.bool(forKey: "catalogHideBelowTV14Shows")
+            let shouldCheckMovie = result.isMovie && Self.ageFilterEnabled("catalogHideBelowPG13Movies", defaults: defaults)
+            let shouldCheckTV = result.isTVShow && Self.ageFilterEnabled("catalogHideBelowTV14Shows", defaults: defaults)
             if shouldCheckMovie || shouldCheckTV {
                 if let rating = TMDBMaturityRatingStore.shared.rating(
                     isMovie: result.isMovie,
