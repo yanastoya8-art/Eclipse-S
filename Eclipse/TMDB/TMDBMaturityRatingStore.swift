@@ -35,7 +35,7 @@ final class TMDBMaturityRatingStore: ObservableObject {
     }
 
     private struct DiskCache: Codable {
-        static let currentVersion = 4
+        static let currentVersion = 5
         var version: Int
         var records: [DiskRecord]
     }
