@@ -3239,7 +3239,7 @@ struct AnimeScheduleSettingsView: View {
             }
 
             Section {
-                Link("AnimeSchedule API documentation", destination: URL(string: "https://animeschedule.net/api/v3/documentation")!)
+                Link("AnimeSchedule API documentation", destination: URL(string: "https://animeschedule.net")!)
             }
         }
         .navigationTitle("English Dub Schedule")
