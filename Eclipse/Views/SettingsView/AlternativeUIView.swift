@@ -311,7 +311,7 @@ struct AlternativeUIView: View {
                                     ))
                                 }
                                 .buttonStyle(.plain)
-                                .accessibilityIdentifier("settings.appearance.atmosphere.\\(style.rawValue)")
+                                .accessibilityIdentifier("settings.appearance.atmosphere.\(style.rawValue)")
                             }
                         }
                     }
