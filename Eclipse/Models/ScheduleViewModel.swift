@@ -366,6 +366,8 @@ final class ScheduleViewModel: ObservableObject {
     private var animeScheduleLastFailureAt: Date?
     private var animeScheduleLoadTask: Task<AnimeScheduleLoadResult, Error>?
     private var animeScheduleLoadID: UUID?
+    private var animeScheduleCachedPolicyKey: String?
+    private var animeScheduleLoadPolicyKey: String?
     private var westernScheduleEntries: [ScheduleEntry]?
     private var westernScheduleFetchedAt: Date?
     private var westernScheduleDayCount = 0
@@ -748,9 +750,24 @@ final class ScheduleViewModel: ObservableObject {
         )
     }
 
+    private func currentAnimeSchedulePolicyKey() -> String {
+        let languages = MyDubListDubFilter.shared.selectedLanguages.sorted().joined(separator: ",")
+        let audioFilter = UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
+        return "languages=\(languages)|englishSpanishAudio=\(audioFilter)"
+    }
+
     @MainActor
     private func animeEntries(dayCount: Int, forceRefresh: Bool) async throws -> AnimeScheduleLoadResult {
-        if !forceRefresh,
+        let policyKey = currentAnimeSchedulePolicyKey()
+        if animeScheduleLoadTask != nil, animeScheduleLoadPolicyKey != policyKey {
+            // A language-filter change invalidates an in-flight request too;
+            // never publish an AniList snapshot into a DubOnly-filtered view.
+            animeScheduleLoadTask?.cancel()
+            animeScheduleLoadTask = nil
+            animeScheduleLoadID = nil
+            animeScheduleLoadPolicyKey = nil
+        }
+        if !forceRefresh, animeScheduleCachedPolicyKey == policyKey,
            scheduleCacheIsFresh(
                 animeScheduleFetchedAt,
                 cachedDayCount: animeScheduleDayCount,
@@ -759,9 +776,10 @@ final class ScheduleViewModel: ObservableObject {
            let cached = cachedAnimeResult(for: dayCount) {
             return filteredAnimeScheduleResult(cached)
         }
-        if let animeScheduleLoadTask {
+        if let animeScheduleLoadTask, animeScheduleLoadPolicyKey == policyKey {
             _ = try await animeScheduleLoadTask.value
-            if let cached = cachedAnimeResult(for: dayCount),
+            if animeScheduleCachedPolicyKey == policyKey,
+               let cached = cachedAnimeResult(for: dayCount),
                scheduleCacheIsFresh(
                     animeScheduleFetchedAt,
                     cachedDayCount: animeScheduleDayCount,
@@ -779,6 +797,7 @@ final class ScheduleViewModel: ObservableObject {
 
         let loadID = UUID()
         let fetchStartedAt = Date()
+        animeScheduleLoadPolicyKey = policyKey
         animeScheduleLastAttemptAt = fetchStartedAt
         let loadTask = Task { @MainActor [weak self] () throws -> AnimeScheduleLoadResult in
             guard let self else { throw CancellationError() }
@@ -822,6 +841,8 @@ final class ScheduleViewModel: ObservableObject {
                 )
                 if self.animeScheduleLoadID == loadID {
                     self.animeScheduleResult = loadResult
+                    self.animeScheduleCachedPolicyKey = policyKey
+                    self.animeScheduleLoadPolicyKey = nil
                     self.animeScheduleDayCount = dayCount
 
                     self.animeScheduleFetchedAt = fetchStartedAt
@@ -835,6 +856,7 @@ final class ScheduleViewModel: ObservableObject {
                     self.animeScheduleLastFailureAt = Date()
                     self.animeScheduleLoadTask = nil
                     self.animeScheduleLoadID = nil
+                    self.animeScheduleLoadPolicyKey = nil
                 }
                 throw error
             }
