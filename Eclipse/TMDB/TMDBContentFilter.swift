@@ -119,9 +119,14 @@ final class MyDubListDubFilter: @unchecked Sendable {
     private var loadedLanguages: Set<String> = []
     private var isLoaded = false
 
+    static let supportedLanguages: Set<String> = [
+        MyDubListLanguage.english.rawValue,
+        MyDubListLanguage.spanish.rawValue
+    ]
+
     var selectedLanguages: Set<String> {
         Set((ProfileSettingsStore.active.stringArray(forKey: Self.selectedLanguagesKey) ?? [])
-            .filter { MyDubListLanguage(rawValue: $0) != nil })
+            .filter { Self.supportedLanguages.contains($0) })
     }
 
     var selectedLanguagesIncludingCatalogAudioRequirement: Set<String> {
@@ -141,7 +146,7 @@ final class MyDubListDubFilter: @unchecked Sendable {
     }
 
     func setSelectedLanguages(_ languages: Set<String>) {
-        let valid = languages.filter { MyDubListLanguage(rawValue: $0) != nil }
+        let valid = languages.filter { Self.supportedLanguages.contains($0) }
         ProfileSettingsStore.active.set(valid.sorted(), forKey: Self.selectedLanguagesKey)
         lock.lock()
         isLoaded = false
@@ -1110,6 +1115,13 @@ class TMDBContentFilter: ObservableObject {
         let defaults = UserDefaults.standard
         let isAnime = Self.isAnimeResult(result)
         if defaults.bool(forKey: "catalogHideAnime"), isAnime { return false }
+        if isAnime,
+           !AnimeSpecialDubFilterPolicy.shouldInclude(
+                format: result.animeIdentitySeed?.format,
+                hideSpecialsAndOVAs: defaults.bool(forKey: "catalogHideAnimeSpecialsAndOVAs")
+           ) {
+            return false
+        }
         if defaults.bool(forKey: "catalogHideUnder20MinuteContent"),
            let runtime = cachedRuntimeMinutes(for: runtimeCacheKey(for: result)),
            runtime < 20 {
@@ -2082,6 +2094,14 @@ actor TaizenAnimeAgeRatingService {
 
 
 enum AnimeSpecialDubFilterPolicy {
+    static func shouldInclude(format: String?, hideSpecialsAndOVAs: Bool) -> Bool {
+        guard hideSpecialsAndOVAs else { return true }
+        guard let format = format?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() else {
+            return true
+        }
+        return !["SPECIAL", "OVA"].contains(format)
+    }
+
     static func shouldInclude(
         selectedLanguages: Set<String>,
         isVerifiedForSelection: Bool
