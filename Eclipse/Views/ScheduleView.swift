@@ -36,9 +36,20 @@ struct ScheduleView: View {
     @State private var kidsScheduleFilterGeneration = 0
 
     private func visibleToProfile(_ entries: [ScheduleEntry]) -> [ScheduleEntry] {
-        let profileEntries = UserDefaults.standard.bool(forKey: "catalogHideAnime")
-            ? entries.filter { $0.source != .anime }
-            : entries
+        let defaults = UserDefaults.standard
+        let hideAnime = defaults.bool(forKey: "catalogHideAnime")
+        let hideSpecialsAndOVAs = defaults.bool(forKey: "catalogHideAnimeSpecialsAndOVAs")
+        let profileEntries = entries.filter { entry in
+            guard entry.source == .anime else { return true }
+            if hideAnime { return false }
+            if !AnimeSpecialDubFilterPolicy.shouldInclude(
+                format: entry.format,
+                hideSpecialsAndOVAs: hideSpecialsAndOVAs
+            ) {
+                return false
+            }
+            return true
+        }
         guard ProfileManager.shared.isKidsModeActive else { return profileEntries }
         return profileEntries.filter { entry in
             guard let tmdbId = entry.tmdbId else { return false }
