@@ -731,6 +731,9 @@ final class ScheduleViewModel: ObservableObject {
 
         let entries = result.entries.filter { entry in
             guard entry.source == .anime else { return true }
+            // DubOnly entries are already verified English-dub timetable rows;
+            // do not require a second, unrelated MyDubList lookup to retain them.
+            if entry.provider == .dubOnly { return true }
             let anilistID = entry.sourceMediaId > 0 ? entry.sourceMediaId : nil
             let malID = entry.animeMALID ?? (entry.sourceMediaId < 0 ? -entry.sourceMediaId : nil)
             return MyDubListDubFilter.shared.shouldInclude(
@@ -780,15 +783,36 @@ final class ScheduleViewModel: ObservableObject {
         let loadTask = Task { @MainActor [weak self] () throws -> AnimeScheduleLoadResult in
             guard let self else { throw CancellationError() }
             do {
-                let result = try await self.retryOnceAfterTransientCancellation(operationName: "AniList schedule") {
-                    try await AniListService.shared.fetchAiringScheduleResult(daysAhead: dayCount)
+                let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguages
+                let englishSpanishAudioFilterEnabled = UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
+                let requiresDubSchedule = AnimeScheduleFallback.requiresDubSchedule(
+                    selectedDubLanguages: selectedDubLanguages,
+                    englishSpanishAudioFilterEnabled: englishSpanishAudioFilterEnabled
+                )
+                let result: AnimeAiringScheduleResult
+                if requiresDubSchedule {
+                    if AnimeScheduleFallback.permitsEnglishDubSchedule(
+                        selectedDubLanguages: selectedDubLanguages,
+                        englishSpanishAudioFilterEnabled: englishSpanishAudioFilterEnabled
+                    ) {
+                        result = try await self.retryOnceAfterTransientCancellation(operationName: "DubOnly English-dub schedule") {
+                            try await AnimeScheduleService.shared.fetchSchedule(daysAhead: dayCount)
+                        }
+                    } else {
+                        // DubOnly publishes English dates only. Never substitute
+                        // AniList's original-language broadcast dates for a
+                        // Spanish-only or other non-English dub selection.
+                        result = AnimeAiringScheduleResult(
+                            entries: [],
+                            isAuthoritativeForNotifications: false,
+                            notice: "DubOnly currently provides English-dub dates only. No matching Spanish or other selected-language timetable is available."
+                        )
+                    }
+                } else {
+                    result = try await self.retryOnceAfterTransientCancellation(operationName: "AniList schedule") {
+                        try await AniListService.shared.fetchAiringScheduleResult(daysAhead: dayCount)
+                    }
                 }
-                // Anime schedule records carry AniList/MAL identity, but no
-                // TMDB show ID or season number. JustWatch's episode endpoint
-                // requires a verified show + season identity; passing these
-                // records through it would query season 0 and drop valid dates.
-                // Anime dub dates therefore remain governed by the anime schedule
-                // provider and its language-aware fallback policy.
                 let entries = result.entries.map(ScheduleEntry.init(animeEntry:))
                 try Task.checkCancellation()
                 let loadResult = AnimeScheduleLoadResult(
