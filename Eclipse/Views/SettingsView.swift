@@ -5570,6 +5570,7 @@ private struct AnimeFiltersSettingsView: View {
     @AppStorage("catalogHideHentai", store: .standard) private var hideHentai = false
     @AppStorage("catalogHideYuri", store: .standard) private var hideYuri = false
     @AppStorage("catalogHideYaoi", store: .standard) private var hideYaoi = false
+    @AppStorage("catalogHideAnimeSpecialsAndOVAs", store: .standard) private var hideAnimeSpecialsAndOVAs = false
 
     private func filtersDidChange() {
         NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil)
