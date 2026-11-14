@@ -2585,18 +2585,11 @@ struct MediaDetailContentView: View {
 
     private var detailHeroFallbackImageURLs: [String] {
         guard let primary = detailHeroImageURL else { return [] }
-        var candidates: [String?] = [
-            searchResult.fullBackdropURL, searchResult.fullPosterURL,
-            searchResult.animeArtworkURL, movieDetail?.fullBackdropURL,
-            movieDetail?.fullPosterURL, tvShowDetail?.fullBackdropURL,
-            tvShowDetail?.fullPosterURL
+        let candidates: [String?] = [
+            searchResult.fullPosterURL,
+            searchResult.animeArtworkURL,
+            searchResult.fullBackdropURL
         ]
-#if os(iOS)
-        if shouldAnalyzeAlternatePoster {
-            candidates.insert(alternatePosterURL, at: 0)
-            candidates.insert(tvMazePosterURL, at: 1)
-        }
-#endif
         var seen: Set<String> = []
         return candidates.compactMap { $0 }.filter { value in
             guard value != primary,
@@ -2608,45 +2601,14 @@ struct MediaDetailContentView: View {
     }
 
     private var detailHeroImageURL: String? {
-        if let preloadedArtworkURL { return preloadedArtworkURL }
-        let isAnimeTitle = searchResult.animeIdentitySeed != nil || searchResult.isAnimeHint == true
-        if isAnimeTitle {
-#if !os(tvOS) && !os(macOS)
-            if !usesWideDetailLayout, (mediaDetailAlternatePosterEnabled || searchResult.fullPosterURL == nil),
-               let alternatePosterURL {
-                return alternatePosterURL
-            }
-#endif
-            return searchResult.fullPosterURL
-                ?? searchResult.animeArtworkURL
-                ?? tvShowDetail?.fullPosterURL
-                ?? tvShowDetail?.fullBackdropURL
-                ?? searchResult.fullBackdropURL
-        }
-#if !os(tvOS) && !os(macOS)
-        if !usesWideDetailLayout, (mediaDetailAlternatePosterEnabled || searchResult.fullPosterURL == nil) {
-            if let alternatePosterURL { return alternatePosterURL }
-            if !searchResult.isMovie, let tvMazePosterURL { return tvMazePosterURL }
-        }
-
-        if ExperimentalFeatureState.isEnabledAtLaunch && !usesWideDetailLayout && !isTvOS {
-            if searchResult.isMovie {
-                return movieDetail?.fullPosterURL
-                    ?? searchResult.fullPosterURL
-                    ?? movieDetail?.fullBackdropURL
-                    ?? searchResult.fullBackdropURL
-            }
-            return tvShowDetail?.fullPosterURL
-                ?? searchResult.fullPosterURL
-                ?? tvShowDetail?.fullBackdropURL
-                ?? searchResult.fullBackdropURL
-        }
-#endif
-
-        if searchResult.isMovie {
-            return movieDetail?.fullBackdropURL ?? searchResult.fullBackdropURL ?? movieDetail?.fullPosterURL ?? searchResult.fullPosterURL
-        }
-        return tvShowDetail?.fullBackdropURL ?? searchResult.fullBackdropURL ?? tvShowDetail?.fullPosterURL ?? searchResult.fullPosterURL
+        preloadedArtworkURL
+            ?? searchResult.fullPosterURL
+            ?? searchResult.animeArtworkURL
+            ?? movieDetail?.fullPosterURL
+            ?? tvShowDetail?.fullPosterURL
+            ?? searchResult.fullBackdropURL
+            ?? movieDetail?.fullBackdropURL
+            ?? tvShowDetail?.fullBackdropURL
     }
 
     @ViewBuilder
