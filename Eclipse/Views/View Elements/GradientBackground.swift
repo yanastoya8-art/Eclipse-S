@@ -2311,7 +2311,10 @@ struct AtmosphereBackdrop: View {
             .frame(width: geo.size.width, height: geo.size.height)
         }
         .clipped()
-        .animation(.easeInOut(duration: 0.35), value: input.dominant)
+        .animation(
+            input.hasHeroBleed ? .easeInOut(duration: 0.35) : nil,
+            value: input.dominant
+        )
     }
 }
 
