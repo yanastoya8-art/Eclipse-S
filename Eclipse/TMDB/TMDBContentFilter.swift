@@ -685,10 +685,10 @@ class TMDBContentFilter: ObservableObject {
     }
 
     func filterSearchResults(_ results: [TMDBSearchResult]) -> [TMDBSearchResult] {
-        if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
-            Task(priority: .utility) { await self.resolveRuntimeMetadata(for: results) }
-        }
-        return results.filter { result in
+        // Filtering is intentionally pure. Metadata work is scheduled once
+        // through prepareMaturityRatings(for:) rather than on every SwiftUI
+        // body evaluation or scroll-driven grid refresh.
+        results.filter { result in
             shouldIncludeCatalogResult(result)
         }
     }
