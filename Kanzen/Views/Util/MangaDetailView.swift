@@ -365,7 +365,8 @@ struct MangaDetailView: View {
                 color: experimental ? readerBleedColor : nil,
                 heroHeight: heroHeight,
                 tail: heroHeight * 0.62,
-                strength: theme.scopedBleedStrength(isReaderMode: true)
+                strength: theme.scopedBleedStrength(isReaderMode: true),
+                startOffset: experimental ? heroHeight * 0.58 : 0
             )
         }
         .coordinateSpace(name: "mangaDetailScroll")
