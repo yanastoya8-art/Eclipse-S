@@ -269,6 +269,15 @@ struct SettingsView: View {
         entries.append(.init(id: "warmup-cache-limit", title: "Warmup Cache Limit", location: "Media Player > MPV Advanced", icon: "internaldrive", color: .purple, keywords: ["preload size", "buffer", "MB"], action: .destination(.playerTarget(.wifiCacheLimit))))
 #endif
 
+        entries.append(contentsOf: [
+            .init(id: "filter-hide-anime", title: "Hide Anime", location: "Content Filters > Anime Filters", icon: "sparkles", color: .pink, keywords: ["anime", "exclude", "hide anime"], action: .destination(.animeFilters)),
+            .init(id: "filter-hide-hentai", title: "Exclude Hentai", location: "Content Filters > Anime Filters", icon: "eye.slash", color: .pink, keywords: ["hentai", "adult anime", "18+", "exclude"], action: .destination(.animeFilters)),
+            .init(id: "filter-hide-yuri", title: "Exclude Yuri", location: "Content Filters > Anime Filters", icon: "eye.slash", color: .pink, keywords: ["yuri", "girls love", "shoujo ai", "exclude"], action: .destination(.animeFilters)),
+            .init(id: "filter-hide-yaoi", title: "Exclude Yaoi", location: "Content Filters > Anime Filters", icon: "eye.slash", color: .pink, keywords: ["yaoi", "boys love", "shounen ai", "exclude"], action: .destination(.animeFilters)),
+            .init(id: "filter-hide-short-runtime", title: "Hide Under-20-Minute Content", location: "Content Filters > Runtime Filters", icon: "timer", color: .mint, keywords: ["runtime", "short", "20 minutes", "movies", "tv"], action: .destination(.runtimeFilters)),
+            .init(id: "filter-hide-fanmade", title: "Hide Fan-made Productions", location: "Content Filters > Productions", icon: "film.stack", color: .orange, keywords: ["fanmade", "fan-made", "unofficial", "YouTuber", "YouTube original", "productions"], action: .destination(.productions))
+        ])
+
         return entries
     }()
 
@@ -516,8 +525,15 @@ struct SettingsView: View {
 
                         GlassDivider()
 
-                        NavigationLink(destination: settingsSearchableContent(AnimeRuntimeFiltersSettingsView())) {
-                            GlassSettingsRow(icon: "slider.horizontal.3", iconColor: .mint, title: "Anime & Runtime Filters")
+                        NavigationLink(destination: settingsSearchableContent(AnimeFiltersSettingsView())) {
+                            GlassSettingsRow(icon: "sparkles", iconColor: .pink, title: "Anime Filters")
+                        }
+                        .buttonStyle(.plain)
+
+                        GlassDivider()
+
+                        NavigationLink(destination: settingsSearchableContent(RuntimeFiltersSettingsView())) {
+                            GlassSettingsRow(icon: "timer", iconColor: .mint, title: "Runtime Filters")
                         }
                         .buttonStyle(.plain)
 
@@ -525,6 +541,13 @@ struct SettingsView: View {
 
                         NavigationLink(destination: settingsSearchableContent(ReleaseDateFiltersSettingsView())) {
                             GlassSettingsRow(icon: "calendar.badge.clock", iconColor: .purple, title: "Release Date Filters")
+                        }
+                        .buttonStyle(.plain)
+
+                        GlassDivider()
+
+                        NavigationLink(destination: settingsSearchableContent(ProductionsSettingsView())) {
+                            GlassSettingsRow(icon: "film.stack", iconColor: .orange, title: "Productions")
                         }
                         .buttonStyle(.plain)
                     }
@@ -935,6 +958,24 @@ struct SettingsView: View {
             return AnyView(settingsSearchableContent(AlternativeUIView()))
         case .appearanceTarget(let target):
             return AnyView(settingsSearchableContent(AlternativeUIView(initialSearchTarget: target)))
+        case .animeFilters:
+            return AnyView(settingsSearchableContent(AnimeFiltersSettingsView()))
+        case .runtimeFilters:
+            return AnyView(settingsSearchableContent(RuntimeFiltersSettingsView()))
+        case .productions:
+            return AnyView(settingsSearchableContent(ProductionsSettingsView()))
+        case .releaseDateFilters:
+            return AnyView(settingsSearchableContent(ReleaseDateFiltersSettingsView()))
+        case .languageFilters:
+            return AnyView(settingsSearchableContent(LanguageFiltersSettingsView(
+                requireEnglishSpanishAudio: $requireEnglishSpanishAudio
+            )))
+        case .ageFilters:
+            return AnyView(settingsSearchableContent(AgeFiltersSettingsView(
+                hideBelowPG13Movies: $hideBelowPG13Movies,
+                hideBelowTV14Shows: $hideBelowTV14Shows,
+                hideBelowPG13Anime: $hideBelowPG13Anime
+            )))
         case .schedule:
             return AnyView(settingsSearchableContent(ScheduleSettingsView()))
         case .notifications:
@@ -991,11 +1032,17 @@ struct SettingsView: View {
                 )) {
                     Text("Language Filters")
                 }
-                NavigationLink(destination: AnimeRuntimeFiltersSettingsView()) {
-                    Text("Anime & Runtime Filters")
+                NavigationLink(destination: AnimeFiltersSettingsView()) {
+                    Text("Anime Filters")
+                }
+                NavigationLink(destination: RuntimeFiltersSettingsView()) {
+                    Text("Runtime Filters")
                 }
                 NavigationLink(destination: ReleaseDateFiltersSettingsView()) {
                     Text("Release Date Filters")
+                }
+                NavigationLink(destination: ProductionsSettingsView()) {
+                    Text("Productions")
                 }
             }
 
@@ -1829,6 +1876,12 @@ private enum SettingsSearchDestination: Hashable {
     case playerTarget(PlayerSettingsSearchTarget)
     case appearance
     case appearanceTarget(AppearanceSettingsSearchTarget)
+    case animeFilters
+    case runtimeFilters
+    case productions
+    case releaseDateFilters
+    case languageFilters
+    case ageFilters
     case schedule
     case notifications
     case notificationsTarget(NotificationSettingsSearchTarget)
@@ -5456,7 +5509,6 @@ private struct LanguageFiltersSettingsView: View {
 
 
 private struct ReleaseDateFiltersSettingsView: View {
-    @AppStorage("catalogHideUnofficialContent", store: .standard) private var hideUnofficialContent = false
     @AppStorage("catalogHidePre1994Anime", store: .standard) private var hidePre1994Anime = false
     @AppStorage("catalogHidePre1994Movies", store: .standard) private var hidePre1994Movies = false
     @AppStorage("catalogHidePre1994TVShows", store: .standard) private var hidePre1994TVShows = false
@@ -5479,12 +5531,6 @@ private struct ReleaseDateFiltersSettingsView: View {
             }
 
             Section {
-                Toggle("Hide fan-made and YouTuber productions", isOn: $hideUnofficialContent)
-            } footer: {
-                Text("Uses title and description indicators such as fan-made, unofficial, YouTuber and YouTube-original. This is a best-effort metadata filter; entries without those indicators may remain visible.")
-            }
-
-            Section {
                 Toggle("Hide upcoming anime", isOn: $hideUnreleasedAnime)
                 Toggle("Hide upcoming movies", isOn: $hideUnreleasedMovies)
                 Toggle("Hide upcoming TV shows", isOn: $hideUnreleasedTVShows)
@@ -5492,7 +5538,6 @@ private struct ReleaseDateFiltersSettingsView: View {
                 Text("Hides titles with an officially announced release or first-air date in the future. Titles without a confirmed date are not treated as upcoming.")
             }
         }
-        .onChange(of: hideUnofficialContent) { _ in filtersDidChange() }
         .onChange(of: hidePre1994Anime) { _ in filtersDidChange() }
         .onChange(of: hidePre1994Movies) { _ in filtersDidChange() }
         .onChange(of: hidePre1994TVShows) { _ in filtersDidChange() }
@@ -5505,10 +5550,34 @@ private struct ReleaseDateFiltersSettingsView: View {
     }
 }
 
+private struct ProductionsSettingsView: View {
+    @AppStorage("catalogHideUnofficialContent", store: .standard) private var hideUnofficialContent = false
 
-private struct AnimeRuntimeFiltersSettingsView: View {
+    private func filtersDidChange() {
+        NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil)
+    }
+
+    var body: some View {
+        List {
+            Section {
+                Toggle("Hide fan-made and YouTuber productions", isOn: $hideUnofficialContent)
+                    .accessibilityIdentifier("settings.contentFilters.hideFanmade")
+            } footer: {
+                Text("Uses title and description indicators such as fan-made, unofficial, YouTuber and YouTube-original. This is a best-effort metadata filter; entries without those indicators may remain visible.")
+            }
+        }
+        .onChange(of: hideUnofficialContent) { _ in filtersDidChange() }
+        .eclipsePageTitle("Productions")
+        .eclipseSettingsStyle()
+        .preferredColorScheme(.dark)
+    }
+}
+
+private struct AnimeFiltersSettingsView: View {
     @AppStorage("catalogHideAnime", store: .standard) private var hideAnime = false
-    @AppStorage("catalogHideUnder20MinuteContent", store: .standard) private var hideUnder20MinuteContent = false
+    @AppStorage("catalogHideHentai", store: .standard) private var hideHentai = false
+    @AppStorage("catalogHideYuri", store: .standard) private var hideYuri = false
+    @AppStorage("catalogHideYaoi", store: .standard) private var hideYaoi = false
 
     private func filtersDidChange() {
         NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil)
@@ -5519,12 +5588,36 @@ private struct AnimeRuntimeFiltersSettingsView: View {
         List {
             Section {
                 Toggle("Hide anime", isOn: $hideAnime)
-                    .onChange(of: hideAnime) { _ in filtersDidChange() }
                     .accessibilityIdentifier("settings.contentFilters.hideAnime")
+                Toggle("Exclude Hentai", isOn: $hideHentai)
+                    .accessibilityIdentifier("settings.contentFilters.hideHentai")
+                Toggle("Exclude Yuri", isOn: $hideYuri)
+                    .accessibilityIdentifier("settings.contentFilters.hideYuri")
+                Toggle("Exclude Yaoi", isOn: $hideYaoi)
+                    .accessibilityIdentifier("settings.contentFilters.hideYaoi")
             } footer: {
-                Text("Hides identified anime from filtered catalogs, home sections and the Schedule. Anime identification uses the app's AniList identity and TMDB genre, language and country metadata.")
+                Text("Hides identified anime and, independently, titles whose available metadata identifies them as Hentai, Yuri or Yaoi.")
             }
+        }
+        .onChange(of: hideAnime) { _ in filtersDidChange() }
+        .onChange(of: hideHentai) { _ in filtersDidChange() }
+        .onChange(of: hideYuri) { _ in filtersDidChange() }
+        .onChange(of: hideYaoi) { _ in filtersDidChange() }
+        .eclipsePageTitle("Anime Filters")
+        .eclipseSettingsStyle()
+        .preferredColorScheme(.dark)
+    }
+}
 
+private struct RuntimeFiltersSettingsView: View {
+    @AppStorage("catalogHideUnder20MinuteContent", store: .standard) private var hideUnder20MinuteContent = false
+
+    private func filtersDidChange() {
+        NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil)
+    }
+
+    var body: some View {
+        List {
             Section {
                 Toggle("Hide movies and TV shows under 20 minutes", isOn: $hideUnder20MinuteContent)
                     .onChange(of: hideUnder20MinuteContent) { _ in filtersDidChange() }
@@ -5533,7 +5626,7 @@ private struct AnimeRuntimeFiltersSettingsView: View {
                 Text("Movie runtime and typical TV episode runtime are read from TMDB. TV shows use the median of the reported episode runtimes. Only confirmed runtimes below 20 minutes are hidden; missing runtime data is not guessed.")
             }
         }
-        .eclipsePageTitle("Anime & Runtime Filters")
+        .eclipsePageTitle("Runtime Filters")
         .eclipseSettingsStyle()
         .preferredColorScheme(.dark)
     }
