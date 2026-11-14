@@ -5494,7 +5494,7 @@ private struct LanguageFiltersSettingsView: View {
             } header: {
                 Text("Dub Languages")
             } footer: {
-                Text("Select one or more languages. Anime catalogs require a verified dub in at least one selected language. The Western TV schedule keeps original air dates when the original audio matches your selection; otherwise, it uses only verified JustWatch episode release dates. Configure your API.SH key in Settings → Services → JustWatch. Without a key or a matching release date, non-native entries are hidden.")
+                Text("Select one or more languages. Anime catalogs require a verified dub in at least one selected language. The Western TV schedule keeps original air dates when the original audio matches your selection; otherwise, it uses only verified JustWatch episode release dates. Configure your API.SH key in Settings → Language & Content Filters → JustWatch API Key. Without a key or a matching release date, non-native entries are hidden.")
             }
         }
         .eclipsePageTitle("Language Filters")
