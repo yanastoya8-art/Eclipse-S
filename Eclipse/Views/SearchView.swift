@@ -2288,11 +2288,17 @@ private struct BrowseMediaView: View {
                         return (index, result)
                     }
 
-                    let identity = await AniListService.shared.fetchAnimeSeasonIdentity(
-                        anilistId: anilistID,
-                        tmdbShowId: result.id,
-                        title: result.displayTitle
-                    )
+                    let artworkURL: String?
+                    if result.fullPosterURL == nil {
+                        let identity = await AniListService.shared.fetchAnimeSeasonIdentity(
+                            anilistId: anilistID,
+                            tmdbShowId: result.id,
+                            title: result.displayTitle
+                        )
+                        artworkURL = identity?.posterURL ?? result.animeArtworkURL
+                    } else {
+                        artworkURL = result.animeArtworkURL
+                    }
                     let enriched = TMDBSearchResult(
                         id: result.id,
                         mediaType: result.mediaType,
@@ -2317,7 +2323,7 @@ private struct BrowseMediaView: View {
                             kitsuId: mapping?.kitsuId,
                             format: mapping?.mediaType
                         ),
-                        animeArtworkURL: identity?.posterURL ?? result.animeArtworkURL
+                        animeArtworkURL: artworkURL
                     )
                     return (index, enriched)
                 }
@@ -2336,11 +2342,17 @@ private struct BrowseMediaView: View {
                         guard let anilistID = mapping?.anilistId, anilistID > 0 else {
                             return (nextIndex, nextResult)
                         }
-                        let identity = await AniListService.shared.fetchAnimeSeasonIdentity(
-                            anilistId: anilistID,
-                            tmdbShowId: nextResult.id,
-                            title: nextResult.displayTitle
-                        )
+                        let artworkURL: String?
+                        if nextResult.fullPosterURL == nil {
+                            let identity = await AniListService.shared.fetchAnimeSeasonIdentity(
+                                anilistId: anilistID,
+                                tmdbShowId: nextResult.id,
+                                title: nextResult.displayTitle
+                            )
+                            artworkURL = identity?.posterURL ?? nextResult.animeArtworkURL
+                        } else {
+                            artworkURL = nextResult.animeArtworkURL
+                        }
                         return (nextIndex, TMDBSearchResult(
                             id: nextResult.id, mediaType: nextResult.mediaType,
                             title: nextResult.title, name: nextResult.name,
@@ -2355,7 +2367,7 @@ private struct BrowseMediaView: View {
                                 anilistId: anilistID, malId: mapping?.malId,
                                 kitsuId: mapping?.kitsuId, format: mapping?.mediaType
                             ),
-                            animeArtworkURL: identity?.posterURL ?? nextResult.animeArtworkURL
+                            animeArtworkURL: artworkURL
                         ))
                     }
                 }
