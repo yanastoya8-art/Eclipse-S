@@ -1397,7 +1397,7 @@ struct HomeView: View {
                     homeViewModel.ambientColor = color
                 },
                 imageDecodeSize: heroImageDecodeSize,
-                placeholderColor: shouldAnalyzeHeroAlternatePoster ? .clear : Color.gray.opacity(0.3),
+                placeholderColor: Color.gray.opacity(0.3),
                 fallbackImageURLs: homeViewModel.heroContent.map(heroImageFallbackURLs(for:)) ?? []
             )
             .id("hero-image-\(heroIdentity)")
