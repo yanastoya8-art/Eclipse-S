@@ -197,8 +197,9 @@ enum AnimeScheduleAPIKeyStore {
     }
 
     static var hasToken: Bool {
-        guard let value = load() else { return false }
-        return !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let keychainValue = load()?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let bundleValue = Bundle.main.object(forInfoDictionaryKey: "AnimeScheduleAPIToken") as? String ?? ""
+        return !keychainValue.isEmpty || !bundleValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     static func save(_ value: String) throws {
