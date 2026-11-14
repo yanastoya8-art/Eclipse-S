@@ -2842,19 +2842,15 @@ struct MediaDetailContentView: View {
     }
 
     private var detailAgeRating: String? {
+        if isAnimeShow {
+            guard let animeAgeCertification else { return nil }
+            return "Taizen · \(animeAgeCertification.ageBand)"
+        }
+
         let certification = searchResult.isMovie
             ? movieDetail?.releaseDates?.preferredCertification
             : tvShowDetail?.contentRatings?.preferredCertification
-        if let certification {
-            if let animeAgeCertification {
-                return "\(certification.displayValue) · MAL/Taizen \(animeAgeCertification.ageBand)"
-            }
-            return certification.displayValue
-        }
-        if let animeAgeCertification {
-            return "MAL/Taizen · \(animeAgeCertification.ageBand)"
-        }
-        return nil
+        return certification?.displayValue
     }
 
     private func loadAnimeAgeCertificationIfNeeded() async {
