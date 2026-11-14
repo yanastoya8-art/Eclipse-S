@@ -4824,6 +4824,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         pendingInitialResumeRetryCount = 0
         pendingInitialResumeLastRetryAt = nil
         releaseBackgroundRecoveryProgressGate(reason: "new-load")
+        rendererPlaybackIntentIsPlaying = false
         mpvRecoveryProgressState = nil
         setVLCSubtitleStyleReloadProgressGate(active: false, reason: "new-load")
         if let info = mediaInfo {
