@@ -2063,7 +2063,19 @@ struct HomeView: View {
         let processor = DownsamplingImageProcessor(size: heroImageDecodeSize)
         for hero in homeViewModel.upcomingHeroCarouselItems(limit: 2) {
             guard !Task.isCancelled, let imageURL = heroImageURL(for: hero) else { continue }
-            _ = await prefetchHeroImage(imageURL, processor: processor)
+            async let posterWarmed = prefetchHeroImage(imageURL, processor: processor)
+
+            let logoCacheKey = heroAlternatePosterCacheKey(
+                hero.stableIdentity,
+                language: selectedLanguage
+            )
+            if prefetchedHeroLogoURLs[logoCacheKey] == nil {
+                let logoURL = await resolveHeroLogoURL(for: hero, language: selectedLanguage)
+                if let logoURL, !Task.isCancelled {
+                    prefetchedHeroLogoURLs[logoCacheKey] = logoURL
+                }
+            }
+            _ = await posterWarmed
         }
     }
 
