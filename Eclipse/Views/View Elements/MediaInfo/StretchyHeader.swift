@@ -125,7 +125,7 @@ struct StretchyHeaderView: View {
                                         .setProcessor(DownsamplingImageProcessor(size: resolvedImageDecodeSize))
                                         .resizable()
                                         .aspectRatio(contentMode: .fill)
-                                        .blur(radius: 32)
+                                        .blur(radius: 26)
                                         .overlay(Color.black.opacity(0.22))
 
                                     KFImage(URL(string: imageURL))
