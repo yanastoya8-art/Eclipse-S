@@ -447,7 +447,10 @@ struct SettingsGradientBackground: View {
     var body: some View {
         baseBackground
             .overlay {
-                if allowsAnimatedBackground && animatedBackgroundEnabled {
+                if allowsAnimatedBackground
+                    && animatedBackgroundEnabled
+                    && theme.scopedAtmosphereStyle() != .aurora
+                    && theme.scopedAtmosphereStyle() != .ember {
                     EclipseIsolatedAmbientMotionBackground(
                         topClearance: 0,
                         ambientColor: nil,
@@ -1523,7 +1526,10 @@ struct GlobalGradientBackground: View {
     var body: some View {
         baseBackground
             .overlay {
-                if allowsAnimatedBackground && animatedBackgroundEnabled {
+                if allowsAnimatedBackground
+                    && animatedBackgroundEnabled
+                    && theme.scopedAtmosphereStyle() != .aurora
+                    && theme.scopedAtmosphereStyle() != .ember {
                     EclipseIsolatedAmbientMotionBackground(
                         topClearance: animatedBackgroundTopClearance,
                         ambientColor: overrideColor,
