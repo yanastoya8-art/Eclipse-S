@@ -222,8 +222,11 @@ final class MaturityRatingRegionTests: XCTestCase {
         XCTAssertFalse(MaturityRating.teen.isBlockedForKids)
     }
 
-    func testAgeTwelveIsBelowThirteenPlusKidsThreshold() {
-        XCTAssertTrue(MaturityRating.age12.isBlockedForKids)
+    func testEveryEuropeanAgeBandBelowThirteenIsBlocked() {
+        let belowThirteen: [MaturityRating] = [
+            .general, .age6, .age7, .age8, .age9, .age10, .age11, .age12
+        ]
+        XCTAssertTrue(belowThirteen.allSatisfy(\.isBlockedForKids))
         XCTAssertFalse(MaturityRating.teen.isBlockedForKids)
         XCTAssertFalse(MaturityRating.age14.isBlockedForKids)
     }
