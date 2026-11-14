@@ -3250,7 +3250,15 @@ struct AnimeScheduleSettingsView: View {
     private func saveToken() {
         do {
             try AnimeScheduleAPIKeyStore.save(normalizedToken)
-            Task { await AnimeScheduleService.shared.updateToken(normalizedToken) }
+            Task {
+                await AnimeScheduleService.shared.updateToken(normalizedToken)
+                await MainActor.run {
+                    NotificationCenter.default.post(
+                        name: AnimeScheduleService.credentialsDidChangeNotification,
+                        object: nil
+                    )
+                }
+            }
             statusIsError = false
             statusMessage = "Token saved securely."
         } catch {
