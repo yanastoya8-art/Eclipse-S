@@ -5431,6 +5431,19 @@ private struct LanguageFiltersSettingsView: View {
         }
     }
 
+    private func dubLanguageTitle(_ language: MyDubListLanguage) -> String {
+        let identity = "\(language.rawValue) \(language.displayName)"
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .lowercased()
+        if identity.contains("english") || identity.contains("en-us") || identity.contains("en-gb") {
+            return "English"
+        }
+        if identity.contains("latino") || identity.contains("latin") || identity.contains("es-419") || identity.contains("latam") {
+            return "Spanish (Latino)"
+        }
+        return "Spanish (Castellano)"
+    }
+
     private func saveDubLanguages(_ languages: Set<String>) {
         MyDubListDubFilter.shared.setSelectedLanguages(languages)
         NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil)
@@ -5454,7 +5467,7 @@ private struct LanguageFiltersSettingsView: View {
 
             Section {
                 ForEach(supportedAnimeDubLanguages) { language in
-                    Toggle(language.displayName, isOn: Binding(
+                    Toggle(dubLanguageTitle(language), isOn: Binding(
                         get: { selectedDubLanguages.contains(language.rawValue) },
                         set: { isSelected in
                             var updated = selectedDubLanguages
