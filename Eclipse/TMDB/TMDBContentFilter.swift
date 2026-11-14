@@ -654,11 +654,18 @@ class TMDBContentFilter: ObservableObject {
 
     func filterSearchResultsResolvingRatings(_ results: [TMDBSearchResult]) async -> [TMDBSearchResult] {
         await prepareMaturityRatings(for: results)
+        if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
+            let animeResults = results.filter { Self.isAnimeResult($0) }
+            await resolveAnimeAudioMetadata(for: animeResults)
+        }
         return filterSearchResults(results)
     }
 
     func filterFastAnimeSearchResultsResolvingRatings(_ results: [TMDBSearchResult]) async -> [TMDBSearchResult] {
         await prepareMaturityRatings(for: results)
+        if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
+            await resolveAnimeAudioMetadata(for: results.map { $0.withAnimeHint(true) })
+        }
         return filterFastAnimeSearchResults(results)
     }
 
