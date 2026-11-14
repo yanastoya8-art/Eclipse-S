@@ -6,6 +6,7 @@ enum DownloadLibraryPosterSize: String, CaseIterable, Identifiable {
     case compact
     case standard
     case large
+    case extraLarge
 
     static let storageKey = "downloadLibraryPosterSize"
 
@@ -15,6 +16,7 @@ enum DownloadLibraryPosterSize: String, CaseIterable, Identifiable {
         case .compact: return "Small"
         case .standard: return "Medium"
         case .large: return "Large"
+        case .extraLarge: return "Extra Large"
         }
     }
     var width: CGFloat {
@@ -22,6 +24,7 @@ enum DownloadLibraryPosterSize: String, CaseIterable, Identifiable {
         case .compact: return 52
         case .standard: return 64
         case .large: return 78
+        case .extraLarge: return 112
         }
     }
     var height: CGFloat { width * 1.5 }
@@ -185,6 +188,20 @@ struct DownloadsView: View {
 #endif
         .toolbar {
             ToolbarItem(placement: .eclipseTrailing) {
+                if !downloadManager.downloads.isEmpty {
+                    Menu {
+                        Picker("Poster Size", selection: $libraryPosterSizeRaw) {
+                            ForEach(DownloadLibraryPosterSize.allCases) { size in
+                                Text(size.title).tag(size.rawValue)
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "photo")
+                    }
+                    .accessibilityLabel("Download poster size")
+                }
+            }
+            ToolbarItem(placement: .eclipseTrailing) {
                 if !downloadManager.downloads.isEmpty, !ProfileManager.shared.isKidsModeActive {
                     managementMenu
                 }
@@ -347,7 +364,7 @@ struct DownloadsView: View {
 
     private func activeDownloadRow(_ item: DownloadItem) -> some View {
         HStack(spacing: 12) {
-            posterImage(url: item.posterURL)
+            posterImage(url: item.posterURL, size: libraryPosterSize)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(item.displayTitle)
@@ -460,7 +477,7 @@ struct DownloadsView: View {
 
     private func failedDownloadRow(_ item: DownloadItem) -> some View {
         HStack(spacing: 12) {
-            posterImage(url: item.posterURL)
+            posterImage(url: item.posterURL, size: libraryPosterSize)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(item.displayTitle)
@@ -507,7 +524,7 @@ struct DownloadsView: View {
             playDownloadedItem(item)
         }) {
             HStack(spacing: 12) {
-                posterImage(url: item.posterURL)
+                posterImage(url: item.posterURL, size: libraryPosterSize)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(item.displayTitle)

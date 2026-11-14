@@ -704,6 +704,8 @@ class TMDBContentFilter: ObservableObject {
             Task(priority: .utility) { await self.resolveRuntimeMetadata(for: movies.map(\.asSearchResult)) }
         }
         return movies.filter { movie in
+            guard !UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent")
+                || !Self.isUnofficialCreatorContent(title: movie.title, overview: movie.overview) else { return false }
             guard movie.adult != true else { return false }
             guard shouldIncludeCatalogTitle(movie.title) else { return false }
             let movieAnime = Self.isAnimeResult(movie.asSearchResult)
@@ -741,6 +743,8 @@ class TMDBContentFilter: ObservableObject {
             Task(priority: .utility) { await self.resolveRuntimeMetadata(for: tvShows.map(\.asSearchResult)) }
         }
         return tvShows.filter { tvShow in
+            guard !UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent")
+                || !Self.isUnofficialCreatorContent(title: tvShow.name, overview: tvShow.overview) else { return false }
             guard tvShow.adult != true else { return false }
             guard shouldIncludeCatalogTitle(tvShow.name) else { return false }
             let animeCountries: Set<String> = ["JP", "CN", "KR", "TW"]
@@ -778,6 +782,10 @@ class TMDBContentFilter: ObservableObject {
     }
 
     private func shouldIncludeCatalogResult(_ result: TMDBSearchResult) -> Bool {
+        guard !UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent")
+            || !Self.isUnofficialCreatorContent(title: result.displayTitle, overview: result.overview) else {
+            return false
+        }
         guard MyDubListDubFilter.shared.shouldInclude(result) else { return false }
         guard result.adult != true else { return false }
         guard shouldIncludeForConfiguredAgeAndAudio(result) else { return false }
@@ -1139,6 +1147,22 @@ class TMDBContentFilter: ObservableObject {
         let calendar = Calendar.current
         return defaults.bool(forKey: unreleasedKey)
             && calendar.startOfDay(for: releaseDate) > calendar.startOfDay(for: Date())
+    }
+
+    private static func isUnofficialCreatorContent(title: String, overview: String?) -> Bool {
+        let text = normalizedCatalogText([title, overview ?? ""].joined(separator: " "))
+        let indicators = [
+            "fan made", "fanmade", "fan film", "fan films", "fan fiction", "fanfiction",
+            "unofficial series", "unofficial film", "unofficial movie", "youtube original",
+            "youtube series", "youtuber", "youtubers", "made for youtube", "creator made",
+            "creator made series", "independent web series"
+        ]
+        return indicators.contains { indicator in
+            text.range(of: " " + normalizedCatalogText(indicator) + " ") != nil
+                || text.hasPrefix(normalizedCatalogText(indicator) + " ")
+                || text.hasSuffix(" " + normalizedCatalogText(indicator))
+                || text == normalizedCatalogText(indicator)
+        }
     }
 
     private func shouldIncludeCatalogTitle(_ title: String) -> Bool {

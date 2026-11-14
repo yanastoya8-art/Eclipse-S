@@ -22,12 +22,22 @@ private func copyProviderDownloadURL(_ rawURL: String, headers: [String: String]
     guard let sourceURL = URL(string: rawURL),
           let scheme = sourceURL.scheme?.lowercased(),
           scheme == "http" || scheme == "https",
-          !["m3u8", "mpd"].contains(sourceURL.pathExtension.lowercased()),
-          let downloadURL = MPVHeaderProxy.shared.makeLANProxyURL(
-            for: sourceURL,
-            headers: headers ?? [:],
-            asDownload: true
-          ) else { return }
+          !["m3u8", "mpd"].contains(sourceURL.pathExtension.lowercased()) else { return }
+
+    // A headerless source is already a usable external download URL. Do not
+    // replace it with a temporary LAN proxy address that stops working when
+    // Eclipse is closed or the receiving device leaves the local network.
+    let sanitizedHeaders = AVPlayerResourceLoader.sanitizedHTTPHeaders(headers ?? [:])
+    guard !sanitizedHeaders.isEmpty else {
+        ProviderExternalApplication.copy(sourceURL.absoluteString)
+        return
+    }
+
+    guard let downloadURL = MPVHeaderProxy.shared.makeLANProxyURL(
+        for: sourceURL,
+        headers: sanitizedHeaders,
+        asDownload: true
+    ) else { return }
     ProviderExternalApplication.copy(downloadURL.absoluteString)
 }
 

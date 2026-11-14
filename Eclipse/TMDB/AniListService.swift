@@ -5427,13 +5427,24 @@ final class AniListService {
         perPage: Int = 50
     ) async throws -> AnimeAiringScheduleResult {
         let selectedLanguages = MyDubListDubFilter.shared.selectedLanguages
+        let englishSpanishAudioFilterEnabled = UserDefaults.standard.bool(
+            forKey: "catalogRequireEnglishSpanishAudio"
+        )
+        let requiresDubSchedule = AnimeScheduleFallback.requiresDubSchedule(
+            selectedDubLanguages: selectedLanguages,
+            englishSpanishAudioFilterEnabled: englishSpanishAudioFilterEnabled
+        )
         let result: AnimeAiringScheduleResult
 
-        if !AnimeScheduleFallback.permitsBroadcastFallback(selectedDubLanguages: selectedLanguages) {
-            // A broadcast schedule is not a dub schedule. Falling back to AniList or
-            // MAL here would put the newly aired Japanese episode back into a
-            // language-filtered calendar. Keep the schedule fail-closed instead.
-            guard selectedLanguages.contains(MyDubListLanguage.english.rawValue) else {
+        if requiresDubSchedule {
+            // A broadcast schedule is not a dub schedule. Treat both the explicit
+            // dub-language picker and the catalog's English/Spanish audio filter as
+            // dub-only intent; never put original broadcast dates into that calendar.
+            let englishScheduleIsAllowed = AnimeScheduleFallback.permitsEnglishDubSchedule(
+                selectedDubLanguages: selectedLanguages,
+                englishSpanishAudioFilterEnabled: englishSpanishAudioFilterEnabled
+            )
+            guard englishScheduleIsAllowed else {
                 return AnimeAiringScheduleResult(
                     entries: [],
                     isAuthoritativeForNotifications: false,

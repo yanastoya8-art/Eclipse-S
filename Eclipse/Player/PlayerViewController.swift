@@ -5425,7 +5425,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         let appearance = activePlayerSkinAppearance
 
         controlsOverlayView.backgroundColor = liquidGlassEnabled
-            ? UIColor.black.withAlphaComponent(0.16)
+            ? .clear
             : (tintControlsOnly
                 ? PlayerSkinAppearance.defaultAppearance.overlayBackground
                 : appearance.overlayBackground)
@@ -5517,7 +5517,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         let effect: UIVisualEffect
         if #available(iOS 26.0, *) {
             let glass = UIGlassEffect(style: .regular)
-            glass.tintColor = UIColor.black.withAlphaComponent(0.12)
+            glass.tintColor = UIColor.black.withAlphaComponent(0.20)
             effect = glass
         } else {
             effect = UIBlurEffect(style: .systemUltraThinMaterialDark)

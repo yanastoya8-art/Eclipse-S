@@ -152,6 +152,34 @@ final class AnimeScheduleFallbackTests: XCTestCase {
         XCTAssertTrue(AnimeScheduleFallback.permitsBroadcastFallback(selectedDubLanguages: []))
     }
 
+    func testEnglishSpanishAudioFilterSuppressesBroadcastFallbackWhenDubPickerIsEmpty() {
+        XCTAssertTrue(AnimeScheduleFallback.requiresDubSchedule(
+            selectedDubLanguages: [],
+            englishSpanishAudioFilterEnabled: true
+        ))
+        XCTAssertFalse(AnimeScheduleFallback.permitsEnglishDubSchedule(
+            selectedDubLanguages: [],
+            englishSpanishAudioFilterEnabled: false
+        ))
+        XCTAssertTrue(AnimeScheduleFallback.permitsEnglishDubSchedule(
+            selectedDubLanguages: [],
+            englishSpanishAudioFilterEnabled: true
+        ))
+    }
+
+    func testSpanishOnlySelectionNeverUsesEnglishOrBroadcastDates() {
+        let selected: Set<String> = [MyDubListLanguage.spanish.rawValue]
+        XCTAssertTrue(AnimeScheduleFallback.requiresDubSchedule(
+            selectedDubLanguages: selected,
+            englishSpanishAudioFilterEnabled: false
+        ))
+        XCTAssertFalse(AnimeScheduleFallback.permitsEnglishDubSchedule(
+            selectedDubLanguages: selected,
+            englishSpanishAudioFilterEnabled: true
+        ))
+        XCTAssertFalse(AnimeScheduleFallback.permitsBroadcastFallback(selectedDubLanguages: selected))
+    }
+
     func testFallbackUsesAnimeScheduleBeforeMAL() async throws {
         var usedMAL = false
         let entries = try mapped()
