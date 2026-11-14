@@ -35,7 +35,7 @@ final class TMDBMaturityRatingStore: ObservableObject {
     }
 
     private struct DiskCache: Codable {
-        static let currentVersion = 3
+        static let currentVersion = 4
         var version: Int
         var records: [DiskRecord]
     }
@@ -62,7 +62,7 @@ final class TMDBMaturityRatingStore: ObservableObject {
 
     private static let transientRetryInterval: TimeInterval = 60
 
-    private static let regionPolicy = MaturityRating.preferredRegions.joined(separator: ",")
+    private static let regionPolicy = "movies:\(MaturityRating.preferredRegions.joined(separator: ","))|tv:\(MaturityRating.preferredEuropeanRegions.joined(separator: ","))"
 
     private static let cacheURL: URL = {
         let docs = FileManager.default.eclipseDocumentsDirectories[0]
