@@ -459,6 +459,8 @@ struct MediaDetailContentView: View {
     @State private var trackerPlaybackPresentationGeneration = UUID()
     @State private var romajiTitle: String?
     @State private var logoURL: String?
+    @State private var titleLogoTask: Task<Void, Never>?
+    @State private var titleLogoLookupGeneration = UUID()
     @State private var alternatePosterURL: String?
     @State private var tvMazePosterURL: String?
     @State private var isAnimeShow = false
@@ -2722,9 +2724,18 @@ struct MediaDetailContentView: View {
 
     @ViewBuilder
     private var titleArtwork: some View {
-        // The selected poster already carries its title treatment. Reuse it
-        // rather than requesting a separate logo asset.
-        EmptyView()
+        if let logoURL, let url = URL(string: logoURL) {
+            KFImage(url)
+                .placeholder { titleText }
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: usesWideDetailLayout ? 420 : 320)
+                .frame(maxHeight: usesWideDetailLayout ? 112 : 92)
+                .shadow(color: .black.opacity(0.48), radius: 8, x: 0, y: 3)
+                .accessibilityLabel(searchResult.displayTitle)
+        } else {
+            titleText
+        }
     }
 
     @ViewBuilder
@@ -6870,6 +6881,59 @@ struct MediaDetailContentView: View {
     }
 
     @MainActor
+    private func resumeTitleLogoIfNeeded() {
+        guard !titleArtworkLookupComplete, titleLogoTask == nil else { return }
+
+        let generation = UUID()
+        titleLogoLookupGeneration = generation
+        let identity = searchResult.stableIdentity
+        let language = selectedLanguage
+        let id = searchResult.id
+        let isMovie = searchResult.isMovie
+        let cacheKey = detailCacheKeyForCurrentRoute()
+        let startedAt = ProcessInfo.processInfo.systemUptime
+
+        titleLogoTask = Task { @MainActor in
+            defer {
+                if titleLogoLookupGeneration == generation {
+                    titleLogoTask = nil
+                }
+            }
+
+            let resolvedLogoURL: String?
+            do {
+                // Start this compact artwork lookup independently of the full
+                // detail request and hero-poster prefetch.
+                let images = try await (isMovie
+                    ? tmdbService.getMovieImages(id: id, preferredLanguage: language)
+                    : tmdbService.getTVShowImages(id: id, preferredLanguage: language))
+                resolvedLogoURL = tmdbService.getBestLogo(
+                    from: images,
+                    preferredLanguage: language
+                )?.fullURL
+            } catch {
+                resolvedLogoURL = nil
+            }
+
+            guard !Task.isCancelled,
+                  titleLogoLookupGeneration == generation,
+                  isDetailVisible,
+                  searchResult.stableIdentity == identity,
+                  selectedLanguage == language else { return }
+
+            logoURL = resolvedLogoURL
+            titleArtworkLookupComplete = true
+            cacheOptionalPresentation(key: cacheKey)
+
+            let elapsedMs = Int(((ProcessInfo.processInfo.systemUptime - startedAt) * 1_000).rounded())
+            Logger.shared.log(
+                "MediaDetailTiming: tmdbId=\(id) stage=title-logo-ready hasLogo=\(resolvedLogoURL != nil) elapsedMs=\(elapsedMs)",
+                type: "TMDB"
+            )
+        }
+    }
+
+    @MainActor
     private func resumeOptionalPresentationIfNeeded() {
         guard hasLoadedContent, !isLoading, isDetailVisible, errorMessage == nil,
               detailLoadedLanguage == selectedLanguage,
@@ -6903,7 +6967,6 @@ struct MediaDetailContentView: View {
                   searchResult.stableIdentity == identity, selectedLanguage == language else { return }
             romajiTitle = romaji
             if let credits { castMembers = credits.cast }
-            titleArtworkLookupComplete = true
             // A failed credits request must not be cached as a completed enrichment pass.
             optionalPresentationIsComplete = credits != nil
             cacheOptionalPresentation(key: cacheKey)
@@ -6945,6 +7008,9 @@ struct MediaDetailContentView: View {
         posterAuditCacheHit = false
 #endif
         cancelOptionalPresentation()
+        titleLogoLookupGeneration = UUID()
+        titleLogoTask?.cancel()
+        titleLogoTask = nil
         optionalPresentationIsComplete = false
         titleArtworkLookupComplete = false
         alternatePosterWasResolved = false
@@ -7044,7 +7110,7 @@ struct MediaDetailContentView: View {
                 self.logoURL = cached.logoURL
                 self.alternatePosterURL = cached.alternatePosterURL
                 self.optionalPresentationIsComplete = cached.optionalPresentationIsComplete
-                self.titleArtworkLookupComplete = cached.logoURL != nil || cached.optionalPresentationIsComplete
+                self.titleArtworkLookupComplete = cached.logoURL != nil
                 self.alternatePosterWasResolved = cached.alternatePosterWasResolved
                 self.optionalPresentationCacheWritable = true
                 self.isAnimeShow = cached.isAnimeShow
@@ -7096,6 +7162,7 @@ struct MediaDetailContentView: View {
                 self.startExperimentalExtrasLoadIfNeeded()
                 self.startSimilarTitlesLoadIfNeeded()
                 self.resumeOptionalPresentationIfNeeded()
+                self.resumeTitleLogoIfNeeded()
                 if shouldResumeAnimeSpecials {
                     Logger.shared.log(
                         "MediaDetailView cache hit has pending specials hydration: tmdbId=\(self.searchResult.id)",
@@ -7144,7 +7211,7 @@ struct MediaDetailContentView: View {
         isLoadingSimilarTitles = false
         selectedSpecialEpisodeContext = nil
         let detailLoadStartedAt = ProcessInfo.processInfo.systemUptime
-        titleArtworkLookupComplete = true
+        resumeTitleLogoIfNeeded()
         prefetchDetailHeroImage()
 
         detailLoadTask = Task {
