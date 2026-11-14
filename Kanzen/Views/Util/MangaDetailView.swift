@@ -11,6 +11,21 @@ import UIKit
 #endif
 
 #if !os(tvOS)
+enum ReaderDetailHeroAppearance {
+    static func migrateIfNeeded() {
+        let defaults = UserDefaults.standard
+        let migrationKey = "readerDetailHeroBlurMigrationVersion"
+        guard defaults.integer(forKey: migrationKey) < 1 else { return }
+
+        let hasStoredValue = defaults.object(forKey: "readerDetailHeroBlur") != nil
+        let storedValue = defaults.double(forKey: "readerDetailHeroBlur")
+        if !hasStoredValue || abs(storedValue - 18) < 0.001 {
+            defaults.set(26.0, forKey: "readerDetailHeroBlur")
+        }
+        defaults.set(1, forKey: migrationKey)
+    }
+}
+
 struct MangaDetailView: View {
     let initialManga: AniListManga
     @EnvironmentObject var moduleManager: ModuleManager
@@ -55,7 +70,7 @@ struct MangaDetailView: View {
     @State private var chapterLoadError: String?
     @AppStorage(ReaderDetailElement.orderStorageKey) private var readerDetailElementOrder = ReaderDetailElement.defaultOrderRawValue
     @AppStorage(ReaderDetailElement.hiddenStorageKey) private var readerDetailHiddenElements = ""
-    @AppStorage("readerDetailHeroBlur") private var readerDetailHeroBlur: Double = 18
+    @AppStorage("readerDetailHeroBlur") private var readerDetailHeroBlur: Double = 26
 
     private let coverWidth: CGFloat = isIPad ? 150 * iPadScaleSmall : 150
     private var designMetrics: ExperimentalMediaDesignMetrics { .current }
@@ -87,8 +102,8 @@ struct MangaDetailView: View {
     }
 
     private var readerDetailHeroBlurRadius: CGFloat {
-        guard readerDetailHeroBlur.isFinite else { return 18 }
-        return CGFloat(min(max(readerDetailHeroBlur, 0), 30))
+        guard readerDetailHeroBlur.isFinite else { return 26 }
+        return CGFloat(min(max(readerDetailHeroBlur, 0), 36))
     }
 
     @ViewBuilder
@@ -246,6 +261,9 @@ struct MangaDetailView: View {
             }
         }
 
+        .onAppear {
+            ReaderDetailHeroAppearance.migrateIfNeeded()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .activeProfileDidChange)) { _ in
             showReaderSourcePicker = false
             linkedReaderItem = nil
