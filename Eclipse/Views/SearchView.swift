@@ -2269,7 +2269,23 @@ private struct BrowseMediaView: View {
         let originalAudioFilterEnabled = UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
 
         let candidates = results.enumerated().filter { _, result in
-            guard result.animeArtworkURL == nil else { return false }
+            let hasTaizenPoster = result.animeArtworkURL?.contains("taizen.moe") == true
+            guard hasTaizenPoster, result.animeLogoURL != nil else {
+                // Upgrade legacy AniList/TMDB artwork with Taizen's poster and
+                // clear-logo when a mapping is available.
+                let originalLanguage = result.originalLanguage?.lowercased() ?? ""
+                let baseLanguage = originalLanguage.split(separator: "-").first.map(String.init) ?? originalLanguage
+                let nativeAudioMatchesDubFilter = selectedDubLanguageCodes.contains {
+                    originalLanguage == $0 || originalLanguage.hasPrefix($0 + "-")
+                }
+                let needsDubIdentity = !selectedDubLanguageCodes.isEmpty && !nativeAudioMatchesDubFilter
+                let needsAudioIdentity = originalAudioFilterEnabled && !["en", "es"].contains(baseLanguage)
+                let likelyAnime = result.isAnimeHint == true
+                    || (result.genreIds?.contains(16) == true
+                        && (["ja", "zh", "ko"].contains(baseLanguage)
+                            || result.originCountry?.contains(where: { ["JP", "CN", "KR", "TW"].contains($0) }) == true))
+                return needsDubIdentity || needsAudioIdentity || likelyAnime || result.fullPosterURL == nil
+            }
             let originalLanguage = result.originalLanguage?.lowercased() ?? ""
             let baseLanguage = originalLanguage.split(separator: "-").first.map(String.init) ?? originalLanguage
             let nativeAudioMatchesDubFilter = selectedDubLanguageCodes.contains {
