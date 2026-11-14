@@ -490,8 +490,10 @@ struct MediaDetailContentView: View {
     @State private var similarTitlesLoadFailed = false
     @State private var traktComments: [TraktCommentReview] = []
     @State private var traktRating: TraktMediaRating?
+    @State private var animeAgeCertification: MaturityRating?
     @State private var isLoadingTraktComments = false
     @State private var hasLoadedContent = false
+    @State private var detailViewportSize: CGSize = .zero
     @State private var isDetailVisible = false
     @State private var detailLoadedLanguage: String?
     @State private var detailLoadedIdentity: String?
@@ -576,6 +578,14 @@ struct MediaDetailContentView: View {
         self.trackerPlaybackIntent = trackerPlaybackIntent
     }
 
+    private var detailViewportHeight: CGFloat {
+        detailViewportSize.height > 0 ? detailViewportSize.height : EclipseViewport.bounds.height
+    }
+
+    private var detailViewportWidth: CGFloat {
+        detailViewportSize.width > 0 ? detailViewportSize.width : EclipseViewport.bounds.width
+    }
+
     private var atmosphereColor: Color {
         theme.atmosphereColor(dominant: ambientColor)
     }
@@ -594,7 +604,7 @@ struct MediaDetailContentView: View {
 
     private var mediaDetailHeroBleedTail: CGFloat {
         guard usesWideDetailLayout else { return headerHeight * 0.62 }
-        return min(max(EclipseViewport.bounds.height * 0.78, 680), 900)
+        return min(max(detailViewportHeight * 0.78, 680), 900)
     }
 
     private var mediaDetailHeroBleedStrength: Double {
@@ -957,21 +967,21 @@ struct MediaDetailContentView: View {
 
     private var headerHeight: CGFloat {
 #if os(macOS)
-        min(max(EclipseViewport.bounds.height * 0.68, 340), 640)
+        min(max(detailViewportHeight * 0.68, 340), 640)
 #elseif os(tvOS)
-        EclipseViewport.bounds.height * 0.8
+        detailViewportHeight * 0.8
 #else
         let portraitPosterHeight = EclipseViewport.bounds.width * 1.5
         if ExperimentalFeatureState.isEnabledAtLaunch {
             let measuredHeight = designMetrics.detailHeroHeight(
-                screenHeight: EclipseViewport.bounds.height,
+                screenHeight: detailViewportHeight,
                 isIPad: usesWideDetailLayout
             )
             return usesWideDetailLayout
                 ? min(measuredHeight, 640)
                 : max(measuredHeight, portraitPosterHeight + 80)
         }
-        let measuredHeight = min(max(EclipseViewport.bounds.height * 0.76, 620), 780)
+        let measuredHeight = min(max(detailViewportHeight * 0.76, 620), 780)
         return usesWideDetailLayout ? 640 : max(measuredHeight, portraitPosterHeight + 80)
 #endif
     }
@@ -980,7 +990,7 @@ struct MediaDetailContentView: View {
 #if os(macOS)
         min(headerHeight, 420)
 #elseif os(tvOS)
-        EclipseViewport.bounds.height * 0.8
+        detailViewportHeight * 0.8
 #else
         usesWideDetailLayout ? 520 : 420
 #endif
@@ -1037,6 +1047,7 @@ struct MediaDetailContentView: View {
     }
 
     var body: some View {
+        GeometryReader { geometry in
         ZStack {
             EclipseTheme.shared.backgroundBase
                 .ignoresSafeArea(.all)
@@ -1044,8 +1055,15 @@ struct MediaDetailContentView: View {
             detailBackground
                 .ignoresSafeArea(.all)
 
-            if isLoading && !isShowingSearchResultPreview {
-                loadingView
+            if isLoading && !hasLoadedContent {
+                // Paint the detail shell from the tapped catalog result immediately.
+                // TMDB/provider enrichment continues independently and fills in the
+                // remaining metadata without holding the hero behind a full-screen loader.
+                mainScrollView
+#if os(tvOS)
+                    .focusable(!shouldShowHeroActions)
+                    .focused($tvDetailFocus, equals: .content)
+#endif
             } else if let errorMessage = errorMessage {
                 errorView(errorMessage)
             } else {
@@ -1058,6 +1076,14 @@ struct MediaDetailContentView: View {
 #if os(iOS)
             navigationOverlay
 #endif
+        }
+        .onAppear { detailViewportSize = geometry.size }
+        .task(id: exactAnimeNavigationSeedAniListId) {
+            await loadAnimeAgeCertificationIfNeeded()
+        }
+        .onChangeComp(of: geometry.size) { _, newSize in
+            detailViewportSize = newSize
+        }
         }
 #if os(tvOS)
         .focusScope(tvDetailFocusScope)
@@ -2790,11 +2816,38 @@ struct MediaDetailContentView: View {
     }
 
     private var detailAgeRating: String? {
-        if searchResult.isMovie {
-            return movieDetail?.releaseDates?.preferredCertification?.value
+        let certification = searchResult.isMovie
+            ? movieDetail?.releaseDates?.preferredCertification
+            : tvShowDetail?.contentRatings?.preferredCertification
+        if let certification {
+            if let animeAgeCertification {
+                return "\(certification.displayValue) · MAL/Taizen \(animeAgeCertification.ageBand)"
+            }
+            return certification.displayValue
         }
+        if let animeAgeCertification {
+            return "MAL/Taizen · \(animeAgeCertification.ageBand)"
+        }
+        return nil
+    }
 
-        return tvShowDetail?.contentRatings?.preferredCertification?.value
+    private func loadAnimeAgeCertificationIfNeeded() async {
+        animeAgeCertification = nil
+        guard let anilistID = exactAnimeNavigationSeedAniListId, anilistID > 0 else {
+            animeAgeCertification = nil
+            return
+        }
+        do {
+            let rating = try await TaizenAnimeAgeRatingService.shared.rating(anilistID: anilistID)
+            guard !Task.isCancelled else { return }
+            animeAgeCertification = rating
+        } catch {
+            guard !Task.isCancelled else { return }
+            Logger.shared.log(
+                "Anime age-rating metadata unavailable for AniList \(anilistID): \(error.localizedDescription)",
+                type: "Anime"
+            )
+        }
     }
 
     @ViewBuilder
@@ -7980,10 +8033,11 @@ private struct AnimeSpecialSearchRequest: Identifiable {
 
 private var usesWideDetailLayout: Bool {
 #if os(macOS)
-    EclipseViewport.bounds.width >= 1000
+    (detailViewportSize == .zero ? EclipseViewport.bounds : detailViewportSize).width >= 1000
 #else
-    let viewport = EclipseViewport.bounds
-    let isLandscapePhoneOrTablet = viewport.width > viewport.height && viewport.width >= 700
-    return isIPad || isLandscapePhoneOrTablet
+    let viewport = detailViewportSize == .zero ? EclipseViewport.bounds : detailViewportSize
+    // Keep the same detail-page composition on iPhone in both orientations.
+    // Landscape changes the available width, not the layout model.
+    return isIPad
 #endif
 }
