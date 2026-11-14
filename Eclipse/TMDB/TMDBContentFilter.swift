@@ -726,7 +726,7 @@ class TMDBContentFilter: ObservableObject {
             guard shouldIncludeTMDBAgeRating(
                 isMovie: true,
                 id: movie.id,
-                enabled: UserDefaults.standard.bool(forKey: "catalogHideBelowPG13Movies")
+                enabled: Self.ageFilterEnabled("catalogHideBelowPG13Movies")
             ) else { return false }
             guard shouldIncludeForKids(
                 title: movie.title,
@@ -769,7 +769,7 @@ class TMDBContentFilter: ObservableObject {
             guard shouldIncludeTMDBAgeRating(
                 isMovie: false,
                 id: tvShow.id,
-                enabled: UserDefaults.standard.bool(forKey: "catalogHideBelowTV14Shows")
+                enabled: Self.ageFilterEnabled("catalogHideBelowTV14Shows")
             ) else { return false }
             guard shouldIncludeForKids(
                 title: tvShow.name,
@@ -1058,6 +1058,14 @@ class TMDBContentFilter: ObservableObject {
         } catch {
             return (key, nil, false)
         }
+    }
+
+    private static func ageFilterEnabled(_ key: String, defaults: UserDefaults = .standard) -> Bool {
+        guard let storedValue = defaults.object(forKey: key) as? Bool else {
+            // Keep the requested 13+ movie and TV baseline for fresh installs.
+            return key == "catalogHideBelowPG13Movies" || key == "catalogHideBelowTV14Shows"
+        }
+        return storedValue
     }
 
     private func shouldIncludeForConfiguredAgeAndAudio(_ result: TMDBSearchResult) -> Bool {
