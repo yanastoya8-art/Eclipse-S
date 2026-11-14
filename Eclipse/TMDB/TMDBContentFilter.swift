@@ -1341,6 +1341,131 @@ enum TaizenDubMetadataError: Error, LocalizedError {
 
 /// Fetches episode-level dub counts for the exact AniList/MAL season identity.
 /// Results are cached because Taizen refreshes its catalogue at most hourly.
+struct TVMazePosterRequest: Sendable {
+    let id: Int
+    let title: String
+    let year: Int?
+}
+
+actor TVMazeArtworkPosterService {
+    static let shared = TVMazeArtworkPosterService()
+
+    private struct SearchResult: Decodable {
+        let score: Double
+        let show: Show
+    }
+
+    private struct Show: Decodable {
+        let name: String
+        let premiered: String?
+        let image: Image?
+    }
+
+    private struct Image: Decodable {
+        let medium: String?
+        let original: String?
+    }
+
+    private struct CachedPoster {
+        let fetchedAt: Date
+        let url: String?
+    }
+
+    private var cache: [String: CachedPoster] = [:]
+    private let cacheLifetime: TimeInterval = 6 * 60 * 60
+    private let maximumResponseBytes = 1_500_000
+
+    func posters(for requests: [TVMazePosterRequest]) async -> [Int: String] {
+        let candidates = requests.filter {
+            (1...1_000_000_000).contains($0.id)
+                && !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && $0.title.utf8.count <= 200
+        }
+        guard !candidates.isEmpty else { return [:] }
+
+        return await withTaskGroup(of: (Int, String?).self) { group in
+            var iterator = candidates.makeIterator()
+            let concurrencyLimit = 5
+            for _ in 0..<min(concurrencyLimit, candidates.count) {
+                guard let item = iterator.next() else { continue }
+                group.addTask { (item.id, await self.posterURL(for: item.title, year: item.year)) }
+            }
+
+            var output: [Int: String] = [:]
+            while let (id, url) = await group.next() {
+                if let url { output[id] = url }
+                if let item = iterator.next() {
+                    group.addTask { (item.id, await self.posterURL(for: item.title, year: item.year)) }
+                }
+            }
+            return output
+        }
+    }
+
+    private func posterURL(for title: String, year: Int?) async -> String? {
+        let normalizedTitle = Self.normalized(title)
+        guard !normalizedTitle.isEmpty else { return nil }
+        let cacheKey = "\(normalizedTitle):\(year ?? 0)"
+        if let cached = cache[cacheKey],
+           Date().timeIntervalSince(cached.fetchedAt) < cacheLifetime {
+            return cached.url
+        }
+
+        guard var components = URLComponents(string: "https://api.tvmaze.com/search/shows") else { return nil }
+        components.queryItems = [URLQueryItem(name: "q", value: title)]
+        guard let url = components.url else { return nil }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 12
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            try Task.checkCancellation()
+            guard data.count <= maximumResponseBytes,
+                  let http = response as? HTTPURLResponse,
+                  http.statusCode == 200,
+                  let results = try? JSONDecoder().decode([SearchResult].self, from: data) else {
+                return nil
+            }
+
+            let exactMatches = results.filter { Self.normalized($0.show.name) == normalizedTitle }
+            let yearMatches = exactMatches.filter { candidate in
+                guard let year,
+                      let premiered = candidate.show.premiered,
+                      let premieredYear = Int(premiered.prefix(4)) else { return true }
+                return premieredYear == year
+            }
+            let pool = yearMatches.isEmpty ? exactMatches : yearMatches
+            let best = pool.max { $0.score < $1.score }
+                ?? results.filter { $0.score >= 0.82 }.max { $0.score < $1.score }
+            let poster = Self.trustedPosterURL(best?.show.image?.original)
+                ?? Self.trustedPosterURL(best?.show.image?.medium)
+            cache[cacheKey] = CachedPoster(fetchedAt: Date(), url: poster)
+            return poster
+        } catch {
+            if Task.isCancelled { return nil }
+            return nil
+        }
+    }
+
+    private static func normalized(_ value: String) -> String {
+        value.lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+    }
+
+    private static func trustedPosterURL(_ rawValue: String?) -> String? {
+        guard let rawValue, rawValue.utf8.count <= 2_048,
+              let components = URLComponents(string: rawValue),
+              components.scheme?.lowercased() == "https",
+              components.host?.lowercased() == "static.tvmaze.com",
+              components.user == nil, components.password == nil else { return nil }
+        return components.url?.absoluteString
+    }
+}
+
 struct TaizenAnimeArtwork: Sendable {
     let posterURL: String?
     let logoURL: String?
