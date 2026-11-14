@@ -119,7 +119,7 @@ final class MyDubListDubFilter: @unchecked Sendable {
     private var loadedLanguages: Set<String> = []
     private var isLoaded = false
 
-    private static let supportedLanguages: Set<String> = [
+    static let supportedLanguages: Set<String> = [
         MyDubListLanguage.english.rawValue,
         MyDubListLanguage.spanish.rawValue
     ]
