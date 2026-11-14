@@ -1741,7 +1741,7 @@ enum AniMapLookupTimingPolicy {
     }
 }
 
-private actor AniMapMappingService {
+actor AniMapMappingService {
     private static let storedShared = AniMapMappingService()
     static var shared: AniMapMappingService {
 #if DEBUG
