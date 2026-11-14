@@ -128,7 +128,7 @@ enum ScheduleSource: Hashable, Sendable {
         case .anime:
             return "Anime"
         case .western:
-            return "Western"
+            return "Series"
         }
     }
 }
