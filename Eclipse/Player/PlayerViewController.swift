@@ -1590,6 +1590,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         let armedAt: Date
         let baselinePosition: Double
         let baselineDuration: Double
+        let wasPlaying: Bool
+        let playbackIntentGeneration: Int
+        let loadGeneration: Int
         var foregroundedAt: Date?
         var lastSuppressionLogBucket: Int = -1
     }
@@ -2100,7 +2103,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             rendererName: rendererName,
             armedAt: now,
             baselinePosition: max(0, cachedPosition),
-            baselineDuration: max(0, cachedDuration)
+            baselineDuration: max(0, cachedDuration),
+            wasPlaying: wasPlaying,
+            playbackIntentGeneration: rendererPlaybackIntentGeneration,
+            loadGeneration: playbackLoadGeneration
         )
         Logger.shared.log("[PlayerVC.Recovery] armed progress gate id=\(backgroundRecoveryProgressGateID) source=\(source) renderer=\(rendererName) media=\(mediaKey) baseline=\(secondsText(cachedPosition))/\(secondsText(cachedDuration))", type: "Progress")
     }
@@ -2115,6 +2121,31 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         }
 
         let gateID = gate.id
+        if gate.wasPlaying {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+                guard let self,
+                      self.backgroundRecoveryProgressGate?.id == gateID,
+                      gate.loadGeneration == self.playbackLoadGeneration,
+                      gate.playbackIntentGeneration == self.rendererPlaybackIntentGeneration,
+                      self.currentMediaProgressKey() == gate.mediaKey,
+                      self.isRunning, !self.isClosing,
+                      self.owningPlaybackSceneIsForegroundActive() else { return }
+
+                // iOS/AVKit can leave the renderer paused after returning from
+                // background even when the PiP handoff never completed. Resume
+                // only when playback was active before backgrounding and the
+                // user has not changed playback intent since then.
+                self.rendererResumeForegroundRendering(reason: "background-return-\(source)")
+                if self.rendererIsPausedState() {
+                    self.rendererPlay(recordingPlaybackIntent: false)
+                }
+                self.rendererSchedulePictureInPicturePlaybackStateUpdate()
+                self.logPictureInPicture(
+                    "foreground playback restoration checked source=\(source) wasPaused=\(self.rendererIsPausedState()) generation=\(gate.loadGeneration)"
+                )
+            }
+        }
+
         DispatchQueue.main.asyncAfter(deadline: .now() + backgroundRecoveryProgressMaxGuardWindow) { [weak self] in
             guard let self,
                   self.backgroundRecoveryProgressGate?.id == gateID else {
