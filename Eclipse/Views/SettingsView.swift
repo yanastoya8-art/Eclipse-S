@@ -3817,7 +3817,7 @@ struct MyDubListDubsSettingsView: View {
 
                 GlassSection(header: "Available Dub Languages") {
                     VStack(spacing: 0) {
-                        ForEach(Array(MyDubListLanguage.allCases.enumerated()), id: \.element.id) { index, language in
+                        ForEach(Array([MyDubListLanguage.english, .spanish].enumerated()), id: \.element.id) { index, language in
                             GlassSelectionRow(
                                 title: language.displayName,
                                 subtitle: language.rawValue.capitalized,
@@ -3826,7 +3826,7 @@ struct MyDubListDubsSettingsView: View {
                             ) {
                                 toggle(language)
                             }
-                            if index < MyDubListLanguage.allCases.count - 1 {
+                            if index < 1 {
                                 GlassDivider(leadingInset: 16)
                             }
                         }
@@ -5421,32 +5421,7 @@ private struct LanguageFiltersSettingsView: View {
     @Binding var requireEnglishSpanishAudio: Bool
     @State private var selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguages
 
-    private var supportedAnimeDubLanguages: [MyDubListLanguage] {
-        MyDubListLanguage.allCases.filter { language in
-            let identity = "\(language.rawValue) \(language.displayName)"
-                .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-                .lowercased()
-            let isEnglish = identity.contains("english") || identity.contains("en-us") || identity.contains("en-gb")
-            let isLatinoSpanish = (identity.contains("spanish") || identity.contains("espanol") || identity.contains("es-"))
-                && (identity.contains("latino") || identity.contains("latin") || identity.contains("es-419") || identity.contains("latam"))
-            let isCastellanoSpanish = (identity.contains("spanish") || identity.contains("espanol") || identity.contains("es-"))
-                && (identity.contains("castellano") || identity.contains("spain") || identity.contains("es-es"))
-            return isEnglish || isLatinoSpanish || isCastellanoSpanish
-        }
-    }
-
-    private func dubLanguageTitle(_ language: MyDubListLanguage) -> String {
-        let identity = "\(language.rawValue) \(language.displayName)"
-            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-            .lowercased()
-        if identity.contains("english") || identity.contains("en-us") || identity.contains("en-gb") {
-            return "English"
-        }
-        if identity.contains("latino") || identity.contains("latin") || identity.contains("es-419") || identity.contains("latam") {
-            return "Spanish (Latino)"
-        }
-        return "Spanish (Castellano)"
-    }
+    private let supportedAnimeDubLanguages: [MyDubListLanguage] = [.english, .spanish]
 
     private func saveDubLanguages(_ languages: Set<String>) {
         MyDubListDubFilter.shared.setSelectedLanguages(languages)
@@ -5471,7 +5446,7 @@ private struct LanguageFiltersSettingsView: View {
 
             Section {
                 ForEach(supportedAnimeDubLanguages) { language in
-                    Toggle(dubLanguageTitle(language), isOn: Binding(
+                    Toggle(language.displayName, isOn: Binding(
                         get: { selectedDubLanguages.contains(language.rawValue) },
                         set: { isSelected in
                             var updated = selectedDubLanguages
