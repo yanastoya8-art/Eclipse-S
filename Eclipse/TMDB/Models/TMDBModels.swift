@@ -231,6 +231,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
     let animeIdentitySeed: AnimeMediaIdentitySeed?
     let animeArtworkURL: String?
     let animeLogoURL: String?
+    let tvMazePosterURL: String?
 
     enum CodingKeys: String, CodingKey {
         case id, overview, popularity, adult
@@ -249,6 +250,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
         case animeIdentitySeed = "anime_identity_seed"
         case animeArtworkURL = "anime_artwork_url"
         case animeLogoURL = "anime_logo_url"
+        case tvMazePosterURL = "tvmaze_poster_url"
     }
 
     init(
@@ -271,7 +273,8 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
         isAnimeHint: Bool? = nil,
         animeIdentitySeed: AnimeMediaIdentitySeed? = nil,
         animeArtworkURL: String? = nil,
-        animeLogoURL: String? = nil
+        animeLogoURL: String? = nil,
+        tvMazePosterURL: String? = nil
     ) {
         self.id = id
         self.mediaType = mediaType
@@ -293,6 +296,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
         self.animeIdentitySeed = animeIdentitySeed?.sanitizedForPersistence
         self.animeArtworkURL = Self.sanitizedAnimeArtworkURL(animeArtworkURL)
         self.animeLogoURL = Self.sanitizedAnimeArtworkURL(animeLogoURL)
+        self.tvMazePosterURL = Self.sanitizedTVMazePosterURL(tvMazePosterURL)
     }
 
     init(from decoder: Decoder) throws {
@@ -364,6 +368,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             .sanitizedForPersistence
         animeArtworkURL = Self.sanitizedAnimeArtworkURL(try container.decodeIfPresent(String.self, forKey: .animeArtworkURL))
         animeLogoURL = Self.sanitizedAnimeArtworkURL(try container.decodeIfPresent(String.self, forKey: .animeLogoURL))
+        tvMazePosterURL = Self.sanitizedTVMazePosterURL(try container.decodeIfPresent(String.self, forKey: .tvMazePosterURL))
     }
 
     var displayTitle: String {
@@ -383,16 +388,18 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
     }
 
     var fullPosterURL: String? {
-        // AniList's large cover is a second high-resolution source for anime.
-        // Prefer it for identified anime so TMDB's text-heavy default poster
-        // does not win when a clean alternate poster was unavailable.
+        // Prefer dedicated artwork providers by media type; keep TMDB as the
+        // last-resort source when a better catalog poster is unavailable.
         if (animeIdentitySeed != nil || isAnimeHint == true), let animeArtworkURL {
             return animeArtworkURL
+        }
+        if mediaType.lowercased() == "tv", let tvMazePosterURL {
+            return tvMazePosterURL
         }
         if let posterPath {
             return TMDBImageRequestPolicy.urlString(for: posterPath, kind: .poster)
         }
-        return animeArtworkURL
+        return animeArtworkURL ?? tvMazePosterURL
     }
 
     var fullBackdropURL: String? {
@@ -444,7 +451,8 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             isAnimeHint: isAnimeHint,
             animeIdentitySeed: animeIdentitySeed?.sanitizedForPersistence,
             animeArtworkURL: animeArtworkURL,
-            animeLogoURL: animeLogoURL
+            animeLogoURL: animeLogoURL,
+            tvMazePosterURL: tvMazePosterURL
         )
     }
 
@@ -455,6 +463,15 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
               let host = components.host?.lowercased(),
               host == "anilist.co" || host.hasSuffix(".anilist.co")
                 || host == "taizen.moe" || host.hasSuffix(".taizen.moe"),
+              components.user == nil, components.password == nil else { return nil }
+        return components.url?.absoluteString
+    }
+
+    private static func sanitizedTVMazePosterURL(_ rawValue: String?) -> String? {
+        guard let rawValue, rawValue.utf8.count <= 2_048,
+              let components = URLComponents(string: rawValue),
+              components.scheme?.lowercased() == "https",
+              components.host?.lowercased() == "static.tvmaze.com",
               components.user == nil, components.password == nil else { return nil }
         return components.url?.absoluteString
     }
@@ -480,7 +497,8 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             isAnimeHint: isAnimeHint,
             animeIdentitySeed: animeIdentitySeed,
             animeArtworkURL: url,
-            animeLogoURL: animeLogoURL
+            animeLogoURL: animeLogoURL,
+            tvMazePosterURL: tvMazePosterURL
         )
     }
 
@@ -530,7 +548,34 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             isAnimeHint: isAnimeHint,
             animeIdentitySeed: animeIdentitySeed,
             animeArtworkURL: animeArtworkURL,
-            animeLogoURL: url
+            animeLogoURL: url,
+            tvMazePosterURL: tvMazePosterURL
+        )
+    }
+
+    func withTVMazePosterURL(_ url: String?) -> TMDBSearchResult {
+        TMDBSearchResult(
+            id: id,
+            mediaType: mediaType,
+            title: title,
+            name: name,
+            overview: overview,
+            posterPath: posterPath,
+            backdropPath: backdropPath,
+            releaseDate: releaseDate,
+            firstAirDate: firstAirDate,
+            voteAverage: voteAverage,
+            popularity: popularity,
+            adult: adult,
+            genreIds: genreIds,
+            originalLanguage: originalLanguage,
+            originCountry: originCountry,
+            voteCount: voteCount,
+            isAnimeHint: isAnimeHint,
+            animeIdentitySeed: animeIdentitySeed,
+            animeArtworkURL: animeArtworkURL,
+            animeLogoURL: animeLogoURL,
+            tvMazePosterURL: url
         )
     }
 }
