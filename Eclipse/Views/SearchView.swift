@@ -210,10 +210,6 @@ struct SearchView: View {
                             .foregroundColor(.secondary)
                             .padding()
 
-                        Toggle("Save search history", isOn: $searchHistorySavingEnabled)
-                            .font(.subheadline)
-                            .padding(.horizontal, 28)
-                            .padding(.bottom, 12)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
@@ -224,10 +220,6 @@ struct SearchView: View {
                                 .foregroundColor(.primary)
 
                             Spacer()
-
-                            Toggle("Save", isOn: $searchHistorySavingEnabled)
-                                .labelsHidden()
-                                .accessibilityLabel("Save search history")
 
                             Button("Clear") {
                                 clearSearchHistory()
