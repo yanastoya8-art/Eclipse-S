@@ -974,7 +974,7 @@ final class ScheduleViewModel: ObservableObject {
                   releaseDate < window.end,
                   !MovieSchedulePolicy.isAnime(
                     language: movie.originalLanguage,
-                    genres: (movie.genreIds ?? []).map(String.init)
+                    genres: (movie.genreIds ?? []).map { $0 == 16 ? "animation" : String($0) }
                   ) else { return nil }
             return ScheduleEntry(tmdbUpcomingMovie: movie, releaseDate: releaseDate)
         }
