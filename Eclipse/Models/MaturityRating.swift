@@ -15,10 +15,22 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
     case age14 = 6
     case age16 = 7
     case age17 = 8
+    case age6 = 9
+    case age7 = 10
+    case age8 = 11
+    case age9 = 12
+    case age10 = 13
+    case age11 = 14
 
     private var comparisonAge: Int {
         switch self {
         case .general: return 0
+        case .age6: return 6
+        case .age7: return 7
+        case .age8: return 8
+        case .age9: return 9
+        case .age10: return 10
+        case .age11: return 11
         case .age12: return 12
         case .teen: return 13
         case .age14: return 14
@@ -41,6 +53,12 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
     var ageBand: String {
         switch self {
         case .general: return "All ages"
+        case .age6: return "6+"
+        case .age7: return "7+"
+        case .age8: return "8+"
+        case .age9: return "9+"
+        case .age10: return "10+"
+        case .age11: return "11+"
         case .age12: return "12+"
         case .teen: return "13+"
         case .age14: return "14+"
@@ -127,7 +145,13 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
 
     private static func tier(forMinimumAge age: Int) -> MaturityRating {
         switch age {
-        case ..<12: return .general
+        case ..<6: return .general
+        case 6: return .age6
+        case 7: return .age7
+        case 8: return .age8
+        case 9: return .age9
+        case 10: return .age10
+        case 11: return .age11
         case 12: return .age12
         case 13: return .teen
         case 14: return .age14
@@ -276,7 +300,7 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
             "A": .general, "B": .age12, "C": .age16, "D": .adult, "X": .adult
         ],
         "ES": [
-            "APTA": .general, "7": .general, "12": .age12,
+            "APTA": .general, "7": .age7, "12": .age12,
             "16": .age16, "18": .adult, "X": .adult
         ],
         "JP": [
@@ -290,20 +314,28 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
             "MA15": .mature, "MA15PLUS": .mature, "R18PLUS": .adult, "X18PLUS": .adult
         ],
         "DE": [
-            "0": .general, "6": .general, "12": .age12, "16": .age16, "18": .adult
+            "0": .general, "6": .age6, "12": .age12, "16": .age16, "18": .adult
         ],
         "FR": [
-            "U": .general, "10": .general, "12": .age12, "16": .age16, "18": .adult
+            "U": .general, "10": .age10, "12": .age12, "16": .age16, "18": .adult
         ],
+        "SE": ["7": .age7, "11": .age11, "15": .mature],
+        "DK": ["7": .age7, "11": .age11, "15": .mature],
+        "NO": ["6": .age6, "9": .age9, "12": .age12, "15": .mature, "18": .adult],
+        "FI": ["7": .age7, "12": .age12, "16": .age16, "18": .adult],
+        "PL": ["7": .age7, "12": .age12, "16": .age16, "18": .adult],
+        "BE": ["0": .general, "6": .age6, "9": .age9, "12": .age12, "14": .age14, "16": .age16, "18": .adult],
+        "AT": ["6": .age6, "10": .age10, "12": .age12, "16": .age16, "18": .adult],
+        "IE": ["G": .general, "PG": .general, "12A": .age12, "15A": .mature, "16": .age16, "18": .adult],
         "IT": [
             "T": .general, "VM14": .age14, "VM18": .adult
         ],
         "NL": [
-            "AL": .general, "6": .general, "9": .general,
+            "AL": .general, "6": .age6, "9": .age9,
             "12": .age12, "14": .age14, "16": .age16, "18": .adult
         ],
         "BR": [
-            "L": .general, "10": .general, "12": .age12,
+            "L": .general, "10": .age10, "12": .age12,
             "14": .age14, "16": .age16, "18": .adult
         ],
         "SG": [
@@ -340,7 +372,8 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
 
         "PG13SG": .teen, "NC16": .age16, "M18": .adult, "R21": .adult,
 
-        "0": .general, "6": .general, "7": .general, "9": .general,
+        "0": .general, "6": .age6, "7": .age7, "8": .age8,
+        "9": .age9, "10": .age10, "11": .age11,
         "AL": .general, "TP": .general
     ]
 
