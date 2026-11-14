@@ -71,6 +71,13 @@ private final class AnimeFillerURLProtocol: URLProtocol {
 }
 
 final class AnimeStructurePolicyTests: XCTestCase {
+    func testAnimeDubFilterOnlySupportsEnglishAndSpanish() {
+        XCTAssertEqual(
+            MyDubListDubFilter.supportedLanguages,
+            Set([MyDubListLanguage.english.rawValue, MyDubListLanguage.spanish.rawValue])
+        )
+    }
+
     func testAnimeSpecialAndOVAExclusionUsesAniListFormats() {
         XCTAssertFalse(AnimeSpecialDubFilterPolicy.shouldInclude(format: "SPECIAL", hideSpecialsAndOVAs: true))
         XCTAssertFalse(AnimeSpecialDubFilterPolicy.shouldInclude(format: "ova", hideSpecialsAndOVAs: true))
