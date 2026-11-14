@@ -455,6 +455,13 @@ class TMDBContentFilter: ObservableObject {
             .sink { [weak self] revision in
                 guard let self, self.isKidsProfileActive else { return }
                 self.maturityRatingRevision = revision
+                // Kids-profile ratings are resolved asynchronously. Reapply
+                // the updated safety filter to the retained catalog snapshot
+                // instead of forcing HomeView to reload and replace its rows.
+                NotificationCenter.default.post(
+                    name: Self.catalogFiltersDidChangeNotification,
+                    object: nil
+                )
             }
             .store(in: &cancellables)
     }
