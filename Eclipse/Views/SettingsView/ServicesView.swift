@@ -3277,6 +3277,10 @@ struct AnimeScheduleSettingsView: View {
                 await AnimeScheduleService.shared.updateToken(normalizedToken)
                 _ = try await AnimeScheduleService.shared.fetchSchedule(daysAhead: 7)
                 await MainActor.run {
+                    NotificationCenter.default.post(
+                        name: AnimeScheduleService.credentialsDidChangeNotification,
+                        object: nil
+                    )
                     isTestingConnection = false
                     statusIsError = false
                     statusMessage = "Connected. English dub schedule data was received."
