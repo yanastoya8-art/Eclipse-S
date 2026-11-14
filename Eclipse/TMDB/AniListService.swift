@@ -1275,6 +1275,9 @@ final class AnimeMetadataService {
         requiredSpecialAniListIds: [Int] = [],
         tmdbService: TMDBService
     ) async -> [AniListSpecialSearchEntry] {
+        guard !UserDefaults.standard.bool(forKey: "catalogHideAnimeSpecialsAndOVAs") else {
+            return []
+        }
         let entries = await aniListService.fetchSpecialSearchEntries(
             tmdbShowId: tmdbShowId,
             fallbackPosterURL: fallbackPosterURL,
