@@ -42,9 +42,10 @@ struct ScheduleView: View {
         let profileEntries = entries.filter { entry in
             guard entry.source == .anime else { return true }
             if hideAnime { return false }
-            if hideSpecialsAndOVAs,
-               let format = entry.format?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased(),
-               ["SPECIAL", "OVA"].contains(format) {
+            if !AnimeSpecialDubFilterPolicy.shouldInclude(
+                format: entry.format,
+                hideSpecialsAndOVAs: hideSpecialsAndOVAs
+            ) {
                 return false
             }
             return true
