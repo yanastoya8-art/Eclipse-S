@@ -160,7 +160,6 @@ struct ServicesView: View {
     @State private var didScheduleInitialExtraSettingsNavigation = false
     @State private var didScheduleInitialAutoModeSettingsNavigation = false
     @State private var showAutoModeSettings = false
-    @State private var showJustWatchSettings = false
     @State private var showExtraServiceSettings = false
     @State private var bulkSourceActivationError: String?
     @State private var showSkyStreamManager = false
@@ -368,15 +367,6 @@ struct ServicesView: View {
                 .accessibilityLabel("Add Source")
             }
 #endif
-            Button {
-                showJustWatchSettings = true
-            } label: {
-                Label("JustWatch API", systemImage: "key.horizontal")
-            }
-            .buttonStyle(.bordered)
-            .sheet(isPresented: $showJustWatchSettings) {
-                NavigationStack { JustWatchSettingsView() }
-            }
 #if os(tvOS)
             if isAdministrable {
                 HStack(spacing: 24) {
@@ -999,22 +989,6 @@ struct ServicesView: View {
             }
             .eclipseExperimentalSettingsRows()
             .background(EclipseScrollTracker())
-
-            Section {
-                NavigationLink(isActive: $showJustWatchSettings) {
-                    JustWatchSettingsView()
-                } label: {
-                    HStack {
-                        Label("JustWatch", systemImage: "key.horizontal")
-                        Spacer()
-                        Text(JustWatchAPIKeyStore.hasKey ? "Configured" : "API key needed")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            } footer: {
-                Text("Add your API.SH key to enable language-aware streaming availability in the release schedule.")
-            }
-            .eclipseExperimentalSettingsRows()
 
             Section {
                 NavigationLink(isActive: $showAutoModeSettings) {
@@ -3217,7 +3191,7 @@ enum JustWatchAPIKeyStore {
     }
 }
 
-private struct JustWatchSettingsView: View {
+struct JustWatchSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var apiKey = JustWatchAPIKeyStore.load() ?? ""
     @State private var saveMessage: String?
