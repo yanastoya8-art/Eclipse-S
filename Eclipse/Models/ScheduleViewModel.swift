@@ -480,6 +480,19 @@ final class ScheduleViewModel: ObservableObject {
             activeLoadMode = mode
             activeLoadDayCount = requestedDayCount
             currentLocalTimeZone = localTimeZone
+            if mode == .anime || mode == .combined {
+                let activeAnimePolicyKey = currentAnimeSchedulePolicyKey()
+                if animeScheduleCachedPolicyKey != activeAnimePolicyKey {
+                    // Do not leave an old AniList broadcast list visible while a
+                    // newly selected dubbed-language policy is being resolved.
+                    scheduleEntries.removeAll { $0.source == .anime }
+                    updateBuckets(
+                        with: scheduleEntries,
+                        localTimeZone: localTimeZone,
+                        dayCount: requestedDayCount
+                    )
+                }
+            }
             if forceRefresh {
                 posterHydrationAttemptedTMDBIDs.removeAll(keepingCapacity: true)
                 moviePosterHydrationAttemptedTMDBIDs.removeAll(keepingCapacity: true)
