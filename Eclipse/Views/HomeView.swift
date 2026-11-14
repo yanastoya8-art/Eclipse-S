@@ -2135,6 +2135,7 @@ struct HomeView: View {
             let processor = DownsamplingImageProcessor(size: heroImageDecodeSize)
             Task { _ = await prefetchHeroImage(imageURL, processor: processor) }
         }
+        do {
         let images: TMDBImagesResponse
         if hero.isMovie {
             images = try await tmdbService.getMovieImages(id: hero.id, preferredLanguage: language)
@@ -2226,8 +2227,7 @@ struct HomeView: View {
         let processor = DownsamplingImageProcessor(size: heroImageDecodeSize)
         let upcomingHeroes = homeViewModel.upcomingHeroCarouselItems(limit: 2)
         for hero in upcomingHeroes {
-            guard let imageURL = heroImageURL(for: hero),
-                  let url = URL(string: imageURL) else { continue }
+            guard let imageURL = heroImageURL(for: hero) else { continue }
             Task { _ = await prefetchHeroImage(imageURL, processor: processor) }
             let language = selectedLanguage
             do {
