@@ -7,6 +7,31 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		E6C1E0000000000000000001 /* PortableColorArchive.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62320CD2A5FAC3DC09A3DE91 /* PortableColorArchive.swift */; };
+		E6C1E0000000000000000002 /* EclipseDataDirectories.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8881ADECC7A82AC17F49B09C /* EclipseDataDirectories.swift */; };
+		E6C1E0000000000000000003 /* ImagePipelineConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39E9DB015F0E0D5B96A2EA04 /* ImagePipelineConfiguration.swift */; };
+		E6C1E0000000000000000004 /* PlatformCapabilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6C1F0000000000000000001 /* PlatformCapabilities.swift */; };
+		E6C1E0000000000000000005 /* PlatformPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A76CFB4D993C56CFE8A737C /* PlatformPresentation.swift */; };
+		E6C1E0000000000000000006 /* ProviderPlatformUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4DA952ED491E99CD5B84311 /* ProviderPlatformUI.swift */; };
+		E6C1E0000000000000000007 /* MediaDetailAppearanceSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 259D916F531EA2DD391F08CE /* MediaDetailAppearanceSettings.swift */; };
+		E6C1E0000000000000000008 /* MediaStateModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6C1F0000000000000000002 /* MediaStateModels.swift */; };
+		E6C1E0000000000000000009 /* MediaStateSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6C1F0000000000000000003 /* MediaStateSync.swift */; };
+		E6C1E0000000000000000010 /* AVPlayerResourceLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6C1F0000000000000000004 /* AVPlayerResourceLoader.swift */; };
+		E6C1E0000000000000000011 /* MPVTVRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6C1F0000000000000000005 /* MPVTVRenderer.swift */; };
+		E6C1E0000000000000000012 /* NextEpisodeResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6C1F0000000000000000006 /* NextEpisodeResolver.swift */; };
+		E6C1E0000000000000000013 /* PlaybackCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6C1F0000000000000000007 /* PlaybackCoordinator.swift */; };
+		E6C1E0000000000000000014 /* PlaybackEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6C1F0000000000000000008 /* PlaybackEngine.swift */; };
+		E6C1E0000000000000000015 /* PlaybackLaunchContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6C1F0000000000000000009 /* PlaybackLaunchContext.swift */; };
+		E6C1E0000000000000000016 /* PlaybackRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6C1F0000000000000000010 /* PlaybackRequest.swift */; };
+		E6C1E0000000000000000017 /* PlaybackSubtitleSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90BF2D51A1E5A8DF4E57256A /* PlaybackSubtitleSupport.swift */; };
+		E6C1E0000000000000000018 /* PlayerEpisodeBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84DB5AFFAFF38927E3C43404 /* PlayerEpisodeBrowser.swift */; };
+		E6C1E0000000000000000019 /* PlayerSubtitleAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5897A1DEE07B58F6D29D5D3 /* PlayerSubtitleAppearance.swift */; };
+		E6C1E0000000000000000020 /* AnimeScheduleService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C900010000000000000003 /* AnimeScheduleService.swift */; };
+		E6C1E0000000000000000021 /* TrackerCloudSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C50A0010000000000000005 /* TrackerCloudSync.swift */; };
+		E6C1E0000000000000000022 /* TrackerCollectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81ECB804A2424540A60DFE91 /* TrackerCollectionView.swift */; };
+		E6C1E0000000000000000023 /* KanzenReaderUpscaleModelStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCD67B02EBEF0564A3D0D7F8 /* KanzenReaderUpscaleModelStore.swift */; };
+		E6C1E0000000000000000024 /* KanzenSearchModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFEAB1B0B4307444E9F64051 /* KanzenSearchModels.swift */; };
+		E6C1E0000000000000000025 /* ReaderExtensionBrowserTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B2758602585D0CCD9503675 /* ReaderExtensionBrowserTransport.swift */; };
 		CF673F45A47A705DFED9848B /* ReaderLocalEPUBLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E0CE323DA747526EDA48D66 /* ReaderLocalEPUBLibrary.swift */; };
 		338D0B1850088A4AB118463A /* ReaderNovelNavigationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B60EE14F4840E3FCED3B95A /* ReaderNovelNavigationTests.swift */; };
 		3C6A7D6157A27935CA14BFD6 /* ReaderExtensionEPUBTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3BD7C2A002E8BE4FE706B58 /* ReaderExtensionEPUBTests.swift */; };
@@ -670,6 +695,16 @@
 		12F7451D2EB52DFC00889684 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = XCTESTFR0000000000000001 /* XCTest.framework */; };
 		3631951E94427514E27A63D0 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = XCTESTFR0000000000000001 /* XCTest.framework */; };
 /* Begin PBXFileReference section */
+		E6C1F0000000000000000001 /* PlatformCapabilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Eclipse/Extensions/PlatformCapabilities.swift"; sourceTree = SOURCE_ROOT; };
+		E6C1F0000000000000000002 /* MediaStateModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Eclipse/Models/MediaStateModels.swift"; sourceTree = SOURCE_ROOT; };
+		E6C1F0000000000000000003 /* MediaStateSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Eclipse/Models/MediaStateSync.swift"; sourceTree = SOURCE_ROOT; };
+		E6C1F0000000000000000004 /* AVPlayerResourceLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Eclipse/Player/AVPlayerResourceLoader.swift"; sourceTree = SOURCE_ROOT; };
+		E6C1F0000000000000000005 /* MPVTVRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Eclipse/Player/MPVTVRenderer.swift"; sourceTree = SOURCE_ROOT; };
+		E6C1F0000000000000000006 /* NextEpisodeResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Eclipse/Player/NextEpisodeResolver.swift"; sourceTree = SOURCE_ROOT; };
+		E6C1F0000000000000000007 /* PlaybackCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Eclipse/Player/PlaybackCoordinator.swift"; sourceTree = SOURCE_ROOT; };
+		E6C1F0000000000000000008 /* PlaybackEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Eclipse/Player/PlaybackEngine.swift"; sourceTree = SOURCE_ROOT; };
+		E6C1F0000000000000000009 /* PlaybackLaunchContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Eclipse/Player/PlaybackLaunchContext.swift"; sourceTree = SOURCE_ROOT; };
+		E6C1F0000000000000000010 /* PlaybackRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Eclipse/Player/PlaybackRequest.swift"; sourceTree = SOURCE_ROOT; };
 		9E0CE323DA747526EDA48D66 /* ReaderLocalEPUBLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderLocalEPUBLibrary.swift; sourceTree = "<group>"; };
 		0B60EE14F4840E3FCED3B95A /* ReaderNovelNavigationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderNovelNavigationTests.swift; sourceTree = "<group>"; };
 		19C0057C714F40D28E5A1C15 /* AppCalendar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCalendar.swift; sourceTree = "<group>"; };
@@ -1109,6 +1144,16 @@
 				1324E7B62E940BD70036B5F5 /* SampleBufferDisplayView.swift */,
 				CC8888802FA0000000CC8880 /* AniSkipService.swift */,
 				EE1111102FC0000000EE1110 /* IntroDBService.swift */,
+				E6C1F0000000000000000004 /* AVPlayerResourceLoader.swift */,
+				E6C1F0000000000000000005 /* MPVTVRenderer.swift */,
+				E6C1F0000000000000000006 /* NextEpisodeResolver.swift */,
+				E6C1F0000000000000000007 /* PlaybackCoordinator.swift */,
+				E6C1F0000000000000000008 /* PlaybackEngine.swift */,
+				E6C1F0000000000000000009 /* PlaybackLaunchContext.swift */,
+				E6C1F0000000000000000010 /* PlaybackRequest.swift */,
+				90BF2D51A1E5A8DF4E57256A /* PlaybackSubtitleSupport.swift */,
+				84DB5AFFAFF38927E3C43404 /* PlayerEpisodeBrowser.swift */,
+				B5897A1DEE07B58F6D29D5D3 /* PlayerSubtitleAppearance.swift */,
 			);
 			path = Player;
 			sourceTree = "<group>";
@@ -1126,6 +1171,7 @@
 			children = (
 				1375466F2E5F079000B29944 /* Progress */,
 				AA9999902F10000000AA9990 /* Trackers */,
+				9C50A0010000000000000005 /* TrackerCloudSync.swift */,
 			);
 			path = Tracking;
 			sourceTree = "<group>";
@@ -1159,6 +1205,9 @@
 				13E1EDA12ED9E65F00087629 /* Models */,
 				13E1EDA82ED9E65F00087629 /* KanzenEngine */,
 				13E1EDB52ED9E65F00087629 /* Views */,
+				DCD67B02EBEF0564A3D0D7F8 /* KanzenReaderUpscaleModelStore.swift */,
+				AFEAB1B0B4307444E9F64051 /* KanzenSearchModels.swift */,
+				9B2758602585D0CCD9503675 /* ReaderExtensionBrowserTransport.swift */,
 			);
 			path = Kanzen;
 			sourceTree = "<group>";
@@ -1492,6 +1541,15 @@
 				AD10000A2FE1000000AD100A /* Localizable.xcstrings */,
 				13F072642E4B2D3700EF90EB /* Eclipse.entitlements */,
 				1240112B2EFF3B8B00CEC6EB /* Eclipse.local.entitlements */,
+				8881ADECC7A82AC17F49B09C /* EclipseDataDirectories.swift */,
+				39E9DB015F0E0D5B96A2EA04 /* ImagePipelineConfiguration.swift */,
+				E6C1F0000000000000000001 /* PlatformCapabilities.swift */,
+				7A76CFB4D993C56CFE8A737C /* PlatformPresentation.swift */,
+				259D916F531EA2DD391F08CE /* MediaDetailAppearanceSettings.swift */,
+				E6C1F0000000000000000002 /* MediaStateModels.swift */,
+				E6C1F0000000000000000003 /* MediaStateSync.swift */,
+				A5C900010000000000000003 /* AnimeScheduleService.swift */,
+				81ECB804A2424540A60DFE91 /* TrackerCollectionView.swift */,
 			);
 			path = Eclipse;
 			sourceTree = "<group>";
@@ -1510,6 +1568,7 @@
 				13F072712E4B2D9000EF90EB /* JSController-Details.swift */,
 				13F072732E4B2D9000EF90EB /* JSController-Streams.swift */,
 				13F072742E4B2D9000EF90EB /* JSController.swift */,
+				B4DA952ED491E99CD5B84311 /* ProviderPlatformUI.swift */,
 			);
 			path = JSLoader;
 			sourceTree = "<group>";
@@ -1619,6 +1678,7 @@
 				A1B2C3022FA0000100A1B2C2 /* HeroTransition.swift */,
 				12E7AF5F2EB80771003B7664 /* Platform.swift */,
 				EC10AD1200000000EC10AD12 /* EclipseLoadingIndicator.swift */,
+				62320CD2A5FAC3DC09A3DE91 /* PortableColorArchive.swift */,
 			);
 			path = Extensions;
 			sourceTree = "<group>";
@@ -2298,6 +2358,31 @@
 				7ED5FC17AE248296898CEE68,
 				ACBBDB45690CAAC718222A72,
 				F3527083B12D4FD2999A607C /* PluginCloudConfiguration.swift in Sources */,
+				E6C1E0000000000000000001 /* PortableColorArchive.swift in Sources */,
+				E6C1E0000000000000000002 /* EclipseDataDirectories.swift in Sources */,
+				E6C1E0000000000000000003 /* ImagePipelineConfiguration.swift in Sources */,
+				E6C1E0000000000000000004 /* PlatformCapabilities.swift in Sources */,
+				E6C1E0000000000000000005 /* PlatformPresentation.swift in Sources */,
+				E6C1E0000000000000000006 /* ProviderPlatformUI.swift in Sources */,
+				E6C1E0000000000000000007 /* MediaDetailAppearanceSettings.swift in Sources */,
+				E6C1E0000000000000000008 /* MediaStateModels.swift in Sources */,
+				E6C1E0000000000000000009 /* MediaStateSync.swift in Sources */,
+				E6C1E0000000000000000010 /* AVPlayerResourceLoader.swift in Sources */,
+				E6C1E0000000000000000011 /* MPVTVRenderer.swift in Sources */,
+				E6C1E0000000000000000012 /* NextEpisodeResolver.swift in Sources */,
+				E6C1E0000000000000000013 /* PlaybackCoordinator.swift in Sources */,
+				E6C1E0000000000000000014 /* PlaybackEngine.swift in Sources */,
+				E6C1E0000000000000000015 /* PlaybackLaunchContext.swift in Sources */,
+				E6C1E0000000000000000016 /* PlaybackRequest.swift in Sources */,
+				E6C1E0000000000000000017 /* PlaybackSubtitleSupport.swift in Sources */,
+				E6C1E0000000000000000018 /* PlayerEpisodeBrowser.swift in Sources */,
+				E6C1E0000000000000000019 /* PlayerSubtitleAppearance.swift in Sources */,
+				E6C1E0000000000000000020 /* AnimeScheduleService.swift in Sources */,
+				E6C1E0000000000000000021 /* TrackerCloudSync.swift in Sources */,
+				E6C1E0000000000000000022 /* TrackerCollectionView.swift in Sources */,
+				E6C1E0000000000000000023 /* KanzenReaderUpscaleModelStore.swift in Sources */,
+				E6C1E0000000000000000024 /* KanzenSearchModels.swift in Sources */,
+				E6C1E0000000000000000025 /* ReaderExtensionBrowserTransport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
