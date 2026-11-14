@@ -197,153 +197,103 @@ struct DownloadsSettingsView: View {
     @AppStorage(DownloadLibraryPosterSize.storageKey, store: .standard)
     private var downloadLibraryPosterSize = DownloadLibraryPosterSize.standard.rawValue
 #if !os(tvOS)
-                GlassSection(header: "Video Downloads") {
-                        VStack(spacing: 0) {
-                            GlassDetailRow(icon: "arrow.down.circle", iconColor: .blue, title: "Concurrent Downloads") {
-                                Picker("Concurrent Downloads", selection: Binding(
-                                    get: { DownloadConcurrencySettings.sanitized(concurrentVideoDownloads) },
-                                    set: { value in
-                                        guard !ProfileManager.shared.isKidsModeActive else { return }
-                                        concurrentVideoDownloads = value
-                                        DownloadManager.shared.applyQueueSettingsChanged()
-                                    }
-                                )) {
-                                    ForEach(DownloadConcurrencySettings.limits, id: \.self) { Text("\($0)").tag($0) }
-                                }
-                                .labelsHidden()
-                                .accessibilityLabel("Concurrent Downloads")
-                                .accessibilityIdentifier("settings.storage.concurrentDownloads")
-                                .accessibilityValue(String(DownloadConcurrencySettings.sanitized(concurrentVideoDownloads)))
-                                .pickerStyle(.menu)
-                            }
-                            GlassDivider()
-                            GlassDetailRow(icon: "film", iconColor: .purple, title: "Concurrent HLS Downloads", subtitle: "HLS packaging also uses the overall download limit. Higher limits use more memory and power; current downloads finish when a limit is lowered.") {
-                                Picker("Concurrent HLS Downloads", selection: Binding(
-                                    get: { DownloadConcurrencySettings.sanitized(concurrentHLSDownloads, defaultValue: 1) },
-                                    set: { value in
-                                        guard !ProfileManager.shared.isKidsModeActive else { return }
-                                        concurrentHLSDownloads = value
-                                        DownloadManager.shared.applyQueueSettingsChanged()
-                                    }
-                                )) {
-                                    ForEach(DownloadConcurrencySettings.limits, id: \.self) { Text("\($0)").tag($0) }
-                                }
-                                .labelsHidden()
-                                .accessibilityLabel("Concurrent HLS Downloads")
-                                .accessibilityIdentifier("settings.storage.concurrentHLSDownloads")
-                                .accessibilityValue(String(DownloadConcurrencySettings.sanitized(concurrentHLSDownloads, defaultValue: 1)))
-                                .pickerStyle(.menu)
-                            }
-                #if os(iOS) && !targetEnvironment(macCatalyst)
-                            if #available(iOS 26.0, *), PlatformCapabilities.current.supportsHLSBackgroundDownloads {
-                                GlassDivider()
-                                GlassDetailRow(icon: "arrow.down.circle", iconColor: .blue, title: "Background Downloads", subtitle: "Direct video files use iOS background transfers. This option enables extended background processing for HLS streams on supported iOS versions; iOS may still pause a transfer.") {
-                                    Toggle("Background Downloads", isOn: Binding(
-                                        get: { backgroundDownloadsEnabled },
-                                        set: { value in
-                                            guard !ProfileManager.shared.isKidsModeActive else { return }
-                                            backgroundDownloadsEnabled = value
-                                            DownloadManager.shared.applyHLSBackgroundDownloadsSettingChanged()
-                                        }
-                                    ))
-                                    .labelsHidden()
-                                    .tint(accent)
-                                    .accessibilityIdentifier("settings.storage.backgroundDownloads")
-                                }
+    @AppStorage(DownloadConcurrencySettings.videoLimitKey, store: .standard) private var concurrentVideoDownloads = 2
+    @AppStorage(DownloadConcurrencySettings.hlsLimitKey, store: .standard) private var concurrentHLSDownloads = 1
+    @AppStorage(DownloadAllFillerPolicy.enabledKey) private var downloadSkipFillerEnabled = false
 #endif
 #if os(iOS) && !targetEnvironment(macCatalyst)
     @AppStorage(BackgroundDownloadSettings.enabledKey, store: .standard) private var backgroundDownloadsEnabled = false
 #endif
     @StateObject private var accentColorManager = AccentColorManager.shared
+
     private var accent: Color { accentColorManager.currentAccentColor }
 
     var body: some View {
         ScrollView {
             VStack(spacing: 22) {
 #if !os(tvOS)
-private var downloadSettingsSection: some View {
-    GlassSection(header: "Video Downloads") {
-        VStack(spacing: 0) {
-            GlassDetailRow(icon: "arrow.down.circle", iconColor: .blue, title: "Concurrent Downloads") {
-                Picker("Concurrent Downloads", selection: Binding(
-                    get: { DownloadConcurrencySettings.sanitized(concurrentVideoDownloads) },
-                    set: { value in
-                        guard !ProfileManager.shared.isKidsModeActive else { return }
-                        concurrentVideoDownloads = value
-                        DownloadManager.shared.applyQueueSettingsChanged()
-                    }
-                )) {
-                    ForEach(DownloadConcurrencySettings.limits, id: \.self) { Text("\($0)").tag($0) }
-                }
-                .labelsHidden()
-                .accessibilityLabel("Concurrent Downloads")
-                .accessibilityIdentifier("settings.storage.concurrentDownloads")
-                .accessibilityValue(String(DownloadConcurrencySettings.sanitized(concurrentVideoDownloads)))
-                .pickerStyle(.menu)
-            }
-            GlassDivider()
-            GlassDetailRow(icon: "film", iconColor: .purple, title: "Concurrent HLS Downloads", subtitle: "HLS packaging also uses the overall download limit. Higher limits use more memory and power; current downloads finish when a limit is lowered.") {
-                Picker("Concurrent HLS Downloads", selection: Binding(
-                    get: { DownloadConcurrencySettings.sanitized(concurrentHLSDownloads, defaultValue: 1) },
-                    set: { value in
-                        guard !ProfileManager.shared.isKidsModeActive else { return }
-                        concurrentHLSDownloads = value
-                        DownloadManager.shared.applyQueueSettingsChanged()
-                    }
-                )) {
-                    ForEach(DownloadConcurrencySettings.limits, id: \.self) { Text("\($0)").tag($0) }
-                }
-                .labelsHidden()
-                .accessibilityLabel("Concurrent HLS Downloads")
-                .accessibilityIdentifier("settings.storage.concurrentHLSDownloads")
-                .accessibilityValue(String(DownloadConcurrencySettings.sanitized(concurrentHLSDownloads, defaultValue: 1)))
-                .pickerStyle(.menu)
-            }
-#if os(iOS) && !targetEnvironment(macCatalyst)
-            if #available(iOS 26.0, *), PlatformCapabilities.current.supportsHLSBackgroundDownloads {
-                GlassDivider()
-                GlassDetailRow(icon: "arrow.down.circle", iconColor: .blue, title: "Background Downloads", subtitle: "Direct video files use iOS background transfers. This option enables extended background processing for HLS streams on supported iOS versions; iOS may still pause a transfer.") {
-                    Toggle("Background Downloads", isOn: Binding(
-                        get: { backgroundDownloadsEnabled },
-                        set: { value in
-                            guard !ProfileManager.shared.isKidsModeActive else { return }
-                            backgroundDownloadsEnabled = value
-                            DownloadManager.shared.applyHLSBackgroundDownloadsSettingChanged()
+                GlassSection(header: "Video Downloads") {
+                    VStack(spacing: 0) {
+                        GlassDetailRow(icon: "arrow.down.circle", iconColor: .blue, title: "Concurrent Downloads") {
+                            Picker("Concurrent Downloads", selection: Binding(
+                                get: { DownloadConcurrencySettings.sanitized(concurrentVideoDownloads) },
+                                set: { value in
+                                    guard !ProfileManager.shared.isKidsModeActive else { return }
+                                    concurrentVideoDownloads = value
+                                    DownloadManager.shared.applyQueueSettingsChanged()
+                                }
+                            )) {
+                                ForEach(DownloadConcurrencySettings.limits, id: \.self) { Text("\($0)").tag($0) }
+                            }
+                            .labelsHidden()
+                            .accessibilityLabel("Concurrent Downloads")
+                            .accessibilityIdentifier("settings.storage.concurrentDownloads")
+                            .accessibilityValue(String(DownloadConcurrencySettings.sanitized(concurrentVideoDownloads)))
+                            .pickerStyle(.menu)
                         }
-                    ))
-                    .labelsHidden()
-                    .tint(accent)
-                    .accessibilityIdentifier("settings.storage.backgroundDownloads")
-                }
-            }
+                        GlassDivider()
+                        GlassDetailRow(icon: "film", iconColor: .purple, title: "Concurrent HLS Downloads", subtitle: "HLS packaging also uses the overall download limit. Higher limits use more memory and power; current downloads finish when a limit is lowered.") {
+                            Picker("Concurrent HLS Downloads", selection: Binding(
+                                get: { DownloadConcurrencySettings.sanitized(concurrentHLSDownloads, defaultValue: 1) },
+                                set: { value in
+                                    guard !ProfileManager.shared.isKidsModeActive else { return }
+                                    concurrentHLSDownloads = value
+                                    DownloadManager.shared.applyQueueSettingsChanged()
+                                }
+                            )) {
+                                ForEach(DownloadConcurrencySettings.limits, id: \.self) { Text("\($0)").tag($0) }
+                            }
+                            .labelsHidden()
+                            .accessibilityLabel("Concurrent HLS Downloads")
+                            .accessibilityIdentifier("settings.storage.concurrentHLSDownloads")
+                            .accessibilityValue(String(DownloadConcurrencySettings.sanitized(concurrentHLSDownloads, defaultValue: 1)))
+                            .pickerStyle(.menu)
+                        }
+#if os(iOS) && !targetEnvironment(macCatalyst)
+                        if #available(iOS 26.0, *), PlatformCapabilities.current.supportsHLSBackgroundDownloads {
+                            GlassDivider()
+                            GlassDetailRow(icon: "arrow.down.circle", iconColor: .blue, title: "Background Downloads", subtitle: "Direct video files use iOS background transfers. This option enables extended background processing for HLS streams on supported iOS versions; iOS may still pause a transfer.") {
+                                Toggle("Background Downloads", isOn: Binding(
+                                    get: { backgroundDownloadsEnabled },
+                                    set: { value in
+                                        guard !ProfileManager.shared.isKidsModeActive else { return }
+                                        backgroundDownloadsEnabled = value
+                                        DownloadManager.shared.applyHLSBackgroundDownloadsSettingChanged()
+                                    }
+                                ))
+                                .labelsHidden()
+                                .tint(accent)
+                                .accessibilityIdentifier("settings.storage.backgroundDownloads")
+                            }
+                        }
 #endif
-            GlassDivider()
-            GlassDetailRow(icon: "photo", iconColor: .purple, title: "Downloaded Show Poster Size", subtitle: "Choose the poster size for series cards in Downloads > Library.") {
-                Picker("Downloaded Show Poster Size", selection: $downloadLibraryPosterSize) {
-                    ForEach(DownloadLibraryPosterSize.allCases) { size in
-                        Text(size.title).tag(size.rawValue)
+                        GlassDivider()
+                        GlassDetailRow(icon: "photo", iconColor: .purple, title: "Downloaded Show Poster Size", subtitle: "Choose the poster size for series cards in Downloads > Library.") {
+                            Picker("Downloaded Show Poster Size", selection: $downloadLibraryPosterSize) {
+                                ForEach(DownloadLibraryPosterSize.allCases) { size in
+                                    Text(size.title).tag(size.rawValue)
+                                }
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .accessibilityIdentifier("settings.storage.downloadLibraryPosterSize")
+                        }
+                        GlassDivider()
+                        GlassDetailRow(icon: "forward.end", iconColor: .orange, title: "Skip Filler in Download All", subtitle: "Skip only episodes explicitly marked as filler. Mixed, unknown, and unavailable classifications are included. Individual downloads stay available.") {
+                            Toggle("Skip Filler in Download All", isOn: Binding(
+                                get: { downloadSkipFillerEnabled },
+                                set: { value in
+                                    guard !ProfileManager.shared.isKidsModeActive else { return }
+                                    downloadSkipFillerEnabled = value
+                                }
+                            ))
+                            .labelsHidden()
+                            .tint(accent)
+                        }
                     }
+                    .disabled(ProfileManager.shared.isKidsModeActive)
                 }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .accessibilityIdentifier("settings.storage.downloadLibraryPosterSize")
-            }
-            GlassDivider()
-            GlassDetailRow(icon: "forward.end", iconColor: .orange, title: "Skip Filler in Download All", subtitle: "Skip only episodes explicitly marked as filler. Mixed, unknown, and unavailable classifications are included. Individual downloads stay available.") {
-                Toggle("Skip Filler in Download All", isOn: Binding(
-                    get: { downloadSkipFillerEnabled },
-                    set: { value in
-                        guard !ProfileManager.shared.isKidsModeActive else { return }
-                        downloadSkipFillerEnabled = value
-                    }
-                ))
-                .labelsHidden()
-                .tint(accent)
-            }
-        }
-        .disabled(ProfileManager.shared.isKidsModeActive)
-    }
-}
+                GlassSectionFooter("Download queue limits and background transfer preferences apply to video downloads. Kids profiles keep download configuration locked.")
 #endif
 #if os(macOS)
                 GlassSection(header: "Download Folders") {
