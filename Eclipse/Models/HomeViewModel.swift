@@ -321,6 +321,51 @@ final class HomeViewModel: ObservableObject {
                 }
             }
 
+            var seenTVMazeIDs = Set<Int>()
+            let tvMazeRequests = loadedCatalogs.values
+                .flatMap { $0 }
+                .compactMap { result -> TVMazePosterRequest? in
+                    let language = result.originalLanguage?.lowercased() ?? ""
+                    let likelyAnime = result.animeIdentitySeed != nil
+                        || result.isAnimeHint == true
+                        || (result.genreIds?.contains(16) == true
+                            && (["ja", "zh", "ko"].contains(language)
+                                || result.originCountry?.contains(where: { ["JP", "CN", "KR", "TW"].contains($0) }) == true))
+                    guard result.mediaType.lowercased() == "tv",
+                          !likelyAnime,
+                          seenTVMazeIDs.insert(result.id).inserted else { return nil }
+                    let rawYear = result.firstAirDate ?? result.releaseDate
+                    return TVMazePosterRequest(
+                        id: result.id,
+                        title: result.displayTitle,
+                        year: rawYear.flatMap { Int($0.prefix(4)) }
+                    )
+                }
+
+            if !tvMazeRequests.isEmpty {
+                Task { [weak self] in
+                    guard let self else { return }
+                    let posters = await TVMazeArtworkPosterService.shared.posters(for: tvMazeRequests)
+                    guard !Task.isCancelled else { return }
+                    await MainActor.run {
+                        guard self.loadGeneration == generation else { return }
+                        self.unfilteredCatalogResults = self.unfilteredCatalogResults.mapValues { items in
+                            items.map { item in
+                                guard let poster = posters[item.id] else { return item }
+                                return item.withTVMazePosterURL(poster)
+                            }
+                        }
+                        self.catalogResults = self.catalogResults.mapValues { items in
+                            items.map { item in
+                                guard let poster = posters[item.id] else { return item }
+                                return item.withTVMazePosterURL(poster)
+                            }
+                        }
+                        self.applyHeroBannerSelection()
+                    }
+                }
+            }
+
             async let stremioCatalogs = self.loadStremioCatalogs(
                 enabledCatalogs: enabledCatalogSnapshot,
                 tmdbService: tmdbService,
