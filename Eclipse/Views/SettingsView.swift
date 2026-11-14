@@ -38,8 +38,8 @@ struct SettingsView: View {
     @AppStorage("githubReleaseURL", store: .standard) private var githubReleaseURL = ""
     @AppStorage("defaultScheduleMode") private var defaultScheduleModeRaw = ScheduleMode.anime.rawValue
     @AppStorage(ScheduleWindow.storageKey) private var scheduleWindowDays = ScheduleWindow.defaultValue.rawValue
-    @AppStorage("catalogHideBelowPG13Movies", store: .standard) private var hideBelowPG13Movies = false
-    @AppStorage("catalogHideBelowTV14Shows", store: .standard) private var hideBelowTV14Shows = false
+    @AppStorage("catalogHideBelowPG13Movies", store: .standard) private var hideBelowPG13Movies = true
+    @AppStorage("catalogHideBelowTV14Shows", store: .standard) private var hideBelowTV14Shows = true
     @AppStorage("catalogHideBelowPG13Anime", store: .standard) private var hideBelowPG13Anime = false
     @AppStorage("catalogRequireEnglishSpanishAudio", store: .standard) private var requireEnglishSpanishAudio = false
 #if !os(tvOS)
@@ -5414,17 +5414,17 @@ private struct AgeFiltersSettingsView: View {
     var body: some View {
         List {
             Section {
-                Toggle("Hide movies below PG-13", isOn: $hideBelowPG13Movies)
+                Toggle("Hide movies rated below 13+", isOn: $hideBelowPG13Movies)
                     .onChange(of: hideBelowPG13Movies) { _ in filtersDidChange() }
                     .accessibilityIdentifier("settings.contentFilters.moviesPG13")
-                Toggle("Hide TV shows below TV-14", isOn: $hideBelowTV14Shows)
+                Toggle("Hide TV shows rated below 13+", isOn: $hideBelowTV14Shows)
                     .onChange(of: hideBelowTV14Shows) { _ in filtersDidChange() }
                     .accessibilityIdentifier("settings.contentFilters.tv14")
                 Toggle("Hide anime below PG-13", isOn: $hideBelowPG13Anime)
                     .onChange(of: hideBelowPG13Anime) { _ in filtersDidChange() }
                     .accessibilityIdentifier("settings.contentFilters.animePG13")
             } footer: {
-                Text("Titles below the selected rating are hidden. Unknown ratings continue to follow the app's existing age-rating policy.")
+                Text("Movies use the selected movie certification. TV shows use European national content ratings only (for example 12+, 13+, 14+ and 16+); US and other non-European TV rating providers are ignored. Unknown ratings remain visible rather than being assigned an age without evidence.")
             }
         }
         .eclipsePageTitle("Age Filters")
