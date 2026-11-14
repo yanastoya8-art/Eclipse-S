@@ -131,8 +131,9 @@ jobs:
           # upstream binary artifacts; use the locally rebuilt runtime for the
           # libmpv and FFmpeg frameworks that this job actually produces.
           python3 - <<'PY'
+          import os
           from pathlib import Path
-          manifest = Path("$MPVKIT_LOCAL_ARTIFACTS_DIR/Package.swift")
+          manifest = Path(os.environ["MPVKIT_LOCAL_ARTIFACTS_DIR"]) / "Package.swift"
           source = manifest.read_text()
           old = '"Libmpv", "MoltenVK", "Libplacebo", "Libavcodec"'
           new = '"Libmpv", "Libavcodec"'
