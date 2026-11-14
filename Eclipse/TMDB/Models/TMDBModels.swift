@@ -230,6 +230,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
 
     let animeIdentitySeed: AnimeMediaIdentitySeed?
     let animeArtworkURL: String?
+    let animeLogoURL: String?
 
     enum CodingKeys: String, CodingKey {
         case id, overview, popularity, adult
@@ -247,6 +248,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
         case isAnimeHint = "is_anime_hint"
         case animeIdentitySeed = "anime_identity_seed"
         case animeArtworkURL = "anime_artwork_url"
+        case animeLogoURL = "anime_logo_url"
     }
 
     init(
@@ -268,7 +270,8 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
         voteCount: Int? = nil,
         isAnimeHint: Bool? = nil,
         animeIdentitySeed: AnimeMediaIdentitySeed? = nil,
-        animeArtworkURL: String? = nil
+        animeArtworkURL: String? = nil,
+        animeLogoURL: String? = nil
     ) {
         self.id = id
         self.mediaType = mediaType
@@ -289,6 +292,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
         self.isAnimeHint = isAnimeHint
         self.animeIdentitySeed = animeIdentitySeed?.sanitizedForPersistence
         self.animeArtworkURL = Self.sanitizedAnimeArtworkURL(animeArtworkURL)
+        self.animeLogoURL = Self.sanitizedAnimeArtworkURL(animeLogoURL)
     }
 
     init(from decoder: Decoder) throws {
@@ -359,6 +363,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             .decodeIfPresent(AnimeMediaIdentitySeed.self, forKey: .animeIdentitySeed)?
             .sanitizedForPersistence
         animeArtworkURL = Self.sanitizedAnimeArtworkURL(try container.decodeIfPresent(String.self, forKey: .animeArtworkURL))
+        animeLogoURL = Self.sanitizedAnimeArtworkURL(try container.decodeIfPresent(String.self, forKey: .animeLogoURL))
     }
 
     var displayTitle: String {
@@ -438,7 +443,8 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             voteCount: voteCount,
             isAnimeHint: isAnimeHint,
             animeIdentitySeed: animeIdentitySeed?.sanitizedForPersistence,
-            animeArtworkURL: animeArtworkURL
+            animeArtworkURL: animeArtworkURL,
+            animeLogoURL: animeLogoURL
         )
     }
 
@@ -447,7 +453,8 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
               let components = URLComponents(string: rawValue),
               components.scheme?.lowercased() == "https",
               let host = components.host?.lowercased(),
-              host == "anilist.co" || host.hasSuffix(".anilist.co"),
+              host == "anilist.co" || host.hasSuffix(".anilist.co")
+                || host == "taizen.moe" || host.hasSuffix(".taizen.moe"),
               components.user == nil, components.password == nil else { return nil }
         return components.url?.absoluteString
     }
@@ -472,7 +479,8 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             voteCount: voteCount,
             isAnimeHint: isAnimeHint,
             animeIdentitySeed: animeIdentitySeed,
-            animeArtworkURL: url
+            animeArtworkURL: url,
+            animeLogoURL: animeLogoURL
         )
     }
 
