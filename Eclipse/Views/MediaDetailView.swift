@@ -2889,10 +2889,13 @@ struct MediaDetailContentView: View {
             return movieDetail?.releaseDates?.preferredCertification?.displayValue
         }
         if let certification = tvShowDetail?.contentRatings?.preferredCertification {
+            if let animeAgeCertification {
+                return "\(certification.displayValue) · MAL/Taizen \(animeAgeCertification.ageBand)"
+            }
             return certification.displayValue
         }
         if let animeAgeCertification {
-            return "Taizen · \(animeAgeCertification.ageBand)"
+            return "MAL/Taizen · \(animeAgeCertification.ageBand)"
         }
         return nil
     }
