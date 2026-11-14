@@ -1399,7 +1399,7 @@ actor FanartTVMovieArtworkService {
     func posters(for requests: [FanartTVMoviePosterRequest]) async -> [Int: String] {
         let key = apiKey
         guard !key.isEmpty else { return [:] }
-        let ids = Array(Set(requests.map(\\.id).filter { (1...1_000_000_000).contains($0) }))
+        let ids = Array(Set(requests.map(\.id).filter { (1...1_000_000_000).contains($0) }))
             .sorted()
             .prefix(maximumBatchSize)
         guard !ids.isEmpty else { return [:] }
@@ -1431,7 +1431,7 @@ actor FanartTVMovieArtworkService {
             }
         }
 
-        guard var components = URLComponents(string: "https://webservice.fanart.tv/v3.2/movies/\\(id)") else {
+        guard var components = URLComponents(string: "https://webservice.fanart.tv/v3.2/movies/\(id)") else {
             return nil
         }
         components.queryItems = [URLQueryItem(name: "api_key", value: apiKey)]
