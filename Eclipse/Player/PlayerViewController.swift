@@ -6379,7 +6379,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
     private func applyInteractiveRenderThrottle() {
 #if os(iOS) && ECLIPSE_MPVKIT_MOLTENVK_INLINE_RENDERER && ECLIPSE_MPVKIT_SAMPLE_BUFFER_PIP_BRIDGE
-        metalMPVRenderer?.setInteractiveRenderThrottle(controlsVisible)
+        // The performance overlay is a diagnostic surface, not an interactive
+        // control. Never drop video to the low-FPS controls throttle while it is
+        // enabled, otherwise audio continues while the picture appears frozen.
+        let shouldThrottle = controlsVisible && !Settings.shared.mpvPerformanceOverlayEnabled
+        metalMPVRenderer?.setInteractiveRenderThrottle(shouldThrottle)
 #endif
     }
 
@@ -7308,6 +7312,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         Settings.shared.mpvPerformanceOverlayEnabled.toggle()
         performanceOverlayButton.isSelected = Settings.shared.mpvPerformanceOverlayEnabled
         performanceOverlayButton.tintColor = performanceOverlayButton.isSelected ? .systemGreen : .white
+        applyInteractiveRenderThrottle()
         updateMetalPerformanceOverlayVisibility()
         showControlsTemporarily()
     }
