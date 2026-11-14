@@ -2882,10 +2882,10 @@ struct MediaDetailContentView: View {
 
     private var detailAgeRating: String? {
         if searchResult.isMovie {
-            return movieDetail?.releaseDates?.preferredCertification?.value
+            return movieDetail?.releaseDates?.preferredCertification?.displayValue
         }
 
-        return tvShowDetail?.contentRatings?.preferredCertification?.value
+        return tvShowDetail?.contentRatings?.preferredCertification?.displayValue
     }
 
     @ViewBuilder
