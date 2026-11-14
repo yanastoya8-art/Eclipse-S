@@ -487,6 +487,7 @@ struct ScheduleView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    @ViewBuilder
     private var emptyStateView: some View {
         let isMovieSchedule = selectedScheduleMode == .movies
         EclipseEmptyState(
