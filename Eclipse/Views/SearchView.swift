@@ -2281,6 +2281,12 @@ private struct BrowseMediaView: View {
         }
         guard !candidates.isEmpty else { return results }
 
+        if !selectedDubLanguageCodes.isEmpty || originalAudioFilterEnabled {
+            Task(priority: .utility) {
+                await AniMapMappingService.shared.prepareGlobalIndexIfNeeded()
+            }
+        }
+
         return await withTaskGroup(of: (Int, TMDBSearchResult).self) { group in
             var iterator = candidates.makeIterator()
             // Cached mappings are cheap; modestly increase parallel resolution so
