@@ -495,7 +495,6 @@ struct MediaDetailContentView: View {
     // The same task is shared with optional-presentation loading to avoid duplicate image requests.
     @State private var titleArtworkTask: Task<TMDBImagesResponse?, Never>?
     @State private var titleArtworkLookupIdentity: String?
-    @State private var titleArtworkStartedAt = ProcessInfo.processInfo.systemUptime
     @State private var optionalPresentationGeneration = UUID()
     @State private var optionalPresentationIsComplete = false
     @State private var titleArtworkLookupComplete = false
@@ -6986,6 +6985,7 @@ struct MediaDetailContentView: View {
         let cacheKey = detailCacheKeyForCurrentRoute()
         titleArtworkLookupIdentity = identity
         titleArtworkLookupComplete = false
+        let startedAt = ProcessInfo.processInfo.systemUptime
 
         titleArtworkTask = Task { @MainActor in
             let images: TMDBImagesResponse?
@@ -7009,18 +7009,13 @@ struct MediaDetailContentView: View {
             }
             titleArtworkLookupComplete = true
             cacheOptionalPresentation(key: cacheKey)
-            let elapsedMs = Int(((ProcessInfo.processInfo.systemUptime - detailLoadStartedAtForArtwork) * 1_000).rounded())
+            let elapsedMs = Int(((ProcessInfo.processInfo.systemUptime - startedAt) * 1_000).rounded())
             Logger.shared.log(
-                "MediaDetailTiming: tmdbId=\\(id) stage=title-artwork-ready elapsedMs=\\(elapsedMs) found=\\(logoURL != nil)",
+                "MediaDetailTiming: tmdbId=\(id) stage=title-artwork-ready elapsedMs=\(elapsedMs) found=\(logoURL != nil)",
                 type: "TMDB"
             )
             return images
         }
-    }
-
-    private var detailLoadStartedAtForArtwork: TimeInterval {
-        // A stable monotonic origin for this request is stored when the task starts.
-        titleArtworkStartedAt
     }
 
     private func loadOptionalPresentationImages(id: Int, isMovie: Bool, language: String) async throws -> TMDBImagesResponse {
@@ -7245,7 +7240,6 @@ struct MediaDetailContentView: View {
         isLoadingSimilarTitles = false
         selectedSpecialEpisodeContext = nil
         let detailLoadStartedAt = ProcessInfo.processInfo.systemUptime
-        titleArtworkStartedAt = detailLoadStartedAt
         startTitleArtworkLookup()
 
         detailLoadTask = Task {
