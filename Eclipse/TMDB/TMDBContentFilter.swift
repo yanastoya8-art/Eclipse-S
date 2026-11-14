@@ -119,9 +119,14 @@ final class MyDubListDubFilter: @unchecked Sendable {
     private var loadedLanguages: Set<String> = []
     private var isLoaded = false
 
+    private static let supportedLanguages: Set<String> = [
+        MyDubListLanguage.english.rawValue,
+        MyDubListLanguage.spanish.rawValue
+    ]
+
     var selectedLanguages: Set<String> {
         Set((ProfileSettingsStore.active.stringArray(forKey: Self.selectedLanguagesKey) ?? [])
-            .filter { MyDubListLanguage(rawValue: $0) != nil })
+            .filter { Self.supportedLanguages.contains($0) })
     }
 
     var selectedLanguagesIncludingCatalogAudioRequirement: Set<String> {
@@ -141,7 +146,7 @@ final class MyDubListDubFilter: @unchecked Sendable {
     }
 
     func setSelectedLanguages(_ languages: Set<String>) {
-        let valid = languages.filter { MyDubListLanguage(rawValue: $0) != nil }
+        let valid = languages.filter { Self.supportedLanguages.contains($0) }
         ProfileSettingsStore.active.set(valid.sorted(), forKey: Self.selectedLanguagesKey)
         lock.lock()
         isLoaded = false
