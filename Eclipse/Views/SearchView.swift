@@ -2263,13 +2263,21 @@ private struct BrowseMediaView: View {
     private func resolveAnimeBrowseIdentities(
         _ results: [TMDBSearchResult]
     ) async -> [TMDBSearchResult] {
-        let dubLanguagesSelected = !MyDubListDubFilter.shared.selectedLanguages.isEmpty
+        let selectedDubLanguageCodes = Set(MyDubListDubFilter.shared.selectedLanguages.compactMap {
+            MyDubListLanguage(rawValue: $0)?.taizenLanguageCode
+        })
         let originalAudioFilterEnabled = UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
-        let needsIdentityForFiltering = dubLanguagesSelected || originalAudioFilterEnabled
 
         let candidates = results.enumerated().filter { _, result in
-            result.animeIdentitySeed == nil
-                && (needsIdentityForFiltering || result.fullPosterURL == nil)
+            guard result.animeIdentitySeed == nil else { return false }
+            let originalLanguage = result.originalLanguage?.lowercased() ?? ""
+            let baseLanguage = originalLanguage.split(separator: "-").first.map(String.init) ?? originalLanguage
+            let nativeAudioMatchesDubFilter = selectedDubLanguageCodes.contains {
+                originalLanguage == $0 || originalLanguage.hasPrefix($0 + "-")
+            }
+            let needsDubIdentity = !selectedDubLanguageCodes.isEmpty && !nativeAudioMatchesDubFilter
+            let needsAudioIdentity = originalAudioFilterEnabled && !["en", "es"].contains(baseLanguage)
+            return needsDubIdentity || needsAudioIdentity || result.fullPosterURL == nil
         }
         guard !candidates.isEmpty else { return results }
 
