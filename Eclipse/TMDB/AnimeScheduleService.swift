@@ -235,6 +235,7 @@ enum AnimeScheduleAPIKeyStore {
 }
 
 actor AnimeScheduleService {
+    static let credentialsDidChangeNotification = Notification.Name("animeScheduleCredentialsDidChange")
     static let shared = AnimeScheduleService()
 
     private struct CachedWeek: Codable {
