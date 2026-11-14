@@ -16105,9 +16105,13 @@ extension PlayerViewController: PiPControllerDelegate {
             case .retryInlineRestore:
                 guard self.mpvForegroundRecoveryRetryCount < 3,
                       self.owningPlaybackSceneIsForegroundActive() else {
+                    let fallbackResumed = self.resumeMPVBackgroundFallbackPauseForPictureInPictureIfNeeded(
+                        source: "\(source)-retry-exhausted"
+                    )
+                    self.rendererResumeForegroundRendering(reason: "\(source)-retry-exhausted")
                     self.mpvBackgroundLifecycleIsArmed = false
                     self.logPictureInPicture(
-                        "serialized foreground recovery abandoned after bounded inline retries source=\(source) generation=\(generation)"
+                        "serialized foreground recovery abandoned after bounded inline retries source=\(source) generation=\(generation) fallbackResumed=\(fallbackResumed)"
                     )
                     return
                 }
@@ -16120,12 +16124,19 @@ extension PlayerViewController: PiPControllerDelegate {
                     )
                 }
             case .failed:
+                // The background audio fallback may have paused MPV while
+                // waiting for PiP. A failed PiP/decoder handoff must not leave
+                // that automatic pause in place after the app is foregrounded.
+                let fallbackResumed = self.resumeMPVBackgroundFallbackPauseForPictureInPictureIfNeeded(
+                    source: "\(source)-foreground-recovery-failed"
+                )
+                self.rendererResumeForegroundRendering(reason: "\(source)-foreground-recovery-failed")
                 self.mpvBackgroundLifecycleIsArmed = false
                 self.mpvBackgroundFallbackAutoPaused = false
                 self.mpvBackgroundFallbackPauseIntentGeneration = nil
                 self.mpvBackgroundFallbackPauseLifecycleGeneration = nil
                 self.logPictureInPicture(
-                    "serialized foreground recovery failed source=\(source) generation=\(generation)"
+                    "serialized foreground recovery failed source=\(source) generation=\(generation) fallbackResumed=\(fallbackResumed)"
                 )
             }
         }
