@@ -472,7 +472,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         view.isUserInteractionEnabled = false
         view.clipsToBounds = true
         view.layer.cornerRadius = 41
-        view.alpha = 0
+        view.alpha = 1
         view.isHidden = true
         return view
     }()
@@ -494,6 +494,19 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         view.isUserInteractionEnabled = false
         view.clipsToBounds = true
         view.layer.cornerRadius = 22
+        view.alpha = 0
+        view.isHidden = true
+        return view
+    }()
+
+    // A separate capsule keeps the secondary controls grouped like the
+    // reference player without putting a permanent glass layer over the video.
+    private let bottomControlsGlassView: UIVisualEffectView = {
+        let view = UIVisualEffectView(effect: nil)
+        view.translatesAutoresizingMaskIntoConstraints = false
+        view.isUserInteractionEnabled = false
+        view.clipsToBounds = true
+        view.layer.cornerRadius = 24
         view.alpha = 0
         view.isHidden = true
         return view
@@ -5503,34 +5516,60 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         }
     }
 
-    private func updatePlayerLiquidGlassEffects() {
-        guard activePlayerLiquidGlassEnabled else {
-            centerPlayPauseGlassView.effect = nil
-            topControlsGlassView.effect = nil
-            progressGlassView.effect = nil
-            centerPlayPauseGlassView.isHidden = true
-            topControlsGlassView.isHidden = true
-            progressGlassView.isHidden = true
-            return
+    private func updatePlayerLiquidGlassEffects(animated: Bool = false) {
+        let shouldShowGlass = activePlayerLiquidGlassEnabled && controlsVisible
+        let shouldShowBottomGlass = shouldShowGlass && supportsSharedPlayerControls
+
+        let effect: UIVisualEffect?
+        if shouldShowGlass {
+            if #available(iOS 26.0, *) {
+                let glass = UIGlassEffect(style: .regular)
+                glass.isInteractive = true
+                glass.tintColor = UIColor.white.withAlphaComponent(0.08)
+                effect = glass
+            } else {
+                effect = UIBlurEffect(style: .systemUltraThinMaterialDark)
+            }
+        } else {
+            effect = nil
         }
 
-        let effect: UIVisualEffect
-        if #available(iOS 26.0, *) {
-            let glass = UIGlassEffect(style: .regular)
-            glass.tintColor = UIColor.black.withAlphaComponent(0.20)
-            effect = glass
-        } else {
-            effect = UIBlurEffect(style: .systemUltraThinMaterialDark)
+        let glassViews = [centerPlayPauseGlassView, topControlsGlassView, progressGlassView]
+        if shouldShowGlass {
+            glassViews.forEach { $0.isHidden = false }
         }
-        centerPlayPauseGlassView.effect = effect
-        topControlsGlassView.effect = effect
-        progressGlassView.effect = effect
-        centerPlayPauseGlassView.isHidden = false
-        topControlsGlassView.isHidden = false
-        progressGlassView.isHidden = false
-        centerPlayPauseGlassView.alpha = controlsVisible ? 1 : 0
-        topControlsGlassView.alpha = controlsVisible ? 1 : 0
-        progressGlassView.alpha = controlsVisible ? 1 : 0
+        if shouldShowBottomGlass {
+            bottomControlsGlassView.isHidden = false
+        }
+
+        let applyEffect = {
+            glassViews.forEach { $0.effect = effect }
+            self.bottomControlsGlassView.effect = shouldShowBottomGlass ? effect : nil
+        }
+
+        if animated {
+            UIView.animate(
+                withDuration: 0.25,
+                delay: 0,
+                options: [.beginFromCurrentState, .allowUserInteraction, .curveEaseInOut]
+            ) {
+                applyEffect()
+            } completion: { _ in
+                // A newer tap may have shown the controls while this hide
+                // animation was finishing. Never hide a newly materialized layer.
+                guard !self.activePlayerLiquidGlassEnabled || !self.controlsVisible else { return }
+                glassViews.forEach { $0.isHidden = true }
+                self.bottomControlsGlassView.isHidden = true
+            }
+        } else {
+            applyEffect()
+            if !shouldShowGlass {
+                glassViews.forEach { $0.isHidden = true }
+                bottomControlsGlassView.isHidden = true
+            } else if !shouldShowBottomGlass {
+                bottomControlsGlassView.isHidden = true
+            }
+        }
     }
 
     private func configurePlayerSkinDecoration(animationsEnabled: Bool) {
@@ -5725,6 +5764,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         videoContainer.addSubview(centerPlayPauseGlassView)
         videoContainer.addSubview(centerPlayPauseButton)
         videoContainer.addSubview(progressGlassView)
+        videoContainer.addSubview(bottomControlsGlassView)
         videoContainer.addSubview(progressContainer)
         videoContainer.addSubview(overlayMenuDismissView)
         videoContainer.addSubview(overlayMenuPanelView)
@@ -5951,6 +5991,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             let performanceOverlayWidth = performanceOverlayButton.widthAnchor.constraint(equalToConstant: 32)
             performanceOverlayWidth.priority = .init(999)
             NSLayoutConstraint.activate([
+                bottomControlsGlassView.leadingAnchor.constraint(equalTo: audioButton.leadingAnchor, constant: -8),
+                bottomControlsGlassView.trailingAnchor.constraint(equalTo: playerSourceButtonsStackView.trailingAnchor, constant: 8),
+                bottomControlsGlassView.topAnchor.constraint(equalTo: audioButton.topAnchor, constant: -8),
+                bottomControlsGlassView.bottomAnchor.constraint(equalTo: audioButton.bottomAnchor, constant: 8),
                 playerSourceButtonsStackView.trailingAnchor.constraint(equalTo: progressContainer.trailingAnchor),
                 playerSourceButtonsStackView.centerYAnchor.constraint(equalTo: subtitleButton.centerYAnchor),
                 playerSourceButtonsStackView.heightAnchor.constraint(equalToConstant: 32),
@@ -14135,6 +14179,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         updateVolumeControlVisibility()
 
         restorePlayerInteractionHierarchy()
+        // Keep the lower capsule behind the controls it decorates.
+        videoContainer.bringSubviewToFront(bottomControlsGlassView)
         videoContainer.bringSubviewToFront(controlsOverlayView)
         videoContainer.bringSubviewToFront(topControlsGlassView)
         videoContainer.bringSubviewToFront(progressGlassView)
@@ -14173,12 +14219,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             guard self.controlsVisibilityGeneration == visibilityGeneration,
                   self.controlsVisible else { return }
             self.controlsOverlayView.isHidden = false
+            self.updatePlayerLiquidGlassEffects(animated: true)
             UIView.animate(withDuration: 0.25, delay: 0, options: [.beginFromCurrentState, .curveEaseOut]) {
                 self.centerPlayPauseButton.alpha = 1.0
                 self.controlsOverlayView.alpha = 1.0
-                self.topControlsGlassView.alpha = self.activePlayerLiquidGlassEnabled ? 1.0 : 0.0
-                self.progressGlassView.alpha = self.activePlayerLiquidGlassEnabled ? 1.0 : 0.0
-                self.centerPlayPauseGlassView.alpha = self.activePlayerLiquidGlassEnabled ? 1.0 : 0.0
                 self.progressContainer.alpha = 1.0
 #if os(iOS)
                 self.closeButton.alpha = PlayerPlaybackLockSettings.isLocked() ? 0.35 : 1.0
@@ -14245,12 +14289,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         DispatchQueue.main.async {
             guard self.controlsVisibilityGeneration == visibilityGeneration,
                   !self.controlsVisible else { return }
+            self.updatePlayerLiquidGlassEffects(animated: true)
             UIView.animate(withDuration: 0.25, delay: 0, options: [.beginFromCurrentState, .curveEaseIn]) {
                 self.centerPlayPauseButton.alpha = 0.0
                 self.controlsOverlayView.alpha = 0.0
-                self.topControlsGlassView.alpha = 0.0
-                self.progressGlassView.alpha = 0.0
-                self.centerPlayPauseGlassView.alpha = 0.0
                 self.progressContainer.alpha = 0.0
                 self.closeButton.alpha = 0.0
 #if os(iOS)
