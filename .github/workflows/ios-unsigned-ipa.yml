@@ -150,7 +150,7 @@ jobs:
             exit 1
           fi
 
-          for name in ANIMESCHEDULE_API_TOKEN ANILIST_CLIENT_ID ANILIST_CLIENT_SECRET TRAKT_CLIENT_ID TRAKT_CLIENT_SECRET MAL_CLIENT_ID MAL_CLIENT_SECRET SIMKL_CLIENT_ID; do
+          for name in FANART_TV_API_KEY ANIMESCHEDULE_API_TOKEN ANILIST_CLIENT_ID ANILIST_CLIENT_SECRET TRAKT_CLIENT_ID TRAKT_CLIENT_SECRET MAL_CLIENT_ID MAL_CLIENT_SECRET SIMKL_CLIENT_ID; do
             if [ -z "${!name:-}" ]; then
               echo "::warning::$name is not configured in GitHub Actions secrets; related optional features may be unavailable"
             fi
