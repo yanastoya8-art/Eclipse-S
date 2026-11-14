@@ -207,6 +207,8 @@ final class MaturityRatingRegionTests: XCTestCase {
         XCTAssertEqual(MaturityRating.classify(certification: "12", region: "GB"), .age12)
         XCTAssertEqual(MaturityRating.classify(certification: "13"), .teen)
         XCTAssertEqual(MaturityRating.classify(certification: "14"), .age14)
+        XCTAssertTrue(MaturityRating.age12.isBlockedForKids)
+        XCTAssertFalse(MaturityRating.teen.isBlockedForKids)
     }
 
     func testAgeTwelveIsBelowThirteenPlusKidsThreshold() {
