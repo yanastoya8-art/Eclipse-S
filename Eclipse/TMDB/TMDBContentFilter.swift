@@ -1114,16 +1114,20 @@ class TMDBContentFilter: ObservableObject {
         if Self.shouldHideForReleaseDate(result, defaults: defaults) { return false }
 
         if defaults.bool(forKey: "catalogRequireEnglishSpanishAudio") {
-            guard let originalLanguage = result.originalLanguage?.lowercased() else { return true }
+            // This is an allow-list filter: unknown original-language metadata
+            // and unverified anime dubs must not leak through as eligible.
+            guard let originalLanguage = result.originalLanguage?.lowercased() else { return false }
             let hasNativeAudio = originalLanguage.hasPrefix("en") || originalLanguage.hasPrefix("es")
             if hasNativeAudio { return true }
-            guard isAnime else { return false }
-            guard let anilistID = result.animeIdentitySeed?.anilistId else { return true }
+            guard isAnime,
+                  let anilistID = result.animeIdentitySeed?.anilistId,
+                  anilistID > 0 else {
+                return false
+            }
             animeEligibilityLock.lock()
             let hasVerifiedDub = animeAudioEligibleIDs.contains(anilistID)
-            let metadataWasChecked = animeAudioCheckedIDs.contains(anilistID)
             animeEligibilityLock.unlock()
-            guard hasVerifiedDub || !metadataWasChecked else { return false }
+            guard hasVerifiedDub else { return false }
         }
         return true
     }
