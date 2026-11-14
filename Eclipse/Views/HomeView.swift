@@ -565,7 +565,6 @@ struct HomeView: View {
 
     @State private var continueWatchingVettedOwner: UUID?
 
-    @State private var maturityRevisionReloadTask: Task<Void, Never>?
     @State private var pendingContinueWatchingProgressRefreshTask: Task<Void, Never>?
     @State private var didReportStartupReady = false
     @State private var didReportInitialHydration = false
