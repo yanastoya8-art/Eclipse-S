@@ -2441,15 +2441,18 @@ struct HeroBannerBleed: View {
     var heroHeight: CGFloat
     var tail: CGFloat
     var strength: Double
+    var startOffset: CGFloat = 0
 
     var body: some View {
         let h = max(heroHeight + tail, 1)
-        let hold = min(max(heroHeight / h, 0.05), 0.92)
+        let start = min(max(startOffset / h, 0), 0.90)
+        let hold = min(max(heroHeight / h, start + 0.02), 0.94)
         let s = max(0, strength)
         return LinearGradient(
             stops: [
-                .init(color: color.opacity(min(1, 1.00 * s)), location: 0.0),
-
+                .init(color: .clear, location: 0.0),
+                .init(color: .clear, location: start),
+                .init(color: color.opacity(min(1, 1.00 * s)), location: min(start + 0.01, hold)),
                 .init(color: color.opacity(min(1, 1.00 * s)), location: hold),
                 .init(color: color.opacity(min(1, 0.60 * s)), location: hold + (1 - hold) * 0.28),
                 .init(color: color.opacity(min(1, 0.30 * s)), location: hold + (1 - hold) * 0.52),
@@ -2468,10 +2471,10 @@ struct HeroBannerBleed: View {
 extension View {
 
     @ViewBuilder
-    func heroBannerBleed(color: Color?, heroHeight: CGFloat, tail: CGFloat, strength: Double) -> some View {
+    func heroBannerBleed(color: Color?, heroHeight: CGFloat, tail: CGFloat, strength: Double, startOffset: CGFloat = 0) -> some View {
         if let color, strength > 0.001, heroHeight > 0 {
             background(alignment: .top) {
-                HeroBannerBleed(color: color, heroHeight: heroHeight, tail: tail, strength: strength)
+                HeroBannerBleed(color: color, heroHeight: heroHeight, tail: tail, strength: strength, startOffset: startOffset)
             }
         } else {
             self
