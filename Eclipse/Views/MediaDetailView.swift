@@ -2841,8 +2841,18 @@ struct MediaDetailContentView: View {
         searchResult.isMovie ? (movieDetail?.voteAverage ?? searchResult.voteAverage) : (tvShowDetail?.voteAverage ?? searchResult.voteAverage)
     }
 
+    private var usesAnimeSpecificAgeRating: Bool {
+        if isAnimeShow || searchResult.animeIdentitySeed != nil || searchResult.isAnimeHint == true {
+            return true
+        }
+        guard searchResult.genreIds?.contains(16) == true else { return false }
+        let language = searchResult.originalLanguage?.lowercased() ?? ""
+        return ["ja", "zh", "ko"].contains(where: language.hasPrefix)
+            || searchResult.originCountry?.contains(where: { ["JP", "CN", "KR", "TW"].contains($0) }) == true
+    }
+
     private var detailAgeRating: String? {
-        if isAnimeShow {
+        if usesAnimeSpecificAgeRating {
             guard let animeAgeCertification else { return nil }
             return "Taizen · \(animeAgeCertification.ageBand)"
         }
