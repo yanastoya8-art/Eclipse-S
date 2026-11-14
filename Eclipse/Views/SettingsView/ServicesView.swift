@@ -3191,6 +3191,99 @@ enum JustWatchAPIKeyStore {
     }
 }
 
+struct AnimeScheduleSettingsView: View {
+    @State private var apiToken = AnimeScheduleAPIKeyStore.load() ?? ""
+    @State private var isTestingConnection = false
+    @State private var statusMessage: String?
+    @State private var statusIsError = false
+
+    private var normalizedToken: String {
+        apiToken.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                SecureField("AnimeSchedule application token", text: $apiToken)
+                    .textContentType(.password)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .accessibilityIdentifier("settings.animeSchedule.apiToken")
+
+                Button("Save Token") {
+                    saveToken()
+                }
+                .disabled(normalizedToken.isEmpty)
+
+                Button {
+                    testConnection()
+                } label: {
+                    HStack {
+                        Text("Test English Dub Schedule")
+                        Spacer()
+                        if isTestingConnection {
+                            ProgressView()
+                        }
+                    }
+                }
+                .disabled(normalizedToken.isEmpty || isTestingConnection)
+
+                if let statusMessage {
+                    Label(statusMessage, systemImage: statusIsError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+                        .font(.footnote)
+                        .foregroundStyle(statusIsError ? .orange : .green)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } footer: {
+                Text("AnimeSchedule.net requires an application token. Create an application in your AnimeSchedule account, then paste its token here. The token is stored in this device's Keychain.")
+            }
+
+            Section {
+                Link("AnimeSchedule API documentation", destination: URL(string: "https://animeschedule.net/api/v3/documentation")!)
+            }
+        }
+        .navigationTitle("English Dub Schedule")
+        .eclipseSettingsStyle()
+        .preferredColorScheme(.dark)
+    }
+
+    private func saveToken() {
+        do {
+            try AnimeScheduleAPIKeyStore.save(normalizedToken)
+            Task { await AnimeScheduleService.shared.updateToken(normalizedToken) }
+            statusIsError = false
+            statusMessage = "Token saved securely."
+        } catch {
+            statusIsError = true
+            statusMessage = "Could not save token: \(error.localizedDescription)"
+        }
+    }
+
+    private func testConnection() {
+        guard !normalizedToken.isEmpty else { return }
+        isTestingConnection = true
+        statusMessage = nil
+        Task {
+            do {
+                try AnimeScheduleAPIKeyStore.save(normalizedToken)
+                await AnimeScheduleService.shared.updateToken(normalizedToken)
+                _ = try await AnimeScheduleService.shared.fetchSchedule(daysAhead: 7)
+                await MainActor.run {
+                    isTestingConnection = false
+                    statusIsError = false
+                    statusMessage = "Connected. English dub schedule data was received."
+                }
+            } catch {
+                await MainActor.run {
+                    isTestingConnection = false
+                    statusIsError = true
+                    statusMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+}
+
 struct JustWatchSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var apiKey = JustWatchAPIKeyStore.load() ?? ""
