@@ -929,19 +929,9 @@ final class ScheduleViewModel: ObservableObject {
             throw ScheduleSourceLoadError.retryDeferred("Movies")
         }
         do {
-            let rawEntries: [ScheduleEntry]
-            do {
-                rawEntries = try await retryOnceAfterTransientCancellation(operationName: "Trakt movie calendar") {
-                    try await TraktScheduleService.shared.fetchMovieSchedule(dayCount: dayCount)
-                }
-            } catch {
-                try Task.checkCancellation()
-                Logger.shared.log(
-                    "Trakt movie calendar unavailable; using TMDB upcoming releases: \(error.localizedDescription)",
-                    type: "Schedule"
-                )
-                rawEntries = try await tmdbUpcomingMovieEntries(in: window)
-            }
+            // TMDB is the primary movie calendar provider. It requires no Trakt
+            // client ID and is available with the app's existing TMDB configuration.
+            let rawEntries = try await tmdbUpcomingMovieEntries(in: window)
             try Task.checkCancellation()
             let languageFiltered = await JustWatchScheduleService.shared.filterMovies(
                 entries: rawEntries,
