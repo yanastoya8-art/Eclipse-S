@@ -2363,7 +2363,8 @@ private struct BrowseMediaView: View {
                             format: mapping?.mediaType
                         ),
                         animeArtworkURL: artworkURL,
-                        animeLogoURL: result.animeLogoURL
+                        animeLogoURL: result.animeLogoURL,
+                        tvMazePosterURL: result.tvMazePosterURL
                     )
                     return (index, enriched)
                 }
@@ -2411,7 +2412,8 @@ private struct BrowseMediaView: View {
                                 format: nextResult.animeIdentitySeed?.format ?? mapping?.mediaType
                             ),
                             animeArtworkURL: artworkURL,
-                            animeLogoURL: nextResult.animeLogoURL
+                            animeLogoURL: nextResult.animeLogoURL,
+                            tvMazePosterURL: nextResult.tvMazePosterURL
                         ))
                     }
                 }
@@ -2424,12 +2426,29 @@ private struct BrowseMediaView: View {
         let taizenArtwork = await TaizenAnimeArtworkService.shared.artworks(
             forAniListIDs: resolvedResults.compactMap { $0.animeIdentitySeed?.anilistId }
         )
-        return resolvedResults.map { result in
+        let animeArtworkResults = resolvedResults.map { result in
             guard let anilistID = result.animeIdentitySeed?.anilistId,
                   let artwork = taizenArtwork[anilistID] else { return result }
             return result
                 .withAnimeArtworkURL(artwork.posterURL ?? result.animeArtworkURL)
                 .withAnimeLogoURL(artwork.logoURL ?? result.animeLogoURL)
+        }
+
+        let tvMazeRequests = animeArtworkResults.compactMap { result -> TVMazePosterRequest? in
+            guard result.mediaType.lowercased() == "tv",
+                  result.animeIdentitySeed == nil,
+                  result.isAnimeHint != true else { return nil }
+            let rawYear = result.firstAirDate ?? result.releaseDate
+            return TVMazePosterRequest(
+                id: result.id,
+                title: result.displayTitle,
+                year: rawYear.flatMap { Int($0.prefix(4)) }
+            )
+        }
+        let tvMazePosters = await TVMazeArtworkPosterService.shared.posters(for: tvMazeRequests)
+        return animeArtworkResults.map { result in
+            guard let posterURL = tvMazePosters[result.id] else { return result }
+            return result.withTVMazePosterURL(posterURL)
         }
     }
 
