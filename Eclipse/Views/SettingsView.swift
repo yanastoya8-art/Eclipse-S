@@ -5471,7 +5471,7 @@ private struct LanguageFiltersSettingsView: View {
             }
 
             Section {
-                ForEach(MyDubListLanguage.allCases) { language in
+                ForEach(MyDubListLanguage.allCases.filter { MyDubListDubFilter.supportedLanguages.contains($0.rawValue) }) { language in
                     Toggle(language.displayName, isOn: Binding(
                         get: { selectedDubLanguages.contains(language.rawValue) },
                         set: { isSelected in
@@ -5570,6 +5570,7 @@ private struct AnimeFiltersSettingsView: View {
     @AppStorage("catalogHideHentai", store: .standard) private var hideHentai = false
     @AppStorage("catalogHideYuri", store: .standard) private var hideYuri = false
     @AppStorage("catalogHideYaoi", store: .standard) private var hideYaoi = false
+    @AppStorage("catalogHideAnimeSpecialsAndOVAs", store: .standard) private var hideAnimeSpecialsAndOVAs = false
 
     private func filtersDidChange() {
         NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil)
@@ -5587,14 +5588,17 @@ private struct AnimeFiltersSettingsView: View {
                     .accessibilityIdentifier("settings.contentFilters.hideYuri")
                 Toggle("Exclude Yaoi", isOn: $hideYaoi)
                     .accessibilityIdentifier("settings.contentFilters.hideYaoi")
+                Toggle("Exclude anime specials and OVAs", isOn: $hideAnimeSpecialsAndOVAs)
+                    .accessibilityIdentifier("settings.contentFilters.hideAnimeSpecialsAndOVAs")
             } footer: {
-                Text("Hides identified anime and, independently, titles whose available metadata identifies them as Hentai, Yuri or Yaoi.")
+                Text("Hides identified anime and, independently, titles whose available metadata identifies them as Hentai, Yuri or Yaoi. The specials option excludes AniList formats SPECIAL and OVA; unknown formats are retained.")
             }
         }
         .onChange(of: hideAnime) { _ in filtersDidChange() }
         .onChange(of: hideHentai) { _ in filtersDidChange() }
         .onChange(of: hideYuri) { _ in filtersDidChange() }
         .onChange(of: hideYaoi) { _ in filtersDidChange() }
+        .onChange(of: hideAnimeSpecialsAndOVAs) { _ in filtersDidChange() }
         .eclipsePageTitle("Anime Filters")
         .eclipseSettingsStyle()
         .preferredColorScheme(.dark)

@@ -1275,6 +1275,9 @@ final class AnimeMetadataService {
         requiredSpecialAniListIds: [Int] = [],
         tmdbService: TMDBService
     ) async -> [AniListSpecialSearchEntry] {
+        guard !UserDefaults.standard.bool(forKey: "catalogHideAnimeSpecialsAndOVAs") else {
+            return []
+        }
         let entries = await aniListService.fetchSpecialSearchEntries(
             tmdbShowId: tmdbShowId,
             fallbackPosterURL: fallbackPosterURL,
@@ -9859,7 +9862,14 @@ final class AniListService {
                     results.append(match)
                 }
             }
-            return results.filter { MyDubListDubFilter.shared.shouldInclude($0) }
+            let hideSpecialsAndOVAs = UserDefaults.standard.bool(forKey: "catalogHideAnimeSpecialsAndOVAs")
+            return results.filter { result in
+                MyDubListDubFilter.shared.shouldInclude(result)
+                    && AnimeSpecialDubFilterPolicy.shouldInclude(
+                        format: result.animeIdentitySeed?.format,
+                        hideSpecialsAndOVAs: hideSpecialsAndOVAs
+                    )
+            }
         }
     }
 
@@ -9993,7 +10003,12 @@ final class AniListService {
         var dict: [Int: TMDBSearchResult] = [:]
         var cacheRecords: [AnimeTMDBMatchCacheRecord] = []
         for (anilistId, match, cacheRecord) in matches {
-            if let match = match, MyDubListDubFilter.shared.shouldInclude(match) {
+            if let match = match,
+               MyDubListDubFilter.shared.shouldInclude(match),
+               AnimeSpecialDubFilterPolicy.shouldInclude(
+                    format: match.animeIdentitySeed?.format,
+                    hideSpecialsAndOVAs: UserDefaults.standard.bool(forKey: "catalogHideAnimeSpecialsAndOVAs")
+               ) {
                 dict[anilistId] = match
             }
             if let cacheRecord {
