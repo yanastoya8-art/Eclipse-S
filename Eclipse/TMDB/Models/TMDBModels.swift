@@ -232,6 +232,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
     let animeArtworkURL: String?
     let animeLogoURL: String?
     let tvMazePosterURL: String?
+    let fanartTVPosterURL: String?
 
     enum CodingKeys: String, CodingKey {
         case id, overview, popularity, adult
@@ -251,6 +252,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
         case animeArtworkURL = "anime_artwork_url"
         case animeLogoURL = "anime_logo_url"
         case tvMazePosterURL = "tvmaze_poster_url"
+        case fanartTVPosterURL = "fanart_tv_poster_url"
     }
 
     init(
@@ -274,7 +276,8 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
         animeIdentitySeed: AnimeMediaIdentitySeed? = nil,
         animeArtworkURL: String? = nil,
         animeLogoURL: String? = nil,
-        tvMazePosterURL: String? = nil
+        tvMazePosterURL: String? = nil,
+        fanartTVPosterURL: String? = nil
     ) {
         self.id = id
         self.mediaType = mediaType
@@ -297,6 +300,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
         self.animeArtworkURL = Self.sanitizedAnimeArtworkURL(animeArtworkURL)
         self.animeLogoURL = Self.sanitizedAnimeArtworkURL(animeLogoURL)
         self.tvMazePosterURL = Self.sanitizedTVMazePosterURL(tvMazePosterURL)
+        self.fanartTVPosterURL = Self.sanitizedFanartTVPosterURL(fanartTVPosterURL)
     }
 
     init(from decoder: Decoder) throws {
@@ -369,6 +373,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
         animeArtworkURL = Self.sanitizedAnimeArtworkURL(try container.decodeIfPresent(String.self, forKey: .animeArtworkURL))
         animeLogoURL = Self.sanitizedAnimeArtworkURL(try container.decodeIfPresent(String.self, forKey: .animeLogoURL))
         tvMazePosterURL = Self.sanitizedTVMazePosterURL(try container.decodeIfPresent(String.self, forKey: .tvMazePosterURL))
+        fanartTVPosterURL = Self.sanitizedFanartTVPosterURL(try container.decodeIfPresent(String.self, forKey: .fanartTVPosterURL))
     }
 
     var displayTitle: String {
@@ -393,13 +398,16 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
         if (animeIdentitySeed != nil || isAnimeHint == true), let animeArtworkURL {
             return animeArtworkURL
         }
+        if mediaType.lowercased() == "movie", let fanartTVPosterURL {
+            return fanartTVPosterURL
+        }
         if mediaType.lowercased() == "tv", let tvMazePosterURL {
             return tvMazePosterURL
         }
         if let posterPath {
             return TMDBImageRequestPolicy.urlString(for: posterPath, kind: .poster)
         }
-        return animeArtworkURL ?? tvMazePosterURL
+        return animeArtworkURL ?? tvMazePosterURL ?? fanartTVPosterURL
     }
 
     var fullBackdropURL: String? {
@@ -452,7 +460,8 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             animeIdentitySeed: animeIdentitySeed?.sanitizedForPersistence,
             animeArtworkURL: animeArtworkURL,
             animeLogoURL: animeLogoURL,
-            tvMazePosterURL: tvMazePosterURL
+            tvMazePosterURL: tvMazePosterURL,
+            fanartTVPosterURL: fanartTVPosterURL
         )
     }
 
@@ -474,6 +483,44 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
               components.host?.lowercased() == "static.tvmaze.com",
               components.user == nil, components.password == nil else { return nil }
         return components.url?.absoluteString
+    }
+
+    private static func sanitizedFanartTVPosterURL(_ rawValue: String?) -> String? {
+        guard let rawValue, rawValue.utf8.count <= 2_048,
+              let components = URLComponents(string: rawValue),
+              components.scheme?.lowercased() == "https",
+              components.host?.lowercased() == "assets.fanart.tv",
+              components.port == nil || components.port == 443,
+              components.user == nil, components.password == nil,
+              components.fragment == nil else { return nil }
+        return components.url?.absoluteString
+    }
+
+    func withFanartTVPosterURL(_ url: String?) -> TMDBSearchResult {
+        TMDBSearchResult(
+            id: id,
+            mediaType: mediaType,
+            title: title,
+            name: name,
+            overview: overview,
+            posterPath: posterPath,
+            backdropPath: backdropPath,
+            releaseDate: releaseDate,
+            firstAirDate: firstAirDate,
+            voteAverage: voteAverage,
+            popularity: popularity,
+            adult: adult,
+            genreIds: genreIds,
+            originalLanguage: originalLanguage,
+            originCountry: originCountry,
+            voteCount: voteCount,
+            isAnimeHint: isAnimeHint,
+            animeIdentitySeed: animeIdentitySeed,
+            animeArtworkURL: animeArtworkURL,
+            animeLogoURL: animeLogoURL,
+            tvMazePosterURL: tvMazePosterURL,
+            fanartTVPosterURL: url
+        )
     }
 
     func withAnimeArtworkURL(_ url: String?) -> TMDBSearchResult {
@@ -498,7 +545,8 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             animeIdentitySeed: animeIdentitySeed,
             animeArtworkURL: url,
             animeLogoURL: animeLogoURL,
-            tvMazePosterURL: tvMazePosterURL
+            tvMazePosterURL: tvMazePosterURL,
+            fanartTVPosterURL: fanartTVPosterURL
         )
     }
 
@@ -524,7 +572,8 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             animeIdentitySeed: seed?.sanitizedForPersistence,
             animeArtworkURL: animeArtworkURL,
             animeLogoURL: animeLogoURL,
-            tvMazePosterURL: tvMazePosterURL
+            tvMazePosterURL: tvMazePosterURL,
+            fanartTVPosterURL: fanartTVPosterURL
         )
     }
 
@@ -550,7 +599,8 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             animeIdentitySeed: animeIdentitySeed,
             animeArtworkURL: animeArtworkURL,
             animeLogoURL: url,
-            tvMazePosterURL: tvMazePosterURL
+            tvMazePosterURL: tvMazePosterURL,
+            fanartTVPosterURL: fanartTVPosterURL
         )
     }
 
@@ -602,7 +652,8 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             animeIdentitySeed: animeIdentitySeed,
             animeArtworkURL: animeArtworkURL,
             animeLogoURL: animeLogoURL,
-            tvMazePosterURL: tvMazePosterURL
+            tvMazePosterURL: tvMazePosterURL,
+            fanartTVPosterURL: fanartTVPosterURL
         )
     }
 }
