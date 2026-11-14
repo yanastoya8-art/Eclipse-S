@@ -472,7 +472,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         view.isUserInteractionEnabled = false
         view.clipsToBounds = true
         view.layer.cornerRadius = 41
-        view.alpha = 0
+        view.alpha = 1
         view.isHidden = true
         return view
     }()
@@ -14179,10 +14179,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         updateVolumeControlVisibility()
 
         restorePlayerInteractionHierarchy()
+        // Keep the lower capsule behind the controls it decorates.
+        videoContainer.bringSubviewToFront(bottomControlsGlassView)
         videoContainer.bringSubviewToFront(controlsOverlayView)
         videoContainer.bringSubviewToFront(topControlsGlassView)
         videoContainer.bringSubviewToFront(progressGlassView)
-        videoContainer.bringSubviewToFront(bottomControlsGlassView)
         videoContainer.bringSubviewToFront(centerPlayPauseGlassView)
         videoContainer.bringSubviewToFront(overlayMenuDismissView)
         videoContainer.bringSubviewToFront(overlayMenuPanelView)
