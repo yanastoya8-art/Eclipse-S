@@ -5459,6 +5459,22 @@ private struct LanguageFiltersSettingsView: View {
             }
 
             Section {
+                NavigationLink {
+                    JustWatchSettingsView()
+                } label: {
+                    HStack {
+                        Label("JustWatch API Key", systemImage: "key.horizontal")
+                        Spacer()
+                        Text(JustWatchAPIKeyStore.hasKey ? "Configured" : "Not configured")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .accessibilityIdentifier("settings.contentFilters.justWatchKey")
+            } footer: {
+                Text("Configure the API.SH key used to verify European TV episode release dates. The key is stored securely in Keychain.")
+            }
+
+            Section {
                 ForEach(MyDubListLanguage.allCases) { language in
                     Toggle(language.displayName, isOn: Binding(
                         get: { selectedDubLanguages.contains(language.rawValue) },
