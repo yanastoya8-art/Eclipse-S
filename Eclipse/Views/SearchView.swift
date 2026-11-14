@@ -2443,14 +2443,15 @@ private struct BrowseMediaView: View {
         mediaType: BrowseMediaType,
         ageRating: BrowseAgeRating
     ) async -> [TMDBSearchResult] {
-        let typeFiltered = fetched.filter { result in
+        let typeFiltered = fetched.compactMap { result -> TMDBSearchResult? in
             switch mediaType {
             case .movie:
-                return true
+                return result
             case .tv:
-                return BrowseAnimeClassifier.shouldIncludeInTV(result)
+                return BrowseAnimeClassifier.shouldIncludeInTV(result) ? result : nil
             case .anime:
-                return BrowseAnimeClassifier.isAnime(result)
+                guard BrowseAnimeClassifier.isAnime(result) else { return nil }
+                return result.withAnimeHint(true)
             }
         }
 
