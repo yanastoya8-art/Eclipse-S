@@ -2399,7 +2399,8 @@ private struct BrowseMediaView: View {
                             ),
                             animeArtworkURL: artworkURL,
                             animeLogoURL: nextResult.animeLogoURL,
-                            tvMazePosterURL: nextResult.tvMazePosterURL
+                            tvMazePosterURL: nextResult.tvMazePosterURL,
+                            fanartTVPosterURL: nextResult.fanartTVPosterURL
                         ))
                     }
                 }
@@ -2432,9 +2433,23 @@ private struct BrowseMediaView: View {
             )
         }
         let tvMazePosters = await TVMazeArtworkPosterService.shared.posters(for: tvMazeRequests)
+
+        let fanartRequests = animeArtworkResults.compactMap { result -> FanartTVMoviePosterRequest? in
+            guard result.mediaType.lowercased() == "movie",
+                  result.animeIdentitySeed == nil,
+                  result.isAnimeHint != true else { return nil }
+            return FanartTVMoviePosterRequest(id: result.id)
+        }
+        let fanartPosters = await FanartTVMovieArtworkService.shared.posters(for: fanartRequests)
+
         return animeArtworkResults.map { result in
-            guard let posterURL = tvMazePosters[result.id] else { return result }
-            return result.withTVMazePosterURL(posterURL)
+            if let posterURL = fanartPosters[result.id] {
+                return result.withFanartTVPosterURL(posterURL)
+            }
+            if let posterURL = tvMazePosters[result.id] {
+                return result.withTVMazePosterURL(posterURL)
+            }
+            return result
         }
     }
 
