@@ -2686,14 +2686,14 @@ struct MediaDetailContentView: View {
 #endif
             }
 
-            if shouldShowHeroActions {
-                experimentalPlayAndBookmarkSection
-                    .padding(.top, isTvOS ? 16 : (usesWideDetailLayout ? 6 : 2))
-            }
-
             if shouldShowHeroOverview {
                 experimentalHeroSynopsisSection
                     .padding(.top, isTvOS ? 12 : (usesWideDetailLayout ? 2 : 0))
+            }
+
+            if shouldShowHeroActions {
+                experimentalPlayAndBookmarkSection
+                    .padding(.top, isTvOS ? 16 : (usesWideDetailLayout ? 10 : 8))
             }
 
             if shouldShowHeroDetails {
