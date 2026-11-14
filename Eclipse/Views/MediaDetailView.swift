@@ -592,8 +592,9 @@ struct MediaDetailContentView: View {
 #if os(macOS)
         (detailViewportSize == .zero ? EclipseViewport.bounds : detailViewportSize).width >= 1000
 #else
-        // iPhone keeps the portrait detail composition in both orientations.
-        return isIPad
+        // Use the wide composition on iPad and whenever an iPhone is rotated
+        // into landscape. GeometryReader updates this size on rotation.
+        return isIPad || detailViewportWidth > detailViewportHeight
 #endif
     }
 
@@ -2686,14 +2687,16 @@ struct MediaDetailContentView: View {
 #endif
             }
 
-            if shouldShowHeroActions {
-                experimentalPlayAndBookmarkSection
-                    .padding(.top, isTvOS ? 16 : (usesWideDetailLayout ? 6 : 2))
-            }
-
             if shouldShowHeroOverview {
                 experimentalHeroSynopsisSection
                     .padding(.top, isTvOS ? 12 : (usesWideDetailLayout ? 2 : 0))
+            }
+
+            // Keep primary actions below the synopsis so they sit lower in the
+            // poster's title-safe area instead of competing with the artwork.
+            if shouldShowHeroActions {
+                experimentalPlayAndBookmarkSection
+                    .padding(.top, isTvOS ? 16 : (usesWideDetailLayout ? 6 : 2))
             }
 
             if shouldShowHeroDetails {
