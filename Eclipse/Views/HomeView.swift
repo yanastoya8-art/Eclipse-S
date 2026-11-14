@@ -1239,8 +1239,7 @@ struct HomeView: View {
 
     @ViewBuilder
     private func macHeroTitle(_ hero: TMDBSearchResult, layout: MacHomeHeroLayout) -> some View {
-        macHeroTitleText(hero, layout: layout)
-            .frame(width: layout.logoWidth, height: layout.logoHeight, alignment: .leading)
+        EmptyView()
     }
 
     private func macHeroTitleText(_ hero: TMDBSearchResult, layout: MacHomeHeroLayout) -> some View {
@@ -1716,153 +1715,14 @@ struct HomeView: View {
 
     private func heroImageFallbackURLs(for hero: TMDBSearchResult) -> [String] {
         guard let primary = heroImageURL(for: hero) else { return [] }
-        var candidates: [String?] = [
-            hero.fullPosterURL, hero.fullBackdropURL, hero.animeArtworkURL
-        ]
-#if os(iOS)
-        if shouldAnalyzeHeroAlternatePoster {
-            candidates.append(heroTVMazePosterURLs[hero.stableIdentity])
-            candidates.append(currentHeroAlternatePosterURL(for: hero))
-        }
-#endif
-        return candidates.compactMap { $0 }.filter { $0 != primary }
+        return [hero.fullPosterURL, hero.animeArtworkURL, hero.fullBackdropURL]
+            .compactMap { $0 }
+            .filter { $0 != primary }
     }
-
-    private func currentHeroAlternatePosterURL(for hero: TMDBSearchResult) -> String? {
-        guard shouldAnalyzeHeroAlternatePoster else { return nil }
-        let cacheKey = heroAlternatePosterCacheKey(hero.stableIdentity, language: selectedLanguage)
-        if let prefetchedURL = prefetchedHeroAlternatePosterURLs[cacheKey] {
-            return prefetchedURL
-        }
-        guard heroArtworkIdentity == hero.stableIdentity else { return nil }
-        return heroAlternatePosterURL
-    }
-
-    private func isAnimeHero(_ hero: TMDBSearchResult) -> Bool {
-        guard hero.genreIds?.contains(16) == true else { return false }
-
-        let animeOriginCountries: Set<String> = ["JP", "CN", "KR", "TW"]
-        if hero.originCountry?.contains(where: { animeOriginCountries.contains($0) }) == true {
-            return true
-        }
-
-        guard let originalLanguage = hero.originalLanguage?.lowercased() else { return false }
-        return ["ja", "zh", "ko"].contains(originalLanguage)
-    }
-
-    private func experimentalHeroShouldShowTitle(_ hero: TMDBSearchResult) -> Bool {
-        // Keep a readable title visible while the transparent artwork is being fetched.
-        true
-    }
-
-    private func heroOverview(_ hero: TMDBSearchResult) -> String? {
-        guard let rawOverview = hero.overview?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !rawOverview.isEmpty else {
-            return nil
-        }
-        let limit = usesWideHomeLayout ? 180 : 125
-        return rawOverview.count > limit ? "\(rawOverview.prefix(limit))..." : rawOverview
-    }
-
-    @ViewBuilder
-    private func heroRatingsRow(_ hero: TMDBSearchResult) -> some View {
-        let chips = heroRatingChips(for: hero)
-        if !chips.isEmpty {
-            HStack(spacing: isTvOS ? 24 : (usesWideHomeLayout ? 14 : 10)) {
-                ForEach(chips) { chip in
-                    HeroScoreChipView(chip: chip)
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, isTvOS ? 60 : (usesWideHomeLayout ? 80 : 18))
-        }
-    }
-
-    private func heroRatingChips(for hero: TMDBSearchResult) -> [HeroScoreChip] {
-        var chips: [HeroScoreChip] = []
-
-        if let voteAverage = hero.voteAverage, voteAverage > 0 {
-            chips.append(HeroScoreChip(
-                id: "tmdb",
-                label: "TMDB",
-                value: String(format: "%.1f", voteAverage),
-                systemImage: nil,
-                tint: Color(red: 0.19, green: 0.78, blue: 0.76)
-            ))
-        }
-
-        if let userRating = UserRatingManager.shared.aggregateRating(for: hero.id, isMovie: hero.isMovie), userRating > 0 {
-            chips.append(HeroScoreChip(
-                id: "you",
-                label: UserRatingManager.shared.rating(for: hero.id, isMovie: hero.isMovie) == nil ? "Your avg" : "You",
-                value: String(format: "%.1f", userRating),
-                systemImage: "checkmark.seal.fill",
-                tint: Color(red: 0.90, green: 0.24, blue: 0.78)
-            ))
-        }
-
-        if let voteCount = hero.voteCount, voteCount > 0, chips.count < 3 {
-            chips.append(HeroScoreChip(
-                id: "votes",
-                label: "Votes",
-                value: compactCount(voteCount),
-                systemImage: "person.2.fill",
-                tint: Color(red: 1.00, green: 0.68, blue: 0.22)
-            ))
-        }
-
-        return chips
-    }
-
-    private func compactCount(_ count: Int) -> String {
-        if count >= 1_000_000 {
-            return String(format: "%.1fM", Double(count) / 1_000_000)
-        }
-        if count >= 1_000 {
-            return String(format: "%.1fK", Double(count) / 1_000)
-        }
-        return "\(count)"
-    }
-
-    private func genreNames(for hero: TMDBSearchResult) -> [String] {
-        guard let genreIds = hero.genreIds else { return [] }
-        return genreIds.compactMap { Self.tmdbGenreNames[$0] }
-    }
-
-    private static let tmdbGenreNames: [Int: String] = [
-        12: "Adventure",
-        14: "Fantasy",
-        16: "Animation",
-        18: "Drama",
-        27: "Horror",
-        28: "Action",
-        35: "Comedy",
-        36: "History",
-        37: "Western",
-        53: "Thriller",
-        80: "Crime",
-        99: "Documentary",
-        878: "Sci-Fi",
-        9648: "Mystery",
-        10402: "Music",
-        10749: "Romance",
-        10751: "Family",
-        10752: "War",
-        10759: "Action Adventure",
-        10762: "Kids",
-        10763: "News",
-        10764: "Reality",
-        10765: "Sci-Fi Fantasy",
-        10766: "Soap",
-        10767: "Talk",
-        10768: "War Politics",
-        10770: "TV Movie"
-    ]
 
     @ViewBuilder
     private func heroTitleArtwork(_ hero: TMDBSearchResult) -> some View {
-        heroTitleText(hero)
-            .frame(maxWidth: heroLogoMaxWidth, maxHeight: heroLogoMaxHeight)
+        EmptyView()
     }
 
     @ViewBuilder
