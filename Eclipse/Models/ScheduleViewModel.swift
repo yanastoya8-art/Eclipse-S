@@ -485,6 +485,7 @@ final class ScheduleViewModel: ObservableObject {
             }
             isLoading = true
             errorMessage = nil
+            scheduleNotice = nil
             return true
         }
         guard shouldStart else { return }
