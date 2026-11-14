@@ -185,6 +185,17 @@ jobs:
           test "$(git -C "$MPVKIT_PACKAGE_CHECKOUT" rev-parse HEAD)" = "$MPVKIT_SOURCE_REVISION"
           mkdir -p "$MPVKIT_PACKAGE_CHECKOUT/dist/release"
           rsync -a --delete MPVKit/dist/release/ "$MPVKIT_PACKAGE_CHECKOUT/dist/release/"
+          # MPVKit downloads these prebuilt dependencies as ZIP archives instead of
+          # placing their unpacked bundles in dist/release/xcframework.
+          mkdir -p "$MPVKIT_PACKAGE_CHECKOUT/dist/release/xcframework"
+          for name in MoltenVK Libplacebo; do
+            artifact="$MPVKIT_PACKAGE_CHECKOUT/dist/release/xcframework/$name.xcframework"
+            archive="MPVKit/dist/release/$name.xcframework.zip"
+            if [[ ! -d "$artifact" ]]; then
+              test -f "$archive" || { echo "::error::Missing MPVKit artifact archive: $archive"; exit 1; }
+              ditto -x -k "$archive" "$MPVKIT_PACKAGE_CHECKOUT/dist/release/xcframework"
+            fi
+          done
           MPVKIT_LOCAL_ARTIFACTS_DIR="$MPVKIT_PACKAGE_CHECKOUT/dist/release"
           export MPVKIT_LOCAL_ARTIFACTS_DIR
           xcodebuild -resolvePackageDependencies \
