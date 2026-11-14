@@ -484,6 +484,7 @@ struct MediaDetailContentView: View {
     @State private var similarTitlesLoadFailed = false
     @State private var traktComments: [TraktCommentReview] = []
     @State private var traktRating: TraktMediaRating?
+    @State private var animeAgeCertification: MaturityRating?
     @State private var isLoadingTraktComments = false
     @State private var hasLoadedContent = false
     @State private var detailViewportSize: CGSize = .zero
@@ -1062,6 +1063,9 @@ struct MediaDetailContentView: View {
 #endif
         }
         .onAppear { detailViewportSize = geometry.size }
+        .task(id: exactAnimeNavigationSeedAniListId) {
+            await loadAnimeAgeCertificationIfNeeded()
+        }
         .onChangeComp(of: geometry.size) { _, newSize in
             detailViewportSize = newSize
         }
@@ -2884,8 +2888,31 @@ struct MediaDetailContentView: View {
         if searchResult.isMovie {
             return movieDetail?.releaseDates?.preferredCertification?.displayValue
         }
+        if let certification = tvShowDetail?.contentRatings?.preferredCertification {
+            return certification.displayValue
+        }
+        if let animeAgeCertification {
+            return "Taizen · \(animeAgeCertification.ageBand)"
+        }
+        return nil
+    }
 
-        return tvShowDetail?.contentRatings?.preferredCertification?.displayValue
+    private func loadAnimeAgeCertificationIfNeeded() async {
+        guard let anilistID = exactAnimeNavigationSeedAniListId, anilistID > 0 else {
+            animeAgeCertification = nil
+            return
+        }
+        do {
+            let rating = try await TaizenAnimeAgeRatingService.shared.rating(anilistID: anilistID)
+            guard !Task.isCancelled else { return }
+            animeAgeCertification = rating
+        } catch {
+            guard !Task.isCancelled else { return }
+            Logger.shared.log(
+                "Anime age-rating metadata unavailable for AniList \(anilistID): \(error.localizedDescription)",
+                type: "Anime"
+            )
+        }
     }
 
     @ViewBuilder
