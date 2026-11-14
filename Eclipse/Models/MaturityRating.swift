@@ -116,6 +116,20 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
         let value: String
         let region: String
         let rating: MaturityRating
+
+        var ageBand: String {
+            switch rating {
+            case .general: return "All ages"
+            case .teen: return "12+"
+            case .mature: return "15+"
+            case .adult: return "18+"
+            case .unknown: return "Not rated"
+            }
+        }
+
+        var displayValue: String {
+            "\(value) · \(region) · \(ageBand)"
+        }
     }
 
     static func preferredCertification(
@@ -169,10 +183,55 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
     }
 
     private static let regionalRatings: [String: [String: MaturityRating]] = [
-
-        "IN": ["A": .adult, "S": .adult, "UA": .teen],
-
-        "CA": ["A": .adult, "R": .adult]
+        // India: CBFC certificates are not interchangeable with US/UK labels.
+        "IN": [
+            "U": .general, "UA": .teen, "UA7PLUS": .general,
+            "UA13PLUS": .teen, "UA16PLUS": .mature, "A": .adult, "S": .adult
+        ],
+        // Canada: provincial boards use 14A/18A; A is adult-only.
+        "CA": [
+            "G": .general, "PG": .general, "14A": .teen,
+            "18A": .adult, "R": .adult, "A": .adult
+        ],
+        "GB": [
+            "U": .general, "PG": .general, "12A": .teen,
+            "12": .teen, "15": .mature, "18": .adult, "R18": .adult
+        ],
+        "ES": [
+            "APTA": .general, "7": .general, "12": .teen,
+            "16": .mature, "18": .adult, "X": .adult
+        ],
+        "JP": [
+            "G": .general, "PG12": .teen, "R15PLUS": .mature, "R18PLUS": .adult
+        ],
+        "KR": [
+            "ALL": .general, "12": .teen, "15": .mature, "19": .adult
+        ],
+        "AU": [
+            "G": .general, "PG": .general, "M": .teen,
+            "MA15": .mature, "MA15PLUS": .mature, "R18PLUS": .adult, "X18PLUS": .adult
+        ],
+        "DE": [
+            "0": .general, "6": .general, "12": .teen, "16": .mature, "18": .adult
+        ],
+        "FR": [
+            "U": .general, "10": .general, "12": .teen, "16": .mature, "18": .adult
+        ],
+        "IT": [
+            "T": .general, "VM14": .teen, "VM18": .adult
+        ],
+        "NL": [
+            "AL": .general, "6": .general, "9": .general,
+            "12": .teen, "14": .teen, "16": .mature, "18": .adult
+        ],
+        "BR": [
+            "L": .general, "10": .general, "12": .teen,
+            "14": .teen, "16": .mature, "18": .adult
+        ],
+        "SG": [
+            "G": .general, "PG": .general, "PG13": .teen,
+            "NC16": .mature, "M18": .adult, "R21": .adult
+        ]
     ]
 
     private static let exactRatings: [String: MaturityRating] = [
