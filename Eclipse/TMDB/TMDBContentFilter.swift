@@ -1084,11 +1084,10 @@ class TMDBContentFilter: ObservableObject {
         let isAnime = Self.isAnimeResult(result)
         if defaults.bool(forKey: "catalogHideAnime"), isAnime { return false }
         if isAnime,
-           defaults.bool(forKey: "catalogHideAnimeSpecialsAndOVAs"),
-           let format = result.animeIdentitySeed?.format?
-               .trimmingCharacters(in: .whitespacesAndNewlines)
-               .uppercased(),
-           ["SPECIAL", "OVA"].contains(format) {
+           !AnimeSpecialDubFilterPolicy.shouldInclude(
+                format: result.animeIdentitySeed?.format,
+                hideSpecialsAndOVAs: defaults.bool(forKey: "catalogHideAnimeSpecialsAndOVAs")
+           ) {
             return false
         }
         if defaults.bool(forKey: "catalogHideUnder20MinuteContent"),
@@ -1641,6 +1640,14 @@ actor TaizenAnimeAgeRatingService {
 
 
 enum AnimeSpecialDubFilterPolicy {
+    static func shouldInclude(format: String?, hideSpecialsAndOVAs: Bool) -> Bool {
+        guard hideSpecialsAndOVAs else { return true }
+        guard let format = format?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() else {
+            return true
+        }
+        return !["SPECIAL", "OVA"].contains(format)
+    }
+
     static func shouldInclude(
         selectedLanguages: Set<String>,
         isVerifiedForSelection: Bool
