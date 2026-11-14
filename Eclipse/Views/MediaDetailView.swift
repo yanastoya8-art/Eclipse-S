@@ -491,6 +491,11 @@ struct MediaDetailContentView: View {
     @State private var detailLoadedIdentity: String?
     @State private var detailLoadTask: Task<Void, Never>?
     @State private var optionalPresentationTask: Task<Void, Never>?
+    // Start title artwork independently from the full detail/enrichment pipeline.
+    // The same task is shared with optional-presentation loading to avoid duplicate image requests.
+    @State private var titleArtworkTask: Task<TMDBImagesResponse?, Never>?
+    @State private var titleArtworkLookupIdentity: String?
+    @State private var titleArtworkStartedAt = ProcessInfo.processInfo.systemUptime
     @State private var optionalPresentationGeneration = UUID()
     @State private var optionalPresentationIsComplete = false
     @State private var titleArtworkLookupComplete = false
@@ -1136,6 +1141,9 @@ struct MediaDetailContentView: View {
             trackerEpisodeChooserTask?.cancel()
             trackerEpisodeChooserTask = nil
             cancelOptionalPresentation()
+            titleArtworkTask?.cancel()
+            titleArtworkTask = nil
+            titleArtworkLookupIdentity = nil
             if let detailLoadTask {
                 detailLoadTask.cancel()
                 self.detailLoadTask = nil
@@ -1983,7 +1991,8 @@ struct MediaDetailContentView: View {
     @ViewBuilder
     private func macDetailTitle(compact: Bool) -> some View {
         if mediaDetailTitleArtworkEnabled && !titleArtworkLookupComplete {
-            Color.clear.frame(width: compact ? 330 : 480, height: compact ? 88 : 112)
+            macDetailTitleText(compact: compact)
+                .frame(width: compact ? 330 : 480, height: compact ? 88 : 112, alignment: .leading)
         } else if mediaDetailTitleArtworkEnabled, let logoURL {
             ResilientArtworkImage(
                 urls: [logoURL],
@@ -2282,7 +2291,7 @@ struct MediaDetailContentView: View {
     @ViewBuilder
     private var iPadImmersiveTitle: some View {
         if mediaDetailTitleArtworkEnabled && !titleArtworkLookupComplete {
-            Color.clear.frame(width: 380, height: 118)
+            iPadImmersiveTitleText.frame(width: 380, height: 118, alignment: .leading)
         } else if mediaDetailTitleArtworkEnabled, let logoURL {
             ResilientArtworkImage(
                 urls: [logoURL],
@@ -2737,10 +2746,11 @@ struct MediaDetailContentView: View {
         if !mediaDetailTitleArtworkEnabled {
             EmptyView()
         } else if !titleArtworkLookupComplete {
-            Color.clear
+            titleText
                 .frame(
                     width: ExperimentalFeatureState.isEnabledAtLaunch ? (isTvOS ? 720 : (usesWideDetailLayout ? 420 : 334)) : (usesWideDetailLayout ? 400 : 280),
-                    height: ExperimentalFeatureState.isEnabledAtLaunch ? (isTvOS ? 250 : 132) : (usesWideDetailLayout ? 140 : 100)
+                    height: ExperimentalFeatureState.isEnabledAtLaunch ? (isTvOS ? 250 : 132) : (usesWideDetailLayout ? 140 : 100),
+                    alignment: .leading
                 )
         } else if let logoURL = logoURL {
             ResilientArtworkImage(
@@ -6967,7 +6977,59 @@ struct MediaDetailContentView: View {
         }
     }
 
+    private func startTitleArtworkLookup() {
+        titleArtworkTask?.cancel()
+        let identity = searchResult.stableIdentity
+        let language = selectedLanguage
+        let id = searchResult.id
+        let isMovie = searchResult.isMovie
+        let cacheKey = detailCacheKeyForCurrentRoute()
+        titleArtworkLookupIdentity = identity
+        titleArtworkLookupComplete = false
+
+        titleArtworkTask = Task { @MainActor in
+            let images: TMDBImagesResponse?
+            do {
+                if isMovie {
+                    images = try await tmdbService.getMovieImages(id: id, preferredLanguage: language)
+                } else {
+                    images = try await tmdbService.getTVShowImages(id: id, preferredLanguage: language)
+                }
+            } catch {
+                images = nil
+            }
+
+            guard !Task.isCancelled,
+                  isDetailVisible,
+                  searchResult.stableIdentity == identity,
+                  selectedLanguage == language else { return images }
+
+            if let images, images.id == id {
+                logoURL = tmdbService.getBestLogo(from: images, preferredLanguage: language)?.fullURL
+            }
+            titleArtworkLookupComplete = true
+            cacheOptionalPresentation(key: cacheKey)
+            let elapsedMs = Int(((ProcessInfo.processInfo.systemUptime - detailLoadStartedAtForArtwork) * 1_000).rounded())
+            Logger.shared.log(
+                "MediaDetailTiming: tmdbId=\\(id) stage=title-artwork-ready elapsedMs=\\(elapsedMs) found=\\(logoURL != nil)",
+                type: "TMDB"
+            )
+            return images
+        }
+    }
+
+    private var detailLoadStartedAtForArtwork: TimeInterval {
+        // A stable monotonic origin for this request is stored when the task starts.
+        titleArtworkStartedAt
+    }
+
     private func loadOptionalPresentationImages(id: Int, isMovie: Bool, language: String) async throws -> TMDBImagesResponse {
+        if titleArtworkLookupIdentity == searchResult.stableIdentity,
+           let titleArtworkTask,
+           let images = await titleArtworkTask.value,
+           images.id == id {
+            return images
+        }
         if isMovie { return try await tmdbService.getMovieImages(id: id, preferredLanguage: language) }
         return try await tmdbService.getTVShowImages(id: id, preferredLanguage: language)
     }
@@ -6984,6 +7046,9 @@ struct MediaDetailContentView: View {
         posterAuditCacheHit = false
 #endif
         cancelOptionalPresentation()
+        titleArtworkTask?.cancel()
+        titleArtworkTask = nil
+        titleArtworkLookupIdentity = nil
         optionalPresentationIsComplete = false
         titleArtworkLookupComplete = false
         alternatePosterWasResolved = false
@@ -7180,6 +7245,8 @@ struct MediaDetailContentView: View {
         isLoadingSimilarTitles = false
         selectedSpecialEpisodeContext = nil
         let detailLoadStartedAt = ProcessInfo.processInfo.systemUptime
+        titleArtworkStartedAt = detailLoadStartedAt
+        startTitleArtworkLookup()
 
         detailLoadTask = Task {
             do {
