@@ -18,7 +18,7 @@ private enum StretchyHeaderAmbientColorCache {
 struct ResilientArtworkImage<Placeholder: View>: View {
     let urls: [String]
     let decodeSize: CGSize
-    let contentMode: ContentMode
+    let contentMode: SwiftUI.ContentMode
     private let placeholder: () -> Placeholder
     private let onImageLoaded: ((Color) -> Void)?
     @State private var failedURLs: Set<String> = []
@@ -26,7 +26,7 @@ struct ResilientArtworkImage<Placeholder: View>: View {
     init(
         urls: [String],
         decodeSize: CGSize,
-        contentMode: ContentMode = .fill,
+        contentMode: SwiftUI.ContentMode = .fill,
         onImageLoaded: ((Color) -> Void)? = nil,
         @ViewBuilder placeholder: @escaping () -> Placeholder
     ) {
