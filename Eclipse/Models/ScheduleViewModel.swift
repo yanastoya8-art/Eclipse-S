@@ -107,6 +107,7 @@ enum ScheduleProvider: String, Codable, Sendable {
     case aniList
     case animeSchedule
     case dubOnly
+    case tsuzuki
     case trakt
     case traktMovie
     case tvMaze
