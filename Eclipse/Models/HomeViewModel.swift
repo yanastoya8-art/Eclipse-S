@@ -754,8 +754,12 @@ final class HomeViewModel: ObservableObject {
         let selectionKey = usesCustomSelection
             ? "custom:" + selectedTitles.map(\.stableIdentity).joined(separator: "|")
             : "catalog:\(catalogId)"
-        let rawCandidates = (usesCustomSelection ? selectedTitles : heroCandidates(for: catalogId))
-            .filter { MyDubListDubFilter.shared.shouldInclude($0) }
+        // Explicitly selected hero titles are an intentional user override.
+        // Do not silently discard them when the optional dub catalogue has no
+        // identity match (which previously left the hero banner completely empty).
+        let rawCandidates = usesCustomSelection
+            ? selectedTitles
+            : heroCandidates(for: catalogId).filter { MyDubListDubFilter.shared.shouldInclude($0) }
 #if os(iOS)
         let iPadBackdropCandidates = rawCandidates.filter { $0.fullBackdropURL != nil }
         let candidates = !usesCustomSelection && UIDevice.current.userInterfaceIdiom == .pad && !iPadBackdropCandidates.isEmpty
