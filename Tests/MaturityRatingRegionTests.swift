@@ -202,6 +202,14 @@ final class MaturityRatingRegionTests: XCTestCase {
     }
 
 
+    func testUnknownRatingsDoNotPassThirteenPlusCatalogFilters() {
+        let unknown = MaturityRating.classify(certification: "NR", region: "GB")
+        XCTAssertEqual(unknown, .unknown)
+        XCTAssertFalse(unknown >= .teen)
+        XCTAssertTrue(MaturityRating.classify(certification: "12", region: "GB") < .teen)
+        XCTAssertTrue(MaturityRating.classify(certification: "13", region: "GB") >= .teen)
+    }
+
     func testThirteenPlusThresholdDistinguishesTwelveFromThirteen() {
         XCTAssertLessThan(MaturityRating.age12, MaturityRating.teen)
         XCTAssertEqual(MaturityRating.classify(certification: "12", region: "GB"), .age12)
