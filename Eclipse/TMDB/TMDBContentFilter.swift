@@ -1078,6 +1078,14 @@ class TMDBContentFilter: ObservableObject {
         let defaults = UserDefaults.standard
         let isAnime = Self.isAnimeResult(result)
         if defaults.bool(forKey: "catalogHideAnime"), isAnime { return false }
+        if isAnime,
+           defaults.bool(forKey: "catalogHideAnimeSpecialsAndOVAs"),
+           let format = result.animeIdentitySeed?.format?
+               .trimmingCharacters(in: .whitespacesAndNewlines)
+               .uppercased(),
+           ["SPECIAL", "OVA"].contains(format) {
+            return false
+        }
         if defaults.bool(forKey: "catalogHideUnder20MinuteContent"),
            let runtime = cachedRuntimeMinutes(for: runtimeCacheKey(for: result)),
            runtime < 20 {
