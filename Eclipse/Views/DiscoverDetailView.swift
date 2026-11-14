@@ -8,11 +8,17 @@ struct DiscoverDetailView: View {
     var loadMore: ((Int) async -> [TMDBSearchResult])? = nil
 
     @State private var items: [TMDBSearchResult] = []
+    @State private var filterRefreshRevision = 0
     @State private var currentPage = 1
     @State private var isLoadingMore = false
     @State private var hasMorePages = true
     @StateObject private var contentFilter = TMDBContentFilter.shared
     @Environment(\.heroNamespace) private var heroNamespace
+
+    private var filteredItems: [TMDBSearchResult] {
+        _ = filterRefreshRevision
+        return contentFilter.filterSearchResults(items)
+    }
 
     private var columns: [GridItem] {
 #if os(tvOS)
@@ -39,7 +45,7 @@ struct DiscoverDetailView: View {
                 }
 
                 LazyVGrid(columns: columns, spacing: isTvOS ? 48 : (isIPad ? 30 : 20)) {
-                    ForEach(items, id: \.stableIdentity) { item in
+                    ForEach(filteredItems, id: \.stableIdentity) { item in
                         NavigationLink(destination: MediaDetailView(searchResult: item)
                             .heroDestination(id: "discover-\(item.stableIdentity)", namespace: heroNamespace)
                         ) {
@@ -51,7 +57,7 @@ struct DiscoverDetailView: View {
                         .buttonStyle(PlainButtonStyle())
 #endif
                         .onAppear {
-                            if item.stableIdentity == items.last?.stableIdentity {
+                            if item.stableIdentity == filteredItems.last?.stableIdentity {
                                 loadNextPage()
                             }
                         }
@@ -87,9 +93,15 @@ struct DiscoverDetailView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: TMDBContentFilter.catalogFiltersDidChangeNotification)) { _ in
             let snapshot = items
-            Task {
+            Task { @MainActor in
                 await contentFilter.prepareMaturityRatings(for: snapshot)
-                items = contentFilter.filterSearchResults(snapshot)
+                // Keep the original page snapshot stable. Replacing the
+                // backing array here invalidates LazyVGrid's scroll layout,
+                // causing flashing and jumps back to the top.
+                filterRefreshRevision &+= 1
+                if filteredItems.isEmpty && hasMorePages {
+                    loadNextPage()
+                }
             }
         }
     }
