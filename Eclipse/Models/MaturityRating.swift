@@ -36,7 +36,8 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
             .joined()
         guard !compact.isEmpty else { return .unknown }
 
-        if let region, let regional = regionalRatings[region.uppercased()]?[compact] {
+        let normalizedRegion = region?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        if let normalizedRegion, let regional = regionalRatings[normalizedRegion]?[compact] {
             return regional
         }
 
@@ -142,7 +143,7 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
                 guard !trimmed.isEmpty else { return nil }
                 return Certification(
                     value: trimmed,
-                    region: region,
+                    region: region.uppercased(),
                     rating: classify(certification: trimmed, region: region)
                 )
             }
@@ -156,7 +157,7 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
             return lhs.value < rhs.value
         }
 
-        for region in regions {
+        for region in regions.map({ $0.uppercased() }) {
             if let candidate = candidates.first(where: { $0.region == region && $0.rating != .unknown }) {
                 return candidate
             }
@@ -164,7 +165,7 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
         if let candidate = candidates.first(where: { $0.rating != .unknown }) {
             return candidate
         }
-        for region in regions {
+        for region in regions.map({ $0.uppercased() }) {
             if let candidate = candidates.first(where: { $0.region == region }) {
                 return candidate
             }
