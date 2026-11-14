@@ -1868,7 +1868,11 @@ enum MediaStateSettingRegistry {
     ]
 
     private static let previousScopes: [String: MediaStateSettingScope] = [
-        "playerDoubleTapSeekSeconds": .tvOS
+        "playerDoubleTapSeekSeconds": .tvOS,
+        // These appearance controls were previously iOS-only. Accept their
+        // existing local records after moving them into the cross-platform
+        // shared settings registry.
+        "appearanceBleedStrength": .iOS
     ]
 
     static var allKeys: Set<String> { sharedKeys.union(tvOSKeys).union(iOSKeys) }
