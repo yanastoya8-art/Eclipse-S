@@ -1341,6 +1341,115 @@ enum TaizenDubMetadataError: Error, LocalizedError {
 
 /// Fetches episode-level dub counts for the exact AniList/MAL season identity.
 /// Results are cached because Taizen refreshes its catalogue at most hourly.
+struct TaizenAnimeArtwork: Sendable {
+    let posterURL: String?
+    let logoURL: String?
+}
+
+/// Batch artwork lookup for anime. Taizen mirrors fanart.tv TVPOSTER and
+/// clear-logo artwork and falls back to its curated AniList cover when a
+/// community poster is not available.
+actor TaizenAnimeArtworkService {
+    static let shared = TaizenAnimeArtworkService()
+
+    private struct CachedArtwork {
+        let fetchedAt: Date
+        let artwork: TaizenAnimeArtwork
+    }
+
+    private var cache: [Int: CachedArtwork] = [:]
+    private let cacheLifetime: TimeInterval = 60 * 60
+    private let maximumResponseBytes = 3 * 1_024 * 1_024
+
+    func artworks(forAniListIDs rawIDs: [Int]) async -> [Int: TaizenAnimeArtwork] {
+        let ids = Array(Set(rawIDs.filter { (1...1_000_000_000).contains($0) })).sorted()
+        guard !ids.isEmpty else { return [:] }
+
+        let now = Date()
+        let missing = ids.filter {
+            guard let cached = cache[$0] else { return true }
+            return now.timeIntervalSince(cached.fetchedAt) >= cacheLifetime
+        }
+
+        for start in stride(from: 0, to: missing.count, by: 40) {
+            let batch = Array(missing[start..<min(start + 40, missing.count)])
+            let idList = batch.map(String.init).joined(separator: ",")
+            let query = "{ animePage(filter: { ids: [\(idList)] }, perPage: 40) { items { id logo coverImage { large } artwork(type: TVPOSTER, limit: 1) { url } } } }"
+            guard var components = URLComponents(string: "https://taizen.moe/api/graphql") else { continue }
+            components.queryItems = [URLQueryItem(name: "query", value: query)]
+            guard let url = components.url else { continue }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.timeoutInterval = 18
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request)
+                try Task.checkCancellation()
+                guard data.count <= maximumResponseBytes,
+                      let http = response as? HTTPURLResponse,
+                      http.statusCode == 200,
+                      let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      (root["errors"] as? [Any])?.isEmpty != false,
+                      let payload = root["data"] as? [String: Any],
+                      let page = payload["animePage"] as? [String: Any],
+                      let items = page["items"] as? [[String: Any]] else {
+                    continue
+                }
+
+                let returnedIDs = Set(items.compactMap { ($0["id"] as? NSNumber)?.intValue })
+                for item in items {
+                    guard let id = (item["id"] as? NSNumber)?.intValue,
+                          (1...1_000_000_000).contains(id) else { continue }
+                    let fanartPoster = (item["artwork"] as? [[String: Any]])?.first?["url"] as? String
+                    let coverImage = (item["coverImage"] as? [String: Any])?["large"] as? String
+                    let poster = Self.trustedArtworkURL(fanartPoster) ?? Self.trustedArtworkURL(coverImage)
+                    let logo = Self.trustedArtworkURL(item["logo"] as? String)
+                    cache[id] = CachedArtwork(
+                        fetchedAt: Date(),
+                        artwork: TaizenAnimeArtwork(posterURL: poster, logoURL: logo)
+                    )
+                }
+
+                // A successful response with no item is a real negative result;
+                // cache it briefly so a missing mapping does not cause repeat calls.
+                for id in batch where !returnedIDs.contains(id) {
+                    cache[id] = CachedArtwork(
+                        fetchedAt: Date(),
+                        artwork: TaizenAnimeArtwork(posterURL: nil, logoURL: nil)
+                    )
+                }
+            } catch {
+                if Task.isCancelled { return cachedArtwork(for: ids) }
+            }
+        }
+        return cachedArtwork(for: ids)
+    }
+
+    private func cachedArtwork(for ids: [Int]) -> [Int: TaizenAnimeArtwork] {
+        Dictionary(uniqueKeysWithValues: ids.compactMap { id in
+            cache[id].map { (id, $0.artwork) }
+        })
+    }
+
+    private static func trustedArtworkURL(_ rawValue: String?) -> String? {
+        guard let rawValue, rawValue.utf8.count <= 2_048 else { return nil }
+        let candidate = rawValue.hasPrefix("/")
+            ? "https://taizen.moe" + rawValue
+            : rawValue
+        guard let components = URLComponents(string: candidate),
+              components.scheme?.lowercased() == "https",
+              let host = components.host?.lowercased(),
+              host == "taizen.moe" || host.hasSuffix(".taizen.moe")
+                || host == "anilist.co" || host.hasSuffix(".anilist.co"),
+              components.user == nil, components.password == nil else {
+            return nil
+        }
+        return components.url?.absoluteString
+    }
+}
+
 actor TaizenAnimeDubMetadataService {
     static let shared = TaizenAnimeDubMetadataService()
 
