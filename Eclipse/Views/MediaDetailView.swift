@@ -469,6 +469,7 @@ struct MediaDetailContentView: View {
     @State private var animeSeasonAniListIds: [Int: Int] = [:]
     @State private var animeSeasonKitsuIds: [Int: Int] = [:]
     @State private var animeProviderAliases: [Int: Int] = [:]
+    @AppStorage("mediaDetailHideAnimeSpecialsAndOVAs", store: .standard) private var hideAnimeSpecialsAndOVAs = false
     @State private var animeSpecialEntries: [AniListSpecialSearchEntry] = []
     @State private var isLoadingAnimeSpecials = false
     @State private var selectedSpecialEpisodeContext: SpecialEpisodeListContext?
@@ -3323,7 +3324,7 @@ struct MediaDetailContentView: View {
                 }),
                 specialEpisodeContext: $selectedSpecialEpisodeContext,
                 seasonSelectorInsertedContent: AnyView(specialsOVASection),
-                hasSpecialEpisodeChoices: !animeSpecialEntries.isEmpty,
+                hasSpecialEpisodeChoices: !hideAnimeSpecialsAndOVAs && !animeSpecialEntries.isEmpty,
                 animeEpisodes: anilistEpisodes,
                 animeEpisodeContextIndex: AnimeEpisodeContextIndex(episodes: anilistEpisodes ?? []),
                 animeSeasonTitles: animeSeasonTitles,
@@ -4051,7 +4052,7 @@ struct MediaDetailContentView: View {
 
     @ViewBuilder
     private var specialsOVASection: some View {
-        if isAnimeShow && (isLoadingAnimeSpecials || !animeSpecialEntries.isEmpty) {
+        if !hideAnimeSpecialsAndOVAs && isAnimeShow && (isLoadingAnimeSpecials || !animeSpecialEntries.isEmpty) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 8) {
                     Text("Specials & OVAs")
