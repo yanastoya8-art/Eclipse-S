@@ -421,6 +421,7 @@ struct MediaDetailContentView: View {
     @State private var selectedSeason: TMDBSeason?
     @State private var seasonDetail: TMDBSeasonDetail?
     @State private var isLoading = true
+    @State private var isShowingSearchResultPreview = false
     @State private var errorMessage: String?
     @State private var ambientColor: Color = Color.black
     @State private var scrollOffset: CGFloat = 0
@@ -1040,7 +1041,7 @@ struct MediaDetailContentView: View {
             detailBackground
                 .ignoresSafeArea(.all)
 
-            if isLoading {
+            if isLoading && !isShowingSearchResultPreview {
                 loadingView
             } else if let errorMessage = errorMessage {
                 errorView(errorMessage)
@@ -7211,6 +7212,8 @@ struct MediaDetailContentView: View {
         }
 
         isLoading = true
+        isShowingSearchResultPreview = true
+        synopsis = searchResult.overview ?? ""
 #if os(iOS)
         romajiTitle = nil
         logoURL = nil
@@ -7256,6 +7259,7 @@ struct MediaDetailContentView: View {
                         self.optionalPresentationCacheWritable = true
                         self.movieDetail = detail
                         self.synopsis = detail.overview ?? ""
+                        self.isShowingSearchResultPreview = false
 #if !os(iOS)
                         self.romajiTitle = nil
                         self.logoURL = nil
@@ -7324,6 +7328,7 @@ struct MediaDetailContentView: View {
                               self.selectedLanguage == detailLanguage else { return }
                         self.tvShowDetail = detail
                         self.synopsis = detail.overview ?? ""
+                        self.isShowingSearchResultPreview = false
                         self.isAnimeShow = (detail.originCountry?.contains(where: { ["JP", "CN", "KR", "TW"].contains($0) }) ?? false)
                             && detail.genres.contains(where: { $0.id == 16 })
                         self.selectedSeason = detail.seasons
@@ -7820,6 +7825,7 @@ struct MediaDetailContentView: View {
                           self.searchResult.stableIdentity == routeIdentity,
                           self.selectedLanguage == detailLanguage else { return }
                     self.errorMessage = error.localizedDescription
+                    self.isShowingSearchResultPreview = false
                     self.isLoading = false
                     self.hasLoadedContent = true
                 }
