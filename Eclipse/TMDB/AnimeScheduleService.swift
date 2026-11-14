@@ -429,7 +429,160 @@ enum AnimeScheduleLanguageNoticePolicy {
     }
 }
 
+actor TsuzukiAnimeDubScheduleService {
+    static let shared = TsuzukiAnimeDubScheduleService()
+
+    private struct Response: Decodable {
+        let ok: Bool
+        let episodes: [Episode]?
+    }
+
+    private struct Episode: Decodable {
+        let mediaId: Int
+        let episode: Int
+        let airType: String
+        let airingAt: Int?
+        let exact: Bool
+        let estimated: Bool
+        let isBreak: Bool?
+        let title: String
+        let coverImage: String?
+    }
+
+    private var cached: [String: (fetchedAt: Date, result: AnimeAiringScheduleResult)] = [:]
+    private let cacheLifetime: TimeInterval = 5 * 60
+
+    func fetchSchedule(daysAhead: Int = 7) async throws -> AnimeAiringScheduleResult {
+        let days = min(max(daysAhead, 1), 31)
+        let now = Date()
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        let start = formatter.string(from: now)
+        let cacheKey = "\(start):\(days)"
+        if let value = cached[cacheKey],
+           now.timeIntervalSince(value.fetchedAt) < cacheLifetime {
+            return value.result
+        }
+
+        var components = URLComponents(string: "https://tsuzuki.top/api/v1/schedule")
+        components?.queryItems = [
+            URLQueryItem(name: "start", value: start),
+            URLQueryItem(name: "days", value: String(days)),
+            URLQueryItem(name: "airType", value: "dub")
+        ]
+        guard let url = components?.url else { throw AnimeScheduleError.invalidResponse }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 18
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw AnimeScheduleError.invalidResponse
+        }
+        guard http.statusCode == 200 else {
+            throw AnimeScheduleError.http(http.statusCode)
+        }
+        guard data.count <= 5 * 1_024 * 1_024,
+              let payload = try? JSONDecoder().decode(Response.self, from: data),
+              payload.ok else {
+            throw AnimeScheduleError.invalidResponse
+        }
+
+        let entries = (payload.episodes ?? []).compactMap { episode -> AniListAiringScheduleEntry? in
+            let title = episode.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard episode.airType.lowercased() == "dub",
+                  episode.isBreak != true,
+                  episode.exact,
+                  !episode.estimated,
+                  episode.mediaId > 0,
+                  episode.mediaId <= 1_000_000_000,
+                  episode.episode > 0,
+                  episode.episode <= 100_000,
+                  !title.isEmpty,
+                  title.utf8.count <= 1_024,
+                  let timestamp = episode.airingAt,
+                  timestamp > 0 else {
+                return nil
+            }
+
+            let imageURL: String? = {
+                guard let raw = episode.coverImage,
+                      raw.utf8.count <= 2_048,
+                      let url = URL(string: raw),
+                      url.scheme?.lowercased() == "https",
+                      let host = url.host?.lowercased(),
+                      host == "anilist.co" || host.hasSuffix(".anilist.co") else {
+                    return nil
+                }
+                return url.absoluteString
+            }()
+
+            return AniListAiringScheduleEntry(
+                id: episode.mediaId * 100_001 + episode.episode,
+                mediaId: episode.mediaId,
+                title: title,
+                airingAt: Date(timeIntervalSince1970: TimeInterval(timestamp)),
+                episode: episode.episode,
+                coverImage: imageURL,
+                englishTitle: title,
+                romajiTitle: nil,
+                nativeTitle: nil,
+                format: nil,
+                hasKnownAiringTime: true,
+                scheduleProvider: .tsuzuki,
+                malID: nil,
+                airingTimeWithdrawn: false
+            )
+        }
+        let result = AnimeAiringScheduleResult(
+            entries: entries,
+            isAuthoritativeForNotifications: true,
+            notice: entries.isEmpty ? nil : "English dub dates supplemented by Tsuzuki's corrected schedule."
+        )
+        cached[cacheKey] = (Date(), result)
+        return result
+    }
+}
+
 enum AnimeScheduleFallback {
+    static func mergeEnglishDubSchedules(
+        primary: AnimeAiringScheduleResult,
+        fallback: AnimeAiringScheduleResult
+    ) -> AnimeAiringScheduleResult {
+        var entriesByEpisode: [String: AniListAiringScheduleEntry] = [:]
+        for entry in primary.entries {
+            entriesByEpisode["\(entry.mediaId):\(entry.episode)"] = entry
+        }
+        for candidate in fallback.entries {
+            let key = "\(candidate.mediaId):\(candidate.episode)"
+            if let existing = entriesByEpisode[key] {
+                if !existing.hasKnownAiringTime && candidate.hasKnownAiringTime {
+                    entriesByEpisode[key] = candidate
+                }
+            } else {
+                entriesByEpisode[key] = candidate
+            }
+        }
+        let entries = entriesByEpisode.values.sorted {
+            if $0.airingAt != $1.airingAt { return $0.airingAt < $1.airingAt }
+            if $0.title != $1.title { return $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+            return $0.episode < $1.episode
+        }
+        let notices = [primary.notice, fallback.notice]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return AnimeAiringScheduleResult(
+            entries: entries,
+            isAuthoritativeForNotifications: primary.isAuthoritativeForNotifications
+                && fallback.isAuthoritativeForNotifications,
+            notice: notices.isEmpty ? nil : Array(Set(notices)).joined(separator: " · ")
+        )
+    }
+
     static func permitsBroadcastFallback(selectedDubLanguages: Set<String>) -> Bool {
         selectedDubLanguages.isEmpty
     }
