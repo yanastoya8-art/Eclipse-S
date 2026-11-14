@@ -591,8 +591,11 @@ struct MediaDetailContentView: View {
     private var usesWideDetailLayout: Bool {
 #if os(macOS)
         (detailViewportSize == .zero ? EclipseViewport.bounds : detailViewportSize).width >= 1000
+#elseif os(iOS)
+        // Treat landscape as a wide detail layout on iPhone as well as iPad.
+        let viewport = detailViewportSize == .zero ? EclipseViewport.bounds : detailViewportSize
+        return isIPad || viewport.width > viewport.height
 #else
-        // iPhone keeps the portrait detail composition in both orientations.
         return isIPad
 #endif
     }
