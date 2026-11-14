@@ -21,6 +21,7 @@ struct SearchView: View {
 #endif
     @AppStorage("tmdbLanguage") private var selectedLanguage = "en-US"
     @AppStorage("searchHistory") private var searchHistoryData: Data = Data()
+    @AppStorage("searchHistorySavingEnabled") private var searchHistorySavingEnabled = true
 
     @State private var searchText = ""
     @State private var searchResults: [TMDBSearchResult] = []
@@ -208,6 +209,11 @@ struct SearchView: View {
                             .font(.title2)
                             .foregroundColor(.secondary)
                             .padding()
+
+                        Toggle("Save search history", isOn: $searchHistorySavingEnabled)
+                            .font(.subheadline)
+                            .padding(.horizontal, 28)
+                            .padding(.bottom, 12)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
@@ -218,6 +224,10 @@ struct SearchView: View {
                                 .foregroundColor(.primary)
 
                             Spacer()
+
+                            Toggle("Save", isOn: $searchHistorySavingEnabled)
+                                .labelsHidden()
+                                .accessibilityLabel("Save search history")
 
                             Button("Clear") {
                                 clearSearchHistory()
@@ -413,6 +423,11 @@ struct SearchView: View {
 #endif
             loadSearchHistory()
         }
+        .onChangeComp(of: searchHistorySavingEnabled) { _, enabled in
+            guard !enabled else { return }
+            searchHistory.removeAll()
+            searchHistoryData = Data()
+        }
 
         .onReceive(NotificationCenter.default.publisher(for: .activeProfileDidChange)) { _ in
             reloadSearchResultsForProfileChange()
@@ -580,6 +595,11 @@ struct SearchView: View {
     }
 
     private func loadSearchHistory() {
+        guard searchHistorySavingEnabled else {
+            searchHistory.removeAll()
+            searchHistoryData = Data()
+            return
+        }
         guard let decodedHistory = BackupSearchHistory.decodedQueries(from: searchHistoryData) else {
             searchHistory = []
             return
@@ -589,6 +609,11 @@ struct SearchView: View {
     }
 
     private func saveSearchHistory() {
+        guard searchHistorySavingEnabled else {
+            searchHistory.removeAll()
+            searchHistoryData = Data()
+            return
+        }
 #if DEBUG
         if ProcessInfo.processInfo.environment["ECLIPSE_UI_POSTER_AUDIT"] == "1" { return }
 #endif
@@ -600,6 +625,7 @@ struct SearchView: View {
     }
 
     private func addToSearchHistory(_ query: String) {
+        guard searchHistorySavingEnabled else { return }
         guard let trimmedQuery = BackupSearchHistory.sanitizedQueries([query]).first else { return }
 
         searchHistory.removeAll { $0.lowercased() == trimmedQuery.lowercased() }
