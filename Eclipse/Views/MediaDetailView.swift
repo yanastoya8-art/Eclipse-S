@@ -6836,7 +6836,8 @@ struct MediaDetailContentView: View {
             romajiTitle = romaji
             if let credits { castMembers = credits.cast }
             titleArtworkLookupComplete = true
-            optionalPresentationIsComplete = true
+            // A failed credits request must not be cached as a completed enrichment pass.
+            optionalPresentationIsComplete = credits != nil
             cacheOptionalPresentation(key: cacheKey)
 
             let elapsedMs = Int(((ProcessInfo.processInfo.systemUptime - startedAt) * 1_000).rounded())
