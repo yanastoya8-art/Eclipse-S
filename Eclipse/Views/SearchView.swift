@@ -2432,15 +2432,16 @@ private struct BrowseMediaView: View {
                 year: rawYear.flatMap { Int($0.prefix(4)) }
             )
         }
-        let tvMazePosters = await TVMazeArtworkPosterService.shared.posters(for: tvMazeRequests)
-
         let fanartRequests = animeArtworkResults.compactMap { result -> FanartTVMoviePosterRequest? in
             guard result.mediaType.lowercased() == "movie",
                   result.animeIdentitySeed == nil,
                   result.isAnimeHint != true else { return nil }
             return FanartTVMoviePosterRequest(id: result.id)
         }
-        let fanartPosters = await FanartTVMovieArtworkService.shared.posters(for: fanartRequests)
+
+        async let tvMazePostersTask = TVMazeArtworkPosterService.shared.posters(for: tvMazeRequests)
+        async let fanartPostersTask = FanartTVMovieArtworkService.shared.posters(for: fanartRequests)
+        let (tvMazePosters, fanartPosters) = await (tvMazePostersTask, fanartPostersTask)
 
         return animeArtworkResults.map { result in
             if let posterURL = fanartPosters[result.id] {
