@@ -42,6 +42,7 @@ struct SettingsView: View {
     @AppStorage("catalogHideBelowTV14Shows", store: .standard) private var hideBelowTV14Shows = false
     @AppStorage("catalogHideBelowPG13Anime", store: .standard) private var hideBelowPG13Anime = false
     @AppStorage("catalogRequireEnglishSpanishAudio", store: .standard) private var requireEnglishSpanishAudio = false
+    @AppStorage("searchHistorySavingEnabled", store: .standard) private var searchHistorySavingEnabled = true
 #if !os(tvOS)
     @AppStorage("showKanzen", store: .standard) private var showKanzen: Bool = false
     @State private var settingsSearchText = ""
@@ -1000,6 +1001,13 @@ struct SettingsView: View {
             }
 
             Section("Basic") {
+                Toggle("Save search history", isOn: $searchHistorySavingEnabled)
+                    .onChange(of: searchHistorySavingEnabled) { enabled in
+                        if !enabled {
+                            ProfileSettingsStore.active.removeObject(forKey: "searchHistory")
+                            UserDefaults.standard.removeObject(forKey: "searchHistory")
+                        }
+                    }
                 NavigationLink(destination: ServicesView()
                     .eclipseHideTabBar()
                     .onAppear {
