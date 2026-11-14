@@ -5453,19 +5453,41 @@ final class AniListService {
             }
 
             do {
-                result = try await AnimeScheduleService.shared.fetchSchedule(
+                let primary = try await AnimeScheduleService.shared.fetchSchedule(
                     daysAhead: daysAhead,
                     preferredLanguageCode: self.preferredLanguageCode
                 )
-                Logger.shared.log("DubOnly: loaded filtered English dub schedule entries=\(result.entries.count)", type: "Schedule")
+                if primary.entries.count < 5,
+                   let supplemental = try? await TsuzukiAnimeDubScheduleService.shared.fetchSchedule(daysAhead: daysAhead) {
+                    result = AnimeScheduleFallback.mergeEnglishDubSchedules(
+                        primary: primary,
+                        fallback: supplemental
+                    )
+                    Logger.shared.log(
+                        "DubOnly: merged English dub schedules primary=\(primary.entries.count) tsuzuki=\(supplemental.entries.count) total=\(result.entries.count)",
+                        type: "Schedule"
+                    )
+                } else {
+                    result = primary
+                    Logger.shared.log("DubOnly: loaded filtered English dub schedule entries=\(result.entries.count)", type: "Schedule")
+                }
             } catch {
                 try AnimeScheduleService.rethrowCancellation(error)
-                Logger.shared.log("DubOnly: filtered dub schedule unavailable; broadcast fallback suppressed: \(error.localizedDescription)", type: "Schedule")
-                return AnimeAiringScheduleResult(
-                    entries: [],
-                    isAuthoritativeForNotifications: false,
-                    notice: "The selected-language dub schedule is temporarily unavailable. Undubbed broadcast episodes are hidden until dub dates can be verified."
-                )
+                do {
+                    result = try await TsuzukiAnimeDubScheduleService.shared.fetchSchedule(daysAhead: daysAhead)
+                    Logger.shared.log(
+                        "Tsuzuki: used verified English dub schedule fallback entries=\(result.entries.count)",
+                        type: "Schedule"
+                    )
+                } catch {
+                    try AnimeScheduleService.rethrowCancellation(error)
+                    Logger.shared.log("DubOnly/Tsuzuki: filtered dub schedule unavailable; broadcast fallback suppressed: \(error.localizedDescription)", type: "Schedule")
+                    return AnimeAiringScheduleResult(
+                        entries: [],
+                        isAuthoritativeForNotifications: false,
+                        notice: "The selected-language dub schedule is temporarily unavailable. Undubbed broadcast episodes are hidden until dub dates can be verified."
+                    )
+                }
             }
         } else {
             result = try await AnimeScheduleFallback.load(aniList: {
