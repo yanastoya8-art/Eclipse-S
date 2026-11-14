@@ -499,6 +499,19 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         return view
     }()
 
+    // A separate capsule keeps the secondary controls grouped like the
+    // reference player without putting a permanent glass layer over the video.
+    private let bottomControlsGlassView: UIVisualEffectView = {
+        let view = UIVisualEffectView(effect: nil)
+        view.translatesAutoresizingMaskIntoConstraints = false
+        view.isUserInteractionEnabled = false
+        view.clipsToBounds = true
+        view.layer.cornerRadius = 24
+        view.alpha = 0
+        view.isHidden = true
+        return view
+    }()
+
     private let metalPerformanceOverlayLabel: PlayerPerformanceOverlayLabel = {
         let label = PlayerPerformanceOverlayLabel()
         label.translatesAutoresizingMaskIntoConstraints = false
@@ -5508,16 +5521,19 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             centerPlayPauseGlassView.effect = nil
             topControlsGlassView.effect = nil
             progressGlassView.effect = nil
+            bottomControlsGlassView.effect = nil
             centerPlayPauseGlassView.isHidden = true
             topControlsGlassView.isHidden = true
             progressGlassView.isHidden = true
+            bottomControlsGlassView.isHidden = true
             return
         }
 
         let effect: UIVisualEffect
         if #available(iOS 26.0, *) {
             let glass = UIGlassEffect(style: .regular)
-            glass.tintColor = UIColor.black.withAlphaComponent(0.20)
+            glass.isInteractive = true
+            glass.tintColor = UIColor.white.withAlphaComponent(0.08)
             effect = glass
         } else {
             effect = UIBlurEffect(style: .systemUltraThinMaterialDark)
@@ -5525,12 +5541,15 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         centerPlayPauseGlassView.effect = effect
         topControlsGlassView.effect = effect
         progressGlassView.effect = effect
+        bottomControlsGlassView.effect = effect
         centerPlayPauseGlassView.isHidden = false
         topControlsGlassView.isHidden = false
         progressGlassView.isHidden = false
+        bottomControlsGlassView.isHidden = false
         centerPlayPauseGlassView.alpha = controlsVisible ? 1 : 0
         topControlsGlassView.alpha = controlsVisible ? 1 : 0
         progressGlassView.alpha = controlsVisible ? 1 : 0
+        bottomControlsGlassView.alpha = controlsVisible && supportsSharedPlayerControls ? 1 : 0
     }
 
     private func configurePlayerSkinDecoration(animationsEnabled: Bool) {
@@ -5725,6 +5744,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         videoContainer.addSubview(centerPlayPauseGlassView)
         videoContainer.addSubview(centerPlayPauseButton)
         videoContainer.addSubview(progressGlassView)
+        videoContainer.addSubview(bottomControlsGlassView)
         videoContainer.addSubview(progressContainer)
         videoContainer.addSubview(overlayMenuDismissView)
         videoContainer.addSubview(overlayMenuPanelView)
@@ -5951,6 +5971,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             let performanceOverlayWidth = performanceOverlayButton.widthAnchor.constraint(equalToConstant: 32)
             performanceOverlayWidth.priority = .init(999)
             NSLayoutConstraint.activate([
+                bottomControlsGlassView.leadingAnchor.constraint(equalTo: audioButton.leadingAnchor, constant: -8),
+                bottomControlsGlassView.trailingAnchor.constraint(equalTo: playerSourceButtonsStackView.trailingAnchor, constant: 8),
+                bottomControlsGlassView.topAnchor.constraint(equalTo: audioButton.topAnchor, constant: -8),
+                bottomControlsGlassView.bottomAnchor.constraint(equalTo: audioButton.bottomAnchor, constant: 8),
                 playerSourceButtonsStackView.trailingAnchor.constraint(equalTo: progressContainer.trailingAnchor),
                 playerSourceButtonsStackView.centerYAnchor.constraint(equalTo: subtitleButton.centerYAnchor),
                 playerSourceButtonsStackView.heightAnchor.constraint(equalToConstant: 32),
@@ -14138,6 +14162,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         videoContainer.bringSubviewToFront(controlsOverlayView)
         videoContainer.bringSubviewToFront(topControlsGlassView)
         videoContainer.bringSubviewToFront(progressGlassView)
+        videoContainer.bringSubviewToFront(bottomControlsGlassView)
         videoContainer.bringSubviewToFront(centerPlayPauseGlassView)
         videoContainer.bringSubviewToFront(overlayMenuDismissView)
         videoContainer.bringSubviewToFront(overlayMenuPanelView)
@@ -14178,6 +14203,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
                 self.controlsOverlayView.alpha = 1.0
                 self.topControlsGlassView.alpha = self.activePlayerLiquidGlassEnabled ? 1.0 : 0.0
                 self.progressGlassView.alpha = self.activePlayerLiquidGlassEnabled ? 1.0 : 0.0
+                self.bottomControlsGlassView.alpha = self.activePlayerLiquidGlassEnabled && self.supportsSharedPlayerControls ? 1.0 : 0.0
                 self.centerPlayPauseGlassView.alpha = self.activePlayerLiquidGlassEnabled ? 1.0 : 0.0
                 self.progressContainer.alpha = 1.0
 #if os(iOS)
@@ -14250,6 +14276,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
                 self.controlsOverlayView.alpha = 0.0
                 self.topControlsGlassView.alpha = 0.0
                 self.progressGlassView.alpha = 0.0
+                self.bottomControlsGlassView.alpha = 0.0
                 self.centerPlayPauseGlassView.alpha = 0.0
                 self.progressContainer.alpha = 0.0
                 self.closeButton.alpha = 0.0
