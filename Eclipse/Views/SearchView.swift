@@ -50,6 +50,7 @@ struct SearchView: View {
         case all = "All"
         case movies = "Movies"
         case tvShows = "TV Shows"
+        case anime = "Anime"
     }
 
     var filteredResults: [TMDBSearchResult] {
@@ -59,8 +60,20 @@ struct SearchView: View {
         case .movies:
             return searchResults.filter { $0.isMovie }
         case .tvShows:
-            return searchResults.filter { $0.isTVShow }
+            return searchResults.filter { $0.isTVShow && !isAnimeResult($0) }
+        case .anime:
+            return searchResults.filter { isAnimeResult($0) }
         }
+    }
+
+    private func isAnimeResult(_ result: TMDBSearchResult) -> Bool {
+        if result.animeIdentitySeed != nil || result.isAnimeHint == true {
+            return true
+        }
+        guard result.genreIds?.contains(16) == true else { return false }
+        let language = result.originalLanguage?.lowercased() ?? ""
+        return ["ja", "zh", "ko"].contains(where: language.hasPrefix)
+            || result.originCountry?.contains(where: { ["JP", "CN", "KR", "TW"].contains($0) }) == true
     }
 
     private var columnsCount: Int {
@@ -123,7 +136,15 @@ struct SearchView: View {
             let snapshot = searchResults
             Task {
                 await contentFilter.prepareMaturityRatings(for: snapshot)
-                searchResults = contentFilter.filterSearchResults(snapshot)
+                let updatedResults = contentFilter.filterSearchResults(snapshot)
+                await MainActor.run {
+                    // Avoid invalidating the visible grid when metadata refreshes
+                    // do not actually change which results pass the active filters.
+                    let currentIDs = self.searchResults.map(\.stableIdentity)
+                    let updatedIDs = updatedResults.map(\.stableIdentity)
+                    guard currentIDs != updatedIDs else { return }
+                    self.searchResults = updatedResults
+                }
             }
         }
     }
@@ -210,11 +231,7 @@ struct SearchView: View {
                             .foregroundColor(.secondary)
                             .padding()
 
-                        Toggle("Save search history", isOn: $searchHistorySavingEnabled)
-                            .font(.subheadline)
-                            .padding(.horizontal, 28)
-                            .padding(.bottom, 12)
-                    }
+                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     VStack(alignment: .leading, spacing: 0) {
@@ -225,11 +242,7 @@ struct SearchView: View {
 
                             Spacer()
 
-                            Toggle("Save", isOn: $searchHistorySavingEnabled)
-                                .labelsHidden()
-                                .accessibilityLabel("Save search history")
-
-                            Button("Clear") {
+                             Button("Clear") {
                                 clearSearchHistory()
                             }
                             .font(isTvOS ? .system(size: 26) : .caption)
