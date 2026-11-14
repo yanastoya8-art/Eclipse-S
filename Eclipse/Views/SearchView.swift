@@ -25,6 +25,7 @@ struct SearchView: View {
 
     @State private var searchText = ""
     @State private var searchResults: [TMDBSearchResult] = []
+    @State private var filterRefreshRevision = 0
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var searchFilter: SearchFilter = .all
@@ -54,15 +55,20 @@ struct SearchView: View {
     }
 
     var filteredResults: [TMDBSearchResult] {
+        // Keep the unfiltered search snapshot stable while catalog metadata
+        // resolves. Replacing the backing array during scrolling resets the
+        // LazyVGrid's layout and causes visible flashing/jumps to the top.
+        _ = filterRefreshRevision
+        let catalogResults = contentFilter.filterSearchResults(searchResults)
         switch searchFilter {
         case .all:
-            return searchResults
+            return catalogResults
         case .movies:
-            return searchResults.filter { $0.isMovie }
+            return catalogResults.filter { $0.isMovie }
         case .tvShows:
-            return searchResults.filter { $0.isTVShow && !isAnimeResult($0) }
+            return catalogResults.filter { $0.isTVShow && !isAnimeResult($0) }
         case .anime:
-            return searchResults.filter { isAnimeResult($0) }
+            return catalogResults.filter { isAnimeResult($0) }
         }
     }
 
@@ -136,14 +142,10 @@ struct SearchView: View {
             let snapshot = searchResults
             Task {
                 await contentFilter.prepareMaturityRatings(for: snapshot)
-                let updatedResults = contentFilter.filterSearchResults(snapshot)
                 await MainActor.run {
-                    // Avoid invalidating the visible grid when metadata refreshes
-                    // do not actually change which results pass the active filters.
-                    let currentIDs = self.searchResults.map(\.stableIdentity)
-                    let updatedIDs = updatedResults.map(\.stableIdentity)
-                    guard currentIDs != updatedIDs else { return }
-                    self.searchResults = updatedResults
+                    // Refresh derived results without mutating the source
+                    // snapshot, preserving the current scroll position.
+                    filterRefreshRevision &+= 1
                 }
             }
         }
@@ -768,7 +770,7 @@ struct SearchView: View {
                         nextResults: filteredResultsForCurrentFilter(filteredResults)
                     )
 #endif
-                    self.searchResults = filteredResults
+                    self.searchResults = results
                     self.isLoading = false
 #if os(tvOS)
                     if let restoredFocus {
@@ -801,7 +803,8 @@ struct SearchView: View {
         switch searchFilter {
         case .all: return results
         case .movies: return results.filter(\.isMovie)
-        case .tvShows: return results.filter(\.isTVShow)
+        case .tvShows: return results.filter { $0.isTVShow && !isAnimeResult($0) }
+        case .anime: return results.filter { isAnimeResult($0) }
         }
     }
 
