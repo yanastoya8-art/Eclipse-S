@@ -559,6 +559,7 @@ struct MediaDetailContentView: View {
     @Environment(\.accessibilityReduceMotion) private var macReduceMotion
 #endif
     @AppStorage("tmdbLanguage") private var selectedLanguage = "en-US"
+    @AppStorage("catalogHideAnimeSpecialsAndOVAs", store: .standard) private var hideAnimeSpecialsAndOVAs = false
     @AppStorage("mediaDetailElementOrder") private var mediaDetailElementOrder = MediaDetailElement.defaultOrderRawValue
     @AppStorage("mediaDetailHiddenElements") private var mediaDetailHiddenElements = ""
     @AppStorage("showCastSection") private var legacyShowCastSection = true
@@ -4098,7 +4099,7 @@ struct MediaDetailContentView: View {
 
     @ViewBuilder
     private var specialsOVASection: some View {
-        if isAnimeShow && (isLoadingAnimeSpecials || !animeSpecialEntries.isEmpty) {
+        if isAnimeShow && !hideAnimeSpecialsAndOVAs && (isLoadingAnimeSpecials || !animeSpecialEntries.isEmpty) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 8) {
                     Text("Specials & OVAs")
