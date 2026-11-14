@@ -513,8 +513,8 @@ class TMDBContentFilter: ObservableObject {
 
         let hideBelowAnime = defaults.bool(forKey: "catalogHideBelowPG13Anime")
         let requireVerifiedAudio = defaults.bool(forKey: "catalogRequireEnglishSpanishAudio")
-        let resolveAnimeAgeRatings = kidsModeEnabled || hideBelowAnime
-        guard resolveAnimeAgeRatings || requireVerifiedAudio else { return }
+        let shouldResolveAnimeAgeRatings = kidsModeEnabled || hideBelowAnime
+        guard shouldResolveAnimeAgeRatings || requireVerifiedAudio else { return }
 
         var uniqueAnime: [Int: TMDBSearchResult] = [:]
         for result in results where Self.isAnimeResult(result) {
@@ -523,7 +523,7 @@ class TMDBContentFilter: ObservableObject {
         }
         let animeResults = Array(uniqueAnime.values)
 
-        if resolveAnimeAgeRatings {
+        if shouldResolveAnimeAgeRatings {
             let identifiers = Array(uniqueAnime.keys)
             if kidsModeEnabled {
                 await resolveAnimeAgeRatings(for: identifiers)
