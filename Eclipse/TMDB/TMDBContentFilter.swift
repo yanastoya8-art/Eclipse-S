@@ -362,6 +362,13 @@ class TMDBContentFilter: ObservableObject {
     @Published var filterHorror: Bool {
         didSet {
             ProfileSettingsStore.active.set(filterHorror, forKey: "filterHorror")
+            // Re-filter the already loaded catalog snapshot. Reloading the
+            // catalog here replaces SwiftUI rows while the user is scrolling,
+            // which can reset the scroll position and flash the whole screen.
+            NotificationCenter.default.post(
+                name: Self.catalogFiltersDidChangeNotification,
+                object: nil
+            )
         }
     }
 
