@@ -7026,6 +7026,7 @@ struct MediaDetailContentView: View {
            images.id == id {
             return images
         }
+        if Task.isCancelled { throw CancellationError() }
         if isMovie { return try await tmdbService.getMovieImages(id: id, preferredLanguage: language) }
         return try await tmdbService.getTVShowImages(id: id, preferredLanguage: language)
     }
