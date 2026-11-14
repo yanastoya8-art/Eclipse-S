@@ -2722,10 +2722,19 @@ struct MediaDetailContentView: View {
         }
     }
 
+    private var titleLogoDecodeSize: CGSize {
+        let scale = EclipseViewport.scale
+        return CGSize(
+            width: (usesWideDetailLayout ? 420 : 320) * scale,
+            height: (usesWideDetailLayout ? 112 : 92) * scale
+        )
+    }
+
     @ViewBuilder
     private var titleArtwork: some View {
         if let logoURL, let url = URL(string: logoURL) {
             KFImage(url)
+                .setProcessor(DownsamplingImageProcessor(size: titleLogoDecodeSize))
                 .placeholder { titleText }
                 .resizable()
                 .scaledToFit()
