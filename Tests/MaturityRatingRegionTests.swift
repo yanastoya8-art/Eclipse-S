@@ -490,6 +490,14 @@ final class MaturityRatingRegionTests: XCTestCase {
         XCTAssertEqual(MaturityRating.classify(certification: "R21", region: "SG"), .adult)
     }
 
+    func testBulgarianNationalAgeCategoriesAreMappedCorrectly() {
+        XCTAssertEqual(MaturityRating.classify(certification: "A", region: "BG"), .general)
+        XCTAssertEqual(MaturityRating.classify(certification: "B", region: "BG"), .teen)
+        XCTAssertEqual(MaturityRating.classify(certification: "C", region: "BG"), .mature)
+        XCTAssertEqual(MaturityRating.classify(certification: "D", region: "BG"), .adult)
+        XCTAssertEqual(MaturityRating.classify(certification: "X", region: "BG"), .adult)
+    }
+
     func testAgeCertificationDisplayIncludesIssuingRegionAndAgeBand() throws {
         let certification = try XCTUnwrap(MaturityRating.preferredCertification(
             certificationsByRegion: ["gb": ["15"]],
