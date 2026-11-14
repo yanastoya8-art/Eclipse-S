@@ -5531,8 +5531,33 @@ final class AniListService {
             let malID = entry.malID ?? (entry.mediaId < 0 ? -entry.mediaId : nil)
             return MyDubListDubFilter.shared.shouldIncludeEnglishSchedule(anilistID: anilistID, malID: malID)
         }
+        let artworkByID = await TaizenAnimeArtworkService.shared.artworks(
+            forAniListIDs: filteredEntries.compactMap { $0.mediaId > 0 ? $0.mediaId : nil }
+        )
+        let posterEnrichedEntries = filteredEntries.map { entry in
+            guard entry.mediaId > 0,
+                  let posterURL = artworkByID[entry.mediaId]?.posterURL else {
+                return entry
+            }
+            return AniListAiringScheduleEntry(
+                id: entry.id,
+                mediaId: entry.mediaId,
+                title: entry.title,
+                airingAt: entry.airingAt,
+                episode: entry.episode,
+                coverImage: posterURL,
+                englishTitle: entry.englishTitle,
+                romajiTitle: entry.romajiTitle,
+                nativeTitle: entry.nativeTitle,
+                format: entry.format,
+                hasKnownAiringTime: entry.hasKnownAiringTime,
+                scheduleProvider: entry.scheduleProvider,
+                malID: entry.malID,
+                airingTimeWithdrawn: entry.airingTimeWithdrawn
+            )
+        }
         return AnimeAiringScheduleResult(
-            entries: filteredEntries,
+            entries: posterEnrichedEntries,
             isAuthoritativeForNotifications: result.isAuthoritativeForNotifications,
             notice: AnimeScheduleLanguageNoticePolicy.notice(
                 selectedLanguages: selectedLanguages,
