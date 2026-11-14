@@ -562,6 +562,7 @@ struct MediaDetailContentView: View {
     @AppStorage("showCastSection") private var legacyShowCastSection = true
     @AppStorage(MediaDetailPlatformDefaults.seasonMenuKey) private var useSeasonMenu = MediaDetailPlatformDefaults.prefersCompactSeasonMenu
     @AppStorage(MediaDetailAgeRatingSettings.enabledKey) private var mediaDetailAgeRatingEnabled = MediaDetailAgeRatingSettings.defaultEnabled
+    @AppStorage("catalogHideAnimeSpecialsAndOVAs", store: .standard) private var hideAnimeSpecialsAndOVAs = false
     @AppStorage(MediaDetailSimilarTitlesSettings.enabledKey) private var mediaDetailSimilarTitlesEnabled = MediaDetailSimilarTitlesSettings.defaultEnabled
     @AppStorage(ExperimentalMediaDesignPreset.storageKey) private var experimentalDesignPreset = ExperimentalMediaDesignPreset.defaultValue.rawValue
     @AppStorage(ExperimentalHeroBleedLevel.storageKey) private var experimentalHeroBleedLevel = ExperimentalHeroBleedLevel.defaultValue.rawValue
@@ -591,8 +592,11 @@ struct MediaDetailContentView: View {
     private var usesWideDetailLayout: Bool {
 #if os(macOS)
         (detailViewportSize == .zero ? EclipseViewport.bounds : detailViewportSize).width >= 1000
+#elseif os(iOS)
+        // Treat landscape as a wide detail layout on iPhone as well as iPad.
+        let viewport = detailViewportSize == .zero ? EclipseViewport.bounds : detailViewportSize
+        return isIPad || viewport.width > viewport.height
 #else
-        // iPhone keeps the portrait detail composition in both orientations.
         return isIPad
 #endif
     }
@@ -4072,7 +4076,7 @@ struct MediaDetailContentView: View {
 
     @ViewBuilder
     private var specialsOVASection: some View {
-        if isAnimeShow && (isLoadingAnimeSpecials || !animeSpecialEntries.isEmpty) {
+        if isAnimeShow && !hideAnimeSpecialsAndOVAs && (isLoadingAnimeSpecials || !animeSpecialEntries.isEmpty) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 8) {
                     Text("Specials & OVAs")
