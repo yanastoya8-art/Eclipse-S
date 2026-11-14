@@ -5460,6 +5460,18 @@ private struct LanguageFiltersSettingsView: View {
 
             Section {
                 NavigationLink {
+                    AnimeScheduleSettingsView()
+                } label: {
+                    HStack {
+                        Label("English Dub Schedule", systemImage: "calendar.badge.clock")
+                        Spacer()
+                        Text(AnimeScheduleAPIKeyStore.hasToken ? "Configured" : "Token needed")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .accessibilityIdentifier("settings.contentFilters.animeScheduleToken")
+
+                NavigationLink {
                     JustWatchSettingsView()
                 } label: {
                     HStack {
