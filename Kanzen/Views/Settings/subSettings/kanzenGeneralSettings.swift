@@ -20,7 +20,7 @@ struct KanzenGeneralSettingsView: View {
     @AppStorage("readerLineSpacing") private var readerLineSpacing: Double = 1.6
     @AppStorage("readerMargin") private var readerMargin: Double = 4
     @AppStorage("readerReadThresholdPercent") private var readerReadThresholdPercent: Double = 80
-    @AppStorage("readerDetailHeroBlur") private var readerDetailHeroBlur: Double = 18
+    @AppStorage("readerDetailHeroBlur") private var readerDetailHeroBlur: Double = 26
     @State private var readerDetailElements = ReaderDetailElement.orderedElements()
     @State private var hiddenReaderDetailElements = ReaderDetailElement.hiddenElements()
 
@@ -41,7 +41,7 @@ struct KanzenGeneralSettingsView: View {
     }
 
     private var sanitizedReaderDetailHeroBlur: Double {
-        Self.sanitizedSetting(readerDetailHeroBlur, default: 18, range: 0...30)
+        Self.sanitizedSetting(readerDetailHeroBlur, default: 26, range: 0...36)
     }
 
     private func sanitizedBinding(
@@ -240,8 +240,8 @@ struct KanzenGeneralSettingsView: View {
                             .monospacedDigit()
                     }
                     Slider(
-                        value: sanitizedBinding($readerDetailHeroBlur, default: 18, range: 0...30),
-                        in: 0...30,
+                        value: sanitizedBinding($readerDetailHeroBlur, default: 26, range: 0...36),
+                        in: 0...36,
                         step: 1
                     )
                     Text("Choose how softly the cover image is blurred behind the title on reader detail pages.")
