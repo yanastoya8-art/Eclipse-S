@@ -5543,30 +5543,42 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     }
 
     private func updatePlayerLiquidGlassEffects() {
+        let glassViews = [
+            centerPlayPauseGlassView,
+            topControlsGlassView,
+            progressGlassView
+        ]
+
         guard activePlayerLiquidGlassEnabled else {
-            centerPlayPauseGlassView.effect = nil
-            topControlsGlassView.effect = nil
-            progressGlassView.effect = nil
-            centerPlayPauseGlassView.isHidden = true
-            topControlsGlassView.isHidden = true
-            progressGlassView.isHidden = true
+            for glassView in glassViews {
+                glassView.effect = nil
+                glassView.backgroundColor = .clear
+                glassView.contentView.backgroundColor = .clear
+                glassView.layer.borderWidth = 0
+                glassView.layer.shadowOpacity = 0
+                glassView.isHidden = true
+            }
             return
         }
 
-        let effect: UIVisualEffect
-        if #available(iOS 26.0, *) {
-            let glass = UIGlassEffect(style: .regular)
-            glass.tintColor = UIColor.black.withAlphaComponent(0.20)
-            effect = glass
-        } else {
-            effect = UIBlurEffect(style: .systemUltraThinMaterialDark)
+        // Avoid a live UIGlassEffect backdrop pass over the Metal video surface.
+        // A lightweight translucent fill + highlight stroke keeps the glass
+        // treatment while preventing the effect view from starving video frames.
+        for glassView in glassViews {
+            glassView.effect = nil
+            glassView.backgroundColor = UIColor.white.withAlphaComponent(0.075)
+            glassView.contentView.backgroundColor = UIColor.clear
+            glassView.layer.cornerCurve = .continuous
+            glassView.layer.borderWidth = 1
+            glassView.layer.borderColor = UIColor.white.withAlphaComponent(0.22).cgColor
+            glassView.layer.shadowColor = UIColor.black.cgColor
+            glassView.layer.shadowOpacity = 0.18
+            glassView.layer.shadowRadius = 10
+            glassView.layer.shadowOffset = CGSize(width: 0, height: 4)
+            glassView.isUserInteractionEnabled = false
+            glassView.isHidden = false
         }
-        centerPlayPauseGlassView.effect = effect
-        topControlsGlassView.effect = effect
-        progressGlassView.effect = effect
-        centerPlayPauseGlassView.isHidden = false
-        topControlsGlassView.isHidden = false
-        progressGlassView.isHidden = false
+
         centerPlayPauseGlassView.alpha = controlsVisible ? 1 : 0
         topControlsGlassView.alpha = controlsVisible ? 1 : 0
         progressGlassView.alpha = controlsVisible ? 1 : 0
