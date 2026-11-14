@@ -981,7 +981,8 @@ class TMDBContentFilter: ObservableObject {
         animeEligibilityLock.lock()
         let rating = animeAgeRatingsByID[anilistID]
         animeEligibilityLock.unlock()
-        return rating == nil || rating == .unknown || rating! >= .teen
+        guard let rating else { return true }
+        return rating == .unknown || rating >= .teen
     }
 
     private func shouldIncludeTMDBAgeRating(isMovie: Bool, id: Int, enabled: Bool) -> Bool {
