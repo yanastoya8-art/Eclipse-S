@@ -215,6 +215,9 @@ final class MaturityRatingRegionTests: XCTestCase {
         XCTAssertEqual(MaturityRating.classify(certification: "12", region: "GB"), .age12)
         XCTAssertEqual(MaturityRating.classify(certification: "13"), .teen)
         XCTAssertEqual(MaturityRating.classify(certification: "14"), .age14)
+        XCTAssertEqual(MaturityRating.classify(certification: "7", region: "ES"), .age7)
+        XCTAssertEqual(MaturityRating.classify(certification: "10", region: "FR"), .age10)
+        XCTAssertEqual(MaturityRating.classify(certification: "11", region: "SE"), .age11)
         XCTAssertTrue(MaturityRating.age12.isBlockedForKids)
         XCTAssertFalse(MaturityRating.teen.isBlockedForKids)
     }
