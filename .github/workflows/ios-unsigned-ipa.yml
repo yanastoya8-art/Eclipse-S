@@ -181,6 +181,7 @@ jobs:
           # Stage rebuilt XCFrameworks inside the exact SwiftPM checkout. The
           # MPVKit manifest rejects local artifact paths outside its package root.
           MPVKIT_PACKAGE_CHECKOUT="$SOURCE_PACKAGES_DIR/checkouts/mpvkit-s"
+          export MPVKIT_PACKAGE_CHECKOUT
           test -f "$MPVKIT_PACKAGE_CHECKOUT/Package.swift"
           test "$(git -C "$MPVKIT_PACKAGE_CHECKOUT" rev-parse HEAD)" = "$MPVKIT_SOURCE_REVISION"
           mkdir -p "$MPVKIT_PACKAGE_CHECKOUT/dist/release"
