@@ -20,6 +20,16 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
         self == .mature || self == .adult || self == .unknown
     }
 
+    var ageBand: String {
+        switch self {
+        case .general: return "All ages"
+        case .teen: return "12+"
+        case .mature: return "15+"
+        case .adult: return "18+"
+        case .unknown: return "Not rated"
+        }
+    }
+
     static func strictest(_ lhs: MaturityRating, _ rhs: MaturityRating) -> MaturityRating {
         if lhs == .unknown { return rhs }
         if rhs == .unknown { return lhs }
@@ -118,15 +128,7 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
         let region: String
         let rating: MaturityRating
 
-        var ageBand: String {
-            switch rating {
-            case .general: return "All ages"
-            case .teen: return "12+"
-            case .mature: return "15+"
-            case .adult: return "18+"
-            case .unknown: return "Not rated"
-            }
-        }
+        var ageBand: String { rating.ageBand }
 
         var displayValue: String {
             "\(value) · \(region) · \(ageBand)"
