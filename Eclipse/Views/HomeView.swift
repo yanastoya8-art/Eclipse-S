@@ -2251,18 +2251,6 @@ struct HomeView: View {
         )
     }
 
-    private func reloadHomeContentAfterFilterChange() {
-        guard homeViewModel.hasLoadedContent else { return }
-
-        homeViewModel.resetContent(preserveVisibleContent: true, invalidateRecommendations: false)
-        homeViewModel.loadContent(
-            tmdbService: tmdbService,
-            catalogManager: catalogManager,
-            contentFilter: contentFilter,
-            showLoading: false
-        )
-    }
-
     private func refreshContinueWatchingItems() {
         refreshLocalContinueWatchingItems()
         refreshRemotePlaybackCatalogItems()
