@@ -2001,7 +2001,7 @@ struct MediaDetailContentView: View {
     private func macDetailPoster(width: CGFloat) -> some View {
         let candidates: [String?] = searchResult.isMovie
             ? [movieDetail?.fullPosterURL, searchResult.fullPosterURL, movieDetail?.fullBackdropURL, searchResult.fullBackdropURL]
-            : [tvShowDetail?.fullPosterURL, searchResult.fullPosterURL, searchResult.animeArtworkURL, tvShowDetail?.fullBackdropURL, searchResult.fullBackdropURL]
+            : [searchResult.fullPosterURL, searchResult.animeArtworkURL, tvShowDetail?.fullPosterURL, tvShowDetail?.fullBackdropURL, searchResult.fullBackdropURL]
         return ResilientArtworkImage(
             urls: candidates.compactMap { $0 },
             decodeSize: homeImageDecodeSize(width: width, height: width * 1.5),
@@ -2516,6 +2516,29 @@ struct MediaDetailContentView: View {
 #endif
 
             gradientOverlay
+
+            // Transparent title marks are most legible when centered over the
+            // poster artwork rather than positioned above or below it.
+            if let logoURL, !logoURL.isEmpty {
+                ResilientArtworkImage(
+                    urls: [logoURL],
+                    decodeSize: CGSize(
+                        width: max(EclipseViewport.bounds.width * EclipseViewport.scale * 0.72, 1),
+                        height: max(headerHeight * EclipseViewport.scale * 0.22, 1)
+                    ),
+                    contentMode: .fit
+                ) {
+                    Color.clear
+                }
+                .frame(
+                    width: min(EclipseViewport.bounds.width * 0.72, 520),
+                    height: min(max(headerHeight * 0.22, 72), 150)
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                .offset(y: -headerHeight * 0.015)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            }
         }
     }
 
