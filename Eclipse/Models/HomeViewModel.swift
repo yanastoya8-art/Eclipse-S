@@ -342,23 +342,45 @@ final class HomeViewModel: ObservableObject {
                     )
                 }
 
-            if !tvMazeRequests.isEmpty {
+            let fanartRequests = Array(
+                Set(loadedCatalogs.values.flatMap { $0 }.compactMap { result -> Int? in
+                    guard result.mediaType.lowercased() == "movie",
+                          result.animeIdentitySeed == nil,
+                          result.isAnimeHint != true else { return nil }
+                    return result.id
+                })
+            ).map { FanartTVMoviePosterRequest(id: $0) }
+
+            if !tvMazeRequests.isEmpty || !fanartRequests.isEmpty {
                 Task { [weak self] in
-                    guard let self else { return }
-                    let posters = await TVMazeArtworkPosterService.shared.posters(for: tvMazeRequests)
+                    async let tvMazePostersTask = TVMazeArtworkPosterService.shared.posters(for: tvMazeRequests)
+                    async let fanartPostersTask = FanartTVMovieArtworkService.shared.posters(for: fanartRequests)
+                    let (tvMazePosters, fanartPosters) = await (tvMazePostersTask, fanartPostersTask)
                     guard !Task.isCancelled else { return }
                     await MainActor.run {
-                        guard self.loadGeneration == generation else { return }
+                        guard self?.loadGeneration == generation, let self else { return }
                         self.unfilteredCatalogResults = self.unfilteredCatalogResults.mapValues { items in
                             items.map { item in
-                                guard let poster = posters[item.id] else { return item }
-                                return item.withTVMazePosterURL(poster)
+                                var enriched = item
+                                if let poster = tvMazePosters[item.id] {
+                                    enriched = enriched.withTVMazePosterURL(poster)
+                                }
+                                if let poster = fanartPosters[item.id] {
+                                    enriched = enriched.withFanartTVPosterURL(poster)
+                                }
+                                return enriched
                             }
                         }
                         self.catalogResults = self.catalogResults.mapValues { items in
                             items.map { item in
-                                guard let poster = posters[item.id] else { return item }
-                                return item.withTVMazePosterURL(poster)
+                                var enriched = item
+                                if let poster = tvMazePosters[item.id] {
+                                    enriched = enriched.withTVMazePosterURL(poster)
+                                }
+                                if let poster = fanartPosters[item.id] {
+                                    enriched = enriched.withFanartTVPosterURL(poster)
+                                }
+                                return enriched
                             }
                         }
                         self.applyHeroBannerSelection()
@@ -677,7 +699,8 @@ final class HomeViewModel: ObservableObject {
             ),
             animeArtworkURL: posterURL,
             animeLogoURL: result.animeLogoURL,
-            tvMazePosterURL: result.tvMazePosterURL
+            tvMazePosterURL: result.tvMazePosterURL,
+            fanartTVPosterURL: result.fanartTVPosterURL
         )
         return (catalogID, index, enriched)
     }
