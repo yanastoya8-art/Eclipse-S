@@ -570,10 +570,12 @@ struct MediaDetailContentView: View {
 
     init(
         searchResult: TMDBSearchResult,
+        preloadedArtworkURL: String? = nil,
         initialNotificationSelection: MediaDetailInitialNotificationSelection? = nil,
         trackerPlaybackIntent: TrackerLibraryPlaybackIntent? = nil
     ) {
         self.searchResult = searchResult
+        self.preloadedArtworkURL = preloadedArtworkURL
         self.initialNotificationSelection = initialNotificationSelection
         self.trackerPlaybackIntent = trackerPlaybackIntent
     }
@@ -584,6 +586,15 @@ struct MediaDetailContentView: View {
 
     private var detailViewportWidth: CGFloat {
         detailViewportSize.width > 0 ? detailViewportSize.width : EclipseViewport.bounds.width
+    }
+
+    private var usesWideDetailLayout: Bool {
+#if os(macOS)
+        (detailViewportSize == .zero ? EclipseViewport.bounds : detailViewportSize).width >= 1000
+#else
+        // iPhone keeps the portrait detail composition in both orientations.
+        return isIPad
+#endif
     }
 
     private var atmosphereColor: Color {
@@ -8031,13 +8042,4 @@ private struct AnimeSpecialSearchRequest: Identifiable {
     let playbackContext: EpisodePlaybackContext?
 }
 
-private var usesWideDetailLayout: Bool {
-#if os(macOS)
-    (detailViewportSize == .zero ? EclipseViewport.bounds : detailViewportSize).width >= 1000
-#else
-    let viewport = detailViewportSize == .zero ? EclipseViewport.bounds : detailViewportSize
-    // Keep the same detail-page composition on iPhone in both orientations.
-    // Landscape changes the available width, not the layout model.
-    return isIPad
-#endif
-}
+
