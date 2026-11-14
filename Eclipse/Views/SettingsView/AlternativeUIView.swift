@@ -279,6 +279,39 @@ struct AlternativeUIView: View {
                     }
                     .padding(.vertical, 2)
                 }
+
+                HStack(spacing: 8) {
+                    Text("Atmospheres")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    Spacer(minLength: 8)
+                    ForEach([AtmosphereStyle.aurora, .ember]) { style in
+                        Button {
+                            theme.atmosphereStyle = style
+                        } label: {
+                            HStack(spacing: 5) {
+                                if theme.atmosphereStyle == style {
+                                    Image(systemName: "checkmark")
+                                }
+                                Text(style.displayName)
+                            }
+                            .font(.caption.weight(.semibold))
+                            .padding(.horizontal, 11)
+                            .padding(.vertical, 8)
+                            .background(
+                                Capsule().fill(theme.atmosphereStyle == style
+                                    ? Color.accentColor.opacity(0.28)
+                                    : Color.white.opacity(0.08))
+                            )
+                            .overlay(Capsule().stroke(
+                                Color.white.opacity(theme.atmosphereStyle == style ? 0.42 : 0.12),
+                                lineWidth: 1
+                            ))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("settings.appearance.atmosphere.\\(style.rawValue)")
+                    }
+                }
             }
             .padding(.vertical, 4)
             .id(AppearanceSettingsSearchTarget.palette.anchorID)
@@ -303,7 +336,7 @@ struct AlternativeUIView: View {
                 description: "Choose a palette-aware classic gradient, a flat solid colour, a blended multi-gradient, or the Aurora and Ember atmospheres."
             ) {
                 Picker("", selection: backgroundStyleBinding) {
-                    ForEach(AtmosphereStyle.allCases) { style in
+                    ForEach(AtmosphereStyle.allCases.filter { $0 != .aurora && $0 != .ember }) { style in
                         Text(style.displayName).tag(style)
                     }
                 }
