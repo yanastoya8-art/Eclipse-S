@@ -6871,20 +6871,13 @@ struct MediaDetailContentView: View {
 
     @MainActor
     private func resumeOptionalPresentationIfNeeded() {
-#if os(iOS)
         guard hasLoadedContent, !isLoading, isDetailVisible, errorMessage == nil,
               detailLoadedLanguage == selectedLanguage,
               detailLoadedIdentity == searchResult.stableIdentity,
               searchResult.isMovie ? movieDetail?.id == searchResult.id : tvShowDetail?.id == searchResult.id,
               optionalPresentationTask == nil,
-              !optionalPresentationIsComplete || (shouldAnalyzeAlternatePoster && !alternatePosterWasResolved) else { return }
-#else
-        guard hasLoadedContent, !isLoading, isDetailVisible, errorMessage == nil,
-              detailLoadedLanguage == selectedLanguage, detailLoadedIdentity == searchResult.stableIdentity,
-              searchResult.isMovie ? movieDetail?.id == searchResult.id : tvShowDetail?.id == searchResult.id,
-              optionalPresentationTask == nil,
-              !optionalPresentationIsComplete || (shouldAnalyzeAlternatePoster && !alternatePosterWasResolved) else { return }
-#endif
+              !optionalPresentationIsComplete else { return }
+
         let generation = UUID()
         optionalPresentationGeneration = generation
         let identity = searchResult.stableIdentity
@@ -6892,65 +6885,28 @@ struct MediaDetailContentView: View {
         let id = searchResult.id
         let isMovie = searchResult.isMovie
         let cacheKey = detailCacheKeyForCurrentRoute()
-        let primaryPath = (isMovie ? movieDetail?.posterPath : tvShowDetail?.posterPath) ?? searchResult.posterPath
-        let excludedPaths = [primaryPath, searchResult.posterPath]
-        let analyzeAlternate = shouldAnalyzeAlternatePoster && !alternatePosterWasResolved
         let startedAt = ProcessInfo.processInfo.systemUptime
         optionalPresentationTask = Task { @MainActor in
             defer {
                 if optionalPresentationGeneration == generation { optionalPresentationTask = nil }
             }
-            async let imagesResult: TMDBImagesResponse? = try? loadOptionalPresentationImages(id: id, isMovie: isMovie, language: language)
+
+            // Only load non-visual supporting metadata here. Poster and title
+            // artwork are already available from Home and must not trigger
+            // another images/logo/alternate-poster request.
             async let romajiResult = tmdbService.getRomajiTitle(for: isMovie ? "movie" : "tv", id: id)
             async let creditsResult: TMDBCreditsResponse? = try? loadOptionalPresentationCredits(id: id, isMovie: isMovie)
-            let images = await imagesResult
-            guard !Task.isCancelled, isDetailVisible, optionalPresentationGeneration == generation,
-                  searchResult.stableIdentity == identity, selectedLanguage == language else { return }
-            titleArtworkLookupComplete = true
-            if let images {
-                logoURL = tmdbService.getBestLogo(from: images, preferredLanguage: language)?.fullURL
-            }
-            cacheOptionalPresentation(key: cacheKey)
-            if analyzeAlternate, shouldAnalyzeAlternatePoster, let images {
-#if DEBUG
-                if ProcessInfo.processInfo.environment["ECLIPSE_UI_POSTER_AUDIT"] == "1" {
-                    posterAuditSelectorIsPending = true
-                    do {
-                        try await Task.sleep(nanoseconds: 4_000_000_000)
-                    } catch {
-                        return
-                    }
-                }
-#endif
-                let alternate = await tmdbService.resolveAlternatePoster(
-                    from: images, excluding: excludedPaths, matching: primaryPath,
-                    mediaType: isMovie ? .movie : .tv
-                )
-                guard !Task.isCancelled, isDetailVisible, optionalPresentationGeneration == generation,
-                      searchResult.stableIdentity == identity, selectedLanguage == language,
-                      shouldAnalyzeAlternatePoster else { return }
-                alternatePosterURL = alternate.poster?.fullURL
-                alternatePosterWasResolved = alternate.isComplete
-                if alternate.poster == nil, !isMovie,
-                   let imdbID = tvShowDetail?.externalIds?.imdbId {
-                    tvMazePosterURL = await tmdbService.getTVMazePosterURL(imdbID: imdbID)
-                }
-                cacheOptionalPresentation(key: cacheKey)
-            } else if analyzeAlternate, shouldAnalyzeAlternatePoster {
-                if !isMovie, let imdbID = tvShowDetail?.externalIds?.imdbId {
-                    tvMazePosterURL = await tmdbService.getTVMazePosterURL(imdbID: imdbID)
-                }
-                alternatePosterWasResolved = true
-                cacheOptionalPresentation(key: cacheKey)
-            }
             let romaji = await romajiResult
             let credits = await creditsResult
+
             guard !Task.isCancelled, isDetailVisible, optionalPresentationGeneration == generation,
                   searchResult.stableIdentity == identity, selectedLanguage == language else { return }
             romajiTitle = romaji
             if let credits { castMembers = credits.cast }
-            optionalPresentationIsComplete = images != nil && credits != nil
+            titleArtworkLookupComplete = true
+            optionalPresentationIsComplete = true
             cacheOptionalPresentation(key: cacheKey)
+
             let elapsedMs = Int(((ProcessInfo.processInfo.systemUptime - startedAt) * 1_000).rounded())
             Logger.shared.log(
                 "MediaDetailTiming: tmdbId=\(id) stage=optional-presentation-ready elapsedMs=\(elapsedMs)",
