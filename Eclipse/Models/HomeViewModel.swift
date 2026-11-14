@@ -358,7 +358,7 @@ final class HomeViewModel: ObservableObject {
                     let (tvMazePosters, fanartPosters) = await (tvMazePostersTask, fanartPostersTask)
                     guard !Task.isCancelled else { return }
                     await MainActor.run {
-                        guard self?.loadGeneration == generation, let self else { return }
+                        guard let self, self.loadGeneration == generation else { return }
                         self.unfilteredCatalogResults = self.unfilteredCatalogResults.mapValues { items in
                             items.map { item in
                                 var enriched = item
