@@ -497,10 +497,6 @@ struct MediaDetailContentView: View {
     @State private var detailLoadedIdentity: String?
     @State private var detailLoadTask: Task<Void, Never>?
     @State private var optionalPresentationTask: Task<Void, Never>?
-    // Start title artwork independently from the full detail/enrichment pipeline.
-    // The same task is shared with optional-presentation loading to avoid duplicate image requests.
-    @State private var titleArtworkTask: Task<TMDBImagesResponse?, Never>?
-    @State private var titleArtworkLookupIdentity: String?
     @State private var optionalPresentationGeneration = UUID()
     @State private var optionalPresentationIsComplete = false
     @State private var titleArtworkLookupComplete = false
@@ -1148,9 +1144,6 @@ struct MediaDetailContentView: View {
             trackerEpisodeChooserTask?.cancel()
             trackerEpisodeChooserTask = nil
             cancelOptionalPresentation()
-            titleArtworkTask?.cancel()
-            titleArtworkTask = nil
-            titleArtworkLookupIdentity = nil
             if let detailLoadTask {
                 detailLoadTask.cancel()
                 self.detailLoadTask = nil
@@ -6883,9 +6876,6 @@ struct MediaDetailContentView: View {
         posterAuditCacheHit = false
 #endif
         cancelOptionalPresentation()
-        titleArtworkTask?.cancel()
-        titleArtworkTask = nil
-        titleArtworkLookupIdentity = nil
         optionalPresentationIsComplete = false
         titleArtworkLookupComplete = false
         alternatePosterWasResolved = false
