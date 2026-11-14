@@ -8,6 +8,7 @@ struct DiscoverDetailView: View {
     var loadMore: ((Int) async -> [TMDBSearchResult])? = nil
 
     @State private var items: [TMDBSearchResult] = []
+    @State private var initialPageItemCount = 0
     @State private var filterRefreshRevision = 0
     @State private var currentPage = 1
     @State private var isLoadingMore = false
@@ -84,11 +85,20 @@ struct DiscoverDetailView: View {
         .onAppear {
             if items.isEmpty {
                 items = initialItems
+                initialPageItemCount = initialItems.count
             }
         }
         .onChangeComp(of: initialItems.map(\.stableIdentity)) { _, _ in
-            items = initialItems
-            currentPage = 1
+            // Home may refresh its first-page catalog snapshot after asynchronous
+            // maturity metadata resolves. Replace only that first page and keep
+            // already-loaded pages/currentPage so the visible grid does not jump
+            // back to the top while the user is browsing.
+            let existingTail = initialPageItemCount < items.count
+                ? Array(items.dropFirst(initialPageItemCount))
+                : []
+            let firstPageIDs = Set(initialItems.map(\.stableIdentity))
+            items = initialItems + existingTail.filter { !firstPageIDs.contains($0.stableIdentity) }
+            initialPageItemCount = initialItems.count
             hasMorePages = true
         }
         .onReceive(NotificationCenter.default.publisher(for: TMDBContentFilter.catalogFiltersDidChangeNotification)) { _ in
