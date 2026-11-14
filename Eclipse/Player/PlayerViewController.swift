@@ -5516,40 +5516,58 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         }
     }
 
-    private func updatePlayerLiquidGlassEffects() {
-        guard activePlayerLiquidGlassEnabled else {
-            centerPlayPauseGlassView.effect = nil
-            topControlsGlassView.effect = nil
-            progressGlassView.effect = nil
-            bottomControlsGlassView.effect = nil
-            centerPlayPauseGlassView.isHidden = true
-            topControlsGlassView.isHidden = true
-            progressGlassView.isHidden = true
-            bottomControlsGlassView.isHidden = true
-            return
+    private func updatePlayerLiquidGlassEffects(animated: Bool = false) {
+        let shouldShowGlass = activePlayerLiquidGlassEnabled && controlsVisible
+        let shouldShowBottomGlass = shouldShowGlass && supportsSharedPlayerControls
+
+        let effect: UIVisualEffect?
+        if shouldShowGlass {
+            if #available(iOS 26.0, *) {
+                let glass = UIGlassEffect(style: .regular)
+                glass.isInteractive = true
+                glass.tintColor = UIColor.white.withAlphaComponent(0.08)
+                effect = glass
+            } else {
+                effect = UIBlurEffect(style: .systemUltraThinMaterialDark)
+            }
+        } else {
+            effect = nil
         }
 
-        let effect: UIVisualEffect
-        if #available(iOS 26.0, *) {
-            let glass = UIGlassEffect(style: .regular)
-            glass.isInteractive = true
-            glass.tintColor = UIColor.white.withAlphaComponent(0.08)
-            effect = glass
-        } else {
-            effect = UIBlurEffect(style: .systemUltraThinMaterialDark)
+        let glassViews = [centerPlayPauseGlassView, topControlsGlassView, progressGlassView]
+        if shouldShowGlass {
+            glassViews.forEach { $0.isHidden = false }
         }
-        centerPlayPauseGlassView.effect = effect
-        topControlsGlassView.effect = effect
-        progressGlassView.effect = effect
-        bottomControlsGlassView.effect = effect
-        centerPlayPauseGlassView.isHidden = false
-        topControlsGlassView.isHidden = false
-        progressGlassView.isHidden = false
-        bottomControlsGlassView.isHidden = false
-        centerPlayPauseGlassView.alpha = controlsVisible ? 1 : 0
-        topControlsGlassView.alpha = controlsVisible ? 1 : 0
-        progressGlassView.alpha = controlsVisible ? 1 : 0
-        bottomControlsGlassView.alpha = controlsVisible && supportsSharedPlayerControls ? 1 : 0
+        if shouldShowBottomGlass {
+            bottomControlsGlassView.isHidden = false
+        }
+
+        let applyEffect = {
+            glassViews.forEach { $0.effect = effect }
+            self.bottomControlsGlassView.effect = shouldShowBottomGlass ? effect : nil
+        }
+
+        if animated {
+            UIView.animate(
+                withDuration: 0.25,
+                delay: 0,
+                options: [.beginFromCurrentState, .allowUserInteraction, .curveEaseInOut]
+            ) {
+                applyEffect()
+            } completion: { _ in
+                guard !shouldShowGlass else { return }
+                glassViews.forEach { $0.isHidden = true }
+                self.bottomControlsGlassView.isHidden = true
+            }
+        } else {
+            applyEffect()
+            if !shouldShowGlass {
+                glassViews.forEach { $0.isHidden = true }
+                bottomControlsGlassView.isHidden = true
+            } else if !shouldShowBottomGlass {
+                bottomControlsGlassView.isHidden = true
+            }
+        }
     }
 
     private func configurePlayerSkinDecoration(animationsEnabled: Bool) {
@@ -14198,13 +14216,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             guard self.controlsVisibilityGeneration == visibilityGeneration,
                   self.controlsVisible else { return }
             self.controlsOverlayView.isHidden = false
+            self.updatePlayerLiquidGlassEffects(animated: true)
             UIView.animate(withDuration: 0.25, delay: 0, options: [.beginFromCurrentState, .curveEaseOut]) {
                 self.centerPlayPauseButton.alpha = 1.0
                 self.controlsOverlayView.alpha = 1.0
-                self.topControlsGlassView.alpha = self.activePlayerLiquidGlassEnabled ? 1.0 : 0.0
-                self.progressGlassView.alpha = self.activePlayerLiquidGlassEnabled ? 1.0 : 0.0
-                self.bottomControlsGlassView.alpha = self.activePlayerLiquidGlassEnabled && self.supportsSharedPlayerControls ? 1.0 : 0.0
-                self.centerPlayPauseGlassView.alpha = self.activePlayerLiquidGlassEnabled ? 1.0 : 0.0
                 self.progressContainer.alpha = 1.0
 #if os(iOS)
                 self.closeButton.alpha = PlayerPlaybackLockSettings.isLocked() ? 0.35 : 1.0
@@ -14271,13 +14286,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         DispatchQueue.main.async {
             guard self.controlsVisibilityGeneration == visibilityGeneration,
                   !self.controlsVisible else { return }
+            self.updatePlayerLiquidGlassEffects(animated: true)
             UIView.animate(withDuration: 0.25, delay: 0, options: [.beginFromCurrentState, .curveEaseIn]) {
                 self.centerPlayPauseButton.alpha = 0.0
                 self.controlsOverlayView.alpha = 0.0
-                self.topControlsGlassView.alpha = 0.0
-                self.progressGlassView.alpha = 0.0
-                self.bottomControlsGlassView.alpha = 0.0
-                self.centerPlayPauseGlassView.alpha = 0.0
                 self.progressContainer.alpha = 0.0
                 self.closeButton.alpha = 0.0
 #if os(iOS)
