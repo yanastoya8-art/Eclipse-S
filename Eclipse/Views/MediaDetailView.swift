@@ -1047,8 +1047,15 @@ struct MediaDetailContentView: View {
             detailBackground
                 .ignoresSafeArea(.all)
 
-            if isLoading {
-                loadingView
+            if isLoading && !hasLoadedContent {
+                // Paint the detail shell from the tapped catalog result immediately.
+                // TMDB/provider enrichment continues independently and fills in the
+                // remaining metadata without holding the hero behind a full-screen loader.
+                mainScrollView
+#if os(tvOS)
+                    .focusable(!shouldShowHeroActions)
+                    .focused($tvDetailFocus, equals: .content)
+#endif
             } else if let errorMessage = errorMessage {
                 errorView(errorMessage)
             } else {
@@ -2755,12 +2762,6 @@ struct MediaDetailContentView: View {
     private var titleArtwork: some View {
         if !mediaDetailTitleArtworkEnabled {
             EmptyView()
-        } else if !titleArtworkLookupComplete {
-            Color.clear
-                .frame(
-                    width: ExperimentalFeatureState.isEnabledAtLaunch ? (isTvOS ? 720 : (usesWideDetailLayout ? 420 : 334)) : (usesWideDetailLayout ? 400 : 280),
-                    height: ExperimentalFeatureState.isEnabledAtLaunch ? (isTvOS ? 250 : 132) : (usesWideDetailLayout ? 140 : 100)
-                )
         } else if let logoURL = logoURL {
             ResilientArtworkImage(
                 urls: [logoURL],
