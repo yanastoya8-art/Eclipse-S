@@ -1772,7 +1772,8 @@ struct HomeView: View {
     }
 
     private func experimentalHeroShouldShowTitle(_ hero: TMDBSearchResult) -> Bool {
-        currentHeroLogoURL(for: hero) != nil || hero.fullPosterURL == nil
+        // Keep a readable title visible while the transparent artwork is being fetched.
+        true
     }
 
     private func heroOverview(_ hero: TMDBSearchResult) -> String? {
