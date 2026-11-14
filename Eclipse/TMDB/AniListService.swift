@@ -1658,7 +1658,7 @@ enum AniListImportMetadata {
     }
 }
 
-private struct AniMapLookupResult {
+struct AniMapLookupResult {
     let mappings: [AniMapMapping]
     let isComplete: Bool
 }
