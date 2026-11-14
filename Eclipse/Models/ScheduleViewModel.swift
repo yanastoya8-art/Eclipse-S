@@ -751,6 +751,7 @@ final class ScheduleViewModel: ObservableObject {
         )
     }
 
+    @MainActor
     private func currentAnimeSchedulePolicyKey() -> String {
         let languages = MyDubListDubFilter.shared.selectedLanguages.sorted().joined(separator: ",")
         let audioFilter = UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
