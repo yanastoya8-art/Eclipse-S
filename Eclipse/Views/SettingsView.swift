@@ -980,6 +980,9 @@ struct SettingsView: View {
     private var settingsListContent: some View {
         Group {
             Section("Profiles") {
+                NavigationLink(destination: ProfilesSettingsView().eclipseHideTabBar()) {
+                    LabeledContent("Profiles", value: activeProfileSummary)
+                }
             }
 
             Section("Content Filters") {
@@ -1033,9 +1036,6 @@ struct SettingsView: View {
                     Text("Ratings & Notes")
                 }
                 .accessibilityIdentifier("tv.settings.ratings")
-                NavigationLink(destination: ProfilesSettingsView().eclipseHideTabBar()) {
-                    LabeledContent("Profiles", value: activeProfileSummary)
-                }
                 NavigationLink(destination: AlternativeUIView().eclipseHideTabBar()) {
                     Text("Appearance")
                 }
