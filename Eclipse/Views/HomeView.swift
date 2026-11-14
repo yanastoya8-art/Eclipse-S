@@ -565,7 +565,6 @@ struct HomeView: View {
 
     @State private var continueWatchingVettedOwner: UUID?
 
-    @State private var maturityRevisionReloadTask: Task<Void, Never>?
     @State private var pendingContinueWatchingProgressRefreshTask: Task<Void, Never>?
     @State private var didReportStartupReady = false
     @State private var didReportInitialHydration = false
@@ -576,6 +575,7 @@ struct HomeView: View {
     @State private var selectedHeroForDetail: TMDBSearchResult?
     @State private var showingHeroDetail = false
     @State private var heroLogoURL: String?
+    @State private var heroLogoTask: Task<Void, Never>?
     @State private var prefetchedHeroLogoURLs: [String: String] = [:]
     @State private var heroLogoLookupComplete = false
     @State private var heroAlternatePosterURL: String?
@@ -823,7 +823,11 @@ struct HomeView: View {
             }
         }
         .task(id: "\(heroLogoLoadKey)|\(heroArtworkIsActive)") {
-            guard heroArtworkIsActive else { return }
+            guard heroArtworkIsActive else {
+                heroLogoTask?.cancel()
+                heroLogoTask = nil
+                return
+            }
             await loadHeroArtwork(for: homeViewModel.heroContent, language: selectedLanguage)
         }
         .task(id: "hero-prefetch|\(heroLogoLoadKey)|\(heroArtworkIsActive)") {
@@ -832,6 +836,8 @@ struct HomeView: View {
             await prefetchUpcomingHeroImages()
         }
         .onDisappear {
+            heroLogoTask?.cancel()
+            heroLogoTask = nil
             isViewVisible = false
             pendingHomeCatalogReloadTask?.cancel()
             pendingHomeCatalogReloadTask = nil
@@ -878,19 +884,8 @@ struct HomeView: View {
             refreshContinueWatchingItems()
             scheduleHomeCatalogReloadIfNeeded()
         }
-        .onChangeComp(of: contentFilter.filterHorror) { _, _ in
-            reloadHomeContentAfterFilterChange()
-        }
-
-        .onChangeComp(of: contentFilter.maturityRatingRevision) { _, _ in
-            maturityRevisionReloadTask?.cancel()
-            maturityRevisionReloadTask = Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 600_000_000)
-                guard !Task.isCancelled else { return }
-                reloadHomeContentAfterFilterChange()
-            }
-        }
-
+        // HomeViewModel observes catalogFiltersDidChangeNotification and
+        // re-filters its retained snapshots without replacing the visible rows.
         .onReceive(NotificationCenter.default.publisher(for: .activeProfileDidChange)) { _ in
 
             cancelTraktContinueWatchingRefresh(clearItems: true)
@@ -2002,7 +1997,24 @@ struct HomeView: View {
         )
     }
 
+    private func resolveHeroLogoURL(for hero: TMDBSearchResult, language: String) async -> String? {
+        do {
+            let images = try await (hero.isMovie
+                ? tmdbService.getMovieImages(id: hero.id, preferredLanguage: language)
+                : tmdbService.getTVShowImages(id: hero.id, preferredLanguage: language))
+            return tmdbService.getBestLogo(from: images, preferredLanguage: language)?.fullURL
+        } catch {
+            Logger.shared.log(
+                "HomeHeroTiming: logo lookup failed id=\(hero.id) error=\(error.localizedDescription)",
+                type: "TMDB"
+            )
+            return nil
+        }
+    }
+
     private func loadHeroArtwork(for hero: TMDBSearchResult?, language: String) async {
+        heroLogoTask?.cancel()
+        heroLogoTask = nil
         guard !Task.isCancelled else { return }
         guard let hero else {
             heroArtworkIdentity = nil
@@ -2020,6 +2032,28 @@ struct HomeView: View {
         heroLogoURL = hero.animeLogoURL
         heroLogoLookupComplete = hero.animeLogoURL != nil
         heroAlternatePosterURL = nil
+
+        if hero.animeLogoURL == nil {
+            let cacheKey = heroAlternatePosterCacheKey(identity, language: language)
+            if let cachedLogo = prefetchedHeroLogoURLs[cacheKey] {
+                heroLogoURL = cachedLogo
+                heroLogoLookupComplete = true
+            } else {
+                heroLogoLookupComplete = false
+                heroLogoTask = Task { @MainActor in
+                    let resolvedLogo = await resolveHeroLogoURL(for: hero, language: language)
+                    guard !Task.isCancelled,
+                          heroArtworkIsActive,
+                          homeViewModel.heroContent?.stableIdentity == identity,
+                          selectedLanguage == language else { return }
+                    heroLogoURL = resolvedLogo
+                    if let resolvedLogo {
+                        prefetchedHeroLogoURLs[cacheKey] = resolvedLogo
+                    }
+                    heroLogoLookupComplete = true
+                }
+            }
+        }
 
         // Warm the poster before navigation. The detail screen receives this
         // exact URL and consumes the same Kingfisher cache entry.
@@ -2276,18 +2310,6 @@ struct HomeView: View {
             catalogManager: catalogManager,
             contentFilter: contentFilter,
             showLoading: true
-        )
-    }
-
-    private func reloadHomeContentAfterFilterChange() {
-        guard homeViewModel.hasLoadedContent else { return }
-
-        homeViewModel.resetContent(preserveVisibleContent: true, invalidateRecommendations: false)
-        homeViewModel.loadContent(
-            tmdbService: tmdbService,
-            catalogManager: catalogManager,
-            contentFilter: contentFilter,
-            showLoading: false
         )
     }
 
