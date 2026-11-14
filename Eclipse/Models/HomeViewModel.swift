@@ -301,6 +301,26 @@ final class HomeViewModel: ObservableObject {
                 }
             }
 
+            // Resolve clean AniList covers after the first catalog render. This
+            // keeps the home screen responsive while replacing TMDB's anime
+            // posters as soon as the higher-quality anime artwork is available.
+            if !rawAnimeByCatalogID.isEmpty {
+                Task { [weak self] in
+                    guard let self else { return }
+                    let enriched = await self.enrichAnimePosterArtwork(rawAnimeByCatalogID)
+                    guard !Task.isCancelled else { return }
+                    await MainActor.run {
+                        guard self.loadGeneration == generation else { return }
+                        self.unfilteredCatalogResults.merge(enriched) { _, incoming in incoming }
+                        let filtered = enriched.mapValues {
+                            contentFilter.filterFastAnimeSearchResults($0)
+                        }
+                        self.catalogResults.merge(filtered) { _, incoming in incoming }
+                        self.applyHeroBannerSelection()
+                    }
+                }
+            }
+
             async let stremioCatalogs = self.loadStremioCatalogs(
                 enabledCatalogs: enabledCatalogSnapshot,
                 tmdbService: tmdbService,
@@ -510,6 +530,96 @@ final class HomeViewModel: ObservableObject {
         case .airing:
             return .airing
         }
+    }
+
+    private func enrichAnimePosterArtwork(
+        _ catalogs: [String: [TMDBSearchResult]]
+    ) async -> [String: [TMDBSearchResult]] {
+        let flattened = catalogs.flatMap { catalogID, results in
+            results.enumerated().map { (catalogID, $0.offset, $0.element) }
+        }
+        guard !flattened.isEmpty else { return catalogs }
+
+        return await withTaskGroup(of: (String, Int, TMDBSearchResult).self) { group in
+            var iterator = flattened.makeIterator()
+            let concurrencyLimit = 8
+            for _ in 0..<min(concurrencyLimit, flattened.count) {
+                guard let item = iterator.next() else { continue }
+                group.addTask {
+                    await Self.enrichAnimePosterArtwork(item.2, catalogID: item.0, index: item.1)
+                }
+            }
+
+            var resolved: [String: [Int: TMDBSearchResult]] = [:]
+            while let (catalogID, index, result) = await group.next() {
+                resolved[catalogID, default: [:]][index] = result
+                if let item = iterator.next() {
+                    group.addTask {
+                        await Self.enrichAnimePosterArtwork(item.2, catalogID: item.0, index: item.1)
+                    }
+                }
+            }
+
+            var output: [String: [TMDBSearchResult]] = [:]
+            for (catalogID, results) in catalogs {
+                let replacements = resolved[catalogID] ?? [:]
+                output[catalogID] = results.enumerated().map { replacements[$0.offset] ?? $0.element }
+            }
+            return output
+        }
+    }
+
+    private static func enrichAnimePosterArtwork(
+        _ result: TMDBSearchResult,
+        catalogID: String,
+        index: Int
+    ) async -> (String, Int, TMDBSearchResult) {
+        let mappings = await AniMapMappingService.shared.mappings(forTMDBShowId: result.id)
+        let mapping = mappings
+            .filter { $0.mediaType?.lowercased() != "movie" }
+            .first { $0.anilistId != nil }
+            ?? mappings.first { $0.anilistId != nil }
+        guard let anilistID = result.animeIdentitySeed?.anilistId ?? mapping?.anilistId,
+              anilistID > 0 else {
+            return (catalogID, index, result)
+        }
+
+        let identity = await AniListService.shared.fetchAnimeSeasonIdentity(
+            anilistId: anilistID,
+            tmdbShowId: result.id,
+            title: result.displayTitle
+        )
+        guard let posterURL = identity?.posterURL ?? result.animeArtworkURL else {
+            return (catalogID, index, result)
+        }
+
+        let enriched = TMDBSearchResult(
+            id: result.id,
+            mediaType: result.mediaType,
+            title: result.title,
+            name: result.name,
+            overview: result.overview,
+            posterPath: result.posterPath,
+            backdropPath: result.backdropPath,
+            releaseDate: result.releaseDate,
+            firstAirDate: result.firstAirDate,
+            voteAverage: result.voteAverage,
+            popularity: result.popularity,
+            adult: result.adult,
+            genreIds: result.genreIds,
+            originalLanguage: result.originalLanguage,
+            originCountry: result.originCountry,
+            voteCount: result.voteCount,
+            isAnimeHint: true,
+            animeIdentitySeed: result.animeIdentitySeed ?? AnimeMediaIdentitySeed(
+                anilistId: anilistID,
+                malId: mapping?.malId,
+                kitsuId: mapping?.kitsuId,
+                format: mapping?.mediaType
+            ),
+            animeArtworkURL: posterURL
+        )
+        return (catalogID, index, enriched)
     }
 
     private func loadStremioCatalogs(
