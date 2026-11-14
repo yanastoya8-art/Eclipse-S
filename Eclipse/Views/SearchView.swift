@@ -905,11 +905,11 @@ enum BrowseAgeRating: String, Codable, CaseIterable, Identifiable {
         case .all:
             return "Any Age Rating"
         case .general:
-            return "All Ages"
+            return "All Ages (G / U)"
         case .teen:
-            return "Up to 14+"
+            return "Up to 14 (PG-13 / TV-14)"
         case .mature:
-            return "Up to 17+"
+            return "Up to 17 (R / TV-MA)"
         case .adult:
             return "18+ Only"
         }
@@ -2419,10 +2419,24 @@ private struct BrowseMediaView: View {
             typeFiltered.map { (isMovie: $0.isMovie, id: $0.id) }
         )
         guard !Task.isCancelled else { return [] }
+
+        // Anime's age system is MyAnimeList/ Taizen, not a national TV
+        // certification. Use it when TMDB has no usable certification.
+        var animeRatingsByID: [Int: MaturityRating] = [:]
+        if mediaType.isAnime {
+            let animeIDs = Array(Set(typeFiltered.compactMap { $0.animeIdentitySeed?.anilistId }))
+            if !animeIDs.isEmpty {
+                animeRatingsByID = (try? await TaizenAnimeAgeRatingService.shared.ratings(anilistIDs: animeIDs)) ?? [:]
+            }
+        }
+        guard !Task.isCancelled else { return [] }
+
         return typeFiltered.filter { result in
             let hasExplicitContent = result.adult == true
                 || (mediaType.isAnime && TMDBContentFilter.hasExplicitAnimeMetadata(result))
-            let rating = TMDBMaturityRatingStore.shared.rating(isMovie: result.isMovie, id: result.id)
+            let tmdbRating = TMDBMaturityRatingStore.shared.rating(isMovie: result.isMovie, id: result.id)
+            let animeRating = result.animeIdentitySeed?.anilistId.flatMap { animeRatingsByID[$0] }
+            let rating = (tmdbRating == nil || tmdbRating == .unknown) ? animeRating : tmdbRating
             return ageRating.includes(rating, hasExplicitContent: hasExplicitContent)
         }
     }
