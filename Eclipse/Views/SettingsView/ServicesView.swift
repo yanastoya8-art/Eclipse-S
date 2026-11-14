@@ -3228,7 +3228,7 @@ private struct JustWatchSettingsView: View {
 
     var body: some View {
         Form {
-            Section("API.SH") {
+            Section {
                 SecureField("Paste your API key", text: $apiKey)
                     .textContentType(.password)
                     .textInputAutocapitalization(.never)
@@ -3248,6 +3248,8 @@ private struct JustWatchSettingsView: View {
                     }
                     .disabled(!JustWatchAPIKeyStore.hasKey || isTestingConnection)
                 }
+            } header: {
+                Text("API.SH")
             } footer: {
                 Text("Your key is stored in the iOS/iPadOS Keychain on this device. It is not written to app preferences, source code, or the GitHub repository.")
             }
