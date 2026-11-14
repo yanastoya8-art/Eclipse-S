@@ -695,8 +695,9 @@ class TMDBContentFilter: ObservableObject {
     }
 
     func filterFastAnimeSearchResults(_ results: [TMDBSearchResult]) -> [TMDBSearchResult] {
-        scheduleAnimeAudioMetadataResolutionIfNeeded(for: results)
-        return results.filter { result in
+        let animeResults = results.map { $0.withAnimeHint(true) }
+        scheduleAnimeAudioMetadataResolutionIfNeeded(for: animeResults)
+        return animeResults.filter { result in
             shouldIncludeCatalogResult(result) && shouldIncludeFastAnimeResult(result)
         }
     }
