@@ -6955,9 +6955,9 @@ struct MediaDetailContentView: View {
                 if optionalPresentationGeneration == generation { optionalPresentationTask = nil }
             }
 
-            // Only load non-visual supporting metadata here. Poster and title
-            // artwork are already available from Home and must not trigger
-            // another images/logo/alternate-poster request.
+            // Load only non-visual supporting metadata here. The iOS title
+            // logo is fetched independently by resumeTitleLogoIfNeeded(); the
+            // catalog poster remains the immediate visual fallback.
             async let romajiResult = tmdbService.getRomajiTitle(for: isMovie ? "movie" : "tv", id: id)
             async let creditsResult: TMDBCreditsResponse? = try? loadOptionalPresentationCredits(id: id, isMovie: isMovie)
             let romaji = await romajiResult
@@ -7162,7 +7162,9 @@ struct MediaDetailContentView: View {
                 self.startExperimentalExtrasLoadIfNeeded()
                 self.startSimilarTitlesLoadIfNeeded()
                 self.resumeOptionalPresentationIfNeeded()
+#if os(iOS)
                 self.resumeTitleLogoIfNeeded()
+#endif
                 if shouldResumeAnimeSpecials {
                     Logger.shared.log(
                         "MediaDetailView cache hit has pending specials hydration: tmdbId=\(self.searchResult.id)",
@@ -7211,7 +7213,9 @@ struct MediaDetailContentView: View {
         isLoadingSimilarTitles = false
         selectedSpecialEpisodeContext = nil
         let detailLoadStartedAt = ProcessInfo.processInfo.systemUptime
+#if os(iOS)
         resumeTitleLogoIfNeeded()
+#endif
         prefetchDetailHeroImage()
 
         detailLoadTask = Task {
