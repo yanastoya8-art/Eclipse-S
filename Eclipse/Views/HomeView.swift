@@ -1780,7 +1780,10 @@ struct HomeView: View {
 
     private func heroImageFallbackURLs(for hero: TMDBSearchResult) -> [String] {
         guard let primary = heroImageURL(for: hero) else { return [] }
-        return [hero.fullPosterURL, hero.animeArtworkURL, hero.fullBackdropURL]
+        let tmdbPoster = hero.posterPath.flatMap {
+            TMDBImageRequestPolicy.urlString(for: $0, kind: .poster)
+        }
+        return [tmdbPoster, hero.animeArtworkURL, hero.fullBackdropURL]
             .compactMap { $0 }
             .filter { $0 != primary }
     }
