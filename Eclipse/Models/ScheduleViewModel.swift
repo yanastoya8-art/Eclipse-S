@@ -945,7 +945,8 @@ final class ScheduleViewModel: ObservableObject {
     private func tmdbUpcomingMovieEntries(in window: DateInterval) async throws -> [ScheduleEntry] {
         async let firstPage = TMDBService.shared.getUpcomingMovies(page: 1)
         async let secondPage = TMDBService.shared.getUpcomingMovies(page: 2)
-        let movies = try await firstPage + secondPage
+        let (pageOne, pageTwo) = try await (firstPage, secondPage)
+        let movies = pageOne + pageTwo
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
