@@ -2431,8 +2431,10 @@ struct MediaDetailContentView: View {
                     .frame(height: headerHeight)
 
                 VStack(spacing: 0) {
+                    // Keep the poster's original title treatment unobstructed.
+                    // Metadata and actions begin beneath the artwork's central title zone.
                     Spacer(minLength: 0)
-                        .frame(height: headerHeight * (usesWideDetailLayout ? 0.12 : 0.40))
+                        .frame(height: headerHeight * (usesWideDetailLayout ? 0.16 : 0.60))
                     headerSection
                         .frame(maxWidth: .infinity, alignment: usesWideDetailLayout ? .trailing : .center)
                         .padding(.horizontal, usesWideDetailLayout ? 48 : 0)
@@ -2458,7 +2460,8 @@ struct MediaDetailContentView: View {
                     ambientColor = color
                 },
                 placeholderColor: shouldAnalyzeAlternatePoster ? .clear : Color.gray.opacity(0.3),
-                fallbackImageURLs: detailHeroFallbackImageURLs
+                fallbackImageURLs: detailHeroFallbackImageURLs,
+                preservesArtworkComposition: true
             )
 #if DEBUG
             if ProcessInfo.processInfo.environment["ECLIPSE_UI_POSTER_AUDIT"] == "1" {
@@ -2524,15 +2527,15 @@ struct MediaDetailContentView: View {
             LinearGradient(
                 gradient: Gradient(stops: [
                     .init(color: .clear, location: 0.0),
-                    .init(color: heroBlendColor.opacity(0.30), location: 0.32),
-                    .init(color: heroBlendColor.opacity(0.64), location: 0.60),
-                    .init(color: heroBlendColor.opacity(0.90), location: 0.84),
+                    .init(color: heroBlendColor.opacity(0.08), location: 0.48),
+                    .init(color: heroBlendColor.opacity(0.28), location: 0.70),
+                    .init(color: heroBlendColor.opacity(0.68), location: 0.88),
                     .init(color: heroBlendColor.opacity(1.0), location: 1.0)
                 ]),
                 startPoint: .top,
                 endPoint: .bottom
             )
-            .frame(height: max(designMetrics.heroBottomFadeHeight + 150, usesWideDetailLayout ? 680 : 570))
+            .frame(height: max(designMetrics.heroBottomFadeHeight + 90, usesWideDetailLayout ? 560 : 430))
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             .allowsHitTesting(false)
         } else {
