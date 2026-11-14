@@ -504,7 +504,8 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             voteCount: voteCount,
             isAnimeHint: isAnimeHint,
             animeIdentitySeed: seed?.sanitizedForPersistence,
-            animeArtworkURL: animeArtworkURL
+            animeArtworkURL: animeArtworkURL,
+            animeLogoURL: animeLogoURL
         )
     }
 }
