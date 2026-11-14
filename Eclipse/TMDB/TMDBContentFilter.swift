@@ -1361,6 +1361,140 @@ enum TaizenDubMetadataError: Error, LocalizedError {
 
 /// Fetches episode-level dub counts for the exact AniList/MAL season identity.
 /// Results are cached because Taizen refreshes its catalogue at most hourly.
+/// TMDB-ID based movie artwork lookup. Missing artwork never blocks TMDB posters.
+struct FanartTVMoviePosterRequest: Sendable {
+    let id: Int
+}
+
+actor FanartTVMovieArtworkService {
+    static let shared = FanartTVMovieArtworkService()
+
+    private struct Response: Decodable {
+        let movieposter: [Artwork]?
+    }
+
+    private struct Artwork: Decodable {
+        let url: String
+        let lang: String?
+        let likes: String?
+    }
+
+    private struct CachedPoster {
+        let fetchedAt: Date
+        let url: String?
+    }
+
+    private var cache: [Int: CachedPoster] = [:]
+    private let positiveCacheLifetime: TimeInterval = 24 * 60 * 60
+    private let negativeCacheLifetime: TimeInterval = 2 * 60 * 60
+    private let maximumResponseBytes = 2 * 1_024 * 1_024
+    private let maximumBatchSize = 30
+
+    private var apiKey: String {
+        let raw = Bundle.main.object(forInfoDictionaryKey: "FanartTVAPIKey") as? String ?? ""
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.contains("$(") ? "" : trimmed
+    }
+
+    func posters(for requests: [FanartTVMoviePosterRequest]) async -> [Int: String] {
+        let key = apiKey
+        guard !key.isEmpty else { return [:] }
+        let ids = Array(Set(requests.map(\\.id).filter { (1...1_000_000_000).contains($0) }))
+            .sorted()
+            .prefix(maximumBatchSize)
+        guard !ids.isEmpty else { return [:] }
+
+        return await withTaskGroup(of: (Int, String?).self) { group in
+            var iterator = ids.makeIterator()
+            let concurrencyLimit = 4
+            for _ in 0..<min(concurrencyLimit, ids.count) {
+                guard let id = iterator.next() else { continue }
+                group.addTask { (id, await self.posterURL(for: id, apiKey: key)) }
+            }
+
+            var output: [Int: String] = [:]
+            while let (id, url) = await group.next() {
+                if let url { output[id] = url }
+                if let nextID = iterator.next() {
+                    group.addTask { (nextID, await self.posterURL(for: nextID, apiKey: key)) }
+                }
+            }
+            return output
+        }
+    }
+
+    private func posterURL(for id: Int, apiKey: String) async -> String? {
+        if let cached = cache[id] {
+            let lifetime = cached.url == nil ? negativeCacheLifetime : positiveCacheLifetime
+            if Date().timeIntervalSince(cached.fetchedAt) < lifetime {
+                return cached.url
+            }
+        }
+
+        guard var components = URLComponents(string: "https://webservice.fanart.tv/v3.2/movies/\\(id)") else {
+            return nil
+        }
+        components.queryItems = [URLQueryItem(name: "api_key", value: apiKey)]
+        guard let url = components.url else { return nil }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 12
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            try Task.checkCancellation()
+            guard data.count <= maximumResponseBytes,
+                  let http = response as? HTTPURLResponse else { return nil }
+
+            if http.statusCode == 404 {
+                cache[id] = CachedPoster(fetchedAt: Date(), url: nil)
+                return nil
+            }
+            guard http.statusCode == 200,
+                  let payload = try? JSONDecoder().decode(Response.self, from: data) else {
+                return nil
+            }
+
+            let poster = (payload.movieposter ?? [])
+                .compactMap { item -> (String, Int, Int)? in
+                    guard let safeURL = Self.trustedPosterURL(item.url) else { return nil }
+                    let language = (item.lang ?? "").lowercased()
+                    let languageRank: Int
+                    switch language {
+                    case "en": languageRank = 0
+                    case "00": languageRank = 1
+                    case "es": languageRank = 2
+                    default: languageRank = 3
+                    }
+                    return (safeURL, languageRank, Int(item.likes ?? "") ?? 0)
+                }
+                .sorted {
+                    if $0.1 != $1.1 { return $0.1 < $1.1 }
+                    return $0.2 > $1.2
+                }
+                .first?.0
+
+            cache[id] = CachedPoster(fetchedAt: Date(), url: poster)
+            return poster
+        } catch {
+            return nil
+        }
+    }
+
+    private static func trustedPosterURL(_ rawValue: String) -> String? {
+        guard rawValue.utf8.count <= 2_048,
+              let components = URLComponents(string: rawValue),
+              components.scheme?.lowercased() == "https",
+              components.host?.lowercased() == "assets.fanart.tv",
+              components.port == nil || components.port == 443,
+              components.user == nil, components.password == nil,
+              components.fragment == nil else { return nil }
+        return components.url?.absoluteString
+    }
+}
+
 struct TVMazePosterRequest: Sendable {
     let id: Int
     let title: String
