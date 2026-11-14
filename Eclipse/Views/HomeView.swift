@@ -1694,9 +1694,9 @@ struct HomeView: View {
     }
 
     private func experimentalHeroShouldShowTitle(_ hero: TMDBSearchResult) -> Bool {
-        // The selected poster is the title artwork. Render a text title only
-        // when no poster is available, rather than waiting for a separate logo request.
-        hero.fullPosterURL == nil
+        // Keep a title visible immediately; the official logo replaces the
+        // text fallback as soon as its independent lookup completes.
+        true
     }
 
     private func heroOverview(_ hero: TMDBSearchResult) -> String? {
