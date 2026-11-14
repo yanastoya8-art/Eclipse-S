@@ -2283,7 +2283,9 @@ private struct BrowseMediaView: View {
 
         return await withTaskGroup(of: (Int, TMDBSearchResult).self) { group in
             var iterator = candidates.makeIterator()
-            let concurrencyLimit = 5
+            // Cached mappings are cheap; modestly increase parallel resolution so
+            // dub-filtered pages do not serialize behind a handful of slow lookups.
+            let concurrencyLimit = 8
             for _ in 0..<min(concurrencyLimit, candidates.count) {
                 guard let (index, result) = iterator.next() else { continue }
                 group.addTask {
