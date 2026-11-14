@@ -368,7 +368,7 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
 
         "ALL": .general, "19": .adult,
 
-        "L": .general, "10": .general, "14": .age14, "16": .age16,
+        "L": .general,
 
         "PG13SG": .teen, "NC16": .age16, "M18": .adult, "R21": .adult,
 
