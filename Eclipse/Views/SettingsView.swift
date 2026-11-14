@@ -768,19 +768,13 @@ struct SettingsView: View {
                     .id("settings-updates")
                 }
 
-                VStack(spacing: 4) {
-                    Text("Eclipse v\(Bundle.main.appVersion) (\(Bundle.main.buildNumber))")
+                if supportsGitHubReleaseUpdates && githubReleaseUpdateAvailable {
+                    Text(githubReleaseLatestVersion.isEmpty ? "Update available on GitHub" : "Update available: \(githubReleaseLatestVersion)")
                         .font(.footnote)
-                        .foregroundColor(.white.opacity(0.3))
-
-                    if supportsGitHubReleaseUpdates && githubReleaseUpdateAvailable {
-                        Text(githubReleaseLatestVersion.isEmpty ? "Update available on GitHub" : "Update available: \(githubReleaseLatestVersion)")
-                            .font(.footnote)
-                            .foregroundColor(.green.opacity(0.85))
-                    }
+                        .foregroundColor(.green.opacity(0.85))
+                        .padding(.top, 8)
+                        .padding(.bottom, 30)
                 }
-                .padding(.top, 8)
-                .padding(.bottom, 30)
                     } else {
                         settingsSearchResults(scrollProxy: scrollProxy)
                     }
@@ -1136,7 +1130,7 @@ struct SettingsView: View {
             } header: {
                 Text("About")
             } footer: {
-                Text("Eclipse v\(Bundle.main.appVersion) (\(Bundle.main.buildNumber)). Updates are delivered by the App Store.")
+                Text("Updates are delivered by the App Store.")
             }
         }
     }
@@ -2973,10 +2967,6 @@ private struct TVDiagnosticsView: View {
         List {
             Section("Build") {
                 LabeledContent("App", value: "Eclipse")
-                    .focusable()
-                LabeledContent("Version", value: Bundle.main.appVersion)
-                    .focusable()
-                LabeledContent("Build", value: Bundle.main.buildNumber)
                     .focusable()
             }
 
