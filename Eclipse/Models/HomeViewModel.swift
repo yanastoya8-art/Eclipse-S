@@ -676,7 +676,8 @@ final class HomeViewModel: ObservableObject {
                 format: mapping?.mediaType
             ),
             animeArtworkURL: posterURL,
-            animeLogoURL: result.animeLogoURL
+            animeLogoURL: result.animeLogoURL,
+            tvMazePosterURL: result.tvMazePosterURL
         )
         return (catalogID, index, enriched)
     }
