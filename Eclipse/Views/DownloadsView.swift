@@ -364,7 +364,7 @@ struct DownloadsView: View {
 
     private func activeDownloadRow(_ item: DownloadItem) -> some View {
         HStack(spacing: 12) {
-            posterImage(url: item.posterURL)
+            posterImage(url: item.posterURL, size: libraryPosterSize)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(item.displayTitle)
@@ -477,7 +477,7 @@ struct DownloadsView: View {
 
     private func failedDownloadRow(_ item: DownloadItem) -> some View {
         HStack(spacing: 12) {
-            posterImage(url: item.posterURL)
+            posterImage(url: item.posterURL, size: libraryPosterSize)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(item.displayTitle)
@@ -524,7 +524,7 @@ struct DownloadsView: View {
             playDownloadedItem(item)
         }) {
             HStack(spacing: 12) {
-                posterImage(url: item.posterURL)
+                posterImage(url: item.posterURL, size: libraryPosterSize)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(item.displayTitle)
