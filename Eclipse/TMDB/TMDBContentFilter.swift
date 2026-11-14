@@ -707,7 +707,9 @@ class TMDBContentFilter: ObservableObject {
                 || !Self.isUnofficialCreatorContent(title: movie.title, overview: movie.overview) else { return false }
             guard movie.adult != true else { return false }
             guard shouldIncludeCatalogTitle(movie.title) else { return false }
-            let movieAnime = Self.isAnimeResult(movie.asSearchResult)
+            let movieResult = movie.asSearchResult
+            let movieAnime = Self.isAnimeResult(movieResult)
+            guard !shouldExcludeAnimeSpecialOrOVA(movieResult) else { return false }
             if UserDefaults.standard.bool(forKey: "catalogHideAnime"), movieAnime { return false }
             if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent"),
                let runtime = cachedRuntimeMinutes(for: "movie-\(movie.id)"), runtime < 20 { return false }
@@ -749,6 +751,8 @@ class TMDBContentFilter: ObservableObject {
                 || !Self.isUnofficialCreatorContent(title: tvShow.name, overview: tvShow.overview) else { return false }
             guard tvShow.adult != true else { return false }
             guard shouldIncludeCatalogTitle(tvShow.name) else { return false }
+            let tvResult = tvShow.asSearchResult
+            guard !shouldExcludeAnimeSpecialOrOVA(tvResult) else { return false }
             let animeCountries: Set<String> = ["JP", "CN", "KR", "TW"]
             let animeLanguages: Set<String> = ["ja", "zh", "ko"]
             let isAnime = tvShow.genreIds?.contains(16) == true
@@ -787,7 +791,20 @@ class TMDBContentFilter: ObservableObject {
         }
     }
 
+    private func shouldExcludeAnimeSpecialOrOVA(
+        _ result: TMDBSearchResult,
+        defaults: UserDefaults = .standard
+    ) -> Bool {
+        guard defaults.bool(forKey: "catalogHideAnimeSpecialsAndOVAs"),
+              Self.isAnimeResult(result),
+              let format = result.animeIdentitySeed?.format?.uppercased() else {
+            return false
+        }
+        return format == "SPECIAL" || format == "OVA"
+    }
+
     private func shouldIncludeCatalogResult(_ result: TMDBSearchResult) -> Bool {
+        guard !shouldExcludeAnimeSpecialOrOVA(result) else { return false }
         guard !UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent")
             || !Self.isUnofficialCreatorContent(title: result.displayTitle, overview: result.overview) else {
             return false
