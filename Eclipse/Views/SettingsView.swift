@@ -227,8 +227,9 @@ struct SettingsView: View {
             .init(id: "ratings-follow-season", title: "Lock Ratings & Notes to Season", location: "Ratings & Notes", icon: "lock", color: .yellow, keywords: ["reviews", "ratings", "season selector", "anime", "score"], action: .destination(.ratings)),
             .init(id: "deep-tracker-library", title: "Deep Library Integration", location: "Trackers", icon: "books.vertical", color: .blue, keywords: ["AniList", "MAL", "Trakt", "manga", "watchlist", "status", "score", "progress"], action: .destination(.trackers)),
             .init(id: "storage", title: "Storage", location: "Data", icon: "internaldrive", color: .gray, keywords: ["downloads", "cache", "files", "clear"], action: .destination(.storage)),
-            .init(id: "download-concurrency", title: "Concurrent Downloads", location: "Storage > Downloads", icon: "arrow.down.circle", color: .gray, keywords: ["parallel", "simultaneous", "HLS"], action: .destination(.storage)),
-            .init(id: "download-skip-filler", title: "Skip Filler in Download All", location: "Storage > Downloads", icon: "forward.end.fill", color: .yellow, keywords: ["anime", "batch", "filler"], action: .destination(.storage)),
+            .init(id: "download-settings", title: "Download Settings", location: "Downloads", icon: "arrow.down.circle.fill", color: .blue, keywords: ["downloads", "offline", "background", "poster size"], action: .destination(.downloads)),
+            .init(id: "download-concurrency", title: "Concurrent Downloads", location: "Downloads", icon: "arrow.down.circle", color: .gray, keywords: ["parallel", "simultaneous", "HLS"], action: .destination(.downloads)),
+            .init(id: "download-skip-filler", title: "Skip Filler in Download All", location: "Downloads", icon: "forward.end.fill", color: .yellow, keywords: ["anime", "batch", "filler"], action: .destination(.downloads)),
             .init(id: "backup", title: "Backup & Restore", location: "Data", icon: "arrow.triangle.2.circlepath", color: .teal, keywords: ["export", "import", "settings"], action: .destination(.backup)),
             .init(id: "logger", title: "Logger", location: "Data", icon: "doc.text", color: .yellow, keywords: ["logs", "diagnostics", "errors", "export"], action: .destination(.logger)),
             .init(id: "reader-mode", title: "Switch to Reader Mode", location: "Others", icon: "book.fill", color: .orange, keywords: ["Kanzen", "manga", "reader"], action: .readerMode),
@@ -237,7 +238,7 @@ struct SettingsView: View {
 
 #if os(iOS) && !targetEnvironment(macCatalyst)
         if #available(iOS 26.0, *), PlatformCapabilities.current.supportsHLSBackgroundDownloads {
-            entries.append(.init(id: "background-downloads", title: "Background Downloads", location: "Storage > Video Downloads", icon: "arrow.down.circle", color: .blue, keywords: ["background", "HLS", "direct", "video", "download", "continue"], action: .destination(.storage)))
+            entries.append(.init(id: "background-downloads", title: "Background Downloads", location: "Downloads", icon: "arrow.down.circle", color: .blue, keywords: ["background", "HLS", "direct", "video", "download", "continue"], action: .destination(.downloads)))
         }
 #endif
 
@@ -960,6 +961,8 @@ struct SettingsView: View {
             return AnyView(settingsSearchableContent(RatingsSettingsView()))
         case .storage:
             return AnyView(settingsSearchableContent(StorageView()))
+        case .downloads:
+            return AnyView(settingsSearchableContent(DownloadsSettingsView()))
         case .backup:
             return AnyView(settingsSearchableContent(BackupManagementView()))
         case .cloud:
@@ -1854,6 +1857,7 @@ private enum SettingsSearchDestination: Hashable {
     case trackers
     case ratings
     case storage
+    case downloads
     case backup
     case cloud
     case logger
