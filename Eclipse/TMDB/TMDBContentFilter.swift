@@ -487,7 +487,8 @@ class TMDBContentFilter: ObservableObject {
             || Self.ageFilterEnabled("catalogHideBelowPG13Movies", defaults: defaults)
             || Self.ageFilterEnabled("catalogHideBelowTV14Shows", defaults: defaults)
         if needsTMDBRatings {
-            let ratingResults = kidsModeEnabled ? results : results.filter { !Self.isAnimeResult($0) }
+            // Anime maturity is sourced from anime-specific providers only.
+            let ratingResults = results.filter { !Self.isAnimeResult($0) }
             let ratingLookups = ratingResults.map { (isMovie: $0.isMovie, id: $0.id) }
             if kidsModeEnabled {
                 await TMDBMaturityRatingStore.shared.resolve(ratingLookups)
@@ -512,7 +513,8 @@ class TMDBContentFilter: ObservableObject {
 
         let hideBelowAnime = defaults.bool(forKey: "catalogHideBelowPG13Anime")
         let requireVerifiedAudio = defaults.bool(forKey: "catalogRequireEnglishSpanishAudio")
-        guard hideBelowAnime || requireVerifiedAudio else { return }
+        let resolveAnimeAgeRatings = kidsModeEnabled || hideBelowAnime
+        guard resolveAnimeAgeRatings || requireVerifiedAudio else { return }
 
         var uniqueAnime: [Int: TMDBSearchResult] = [:]
         for result in results where Self.isAnimeResult(result) {
@@ -521,10 +523,14 @@ class TMDBContentFilter: ObservableObject {
         }
         let animeResults = Array(uniqueAnime.values)
 
-        if hideBelowAnime {
+        if resolveAnimeAgeRatings {
             let identifiers = Array(uniqueAnime.keys)
-            Task(priority: .utility) {
-                await TMDBContentFilter.shared.resolveAnimeAgeRatings(for: identifiers)
+            if kidsModeEnabled {
+                await resolveAnimeAgeRatings(for: identifiers)
+            } else {
+                Task(priority: .utility) {
+                    await TMDBContentFilter.shared.resolveAnimeAgeRatings(for: identifiers)
+                }
             }
         }
 
@@ -737,7 +743,8 @@ class TMDBContentFilter: ObservableObject {
                 title: movie.title,
                 overview: movie.overview,
                 isMovie: true,
-                tmdbID: movie.id
+                tmdbID: movie.id,
+                animeResult: movieResult
             ) else { return false }
             return shouldIncludeContent(genreIds: movie.genreIds)
         }
@@ -785,7 +792,8 @@ class TMDBContentFilter: ObservableObject {
                 title: tvShow.name,
                 overview: tvShow.overview,
                 isMovie: false,
-                tmdbID: tvShow.id
+                tmdbID: tvShow.id,
+                animeResult: tvResult
             ) else { return false }
             return shouldIncludeContent(genreIds: tvShow.genreIds)
         }
@@ -817,7 +825,8 @@ class TMDBContentFilter: ObservableObject {
             title: result.displayTitle,
             overview: result.overview,
             isMovie: result.isMovie,
-            tmdbID: result.id
+            tmdbID: result.id,
+            animeResult: result
         ) else { return false }
 
         if kidsModeEnabled, Self.hasExplicitAnimeMetadata(result) { return false }
@@ -837,11 +846,20 @@ class TMDBContentFilter: ObservableObject {
         title: String,
         overview: String?,
         isMovie: Bool,
-        tmdbID: Int
+        tmdbID: Int,
+        animeResult: TMDBSearchResult? = nil
     ) -> Bool {
         guard kidsModeEnabled else { return true }
-        guard TMDBMaturityRatingStore.shared.isAllowedForKids(isMovie: isMovie, id: tmdbID) else {
-            return false
+        if let animeResult, Self.isAnimeResult(animeResult) {
+            guard let anilistID = animeResult.animeIdentitySeed?.anilistId else { return false }
+            animeEligibilityLock.lock()
+            let animeRating = animeAgeRatingsByID[anilistID]
+            animeEligibilityLock.unlock()
+            guard let animeRating, !animeRating.isBlockedForKids else { return false }
+        } else {
+            guard TMDBMaturityRatingStore.shared.isAllowedForKids(isMovie: isMovie, id: tmdbID) else {
+                return false
+            }
         }
         let metadataText = [title, overview ?? ""].joined(separator: " ")
         if Self.containsBlockedCatalogText(metadataText, blockedTerms: Self.kidsMetadataDenylist) {
