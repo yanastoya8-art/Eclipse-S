@@ -1186,6 +1186,9 @@ struct MediaDetailContentView: View {
             trackerEpisodeChooserTask?.cancel()
             trackerEpisodeChooserTask = nil
             cancelOptionalPresentation()
+            titleLogoLookupGeneration = UUID()
+            titleLogoTask?.cancel()
+            titleLogoTask = nil
             if let detailLoadTask {
                 detailLoadTask.cancel()
                 self.detailLoadTask = nil
