@@ -573,6 +573,14 @@ struct MediaDetailContentView: View {
         self.trackerPlaybackIntent = trackerPlaybackIntent
     }
 
+    private var detailViewportHeight: CGFloat {
+        detailViewportSize.height > 0 ? detailViewportSize.height : EclipseViewport.bounds.height
+    }
+
+    private var detailViewportWidth: CGFloat {
+        detailViewportSize.width > 0 ? detailViewportSize.width : EclipseViewport.bounds.width
+    }
+
     private var atmosphereColor: Color {
         theme.atmosphereColor(dominant: ambientColor)
     }
@@ -591,7 +599,7 @@ struct MediaDetailContentView: View {
 
     private var mediaDetailHeroBleedTail: CGFloat {
         guard usesWideDetailLayout else { return headerHeight * 0.62 }
-        return min(max(EclipseViewport.bounds.height * 0.78, 680), 900)
+        return min(max(detailViewportHeight * 0.78, 680), 900)
     }
 
     private var mediaDetailHeroBleedStrength: Double {
@@ -954,18 +962,18 @@ struct MediaDetailContentView: View {
 
     private var headerHeight: CGFloat {
 #if os(macOS)
-        min(max(EclipseViewport.bounds.height * 0.68, 340), 640)
+        min(max(detailViewportHeight * 0.68, 340), 640)
 #elseif os(tvOS)
-        EclipseViewport.bounds.height * 0.8
+        detailViewportHeight * 0.8
 #else
         if ExperimentalFeatureState.isEnabledAtLaunch {
             let measuredHeight = designMetrics.detailHeroHeight(
-                screenHeight: EclipseViewport.bounds.height,
+                screenHeight: detailViewportHeight,
                 isIPad: usesWideDetailLayout
             )
             return usesWideDetailLayout ? min(measuredHeight, 640) : measuredHeight
         }
-        return usesWideDetailLayout ? 640 : min(max(EclipseViewport.bounds.height * 0.76, 620), 780)
+        return usesWideDetailLayout ? 640 : min(max(detailViewportHeight * 0.76, 620), 780)
 #endif
     }
 
@@ -973,7 +981,7 @@ struct MediaDetailContentView: View {
 #if os(macOS)
         min(headerHeight, 420)
 #elseif os(tvOS)
-        EclipseViewport.bounds.height * 0.8
+        detailViewportHeight * 0.8
 #else
         usesWideDetailLayout ? 520 : 420
 #endif
