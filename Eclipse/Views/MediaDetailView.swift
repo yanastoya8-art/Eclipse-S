@@ -592,8 +592,12 @@ struct MediaDetailContentView: View {
 #if os(macOS)
         (detailViewportSize == .zero ? EclipseViewport.bounds : detailViewportSize).width >= 1000
 #else
-        // iPhone keeps the portrait detail composition in both orientations.
+        // Keep the immersive composition on iPad and use it on iPhone when
+        // the actual detail viewport rotates to landscape. The width guard
+        // avoids treating narrow split-view layouts as landscape.
         return isIPad
+            || (detailViewportWidth >= 700
+                && detailViewportWidth > detailViewportHeight * 1.15)
 #endif
     }
 
