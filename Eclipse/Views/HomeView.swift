@@ -1787,7 +1787,20 @@ struct HomeView: View {
 
     @ViewBuilder
     private func heroTitleArtwork(_ hero: TMDBSearchResult) -> some View {
-        heroTitleText(hero)
+        if let logoURL = hero.animeLogoURL ?? heroLogoURL, !logoURL.isEmpty {
+            ResilientArtworkImage(
+                urls: [logoURL],
+                decodeSize: heroLogoDecodeSize,
+                contentMode: .fit
+            ) {
+                heroTitleText(hero)
+            }
+            .frame(width: heroLogoMaxWidth, height: heroLogoMaxHeight)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .accessibilityLabel(hero.displayTitle)
+        } else {
+            heroTitleText(hero)
+        }
     }
 
     @ViewBuilder
@@ -2001,8 +2014,8 @@ struct HomeView: View {
               homeViewModel.heroContent?.stableIdentity == identity,
               selectedLanguage == language else { return }
         heroArtworkIdentity = identity
-        heroLogoURL = nil
-        heroLogoLookupComplete = true
+        heroLogoURL = hero.animeLogoURL
+        heroLogoLookupComplete = hero.animeLogoURL != nil
         heroAlternatePosterURL = nil
 
         // Warm the poster before navigation. The detail screen receives this
