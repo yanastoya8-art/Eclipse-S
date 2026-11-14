@@ -17,6 +17,7 @@ typealias ServicesPresentationController = NSViewController
 typealias ServicesPresentationController = UIViewController
 #endif
 
+@MainActor
 private func copyProviderDownloadURL(_ rawURL: String, headers: [String: String]? = nil) {
     guard let sourceURL = URL(string: rawURL),
           let scheme = sourceURL.scheme?.lowercased(),
