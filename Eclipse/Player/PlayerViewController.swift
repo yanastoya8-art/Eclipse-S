@@ -1496,6 +1496,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     private var mpvForegroundRecoveryRetryCount = 0
     private var mpvForegroundRecoveryTask: Task<Void, Never>?
     private var rendererPlaybackIntentGeneration = 0
+    private var rendererPlaybackIntentIsPlaying = false
     private var mpvAutomaticPictureInPictureAuthorization: MPVAutomaticPictureInPictureAuthorization?
     private var mpvBackgroundFallbackAutoPaused = false
     private var mpvBackgroundFallbackPauseIntentGeneration: Int?
@@ -1756,6 +1757,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     private func rendererPlay(recordingPlaybackIntent: Bool = true) {
         if recordingPlaybackIntent {
             autoplayEndGeneration = nil
+            rendererPlaybackIntentIsPlaying = true
             rendererPlaybackIntentGeneration &+= 1
             mpvBackgroundFallbackAutoPaused = false
             mpvBackgroundFallbackPauseIntentGeneration = nil
@@ -1775,6 +1777,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     ) {
         autoplayEndGeneration = nil
         if !preservingBackgroundFallbackOwnership {
+            rendererPlaybackIntentIsPlaying = false
             rendererPlaybackIntentGeneration &+= 1
             mpvBackgroundFallbackAutoPaused = false
             mpvBackgroundFallbackPauseIntentGeneration = nil
@@ -1791,6 +1794,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
     private func rendererTogglePause() {
         autoplayEndGeneration = nil
+        rendererPlaybackIntentIsPlaying = rendererIsPausedState()
         rendererPlaybackIntentGeneration &+= 1
         mpvBackgroundFallbackAutoPaused = false
         mpvBackgroundFallbackPauseIntentGeneration = nil
@@ -2079,7 +2083,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             return
         }
 
-        let wasPlaying = !rendererIsPausedState() && (playbackDidStart || cachedPosition > 0.1)
+        // Use the last user/app playback intent, not the renderer's current
+        // pause flag: iOS may already have paused the renderer before the
+        // didEnterBackground notification reaches this controller.
+        let wasPlaying = rendererPlaybackIntentIsPlaying && (playbackDidStart || cachedPosition > 0.1)
         guard wasPlaying else {
             if backgroundRecoveryProgressGate?.mediaKey == mediaKey {
                 return
@@ -4648,6 +4655,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
     private func applyPlaybackIntentAfterLoad(shouldResume: Bool, source: String) {
         logMPV("applying post-load playback intent source=\(source) shouldResume=\(shouldResume)")
+        rendererPlaybackIntentIsPlaying = shouldResume
         rendererPlaybackIntentGeneration &+= 1
         mpvBackgroundFallbackAutoPaused = false
         mpvBackgroundFallbackPauseIntentGeneration = nil
