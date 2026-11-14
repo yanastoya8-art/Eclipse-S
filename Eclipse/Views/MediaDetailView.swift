@@ -486,6 +486,7 @@ struct MediaDetailContentView: View {
     @State private var traktRating: TraktMediaRating?
     @State private var isLoadingTraktComments = false
     @State private var hasLoadedContent = false
+    @State private var detailViewportSize: CGSize = .zero
     @State private var isDetailVisible = false
     @State private var detailLoadedLanguage: String?
     @State private var detailLoadedIdentity: String?
@@ -1029,6 +1030,7 @@ struct MediaDetailContentView: View {
     }
 
     var body: some View {
+        GeometryReader { geometry in
         ZStack {
             EclipseTheme.shared.backgroundBase
                 .ignoresSafeArea(.all)
@@ -1050,6 +1052,11 @@ struct MediaDetailContentView: View {
 #if os(iOS)
             navigationOverlay
 #endif
+        }
+        .onAppear { detailViewportSize = geometry.size }
+        .onChange(of: geometry.size) { _, newSize in
+            detailViewportSize = newSize
+        }
         }
 #if os(tvOS)
         .focusScope(tvDetailFocusScope)
@@ -8079,9 +8086,9 @@ private struct AnimeSpecialSearchRequest: Identifiable {
 
 private var usesWideDetailLayout: Bool {
 #if os(macOS)
-    EclipseViewport.bounds.width >= 1000
+    (detailViewportSize == .zero ? EclipseViewport.bounds : detailViewportSize).width >= 1000
 #else
-    let viewport = EclipseViewport.bounds
+    let viewport = detailViewportSize == .zero ? EclipseViewport.bounds : detailViewportSize
     let isLandscapePhoneOrTablet = viewport.width > viewport.height && viewport.width >= 700
     return isIPad || isLandscapePhoneOrTablet
 #endif
