@@ -563,8 +563,6 @@ struct MediaDetailContentView: View {
     @AppStorage("mediaDetailHiddenElements") private var mediaDetailHiddenElements = ""
     @AppStorage("showCastSection") private var legacyShowCastSection = true
     @AppStorage(MediaDetailPlatformDefaults.seasonMenuKey) private var useSeasonMenu = MediaDetailPlatformDefaults.prefersCompactSeasonMenu
-    @AppStorage(MediaDetailTitleArtworkSettings.enabledKey) private var mediaDetailTitleArtworkEnabled = MediaDetailTitleArtworkSettings.defaultEnabled
-    @AppStorage(MediaDetailAlternatePosterSettings.enabledKey) private var mediaDetailAlternatePosterEnabled = MediaDetailAlternatePosterSettings.defaultEnabled
     @AppStorage(MediaDetailAgeRatingSettings.enabledKey) private var mediaDetailAgeRatingEnabled = MediaDetailAgeRatingSettings.defaultEnabled
     @AppStorage(MediaDetailSimilarTitlesSettings.enabledKey) private var mediaDetailSimilarTitlesEnabled = MediaDetailSimilarTitlesSettings.defaultEnabled
     @AppStorage(ExperimentalMediaDesignPreset.storageKey) private var experimentalDesignPreset = ExperimentalMediaDesignPreset.defaultValue.rawValue
@@ -1995,23 +1993,7 @@ struct MediaDetailContentView: View {
 
     @ViewBuilder
     private func macDetailTitle(compact: Bool) -> some View {
-        if mediaDetailTitleArtworkEnabled && !titleArtworkLookupComplete {
-            macDetailTitleText(compact: compact)
-                .frame(width: compact ? 330 : 480, height: compact ? 88 : 112, alignment: .leading)
-        } else if mediaDetailTitleArtworkEnabled, let logoURL {
-            ResilientArtworkImage(
-                urls: [logoURL],
-                decodeSize: homeImageDecodeSize(width: 480, height: 112),
-                contentMode: .fit
-            ) {
-                macDetailTitleText(compact: compact)
-            }
-            .frame(maxWidth: compact ? 330 : 480, maxHeight: compact ? 88 : 112, alignment: .leading)
-            .accessibilityLabel(searchResult.displayTitle)
-            .accessibilityAddTraits(.isHeader)
-        } else {
-            macDetailTitleText(compact: compact)
-        }
+        EmptyView()
     }
 
     private func macDetailTitleText(compact: Bool) -> some View {
@@ -2295,21 +2277,7 @@ struct MediaDetailContentView: View {
 
     @ViewBuilder
     private var iPadImmersiveTitle: some View {
-        if mediaDetailTitleArtworkEnabled && !titleArtworkLookupComplete {
-            iPadImmersiveTitleText.frame(width: 380, height: 118, alignment: .leading)
-        } else if mediaDetailTitleArtworkEnabled, let logoURL {
-            ResilientArtworkImage(
-                urls: [logoURL],
-                decodeSize: homeImageDecodeSize(width: 380, height: 118),
-                contentMode: .fit
-            ) {
-                iPadImmersiveTitleText
-            }
-            .frame(maxWidth: 380, maxHeight: 118, alignment: .leading)
-            .shadow(color: .black.opacity(0.48), radius: 8, x: 0, y: 4)
-        } else {
-            iPadImmersiveTitleText
-        }
+        EmptyView()
     }
 
     private var iPadImmersiveTitleText: some View {
