@@ -1430,6 +1430,17 @@ struct MediaDetailContentView: View {
                 Task { await applyInitialNotificationSelectionIfNeeded() }
             }
         }
+        .onChangeComp(of: hideAnimeSpecialsAndOVAs) { _, hidden in
+            if hidden {
+                specialsLoadTask?.cancel()
+                specialsLoadTask = nil
+                isLoadingAnimeSpecials = false
+                animeSpecialEntries = []
+                selectedSpecialEpisodeContext = nil
+            } else {
+                resumeAnimeSpecialsLoadIfNeeded()
+            }
+        }
         .onChangeComp(of: isLoadingAnimeSpecials) { _, loading in
             if !loading && trackerPlaybackWaitingForMetadata { startTrackerPlaybackPreparation(force: true) }
             if !loading {
@@ -4337,7 +4348,8 @@ struct MediaDetailContentView: View {
     }
 
     private func resumeAnimeSpecialsLoadIfNeeded() {
-        guard hasLoadedContent,
+        guard !hideAnimeSpecialsAndOVAs,
+              hasLoadedContent,
               isAnimeShow,
               isLoadingAnimeSpecials,
               specialsLoadTask == nil,
