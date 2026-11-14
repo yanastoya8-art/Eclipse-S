@@ -5555,7 +5555,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             ) {
                 applyEffect()
             } completion: { _ in
-                guard !shouldShowGlass else { return }
+                // A newer tap may have shown the controls while this hide
+                // animation was finishing. Never hide a newly materialized layer.
+                guard !self.activePlayerLiquidGlassEnabled || !self.controlsVisible else { return }
                 glassViews.forEach { $0.isHidden = true }
                 self.bottomControlsGlassView.isHidden = true
             }
