@@ -272,13 +272,13 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
             "16": .age16, "18": .adult, "X": .adult
         ],
         "JP": [
-            "G": .general, "PG12": .teen, "R15PLUS": .mature, "R18PLUS": .adult
+            "G": .general, "PG12": .age12, "R15PLUS": .mature, "R18PLUS": .adult
         ],
         "KR": [
-            "ALL": .general, "12": .teen, "15": .mature, "19": .adult
+            "ALL": .general, "12": .age12, "15": .mature, "19": .adult
         ],
         "AU": [
-            "G": .general, "PG": .general, "M": .teen,
+            "G": .general, "PG": .general, "M": .mature,
             "MA15": .mature, "MA15PLUS": .mature, "R18PLUS": .adult, "X18PLUS": .adult
         ],
         "DE": [
@@ -300,7 +300,7 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
         ],
         "SG": [
             "G": .general, "PG": .general, "PG13": .teen,
-            "NC16": .mature, "M18": .adult, "R21": .adult
+            "NC16": .age16, "M18": .adult, "R21": .adult
         ]
     ]
 
@@ -309,7 +309,7 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
         "G": .general, "TVY": .general, "TVY7": .general, "TVY7FV": .general,
         "TVG": .general, "PG": .general, "TVPG": .general,
         "PG13": .teen, "TV14": .age14,
-        "R": .mature, "TVMA": .age17,
+        "R": .age17, "TVMA": .age17,
         "NC17": .adult, "X": .adult, "XXX": .adult, "AO": .adult,
         "ADULT": .adult, "ADULTONLY": .adult, "UNRATED": .unknown, "NR": .unknown,
 
@@ -319,18 +319,18 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
         "18": .adult, "R18": .adult,
 
         "E": .general, "M": .mature, "MA15": .mature, "MA15PLUS": .mature,
-        "R13": .teen, "R15": .mature, "R16": .mature,
+        "R13": .teen, "R15": .mature, "R16": .age16,
         "R18PLUS": .adult, "X18PLUS": .adult, "RC": .adult,
 
-        "PG12": .teen, "R15PLUS": .mature,
+        "PG12": .age12, "R15PLUS": .mature,
         "T": .teen, "TPLUS": .mature, "A": .general,
-        "R17": .mature, "RPLUS": .mature, "RX": .adult,
+        "R17": .age17, "RPLUS": .age17, "RX": .adult,
 
         "ALL": .general, "19": .adult,
 
-        "L": .general, "10": .general, "14": .teen, "16": .mature,
+        "L": .general, "10": .general, "14": .age14, "16": .age16,
 
-        "PG13SG": .teen, "NC16": .mature, "M18": .adult, "R21": .adult,
+        "PG13SG": .teen, "NC16": .age16, "M18": .adult, "R21": .adult,
 
         "0": .general, "6": .general, "7": .general, "9": .general,
         "AL": .general, "TP": .general
