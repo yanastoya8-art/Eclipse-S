@@ -5496,6 +5496,15 @@ final class AniListService {
         }
 
         let filteredEntries = result.entries.filter { entry in
+            let scheduleTitles = [
+                entry.title,
+                entry.englishTitle,
+                entry.romajiTitle,
+                entry.nativeTitle
+            ].compactMap { $0 }.joined(separator: " ")
+            guard !TMDBContentFilter.shouldExcludeAnimeCategory(title: scheduleTitles) else {
+                return false
+            }
             let anilistID = entry.mediaId > 0 ? entry.mediaId : nil
             let malID = entry.malID ?? (entry.mediaId < 0 ? -entry.mediaId : nil)
             return MyDubListDubFilter.shared.shouldIncludeEnglishSchedule(anilistID: anilistID, malID: malID)
