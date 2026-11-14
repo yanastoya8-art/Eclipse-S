@@ -579,6 +579,32 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             tvMazePosterURL: url
         )
     }
+
+    func withAnimeHint(_ value: Bool) -> TMDBSearchResult {
+        TMDBSearchResult(
+            id: id,
+            mediaType: mediaType,
+            title: title,
+            name: name,
+            overview: overview,
+            posterPath: posterPath,
+            backdropPath: backdropPath,
+            releaseDate: releaseDate,
+            firstAirDate: firstAirDate,
+            voteAverage: voteAverage,
+            popularity: popularity,
+            adult: adult,
+            genreIds: genreIds,
+            originalLanguage: originalLanguage,
+            originCountry: originCountry,
+            voteCount: voteCount,
+            isAnimeHint: value,
+            animeIdentitySeed: animeIdentitySeed,
+            animeArtworkURL: animeArtworkURL,
+            animeLogoURL: animeLogoURL,
+            tvMazePosterURL: tvMazePosterURL
+        )
+    }
 }
 
 struct TMDBMovieSearchResponse: Decodable {
