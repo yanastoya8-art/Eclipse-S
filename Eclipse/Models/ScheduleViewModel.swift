@@ -838,10 +838,16 @@ final class ScheduleViewModel: ObservableObject {
                 }
                 let entries = result.entries.map(ScheduleEntry.init(animeEntry:))
                 try Task.checkCancellation()
+                let notice = requiresDubSchedule
+                    ? AnimeScheduleLanguageNoticePolicy.notice(
+                        selectedLanguages: selectedDubLanguages,
+                        providerNotice: result.notice
+                    )
+                    : result.notice
                 let loadResult = AnimeScheduleLoadResult(
                     entries: entries,
                     isAuthoritativeForNotifications: result.isAuthoritativeForNotifications,
-                    notice: result.notice
+                    notice: notice
                 )
                 if self.animeScheduleLoadID == loadID {
                     self.animeScheduleResult = loadResult
