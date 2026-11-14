@@ -2901,6 +2901,7 @@ struct MediaDetailContentView: View {
     }
 
     private func loadAnimeAgeCertificationIfNeeded() async {
+        animeAgeCertification = nil
         guard let anilistID = exactAnimeNavigationSeedAniListId, anilistID > 0 else {
             animeAgeCertification = nil
             return
