@@ -2131,6 +2131,14 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
                       self.isRunning, !self.isClosing,
                       self.owningPlaybackSceneIsForegroundActive() else { return }
 
+                let pipState = self.mpvPictureInPictureControllerState()
+                guard !pipState.active, !pipState.pending else {
+                    self.logPictureInPicture(
+                        "foreground playback restoration deferred while PiP owns renderer source=\(source)"
+                    )
+                    return
+                }
+
                 // iOS/AVKit can leave the renderer paused after returning from
                 // background even when the PiP handoff never completed. Resume
                 // only when playback was active before backgrounding and the
