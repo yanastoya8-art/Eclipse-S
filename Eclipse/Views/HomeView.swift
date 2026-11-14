@@ -2228,14 +2228,33 @@ struct HomeView: View {
         for hero in upcomingHeroes {
             guard let imageURL = heroImageURL(for: hero),
                   let url = URL(string: imageURL) else { continue }
-            KingfisherManager.shared.retrieveImage(
-                with: url,
-                options: [
-                    .processor(processor),
-                    .scaleFactor(EclipseViewport.scale),
-                    .backgroundDecode
-                ]
-            ) { _ in }
+            async let heroImagePrefetch = prefetchHeroImage(imageURL, processor: processor)
+            let language = selectedLanguage
+            do {
+                let images = try await (hero.isMovie
+                    ? tmdbService.getMovieImages(id: hero.id, preferredLanguage: language)
+                    : tmdbService.getTVShowImages(id: hero.id, preferredLanguage: language))
+                guard !Task.isCancelled, heroArtworkIsActive,
+                      selectedLanguage == language else { return }
+                if let logoURL = tmdbService.getBestLogo(from: images, preferredLanguage: language)?.fullURL {
+                    let logoKey = heroAlternatePosterCacheKey(hero.stableIdentity, language: language)
+                    prefetchedHeroLogoURLs[logoKey] = logoURL
+                    if let logo = URL(string: logoURL) {
+                        KingfisherManager.shared.retrieveImage(
+                            with: logo,
+                            options: [
+                                .processor(DownsamplingImageProcessor(size: heroLogoDecodeSize)),
+                                .scaleFactor(EclipseViewport.scale),
+                                .backgroundDecode
+                            ]
+                        ) { _ in }
+                    }
+                }
+                _ = await heroImagePrefetch
+            } catch {
+                _ = await heroImagePrefetch
+                continue
+            }
         }
 
 #if os(iOS)
