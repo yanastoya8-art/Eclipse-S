@@ -565,7 +565,6 @@ struct HomeView: View {
 
     @State private var continueWatchingVettedOwner: UUID?
 
-    @State private var maturityRevisionReloadTask: Task<Void, Never>?
     @State private var pendingContinueWatchingProgressRefreshTask: Task<Void, Never>?
     @State private var didReportStartupReady = false
     @State private var didReportInitialHydration = false
@@ -878,19 +877,8 @@ struct HomeView: View {
             refreshContinueWatchingItems()
             scheduleHomeCatalogReloadIfNeeded()
         }
-        .onChangeComp(of: contentFilter.filterHorror) { _, _ in
-            reloadHomeContentAfterFilterChange()
-        }
-
-        .onChangeComp(of: contentFilter.maturityRatingRevision) { _, _ in
-            maturityRevisionReloadTask?.cancel()
-            maturityRevisionReloadTask = Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 600_000_000)
-                guard !Task.isCancelled else { return }
-                reloadHomeContentAfterFilterChange()
-            }
-        }
-
+        // Filter changes are handled by HomeViewModel's retained-snapshot
+        // observer so catalog rows are not replaced during an active scroll.
         .onReceive(NotificationCenter.default.publisher(for: .activeProfileDidChange)) { _ in
 
             cancelTraktContinueWatchingRefresh(clearItems: true)
