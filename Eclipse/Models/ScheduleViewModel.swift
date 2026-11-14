@@ -862,18 +862,9 @@ final class ScheduleViewModel: ObservableObject {
         let loadTask = Task { @MainActor [weak self] () throws -> [ScheduleEntry] in
             guard let self else { throw CancellationError() }
             do {
-                let rawEntries: [ScheduleEntry]
-                do {
-                    rawEntries = try await self.retryOnceAfterTransientCancellation(operationName: "Trakt schedule") {
-                        try await TraktScheduleService.shared.fetchSchedule(dayCount: dayCount)
-                    }
-                } catch {
-                    if Self.isIntentionalCancellation(error) {
-                        throw CancellationError()
-                    }
-                    Logger.shared.log("TraktScheduleService: falling back to TVMaze: \(error.localizedDescription)", type: "TMDB")
-                    rawEntries = try await TVMazeService.shared.fetchSchedule(dayCount: dayCount)
-                }
+                // TVMaze is the primary Series calendar. It provides episode
+                // air dates without requiring a Trakt client ID or OAuth setup.
+                let rawEntries = try await TVMazeService.shared.fetchSchedule(dayCount: dayCount)
                 try Task.checkCancellation()
                 let languageFiltered = await JustWatchScheduleService.shared.filter(
                     entries: rawEntries,
