@@ -2854,7 +2854,7 @@ struct MediaDetailContentView: View {
     private var detailAgeRating: String? {
         if usesAnimeSpecificAgeRating {
             guard let animeAgeCertification else { return nil }
-            return "Taizen · \(animeAgeCertification.ageBand)"
+            return "Anime · \(animeAgeCertification.ageBand)"
         }
 
         let certification = searchResult.isMovie
