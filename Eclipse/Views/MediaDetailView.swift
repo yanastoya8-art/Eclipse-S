@@ -6977,6 +6977,23 @@ struct MediaDetailContentView: View {
         }
     }
 
+    private func prefetchDetailHeroImage() {
+        guard let imageURL = detailHeroImageURL,
+              let url = URL(string: imageURL) else { return }
+        let decodeSize = CGSize(
+            width: max(EclipseViewport.bounds.width * EclipseViewport.scale, 1),
+            height: max(headerHeight * EclipseViewport.scale, 1)
+        )
+        KingfisherManager.shared.retrieveImage(
+            with: url,
+            options: [
+                .processor(DownsamplingImageProcessor(size: decodeSize)),
+                .scaleFactor(EclipseViewport.scale),
+                .backgroundDecode
+            ]
+        ) { _ in }
+    }
+
     private func startTitleArtworkLookup() {
         titleArtworkTask?.cancel()
         let identity = searchResult.stableIdentity
@@ -7007,6 +7024,19 @@ struct MediaDetailContentView: View {
 
             if let images, images.id == id {
                 logoURL = tmdbService.getBestLogo(from: images, preferredLanguage: language)?.fullURL
+                if let logoURL, let url = URL(string: logoURL) {
+                    KingfisherManager.shared.retrieveImage(
+                        with: url,
+                        options: [
+                            .processor(DownsamplingImageProcessor(
+                                size: homeImageDecodeSize(width: isTvOS ? 720 : (usesWideDetailLayout ? 420 : 334),
+                                                          height: isTvOS ? 250 : 140)
+                            )),
+                            .scaleFactor(EclipseViewport.scale),
+                            .backgroundDecode
+                        ]
+                    ) { _ in }
+                }
             }
             titleArtworkLookupComplete = true
             cacheOptionalPresentation(key: cacheKey)
@@ -7245,6 +7275,7 @@ struct MediaDetailContentView: View {
         isLoadingSimilarTitles = false
         selectedSpecialEpisodeContext = nil
         let detailLoadStartedAt = ProcessInfo.processInfo.systemUptime
+        prefetchDetailHeroImage()
         startTitleArtworkLookup()
 
         detailLoadTask = Task {
