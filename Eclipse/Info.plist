@@ -63,6 +63,8 @@
 	<string>Eclipse uses Face ID to unlock a PIN-protected profile without typing its PIN. Authentication happens entirely on this device; Eclipse never receives or stores your biometric data.</string>
 	<key>TMDBAPIKey</key>
 	<string>$(TMDB_API_KEY)</string>
+	<key>FanartTVAPIKey</key>
+	<string>$(FANART_TV_API_KEY)</string>
 	<key>AniListClientID</key>
 	<string>$(ANILIST_CLIENT_ID)</string>
 	<key>AniListClientSecret</key>
