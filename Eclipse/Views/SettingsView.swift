@@ -530,6 +530,15 @@ struct SettingsView: View {
                     }
                 }
 
+                GlassSection(header: "Search & Privacy") {
+                    VStack(spacing: 0) {
+                        NavigationLink(destination: settingsSearchableContent(SearchPrivacySettingsView())) {
+                            GlassSettingsRow(icon: "magnifyingglass", iconColor: .cyan, title: "Search History")
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
                 GlassSection(header: "Basic") {
                     VStack(spacing: 0) {
                         NavigationLink(destination: settingsSearchableContent(ServicesView())) {
@@ -5368,6 +5377,30 @@ private struct CloudSyncHealthSection: View {
 }
 #endif
 
+
+private struct SearchPrivacySettingsView: View {
+    @AppStorage("searchHistorySavingEnabled") private var saveSearchHistory = true
+    @AppStorage("searchHistory") private var searchHistoryData: Data = Data()
+
+    var body: some View {
+        List {
+            Section {
+                Toggle("Save search history", isOn: $saveSearchHistory)
+                    .accessibilityIdentifier("settings.search.saveHistory")
+                    .onChange(of: saveSearchHistory) { enabled in
+                        if !enabled {
+                            searchHistoryData = Data()
+                        }
+                    }
+            } footer: {
+                Text("When disabled, Eclipse does not save new searches and clears the search history stored on this device.")
+            }
+        }
+        .eclipsePageTitle("Search History")
+        .eclipseSettingsStyle()
+        .preferredColorScheme(.dark)
+    }
+}
 
 private struct AgeFiltersSettingsView: View {
     @Binding var hideBelowPG13Movies: Bool
