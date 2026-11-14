@@ -1012,12 +1012,15 @@ class TMDBContentFilter: ObservableObject {
         defaults: UserDefaults = .standard
     ) -> Bool {
         guard defaults.bool(forKey: "catalogHideBelowPG13Anime") else { return true }
-        guard let anilistID = result.animeIdentitySeed?.anilistId else { return true }
+        // Anime uses its own AniList/Taizen age classification. If an exact
+        // AniList identity or rating is unavailable, do not substitute TMDB
+        // movie/TV ratings or silently admit an unverified title.
+        guard let anilistID = result.animeIdentitySeed?.anilistId, anilistID > 0 else {
+            return false
+        }
         animeEligibilityLock.lock()
         let rating = animeAgeRatingsByID[anilistID]
         animeEligibilityLock.unlock()
-        // The anime policy is explicitly PG-13+: missing/unknown
-        // AniList age metadata cannot be treated as a verified PG-13 rating.
         guard let rating, rating != .unknown else { return false }
         return rating >= .teen
     }
@@ -1142,15 +1145,10 @@ class TMDBContentFilter: ObservableObject {
             let shouldCheckMovie = result.isMovie && Self.ageFilterEnabled("catalogHideBelowPG13Movies", defaults: defaults)
             let shouldCheckTV = result.isTVShow && Self.ageFilterEnabled("catalogHideBelowTV14Shows", defaults: defaults)
             if shouldCheckMovie || shouldCheckTV {
-                if let rating = TMDBMaturityRatingStore.shared.rating(
+                guard let rating = TMDBMaturityRatingStore.shared.rating(
                     isMovie: result.isMovie,
                     id: result.id
-                ), rating == .unknown || rating < .teen {
-                    return false
-                } else if TMDBMaturityRatingStore.shared.rating(
-                    isMovie: result.isMovie,
-                    id: result.id
-                ) == nil {
+                ), rating != .unknown, rating >= .teen else {
                     return false
                 }
             }
