@@ -688,14 +688,25 @@ class TMDBContentFilter: ObservableObject {
         if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
             Task(priority: .utility) { await self.resolveRuntimeMetadata(for: results) }
         }
+        scheduleAnimeAudioMetadataResolutionIfNeeded(for: results)
         return results.filter { result in
             shouldIncludeCatalogResult(result)
         }
     }
 
     func filterFastAnimeSearchResults(_ results: [TMDBSearchResult]) -> [TMDBSearchResult] {
+        scheduleAnimeAudioMetadataResolutionIfNeeded(for: results)
         return results.filter { result in
             shouldIncludeCatalogResult(result) && shouldIncludeFastAnimeResult(result)
+        }
+    }
+
+    private func scheduleAnimeAudioMetadataResolutionIfNeeded(for results: [TMDBSearchResult]) {
+        guard UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") else { return }
+        let animeResults = results.filter { Self.isAnimeResult($0) }
+        guard !animeResults.isEmpty else { return }
+        Task(priority: .utility) {
+            await self.resolveAnimeAudioMetadata(for: animeResults)
         }
     }
 
@@ -710,6 +721,7 @@ class TMDBContentFilter: ObservableObject {
             guard shouldIncludeCatalogTitle(movie.title) else { return false }
             let movieAnime = Self.isAnimeResult(movie.asSearchResult)
             if UserDefaults.standard.bool(forKey: "catalogHideAnime"), movieAnime { return false }
+            if movieAnime, !shouldIncludeAnimeCategoryFilters(movie.asSearchResult) { return false }
             if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent"),
                let runtime = cachedRuntimeMinutes(for: "movie-\(movie.id)"), runtime < 20 { return false }
             guard !Self.shouldHideForReleaseDate(
@@ -718,10 +730,13 @@ class TMDBContentFilter: ObservableObject {
                 isMovie: true,
                 defaults: .standard
             ) else { return false }
-            if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio"),
-               let language = movie.originalLanguage?.lowercased(),
-               !language.hasPrefix("en"), !language.hasPrefix("es") {
-                return false
+            if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
+                guard let language = movie.originalLanguage?.lowercased() else { return false }
+                let hasNativeAudio = language.hasPrefix("en") || language.hasPrefix("es")
+                if !hasNativeAudio {
+                    guard movieAnime,
+                          shouldIncludeForConfiguredAgeAndAudio(movie.asSearchResult) else { return false }
+                }
             }
             guard shouldIncludeTMDBAgeRating(
                 isMovie: true,
@@ -753,6 +768,7 @@ class TMDBContentFilter: ObservableObject {
                 && (animeLanguages.contains(tvShow.originalLanguage?.lowercased() ?? "")
                     || tvShow.originCountry?.contains(where: { animeCountries.contains($0) }) == true)
             if UserDefaults.standard.bool(forKey: "catalogHideAnime"), isAnime { return false }
+            if isAnime, !shouldIncludeAnimeCategoryFilters(tvShow.asSearchResult) { return false }
             if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent"),
                let runtime = cachedRuntimeMinutes(for: "tv-\(tvShow.id)"), runtime < 20 { return false }
             guard !Self.shouldHideForReleaseDate(
@@ -761,10 +777,13 @@ class TMDBContentFilter: ObservableObject {
                 isMovie: false,
                 defaults: .standard
             ) else { return false }
-            if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio"),
-               let language = tvShow.originalLanguage?.lowercased() {
+            if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
+                guard let language = tvShow.originalLanguage?.lowercased() else { return false }
                 let hasNativeAudio = language.hasPrefix("en") || language.hasPrefix("es")
-                if !hasNativeAudio && !isAnime { return false }
+                if !hasNativeAudio {
+                    guard isAnime,
+                          shouldIncludeForConfiguredAgeAndAudio(tvShow.asSearchResult) else { return false }
+                }
             }
             guard shouldIncludeTMDBAgeRating(
                 isMovie: false,
@@ -788,6 +807,7 @@ class TMDBContentFilter: ObservableObject {
         }
         guard MyDubListDubFilter.shared.shouldInclude(result) else { return false }
         guard result.adult != true else { return false }
+        if Self.isAnimeResult(result), !shouldIncludeAnimeCategoryFilters(result) { return false }
         guard shouldIncludeForConfiguredAgeAndAudio(result) else { return false }
         guard shouldIncludeCatalogTitle(result.displayTitle) else { return false }
         guard shouldIncludeForKids(
@@ -1092,16 +1112,47 @@ class TMDBContentFilter: ObservableObject {
         if Self.shouldHideForReleaseDate(result, defaults: defaults) { return false }
 
         if defaults.bool(forKey: "catalogRequireEnglishSpanishAudio") {
-            guard let originalLanguage = result.originalLanguage?.lowercased() else { return true }
+            guard let originalLanguage = result.originalLanguage?.lowercased() else { return false }
             let hasNativeAudio = originalLanguage.hasPrefix("en") || originalLanguage.hasPrefix("es")
-            if hasNativeAudio { return true }
-            guard isAnime else { return false }
-            guard let anilistID = result.animeIdentitySeed?.anilistId else { return true }
-            animeEligibilityLock.lock()
-            let hasVerifiedDub = animeAudioEligibleIDs.contains(anilistID)
-            let metadataWasChecked = animeAudioCheckedIDs.contains(anilistID)
-            animeEligibilityLock.unlock()
-            guard hasVerifiedDub || !metadataWasChecked else { return false }
+            if !hasNativeAudio {
+                guard isAnime,
+                      let anilistID = result.animeIdentitySeed?.anilistId,
+                      anilistID > 0 else { return false }
+                animeEligibilityLock.lock()
+                let hasVerifiedDub = animeAudioEligibleIDs.contains(anilistID)
+                animeEligibilityLock.unlock()
+                // Fail closed while dub metadata is loading or unavailable. The
+                // metadata resolver posts a filter refresh when it completes.
+                guard hasVerifiedDub else { return false }
+            }
+        }
+        return true
+    }
+
+    private func shouldIncludeAnimeCategoryFilters(_ result: TMDBSearchResult) -> Bool {
+        let defaults = UserDefaults.standard
+        guard defaults.bool(forKey: "catalogHideHentai")
+                || defaults.bool(forKey: "catalogHideYuri")
+                || defaults.bool(forKey: "catalogHideYaoi") else { return true }
+        let metadata = [result.displayTitle, result.overview ?? ""].joined(separator: " ")
+        if defaults.bool(forKey: "catalogHideHentai"),
+           Self.containsBlockedCatalogText(metadata, blockedTerms: [
+                "hentai", "ova hentai", "adult anime", "adult animation",
+                "r18", "r 18", "pornographic", "pornography"
+           ]) {
+            return false
+        }
+        if defaults.bool(forKey: "catalogHideYuri"),
+           Self.containsBlockedCatalogText(metadata, blockedTerms: [
+                "yuri", "girls love", "girl love", "shoujo ai", "shojo ai"
+           ]) {
+            return false
+        }
+        if defaults.bool(forKey: "catalogHideYaoi"),
+           Self.containsBlockedCatalogText(metadata, blockedTerms: [
+                "yaoi", "boys love", "boy love", "shounen ai", "shonen ai"
+           ]) {
+            return false
         }
         return true
     }
