@@ -965,14 +965,18 @@ struct MediaDetailContentView: View {
 #elseif os(tvOS)
         EclipseViewport.bounds.height * 0.8
 #else
+        let portraitPosterHeight = EclipseViewport.bounds.width * 1.5
         if ExperimentalFeatureState.isEnabledAtLaunch {
             let measuredHeight = designMetrics.detailHeroHeight(
                 screenHeight: EclipseViewport.bounds.height,
                 isIPad: usesWideDetailLayout
             )
-            return usesWideDetailLayout ? min(measuredHeight, 640) : measuredHeight
+            return usesWideDetailLayout
+                ? min(measuredHeight, 640)
+                : max(measuredHeight, portraitPosterHeight + 80)
         }
-        return usesWideDetailLayout ? 640 : min(max(EclipseViewport.bounds.height * 0.76, 620), 780)
+        let measuredHeight = min(max(EclipseViewport.bounds.height * 0.76, 620), 780)
+        return usesWideDetailLayout ? 640 : max(measuredHeight, portraitPosterHeight + 80)
 #endif
     }
 
@@ -2431,10 +2435,12 @@ struct MediaDetailContentView: View {
                     .frame(height: headerHeight)
 
                 VStack(spacing: 0) {
-                    // Keep the poster's original title treatment unobstructed.
-                    // Metadata and actions begin beneath the artwork's central title zone.
+                    // Portrait posters are shown at their natural 2:3 presentation ratio.
+                    // Reserve their full display height before placing metadata/actions.
                     Spacer(minLength: 0)
-                        .frame(height: headerHeight * (usesWideDetailLayout ? 0.16 : 0.60))
+                        .frame(height: usesWideDetailLayout
+                            ? headerHeight * 0.16
+                            : min(EclipseViewport.bounds.width * 1.5, headerHeight - 80))
                     headerSection
                         .frame(maxWidth: .infinity, alignment: usesWideDetailLayout ? .trailing : .center)
                         .padding(.horizontal, usesWideDetailLayout ? 48 : 0)
