@@ -5430,15 +5430,20 @@ final class AniListService {
         let englishSpanishAudioFilterEnabled = UserDefaults.standard.bool(
             forKey: "catalogRequireEnglishSpanishAudio"
         )
-        let requiresDubSchedule = !selectedLanguages.isEmpty || englishSpanishAudioFilterEnabled
+        let requiresDubSchedule = AnimeScheduleFallback.requiresDubSchedule(
+            selectedDubLanguages: selectedLanguages,
+            englishSpanishAudioFilterEnabled: englishSpanishAudioFilterEnabled
+        )
         let result: AnimeAiringScheduleResult
 
         if requiresDubSchedule {
             // A broadcast schedule is not a dub schedule. Treat both the explicit
             // dub-language picker and the catalog's English/Spanish audio filter as
             // dub-only intent; never put original broadcast dates into that calendar.
-            let englishScheduleIsAllowed = selectedLanguages.contains(MyDubListLanguage.english.rawValue)
-                || (selectedLanguages.isEmpty && englishSpanishAudioFilterEnabled)
+            let englishScheduleIsAllowed = AnimeScheduleFallback.permitsEnglishDubSchedule(
+                selectedDubLanguages: selectedLanguages,
+                englishSpanishAudioFilterEnabled: englishSpanishAudioFilterEnabled
+            )
             guard englishScheduleIsAllowed else {
                 return AnimeAiringScheduleResult(
                     entries: [],
