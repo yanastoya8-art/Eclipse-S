@@ -575,6 +575,7 @@ struct HomeView: View {
     @State private var selectedHeroForDetail: TMDBSearchResult?
     @State private var showingHeroDetail = false
     @State private var heroLogoURL: String?
+    @State private var heroLogoTask: Task<Void, Never>?
     @State private var prefetchedHeroLogoURLs: [String: String] = [:]
     @State private var heroLogoLookupComplete = false
     @State private var heroAlternatePosterURL: String?
@@ -822,7 +823,11 @@ struct HomeView: View {
             }
         }
         .task(id: "\(heroLogoLoadKey)|\(heroArtworkIsActive)") {
-            guard heroArtworkIsActive else { return }
+            guard heroArtworkIsActive else {
+                heroLogoTask?.cancel()
+                heroLogoTask = nil
+                return
+            }
             await loadHeroArtwork(for: homeViewModel.heroContent, language: selectedLanguage)
         }
         .task(id: "hero-prefetch|\(heroLogoLoadKey)|\(heroArtworkIsActive)") {
@@ -831,6 +836,8 @@ struct HomeView: View {
             await prefetchUpcomingHeroImages()
         }
         .onDisappear {
+            heroLogoTask?.cancel()
+            heroLogoTask = nil
             isViewVisible = false
             pendingHomeCatalogReloadTask?.cancel()
             pendingHomeCatalogReloadTask = nil
@@ -1687,9 +1694,9 @@ struct HomeView: View {
     }
 
     private func experimentalHeroShouldShowTitle(_ hero: TMDBSearchResult) -> Bool {
-        // The selected poster is the title artwork. Render a text title only
-        // when no poster is available, rather than waiting for a separate logo request.
-        hero.fullPosterURL == nil
+        // Keep a title visible immediately; the official logo replaces the
+        // text fallback as soon as its independent lookup completes.
+        true
     }
 
     private func heroOverview(_ hero: TMDBSearchResult) -> String? {
@@ -1775,7 +1782,20 @@ struct HomeView: View {
 
     @ViewBuilder
     private func heroTitleArtwork(_ hero: TMDBSearchResult) -> some View {
-        heroTitleText(hero)
+        if heroArtworkIdentity == hero.stableIdentity,
+           let heroLogoURL,
+           let url = URL(string: heroLogoURL) {
+            KFImage(url)
+                .setProcessor(DownsamplingImageProcessor(size: heroLogoDecodeSize))
+                .placeholder { heroTitleText(hero) }
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(maxWidth: heroLogoMaxWidth, maxHeight: heroLogoMaxHeight)
+                .shadow(color: .black.opacity(0.58), radius: 8, x: 0, y: 4)
+                .accessibilityLabel(hero.displayTitle)
+        } else {
+            heroTitleText(hero)
+        }
     }
 
     @ViewBuilder
@@ -1974,7 +1994,24 @@ struct HomeView: View {
         )
     }
 
+    private func resolveHeroLogoURL(for hero: TMDBSearchResult, language: String) async -> String? {
+        do {
+            let images = try await (hero.isMovie
+                ? tmdbService.getMovieImages(id: hero.id, preferredLanguage: language)
+                : tmdbService.getTVShowImages(id: hero.id, preferredLanguage: language))
+            return tmdbService.getBestLogo(from: images, preferredLanguage: language)?.fullURL
+        } catch {
+            Logger.shared.log(
+                "HomeHeroTiming: logo lookup failed id=\(hero.id) error=\(error.localizedDescription)",
+                type: "TMDB"
+            )
+            return nil
+        }
+    }
+
     private func loadHeroArtwork(for hero: TMDBSearchResult?, language: String) async {
+        heroLogoTask?.cancel()
+        heroLogoTask = nil
         guard !Task.isCancelled else { return }
         guard let hero else {
             heroArtworkIdentity = nil
@@ -1989,9 +2026,30 @@ struct HomeView: View {
               homeViewModel.heroContent?.stableIdentity == identity,
               selectedLanguage == language else { return }
         heroArtworkIdentity = identity
-        heroLogoURL = nil
-        heroLogoLookupComplete = true
         heroAlternatePosterURL = nil
+
+        let logoCacheKey = heroAlternatePosterCacheKey(identity, language: language)
+        if let cachedLogo = prefetchedHeroLogoURLs[logoCacheKey] {
+            heroLogoURL = cachedLogo
+            heroLogoLookupComplete = true
+        } else {
+            heroLogoURL = nil
+            heroLogoLookupComplete = false
+            // Start the lightweight logo request before warming the much larger
+            // hero poster/backdrop. It updates the title independently.
+            heroLogoTask = Task { @MainActor in
+                let resolvedLogo = await resolveHeroLogoURL(for: hero, language: language)
+                guard !Task.isCancelled,
+                      heroArtworkIsActive,
+                      homeViewModel.heroContent?.stableIdentity == identity,
+                      selectedLanguage == language else { return }
+                heroLogoURL = resolvedLogo
+                if let resolvedLogo {
+                    prefetchedHeroLogoURLs[logoCacheKey] = resolvedLogo
+                }
+                heroLogoLookupComplete = true
+            }
+        }
 
         // Warm the poster before navigation. The detail screen receives this
         // exact URL and consumes the same Kingfisher cache entry.
