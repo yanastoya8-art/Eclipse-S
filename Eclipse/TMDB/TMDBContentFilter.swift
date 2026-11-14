@@ -1120,8 +1120,10 @@ class TMDBContentFilter: ObservableObject {
         if defaults.bool(forKey: "catalogRequireEnglishSpanishAudio") {
             // This is an allow-list filter: unknown original-language metadata
             // and unverified anime dubs must not leak through as eligible.
-            guard let originalLanguage = result.originalLanguage?.lowercased() else { return false }
-            let hasNativeAudio = originalLanguage.hasPrefix("en") || originalLanguage.hasPrefix("es")
+            let originalLanguage = result.originalLanguage?.lowercased()
+            let hasNativeAudio = originalLanguage.map {
+                $0.hasPrefix("en") || $0.hasPrefix("es")
+            } ?? false
             if hasNativeAudio { return true }
             guard isAnime,
                   let anilistID = result.animeIdentitySeed?.anilistId,
