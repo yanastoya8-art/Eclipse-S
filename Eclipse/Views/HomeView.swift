@@ -601,8 +601,6 @@ struct HomeView: View {
     @StateObject private var tmdbService = TMDBService.shared
     @StateObject private var contentFilter = TMDBContentFilter.shared
     @ObservedObject private var theme = EclipseTheme.shared
-    @AppStorage(MediaDetailTitleArtworkSettings.enabledKey) private var mediaDetailTitleArtworkEnabled = MediaDetailTitleArtworkSettings.defaultEnabled
-    @AppStorage(MediaDetailAlternatePosterSettings.enabledKey) private var mediaDetailAlternatePosterEnabled = MediaDetailAlternatePosterSettings.defaultEnabled
     @AppStorage("heroBannerCatalogId") private var heroBannerCatalogId = "trending"
     @AppStorage("heroBannerBehavior") private var heroBannerBehavior = HeroBannerBehavior.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundSettings.enabledKey) private var homeAnimatedBackgroundEnabled = HomeAnimatedBackgroundSettings.defaultEnabled
@@ -658,19 +656,11 @@ struct HomeView: View {
         return heroImageURL(for: hero)
     }
     private var heroLogoLoadKey: String {
-        "\(selectedLanguage)|\(homeViewModel.heroContent?.stableIdentity ?? "empty")|\(shouldAnalyzeHeroAlternatePoster)"
+        "\(selectedLanguage)|\(homeViewModel.heroContent?.stableIdentity ?? "empty")"
     }
 
     private var heroArtworkIsActive: Bool {
         effectiveIsActive && !showingSettings && !showingHeroDetail
-    }
-
-    private var shouldAnalyzeHeroAlternatePoster: Bool {
-#if os(iOS)
-        !usesWideHomeLayout && (mediaDetailAlternatePosterEnabled || homeViewModel.heroContent?.fullPosterURL == nil)
-#else
-        false
-#endif
     }
 
     private func heroAlternatePosterCacheKey(_ identity: String, language: String) -> String {
