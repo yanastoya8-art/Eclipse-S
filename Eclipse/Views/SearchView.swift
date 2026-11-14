@@ -2433,7 +2433,10 @@ private struct BrowseMediaView: View {
                 || (mediaType.isAnime && TMDBContentFilter.hasExplicitAnimeMetadata(result))
             let tmdbRating = TMDBMaturityRatingStore.shared.rating(isMovie: result.isMovie, id: result.id)
             let animeRating = result.animeIdentitySeed.flatMap { animeRatingsByID[$0.anilistId] }
-            let rating = (tmdbRating == nil || tmdbRating == .unknown) ? animeRating : tmdbRating
+            let verifiedAnimeRating = animeRating.flatMap { $0 == .unknown ? nil : $0 }
+            let rating = mediaType.isAnime
+                ? (verifiedAnimeRating ?? tmdbRating)
+                : tmdbRating
             return ageRating.includes(rating, hasExplicitContent: hasExplicitContent)
         }
     }
