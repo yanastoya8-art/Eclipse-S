@@ -11,20 +11,42 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
     case adult = 3
 
     case unknown = 4
+    case age12 = 5
+    case age14 = 6
+    case age16 = 7
+    case age17 = 8
+
+    private var comparisonAge: Int {
+        switch self {
+        case .general: return 0
+        case .age12: return 12
+        case .teen: return 13
+        case .age14: return 14
+        case .mature: return 15
+        case .age16: return 16
+        case .age17: return 17
+        case .adult: return 18
+        case .unknown: return Int.max
+        }
+    }
 
     static func < (lhs: MaturityRating, rhs: MaturityRating) -> Bool {
-        lhs.rawValue < rhs.rawValue
+        lhs.comparisonAge < rhs.comparisonAge
     }
 
     var isBlockedForKids: Bool {
-        self == .mature || self == .adult || self == .unknown
+        self == .mature || self == .age16 || self == .age17 || self == .adult || self == .unknown
     }
 
     var ageBand: String {
         switch self {
         case .general: return "All ages"
-        case .teen: return "12+"
+        case .age12: return "12+"
+        case .teen: return "13+"
+        case .age14: return "14+"
         case .mature: return "15+"
+        case .age16: return "16+"
+        case .age17: return "17+"
         case .adult: return "18+"
         case .unknown: return "Not rated"
         }
@@ -98,8 +120,12 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
     private static func tier(forMinimumAge age: Int) -> MaturityRating {
         switch age {
         case ..<12: return .general
-        case 12..<15: return .teen
-        case 15..<18: return .mature
+        case 12: return .age12
+        case 13: return .teen
+        case 14: return .age14
+        case 15: return .mature
+        case 16: return .age16
+        case 17: return .age17
         default: return .adult
         }
     }
@@ -108,6 +134,43 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
         certifications.reduce(MaturityRating.unknown) { result, value in
             strictest(result, classify(certification: value, region: region))
         }
+    }
+
+    static let europeanRegionCodes: Set<String> = [
+        "AT", "BE", "BG", "CH", "CY", "CZ", "DE", "DK", "EE", "ES",
+        "FI", "FR", "GB", "GR", "HR", "HU", "IE", "IS", "IT", "LI",
+        "LT", "LU", "LV", "MT", "NL", "NO", "PL", "PT", "RO", "SE",
+        "SI", "SK"
+    ]
+
+    static var preferredEuropeanRegions: [String] {
+        var regions: [String] = []
+        if #available(iOS 16.0, tvOS 16.0, macOS 13.0, *) {
+            if let region = Locale.current.region?.identifier,
+               europeanRegionCodes.contains(region) {
+                regions.append(region)
+            }
+        } else if let region = Locale.current.regionCode,
+                  europeanRegionCodes.contains(region) {
+            regions.append(region)
+        }
+        for region in ["BG", "GB", "DE", "FR", "ES", "IT", "NL", "SE", "NO", "DK", "FI", "PL", "IE", "PT", "AT", "BE", "CH", "CZ", "GR", "RO", "HU"] where !regions.contains(region) {
+            regions.append(region)
+        }
+        return regions
+    }
+
+    static func preferredEuropeanCertification(
+        certificationsByRegion: [String: [String]]
+    ) -> Certification? {
+        let european = certificationsByRegion.filter {
+            europeanRegionCodes.contains($0.key.uppercased())
+        }
+        guard !european.isEmpty else { return nil }
+        return preferredCertification(
+            certificationsByRegion: european,
+            regions: preferredEuropeanRegions
+        )
     }
 
     static var preferredRegions: [String] {
@@ -188,25 +251,25 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
     private static let regionalRatings: [String: [String: MaturityRating]] = [
         // India: CBFC certificates are not interchangeable with US/UK labels.
         "IN": [
-            "U": .general, "UA": .teen, "UA7PLUS": .general,
-            "UA13PLUS": .teen, "UA16PLUS": .mature, "A": .adult, "S": .adult
+            "U": .general, "UA": .age12, "UA7PLUS": .general,
+            "UA13PLUS": .teen, "UA16PLUS": .age16, "A": .adult, "S": .adult
         ],
         // Canada: provincial boards use 14A/18A; A is adult-only.
         "CA": [
-            "G": .general, "PG": .general, "14A": .teen,
+            "G": .general, "PG": .general, "14A": .age14,
             "18A": .adult, "R": .adult, "A": .adult
         ],
         "GB": [
-            "U": .general, "PG": .general, "12A": .teen,
-            "12": .teen, "15": .mature, "18": .adult, "R18": .adult
+            "U": .general, "PG": .general, "12A": .age12,
+            "12": .age12, "15": .mature, "18": .adult, "R18": .adult
         ],
         // Bulgaria: A/B/C/D/X are national age-category labels.
         "BG": [
-            "A": .general, "B": .teen, "C": .mature, "D": .adult, "X": .adult
+            "A": .general, "B": .age12, "C": .age16, "D": .adult, "X": .adult
         ],
         "ES": [
-            "APTA": .general, "7": .general, "12": .teen,
-            "16": .mature, "18": .adult, "X": .adult
+            "APTA": .general, "7": .general, "12": .age12,
+            "16": .age16, "18": .adult, "X": .adult
         ],
         "JP": [
             "G": .general, "PG12": .teen, "R15PLUS": .mature, "R18PLUS": .adult
@@ -219,21 +282,21 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
             "MA15": .mature, "MA15PLUS": .mature, "R18PLUS": .adult, "X18PLUS": .adult
         ],
         "DE": [
-            "0": .general, "6": .general, "12": .teen, "16": .mature, "18": .adult
+            "0": .general, "6": .general, "12": .age12, "16": .age16, "18": .adult
         ],
         "FR": [
-            "U": .general, "10": .general, "12": .teen, "16": .mature, "18": .adult
+            "U": .general, "10": .general, "12": .age12, "16": .age16, "18": .adult
         ],
         "IT": [
-            "T": .general, "VM14": .teen, "VM18": .adult
+            "T": .general, "VM14": .age14, "VM18": .adult
         ],
         "NL": [
             "AL": .general, "6": .general, "9": .general,
-            "12": .teen, "14": .teen, "16": .mature, "18": .adult
+            "12": .age12, "14": .age14, "16": .age16, "18": .adult
         ],
         "BR": [
-            "L": .general, "10": .general, "12": .teen,
-            "14": .teen, "16": .mature, "18": .adult
+            "L": .general, "10": .general, "12": .age12,
+            "14": .age14, "16": .age16, "18": .adult
         ],
         "SG": [
             "G": .general, "PG": .general, "PG13": .teen,
@@ -245,14 +308,14 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
 
         "G": .general, "TVY": .general, "TVY7": .general, "TVY7FV": .general,
         "TVG": .general, "PG": .general, "TVPG": .general,
-        "PG13": .teen, "TV14": .teen,
-        "R": .mature, "TVMA": .mature,
+        "PG13": .teen, "TV14": .age14,
+        "R": .mature, "TVMA": .age17,
         "NC17": .adult, "X": .adult, "XXX": .adult, "AO": .adult,
         "ADULT": .adult, "ADULTONLY": .adult, "UNRATED": .unknown, "NR": .unknown,
 
         "U": .general, "UC": .general,
-        "12": .teen, "12A": .teen,
-        "15": .mature,
+        "12": .age12, "12A": .age12, "13": .teen, "14": .age14,
+        "15": .mature, "16": .age16, "17": .age17,
         "18": .adult, "R18": .adult,
 
         "E": .general, "M": .mature, "MA15": .mature, "MA15PLUS": .mature,
