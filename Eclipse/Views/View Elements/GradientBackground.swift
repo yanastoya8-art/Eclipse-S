@@ -2318,7 +2318,9 @@ struct AtmosphereBackdrop: View {
         }
         .clipped()
         .animation(
-            input.hasHeroBleed ? .easeInOut(duration: 0.35) : nil,
+            input.hasHeroBleed && input.style != .aurora && input.style != .ember
+                ? .easeInOut(duration: 0.35)
+                : nil,
             value: input.dominant
         )
     }
