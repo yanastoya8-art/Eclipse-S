@@ -653,20 +653,24 @@ class TMDBContentFilter: ObservableObject {
     }
 
     func filterSearchResultsResolvingRatings(_ results: [TMDBSearchResult]) async -> [TMDBSearchResult] {
-        await prepareMaturityRatings(for: results)
+        // Resolve dub evidence before prepareMaturityRatings schedules its
+        // background refresh. Otherwise that task can claim the loading IDs
+        // first and make this awaited pass return before metadata is ready.
         if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
             let animeResults = results.filter { Self.isAnimeResult($0) }
             await resolveAnimeAudioMetadata(for: animeResults)
         }
+        await prepareMaturityRatings(for: results)
         return filterSearchResults(results)
     }
 
     func filterFastAnimeSearchResultsResolvingRatings(_ results: [TMDBSearchResult]) async -> [TMDBSearchResult] {
-        await prepareMaturityRatings(for: results)
+        let animeResults = results.map { $0.withAnimeHint(true) }
         if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
-            await resolveAnimeAudioMetadata(for: results.map { $0.withAnimeHint(true) })
+            await resolveAnimeAudioMetadata(for: animeResults)
         }
-        return filterFastAnimeSearchResults(results)
+        await prepareMaturityRatings(for: animeResults)
+        return filterFastAnimeSearchResults(animeResults)
     }
 
     func filterContinueWatchingResolvingRatings(
