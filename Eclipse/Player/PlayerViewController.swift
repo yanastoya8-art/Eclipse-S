@@ -13251,7 +13251,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     private func updateCastButtonAvailability() {
         guard isViewLoaded else { return }
         let headers = playbackLaunchContext?.headers ?? initialHeaders ?? [:]
-        let candidates = [playbackLaunchContext?.streamURL.flatMap { URL(string: $0) }, initialURL].compactMap { $0 }
+        let candidates = [URL(string: playbackLaunchContext?.streamURL ?? ""), initialURL].compactMap { $0 }
         castButton.isHidden = !isMPVRenderer
         castButton.isEnabled = !candidates.isEmpty
         castButton.accessibilityHint = candidates.isEmpty
@@ -13262,7 +13262,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     }
 
     @objc private func castCurrentStreamAutomatically() {
-        let candidates = [playbackLaunchContext?.streamURL.flatMap { URL(string: $0) }, initialURL].compactMap { $0 }
+        let candidates = [URL(string: playbackLaunchContext?.streamURL ?? ""), initialURL].compactMap { $0 }
         guard let url = candidates.first else {
             showPlayerNotice("This playback does not have a stream URL that can be cast.")
             return
@@ -13291,15 +13291,15 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
     @objc private func prepareCastForCurrentStream() {
         let headers = playbackLaunchContext?.headers ?? initialHeaders ?? [:]
-        let candidates = [playbackLaunchContext?.streamURL.flatMap { URL(string: $0) }, initialURL].compactMap { $0 }
+        let candidates = [URL(string: playbackLaunchContext?.streamURL ?? ""), initialURL].compactMap { $0 }
         guard let url = candidates.first(where: { CastMediaPolicy.rejectionReason(for: $0, headers: headers) == nil }) else {
             let reason = candidates.first.flatMap { CastMediaPolicy.rejectionReason(for: $0, headers: headers) }
                 ?? "This playback does not have a TV-accessible stream URL."
             showPlayerNotice(reason)
             return
         }
-        let title = playerTitleLabel.text?.trimmingCharacters(in: .whitespacesAndNewlines)
-            .flatMap { $0.isEmpty ? nil : $0 } ?? "Eclipse"
+        let rawTitle = (playerTitleLabel.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let title = rawTitle.isEmpty ? "Eclipse" : rawTitle
         if let reason = EclipseCastCoordinator.shared.prepareForCasting(
             url: url,
             title: title,
@@ -13311,7 +13311,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
     @objc private func prepareLGWebOSCastForCurrentStream() {
         let headers = playbackLaunchContext?.headers ?? initialHeaders ?? [:]
-        let candidates = [playbackLaunchContext?.streamURL.flatMap { URL(string: $0) }, initialURL].compactMap { $0 }
+        let candidates = [URL(string: playbackLaunchContext?.streamURL ?? ""), initialURL].compactMap { $0 }
         guard let sourceURL = candidates.first(where: { $0.isFileURL }) ?? candidates.first else {
             showPlayerNotice("This playback does not have a stream URL that can be cast.")
             return
@@ -13330,8 +13330,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             guard let reason = LGWebOSCastPolicy.rejectionReason(for: sourceURL, headers: headers) else {
                 castURL = sourceURL
                 castHeaders = headers
-                let title = playerTitleLabel.text?.trimmingCharacters(in: .whitespacesAndNewlines)
-                    .flatMap { $0.isEmpty ? nil : $0 } ?? "Eclipse"
+                let rawTitle = (playerTitleLabel.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                let title = rawTitle.isEmpty ? "Eclipse" : rawTitle
                 presentLGWebOSCastPrompt(url: castURL, title: title, headers: castHeaders)
                 return
             }
@@ -13339,8 +13339,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             return
         }
 
-        let title = playerTitleLabel.text?.trimmingCharacters(in: .whitespacesAndNewlines)
-            .flatMap { $0.isEmpty ? nil : $0 } ?? "Eclipse"
+        let rawTitle = (playerTitleLabel.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let title = rawTitle.isEmpty ? "Eclipse" : rawTitle
         presentLGWebOSCastPrompt(url: castURL, title: title, headers: castHeaders)
     }
 
