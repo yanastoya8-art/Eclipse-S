@@ -7188,6 +7188,7 @@ struct MediaDetailContentView: View {
                     self.selectedSpecialEpisodeContext = nil
                     self.selectedEpisodeForSearch = nil
                 }
+                self.isShowingSearchResultPreview = false
                 self.isLoading = false
                 self.hasLoadedContent = true
                 self.isLoadingAnimeSpecials = shouldResumeAnimeSpecials
