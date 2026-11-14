@@ -52,6 +52,49 @@ final class TMDBAlternatePosterTests: XCTestCase {
         (66931, "/1BwmbQWQa7ftborM3GR5If8WZF8.jpg", "69248732d2a1d1e3a6bf400f7939264d5a5a3ef4d48aaa91ac5a9d8049dab379")
     ]
 
+    func testFanartTVPosterTakesPriorityForMovies() {
+        let fanartURL = "https://assets.fanart.tv/fanart/movies/550/movieposter/fight-club.jpg"
+        let result = TMDBSearchResult(
+            id: 550,
+            mediaType: "movie",
+            title: "Fight Club",
+            name: nil,
+            overview: nil,
+            posterPath: "/tmdb-poster.jpg",
+            backdropPath: nil,
+            releaseDate: "1999-10-15",
+            firstAirDate: nil,
+            voteAverage: 8.4,
+            popularity: 100,
+            adult: false,
+            genreIds: [18],
+            fanartTVPosterURL: fanartURL
+        )
+
+        XCTAssertEqual(result.fullPosterURL, fanartURL)
+    }
+
+    func testRejectsUntrustedFanartTVPosterHost() {
+        let result = TMDBSearchResult(
+            id: 550,
+            mediaType: "movie",
+            title: "Fight Club",
+            name: nil,
+            overview: nil,
+            posterPath: "/tmdb-poster.jpg",
+            backdropPath: nil,
+            releaseDate: "1999-10-15",
+            firstAirDate: nil,
+            voteAverage: 8.4,
+            popularity: 100,
+            adult: false,
+            genreIds: [18],
+            fanartTVPosterURL: "https://evil.example/fake.jpg"
+        )
+
+        XCTAssertEqual(result.fullPosterURL, "https://image.tmdb.org/t/p/w500/tmdb-poster.jpg")
+    }
+
     func testRejectsDownvotedLanguageNeutralPoster() {
         let images = response([
             poster(path: "/downvoted.jpg", language: nil, average: 0.5, votes: 5)
