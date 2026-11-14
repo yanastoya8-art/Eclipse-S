@@ -5558,6 +5558,7 @@ private struct ReleaseDateFiltersSettingsView: View {
 private struct AnimeRuntimeFiltersSettingsView: View {
     @AppStorage("catalogHideAnime", store: .standard) private var hideAnime = false
     @AppStorage("catalogHideUnder20MinuteContent", store: .standard) private var hideUnder20MinuteContent = false
+    @AppStorage("mediaDetailHideAnimeSpecialsAndOVAs", store: .standard) private var hideAnimeSpecialsAndOVAs = false
 
     private func filtersDidChange() {
         NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil)
@@ -5572,6 +5573,14 @@ private struct AnimeRuntimeFiltersSettingsView: View {
                     .accessibilityIdentifier("settings.contentFilters.hideAnime")
             } footer: {
                 Text("Hides identified anime from filtered catalogs, home sections and the Schedule. Anime identification uses the app's AniList identity and TMDB genre, language and country metadata.")
+            }
+
+            Section {
+                Toggle("Exclude anime Specials and OVAs", isOn: $hideAnimeSpecialsAndOVAs)
+                    .onChange(of: hideAnimeSpecialsAndOVAs) { _ in filtersDidChange() }
+                    .accessibilityIdentifier("settings.contentFilters.hideAnimeSpecialsOVAs")
+            } footer: {
+                Text("Hides the separate Specials & OVAs section and prevents special/OVA entries from being offered in anime detail pages. Regular TV episodes remain available.")
             }
 
             Section {
