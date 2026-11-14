@@ -133,6 +133,7 @@ jobs:
       - name: Create local build config
         env:
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          FANART_TV_API_KEY: ${{ secrets.FANART_TV_API_KEY }}
           ANIMESCHEDULE_API_TOKEN: ${{ secrets.ANIMESCHEDULE_API_TOKEN }}
           ANILIST_CLIENT_ID: ${{ secrets.ANILIST_CLIENT_ID }}
           ANILIST_CLIENT_SECRET: ${{ secrets.ANILIST_CLIENT_SECRET }}
