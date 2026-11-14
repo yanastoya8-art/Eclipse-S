@@ -92,11 +92,19 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
             || compact.hasPrefix("X18") || compact.hasPrefix("AO") || compact.hasPrefix("RX") {
             return .adult
         }
-        if compact.hasPrefix("MA") || compact.hasPrefix("R15") || compact.hasPrefix("R16")
-            || compact.hasPrefix("R17") || compact.hasPrefix("TVMA") {
+        if compact.hasPrefix("TVMA") || compact.hasPrefix("R17") {
+            return .age17
+        }
+        if compact.hasPrefix("R16") {
+            return .age16
+        }
+        if compact.hasPrefix("MA") || compact.hasPrefix("R15") {
             return .mature
         }
-        if compact.hasPrefix("TV14") || compact.hasPrefix("PG13") || compact.hasPrefix("R13") {
+        if compact.hasPrefix("TV14") {
+            return .age14
+        }
+        if compact.hasPrefix("PG13") || compact.hasPrefix("R13") {
             return .teen
         }
         if compact.hasPrefix("TVY") || compact.hasPrefix("TVG") {
