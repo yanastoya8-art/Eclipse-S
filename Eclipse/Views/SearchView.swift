@@ -2256,7 +2256,7 @@ private struct BrowseMediaView: View {
                     let mapping = mappings
                         .filter { $0.mediaType?.lowercased() != "movie" }
                         .first { $0.anilistId != nil }
-                        ?? mappingResult.mappings.first { $0.anilistId != nil }
+                        ?? mappings.first { $0.anilistId != nil }
                     guard let anilistID = mapping?.anilistId, anilistID > 0 else {
                         return (index, result)
                     }
@@ -2305,7 +2305,7 @@ private struct BrowseMediaView: View {
                         let mapping = mappings
                             .filter { $0.mediaType?.lowercased() != "movie" }
                             .first { $0.anilistId != nil }
-                            ?? mappingResult.mappings.first { $0.anilistId != nil }
+                            ?? mappings.first { $0.anilistId != nil }
                         guard let anilistID = mapping?.anilistId, anilistID > 0 else {
                             return (nextIndex, nextResult)
                         }
