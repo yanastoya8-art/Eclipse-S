@@ -295,6 +295,20 @@ struct DownloadsSettingsView: View {
                 }
                 GlassSectionFooter("Download queue limits and background transfer preferences apply to video downloads. Kids profiles keep download configuration locked.")
 #endif
+#if os(tvOS)
+                GlassSection(header: "Download Library") {
+                    GlassDetailRow(icon: "photo", iconColor: .purple, title: "Downloaded Show Poster Size") {
+                        Picker("Downloaded Show Poster Size", selection: $downloadLibraryPosterSize) {
+                            ForEach(DownloadLibraryPosterSize.allCases) { size in
+                                Text(size.title).tag(size.rawValue)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .accessibilityIdentifier("settings.storage.downloadLibraryPosterSize")
+                    }
+                }
+#endif
 #if os(macOS)
                 GlassSection(header: "Download Folders") {
                     NavigationLink {
