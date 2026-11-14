@@ -2131,16 +2131,16 @@ struct HomeView: View {
 
         // Warm the exact hero image and resolve the title logo at the same time.
         // The view can consume the already-cached image as soon as it is rendered.
-        async let heroImagePrefetch: Bool = {
-            guard let imageURL = heroImageURL(for: hero) else { return false }
-            return await prefetchHeroImage(
-                imageURL,
-                processor: DownsamplingImageProcessor(size: heroImageDecodeSize)
-            )
-        }()
-        let images = try await (hero.isMovie
-            ? tmdbService.getMovieImages(id: hero.id, preferredLanguage: language)
-            : tmdbService.getTVShowImages(id: hero.id, preferredLanguage: language))
+        if let imageURL = heroImageURL(for: hero) {
+            let processor = DownsamplingImageProcessor(size: heroImageDecodeSize)
+            Task { _ = await prefetchHeroImage(imageURL, processor: processor) }
+        }
+        let images: TMDBImagesResponse
+        if hero.isMovie {
+            images = try await tmdbService.getMovieImages(id: hero.id, preferredLanguage: language)
+        } else {
+            images = try await tmdbService.getTVShowImages(id: hero.id, preferredLanguage: language)
+        }
         guard !Task.isCancelled else { return }
         let logoURL = tmdbService.getBestLogo(from: images, preferredLanguage: language)?.fullURL
         if let logoURL, let url = URL(string: logoURL) {
@@ -2163,7 +2163,6 @@ struct HomeView: View {
             if let logoURL { prefetchedHeroLogoURLs[cacheKey] = logoURL }
             heroLogoLookupComplete = true
         }
-        _ = await heroImagePrefetch
             guard !Task.isCancelled, analyzesAlternate, shouldAnalyzeHeroAlternatePoster, heroArtworkIsActive,
                   homeViewModel.heroContent?.stableIdentity == identity,
                   selectedLanguage == language,
@@ -2229,12 +2228,15 @@ struct HomeView: View {
         for hero in upcomingHeroes {
             guard let imageURL = heroImageURL(for: hero),
                   let url = URL(string: imageURL) else { continue }
-            async let heroImagePrefetch = prefetchHeroImage(imageURL, processor: processor)
+            Task { _ = await prefetchHeroImage(imageURL, processor: processor) }
             let language = selectedLanguage
             do {
-                let images = try await (hero.isMovie
-                    ? tmdbService.getMovieImages(id: hero.id, preferredLanguage: language)
-                    : tmdbService.getTVShowImages(id: hero.id, preferredLanguage: language))
+                let images: TMDBImagesResponse
+                if hero.isMovie {
+                    images = try await tmdbService.getMovieImages(id: hero.id, preferredLanguage: language)
+                } else {
+                    images = try await tmdbService.getTVShowImages(id: hero.id, preferredLanguage: language)
+                }
                 guard !Task.isCancelled, heroArtworkIsActive,
                       selectedLanguage == language else { return }
                 if let logoURL = tmdbService.getBestLogo(from: images, preferredLanguage: language)?.fullURL {
@@ -2251,9 +2253,7 @@ struct HomeView: View {
                         ) { _ in }
                     }
                 }
-                _ = await heroImagePrefetch
             } catch {
-                _ = await heroImagePrefetch
                 continue
             }
         }
