@@ -508,6 +508,31 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             animeLogoURL: animeLogoURL
         )
     }
+
+    func withAnimeLogoURL(_ url: String?) -> TMDBSearchResult {
+        TMDBSearchResult(
+            id: id,
+            mediaType: mediaType,
+            title: title,
+            name: name,
+            overview: overview,
+            posterPath: posterPath,
+            backdropPath: backdropPath,
+            releaseDate: releaseDate,
+            firstAirDate: firstAirDate,
+            voteAverage: voteAverage,
+            popularity: popularity,
+            adult: adult,
+            genreIds: genreIds,
+            originalLanguage: originalLanguage,
+            originCountry: originCountry,
+            voteCount: voteCount,
+            isAnimeHint: isAnimeHint,
+            animeIdentitySeed: animeIdentitySeed,
+            animeArtworkURL: animeArtworkURL,
+            animeLogoURL: url
+        )
+    }
 }
 
 struct TMDBMovieSearchResponse: Decodable {
