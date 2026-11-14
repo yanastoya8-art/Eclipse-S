@@ -947,9 +947,9 @@ final class HomeViewModel: ObservableObject {
         let selectionKey = usesCustomSelection
             ? "custom:" + selectedTitles.map(\.stableIdentity).joined(separator: "|")
             : "catalog:\(catalogId)"
-        // A manual hero selection is an explicit user choice. Do not let
-        // asynchronous dub metadata or catalog filters erase every selected
-        // item before the home hero can render.
+        // Explicitly selected hero titles are an intentional user override.
+        // Do not silently discard them when the optional dub catalogue has no
+        // identity match (which previously left the hero banner completely empty).
         let rawCandidates = usesCustomSelection
             ? selectedTitles
             : heroCandidates(for: catalogId).filter { MyDubListDubFilter.shared.shouldInclude($0) }

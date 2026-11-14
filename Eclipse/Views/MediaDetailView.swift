@@ -595,7 +595,8 @@ struct MediaDetailContentView: View {
 #else
         // Use the wide composition on iPad and whenever an iPhone is rotated
         // into landscape. GeometryReader updates this size on rotation.
-        return isIPad || detailViewportWidth > detailViewportHeight
+        let viewport = detailViewportSize == .zero ? EclipseViewport.bounds : detailViewportSize
+        return isIPad || viewport.width > viewport.height
 #endif
     }
 
