@@ -8097,7 +8097,8 @@ private var usesWideDetailLayout: Bool {
     (detailViewportSize == .zero ? EclipseViewport.bounds : detailViewportSize).width >= 1000
 #else
     let viewport = detailViewportSize == .zero ? EclipseViewport.bounds : detailViewportSize
-    let isLandscapePhoneOrTablet = viewport.width > viewport.height && viewport.width >= 700
-    return isIPad || isLandscapePhoneOrTablet
+    // Keep the same detail-page composition on iPhone in both orientations.
+    // Landscape changes the available width, not the layout model.
+    return isIPad
 #endif
 }
