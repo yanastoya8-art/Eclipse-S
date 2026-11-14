@@ -469,7 +469,7 @@ struct MediaDetailContentView: View {
     @State private var animeSeasonAniListIds: [Int: Int] = [:]
     @State private var animeSeasonKitsuIds: [Int: Int] = [:]
     @State private var animeProviderAliases: [Int: Int] = [:]
-    @AppStorage("mediaDetailHideAnimeSpecialsAndOVAs", store: .standard) private var hideAnimeSpecialsAndOVAs = false
+    @AppStorage("catalogHideAnimeSpecialsAndOVAs", store: .standard) private var hideAnimeSpecialsAndOVAs = false
     @State private var animeSpecialEntries: [AniListSpecialSearchEntry] = []
     @State private var isLoadingAnimeSpecials = false
     @State private var selectedSpecialEpisodeContext: SpecialEpisodeListContext?
