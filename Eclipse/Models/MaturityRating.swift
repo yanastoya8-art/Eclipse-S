@@ -47,7 +47,8 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
     }
 
     var isBlockedForKids: Bool {
-        self == .age6 || self == .age7 || self == .age8 || self == .age9 || self == .age10 || self == .age11 || self == .age12 || self == .mature || self == .age16 || self == .age17 || self == .adult || self == .unknown
+        self == .age12 || self == .mature || self == .age16
+            || self == .age17 || self == .adult || self == .unknown
     }
 
     var ageBand: String {
