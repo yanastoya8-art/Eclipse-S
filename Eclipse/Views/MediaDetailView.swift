@@ -2519,9 +2519,10 @@ struct MediaDetailContentView: View {
 
             // Transparent title marks are most legible when centered over the
             // poster artwork rather than positioned above or below it.
-            if let logoURL, !logoURL.isEmpty {
+            let centeredTitleLogoURL = searchResult.animeLogoURL ?? logoURL
+            if let centeredTitleLogoURL, !centeredTitleLogoURL.isEmpty {
                 ResilientArtworkImage(
-                    urls: [logoURL],
+                    urls: [centeredTitleLogoURL],
                     decodeSize: CGSize(
                         width: max(EclipseViewport.bounds.width * EclipseViewport.scale * 0.72, 1),
                         height: max(headerHeight * EclipseViewport.scale * 0.22, 1)
