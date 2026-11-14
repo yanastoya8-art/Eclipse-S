@@ -4154,7 +4154,10 @@ final class MPVGPUPlayerBridge: PlayerRenderer {
         let renderSize: CGSize = (d.videoWidth > 0 && d.videoHeight > 0)
             ? CGSize(width: d.videoWidth, height: d.videoHeight)
             : gpuRenderer.inlineLayer.drawableSize
-        let subtitleCodec = gpuRenderer.subtitleTracks().first(where: { $0.selected })?.codec
+        // Do not query the live MPV track list from the UI's one-second
+        // performance-overlay refresh. The track query can contend with the
+        // playback core and stall video presentation on some devices.
+        let subtitleCodec: String? = nil
         let pictureInPictureBackingText: String
         switch d.selectedPictureInPictureBackend {
         case .singleSessionGPUDirectIOSurface:
@@ -6027,7 +6030,9 @@ final class MPVSampleBufferPiPBridge: PlayerRenderer {
             || transfer.contains("hlg")
             || primaries.contains("2020")
         let rangeText = isHDR ? (transfer.contains("hlg") ? "HDR HLG" : "HDR PQ") : "SDR"
-        let subtitleCodec = sampleRenderer.subtitleTracks().first(where: { $0.selected })?.codec
+        // Keep diagnostics snapshots non-invasive; subtitle track enumeration
+        // is handled by the player's normal track-refresh path.
+        let subtitleCodec: String? = nil
         return MetalPlaybackDiagnostics(
             renderSize: diag.lastFrameSize,
             isHDR: isHDR,

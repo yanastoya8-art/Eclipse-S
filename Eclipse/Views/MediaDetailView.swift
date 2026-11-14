@@ -469,6 +469,7 @@ struct MediaDetailContentView: View {
     @State private var animeSeasonAniListIds: [Int: Int] = [:]
     @State private var animeSeasonKitsuIds: [Int: Int] = [:]
     @State private var animeProviderAliases: [Int: Int] = [:]
+    @AppStorage("catalogHideAnimeSpecialsAndOVAs", store: .standard) private var hideAnimeSpecialsAndOVAs = false
     @State private var animeSpecialEntries: [AniListSpecialSearchEntry] = []
     @State private var isLoadingAnimeSpecials = false
     @State private var selectedSpecialEpisodeContext: SpecialEpisodeListContext?
@@ -592,8 +593,9 @@ struct MediaDetailContentView: View {
 #if os(macOS)
         (detailViewportSize == .zero ? EclipseViewport.bounds : detailViewportSize).width >= 1000
 #else
-        // iPhone keeps the portrait detail composition in both orientations.
-        return isIPad
+        // Use the wide composition on iPad and whenever an iPhone is rotated
+        // into landscape. GeometryReader updates this size on rotation.
+        return isIPad || detailViewportWidth > detailViewportHeight
 #endif
     }
 
@@ -1426,6 +1428,17 @@ struct MediaDetailContentView: View {
             if loaded { startTrackerPlaybackPreparation() }
             if loaded {
                 Task { await applyInitialNotificationSelectionIfNeeded() }
+            }
+        }
+        .onChangeComp(of: hideAnimeSpecialsAndOVAs) { _, hidden in
+            if hidden {
+                specialsLoadTask?.cancel()
+                specialsLoadTask = nil
+                isLoadingAnimeSpecials = false
+                animeSpecialEntries = []
+                selectedSpecialEpisodeContext = nil
+            } else {
+                resumeAnimeSpecialsLoadIfNeeded()
             }
         }
         .onChangeComp(of: isLoadingAnimeSpecials) { _, loading in
@@ -2710,14 +2723,16 @@ struct MediaDetailContentView: View {
 #endif
             }
 
-            if shouldShowHeroActions {
-                experimentalPlayAndBookmarkSection
-                    .padding(.top, isTvOS ? 16 : (usesWideDetailLayout ? 6 : 2))
-            }
-
             if shouldShowHeroOverview {
                 experimentalHeroSynopsisSection
                     .padding(.top, isTvOS ? 12 : (usesWideDetailLayout ? 2 : 0))
+            }
+
+            // Keep primary actions below the synopsis so they sit lower in the
+            // poster's title-safe area instead of competing with the artwork.
+            if shouldShowHeroActions {
+                experimentalPlayAndBookmarkSection
+                    .padding(.top, isTvOS ? 16 : (usesWideDetailLayout ? 6 : 2))
             }
 
             if shouldShowHeroDetails {
@@ -2850,20 +2865,26 @@ struct MediaDetailContentView: View {
         searchResult.isMovie ? (movieDetail?.voteAverage ?? searchResult.voteAverage) : (tvShowDetail?.voteAverage ?? searchResult.voteAverage)
     }
 
+    private var usesAnimeSpecificAgeRating: Bool {
+        if isAnimeShow || searchResult.animeIdentitySeed != nil || searchResult.isAnimeHint == true {
+            return true
+        }
+        guard searchResult.genreIds?.contains(16) == true else { return false }
+        let language = searchResult.originalLanguage?.lowercased() ?? ""
+        return ["ja", "zh", "ko"].contains(where: language.hasPrefix)
+            || searchResult.originCountry?.contains(where: { ["JP", "CN", "KR", "TW"].contains($0) }) == true
+    }
+
     private var detailAgeRating: String? {
+        if usesAnimeSpecificAgeRating {
+            guard let animeAgeCertification else { return nil }
+            return "Anime · \(animeAgeCertification.ageBand)"
+        }
+
         let certification = searchResult.isMovie
             ? movieDetail?.releaseDates?.preferredCertification
-            : tvShowDetail?.contentRatings?.preferredCertification
-        if let certification {
-            if let animeAgeCertification {
-                return "\(certification.displayValue) · MAL/Taizen \(animeAgeCertification.ageBand)"
-            }
-            return certification.displayValue
-        }
-        if let animeAgeCertification {
-            return "MAL/Taizen · \(animeAgeCertification.ageBand)"
-        }
-        return nil
+            : tvShowDetail?.contentRatings?.preferredEuropeanCertification
+        return certification?.displayValue
     }
 
     private func loadAnimeAgeCertificationIfNeeded() async {
@@ -3344,7 +3365,7 @@ struct MediaDetailContentView: View {
                 }),
                 specialEpisodeContext: $selectedSpecialEpisodeContext,
                 seasonSelectorInsertedContent: AnyView(specialsOVASection),
-                hasSpecialEpisodeChoices: !animeSpecialEntries.isEmpty,
+                hasSpecialEpisodeChoices: !hideAnimeSpecialsAndOVAs && !animeSpecialEntries.isEmpty,
                 animeEpisodes: anilistEpisodes,
                 animeEpisodeContextIndex: AnimeEpisodeContextIndex(episodes: anilistEpisodes ?? []),
                 animeSeasonTitles: animeSeasonTitles,
@@ -4072,7 +4093,7 @@ struct MediaDetailContentView: View {
 
     @ViewBuilder
     private var specialsOVASection: some View {
-        if isAnimeShow && (isLoadingAnimeSpecials || !animeSpecialEntries.isEmpty) {
+        if !hideAnimeSpecialsAndOVAs && isAnimeShow && (isLoadingAnimeSpecials || !animeSpecialEntries.isEmpty) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 8) {
                     Text("Specials & OVAs")
@@ -4357,7 +4378,8 @@ struct MediaDetailContentView: View {
     }
 
     private func resumeAnimeSpecialsLoadIfNeeded() {
-        guard hasLoadedContent,
+        guard !hideAnimeSpecialsAndOVAs,
+              hasLoadedContent,
               isAnimeShow,
               isLoadingAnimeSpecials,
               specialsLoadTask == nil,

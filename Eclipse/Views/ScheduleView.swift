@@ -167,6 +167,15 @@ struct ScheduleView: View {
                 )
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: AnimeScheduleService.credentialsDidChangeNotification)) { _ in
+            Task {
+                await viewModel.loadSchedule(
+                    mode: selectedScheduleMode,
+                    localTimeZone: showLocalScheduleTime,
+                    forceRefresh: true
+                )
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("scheduleContentFiltersDidChange"))) { _ in
             guard isActive else { return }
             Task {

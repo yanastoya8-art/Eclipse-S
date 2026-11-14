@@ -367,6 +367,9 @@ final class ScheduleViewModel: ObservableObject {
     private var animeScheduleLastFailureAt: Date?
     private var animeScheduleLoadTask: Task<AnimeScheduleLoadResult, Error>?
     private var animeScheduleLoadID: UUID?
+    private var animeScheduleCachedPolicyKey: String?
+    private var animeScheduleLoadPolicyKey: String?
+    private var animeScheduleLastFailurePolicyKey: String?
     private var westernScheduleEntries: [ScheduleEntry]?
     private var westernScheduleFetchedAt: Date?
     private var westernScheduleDayCount = 0
@@ -478,6 +481,19 @@ final class ScheduleViewModel: ObservableObject {
             activeLoadMode = mode
             activeLoadDayCount = requestedDayCount
             currentLocalTimeZone = localTimeZone
+            if mode == .anime || mode == .combined {
+                let activeAnimePolicyKey = currentAnimeSchedulePolicyKey()
+                if animeScheduleCachedPolicyKey != activeAnimePolicyKey {
+                    // Do not leave an old AniList broadcast list visible while a
+                    // newly selected dubbed-language policy is being resolved.
+                    scheduleEntries.removeAll { $0.source == .anime }
+                    updateBuckets(
+                        with: scheduleEntries,
+                        localTimeZone: localTimeZone,
+                        dayCount: requestedDayCount
+                    )
+                }
+            }
             if forceRefresh {
                 posterHydrationAttemptedTMDBIDs.removeAll(keepingCapacity: true)
                 moviePosterHydrationAttemptedTMDBIDs.removeAll(keepingCapacity: true)
@@ -732,6 +748,9 @@ final class ScheduleViewModel: ObservableObject {
 
         let entries = result.entries.filter { entry in
             guard entry.source == .anime else { return true }
+            // DubOnly entries are already verified English-dub timetable rows;
+            // do not require a second, unrelated MyDubList lookup to retain them.
+            if entry.provider == .dubOnly { return true }
             let anilistID = entry.sourceMediaId > 0 ? entry.sourceMediaId : nil
             let malID = entry.animeMALID ?? (entry.sourceMediaId < 0 ? -entry.sourceMediaId : nil)
             return MyDubListDubFilter.shared.shouldInclude(
@@ -747,8 +766,24 @@ final class ScheduleViewModel: ObservableObject {
     }
 
     @MainActor
+    private func currentAnimeSchedulePolicyKey() -> String {
+        let languages = MyDubListDubFilter.shared.selectedLanguages.sorted().joined(separator: ",")
+        let audioFilter = UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
+        return "languages=\(languages)|englishSpanishAudio=\(audioFilter)"
+    }
+
+    @MainActor
     private func animeEntries(dayCount: Int, forceRefresh: Bool) async throws -> AnimeScheduleLoadResult {
-        if !forceRefresh,
+        let policyKey = currentAnimeSchedulePolicyKey()
+        if animeScheduleLoadTask != nil, animeScheduleLoadPolicyKey != policyKey {
+            // A language-filter change invalidates an in-flight request too;
+            // never publish an AniList snapshot into a DubOnly-filtered view.
+            animeScheduleLoadTask?.cancel()
+            animeScheduleLoadTask = nil
+            animeScheduleLoadID = nil
+            animeScheduleLoadPolicyKey = nil
+        }
+        if !forceRefresh, animeScheduleCachedPolicyKey == policyKey,
            scheduleCacheIsFresh(
                 animeScheduleFetchedAt,
                 cachedDayCount: animeScheduleDayCount,
@@ -757,9 +792,10 @@ final class ScheduleViewModel: ObservableObject {
            let cached = cachedAnimeResult(for: dayCount) {
             return filteredAnimeScheduleResult(cached)
         }
-        if let animeScheduleLoadTask {
+        if let animeScheduleLoadTask, animeScheduleLoadPolicyKey == policyKey {
             _ = try await animeScheduleLoadTask.value
-            if let cached = cachedAnimeResult(for: dayCount),
+            if animeScheduleCachedPolicyKey == policyKey,
+               let cached = cachedAnimeResult(for: dayCount),
                scheduleCacheIsFresh(
                     animeScheduleFetchedAt,
                     cachedDayCount: animeScheduleDayCount,
@@ -771,38 +807,71 @@ final class ScheduleViewModel: ObservableObject {
             return try await animeEntries(dayCount: dayCount, forceRefresh: forceRefresh)
         }
 
-        if !forceRefresh, retryIsCoolingDown(since: animeScheduleLastFailureAt) {
+        if !forceRefresh,
+           animeScheduleLastFailurePolicyKey == policyKey,
+           retryIsCoolingDown(since: animeScheduleLastFailureAt) {
             throw ScheduleSourceLoadError.retryDeferred(ScheduleSource.anime.displayName)
         }
 
         let loadID = UUID()
         let fetchStartedAt = Date()
+        animeScheduleLoadPolicyKey = policyKey
         animeScheduleLastAttemptAt = fetchStartedAt
         let loadTask = Task { @MainActor [weak self] () throws -> AnimeScheduleLoadResult in
             guard let self else { throw CancellationError() }
             do {
-                let result = try await self.retryOnceAfterTransientCancellation(operationName: "AniList schedule") {
-                    try await AniListService.shared.fetchAiringScheduleResult(daysAhead: dayCount)
+                let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguages
+                let englishSpanishAudioFilterEnabled = UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
+                let requiresDubSchedule = AnimeScheduleFallback.requiresDubSchedule(
+                    selectedDubLanguages: selectedDubLanguages,
+                    englishSpanishAudioFilterEnabled: englishSpanishAudioFilterEnabled
+                )
+                let result: AnimeAiringScheduleResult
+                if requiresDubSchedule {
+                    if AnimeScheduleFallback.permitsEnglishDubSchedule(
+                        selectedDubLanguages: selectedDubLanguages,
+                        englishSpanishAudioFilterEnabled: englishSpanishAudioFilterEnabled
+                    ) {
+                        result = try await self.retryOnceAfterTransientCancellation(operationName: "DubOnly English-dub schedule") {
+                            try await AnimeScheduleService.shared.fetchSchedule(daysAhead: dayCount)
+                        }
+                    } else {
+                        // DubOnly publishes English dates only. Never substitute
+                        // AniList's original-language broadcast dates for a
+                        // Spanish-only or other non-English dub selection.
+                        result = AnimeAiringScheduleResult(
+                            entries: [],
+                            isAuthoritativeForNotifications: false,
+                            notice: "DubOnly currently provides English-dub dates only. No matching Spanish or other selected-language timetable is available."
+                        )
+                    }
+                } else {
+                    result = try await self.retryOnceAfterTransientCancellation(operationName: "AniList schedule") {
+                        try await AniListService.shared.fetchAiringScheduleResult(daysAhead: dayCount)
+                    }
                 }
-                // Anime schedule records carry AniList/MAL identity, but no
-                // TMDB show ID or season number. JustWatch's episode endpoint
-                // requires a verified show + season identity; passing these
-                // records through it would query season 0 and drop valid dates.
-                // Anime dub dates therefore remain governed by the anime schedule
-                // provider and its language-aware fallback policy.
                 let entries = result.entries.map(ScheduleEntry.init(animeEntry:))
                 try Task.checkCancellation()
+                let notice = requiresDubSchedule
+                    ? AnimeScheduleLanguageNoticePolicy.notice(
+                        selectedLanguages: selectedDubLanguages,
+                        providerNotice: result.notice
+                    )
+                    : result.notice
                 let loadResult = AnimeScheduleLoadResult(
                     entries: entries,
                     isAuthoritativeForNotifications: result.isAuthoritativeForNotifications,
-                    notice: result.notice
+                    notice: notice
                 )
                 if self.animeScheduleLoadID == loadID {
                     self.animeScheduleResult = loadResult
+                    self.animeScheduleCachedPolicyKey = policyKey
+                    self.animeScheduleLoadPolicyKey = nil
                     self.animeScheduleDayCount = dayCount
 
                     self.animeScheduleFetchedAt = fetchStartedAt
                     self.animeScheduleLastFailureAt = nil
+                    self.animeScheduleLastFailurePolicyKey = nil
                     self.animeScheduleLoadTask = nil
                     self.animeScheduleLoadID = nil
                 }
@@ -810,8 +879,10 @@ final class ScheduleViewModel: ObservableObject {
             } catch {
                 if self.animeScheduleLoadID == loadID {
                     self.animeScheduleLastFailureAt = Date()
+                    self.animeScheduleLastFailurePolicyKey = policyKey
                     self.animeScheduleLoadTask = nil
                     self.animeScheduleLoadID = nil
+                    self.animeScheduleLoadPolicyKey = nil
                 }
                 throw error
             }

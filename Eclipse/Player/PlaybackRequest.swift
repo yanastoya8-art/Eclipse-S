@@ -732,6 +732,17 @@ enum PlaybackExternalAudioTransport {
 
     static func prepare(_ request: PlaybackRequest) throws -> PlaybackRequest {
         guard !request.externalAudioTracks.isEmpty else { return request }
+
+        // Stremio addon streams should keep their original transport/container.
+        // Do not replace the source with a locally synthesized HLS master just
+        // because an addon advertises auxiliary audio tracks.
+        if request.launchContext?.sourceKind == .stremio {
+            Logger.shared.log(
+                "Preserving original Stremio stream transport; skipping external-audio HLS rewrite",
+                type: "Player"
+            )
+            return request
+        }
         let prepared = try prepare(
             url: request.url, headers: request.headers, tracks: request.externalAudioTracks,
             launchContext: request.launchContext, mediaSelectionIntent: request.mediaSelectionIntent

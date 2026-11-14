@@ -157,7 +157,7 @@ struct ReaderExtensionMangaDetailView: View {
     @State private var ambientColor: Color = .black
     @AppStorage(ReaderDetailElement.orderStorageKey) private var readerDetailElementOrder = ReaderDetailElement.defaultOrderRawValue
     @AppStorage(ReaderDetailElement.hiddenStorageKey) private var readerDetailHiddenElements = ""
-    @AppStorage("readerDetailHeroBlur") private var readerDetailHeroBlur: Double = 18
+    @AppStorage("readerDetailHeroBlur") private var readerDetailHeroBlur: Double = 26
 
     init(
         sourceID: ReaderExtensionSourceID,
@@ -180,8 +180,8 @@ struct ReaderExtensionMangaDetailView: View {
     }
 
     private var readerDetailHeroBlurRadius: CGFloat {
-        guard readerDetailHeroBlur.isFinite else { return 18 }
-        return CGFloat(min(max(readerDetailHeroBlur, 0), 30))
+        guard readerDetailHeroBlur.isFinite else { return 26 }
+        return CGFloat(min(max(readerDetailHeroBlur, 0), 36))
     }
 
     private var source: ReaderExtensionInstalledSource? {
@@ -241,6 +241,9 @@ struct ReaderExtensionMangaDetailView: View {
         // Keep semantic primary/secondary labels and native controls legible even
         // when the device itself is using Light appearance.
         .preferredColorScheme(.dark)
+        .onAppear {
+            ReaderDetailHeroAppearance.migrateIfNeeded()
+        }
         .onChangeComp(of: contentFilter.isKidsProfileActive) { _, isKids in
             if isKids { selectedChapter = nil }
         }

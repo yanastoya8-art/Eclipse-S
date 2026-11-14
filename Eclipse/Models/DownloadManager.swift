@@ -2521,7 +2521,27 @@ final class DownloadManager: NSObject, ObservableObject {
     }
 
     func applicationDidBecomeActive() {
+        resumeHLSDownloadsInterruptedByBackgroundExpiration()
         processQueue()
+    }
+
+    private func resumeHLSDownloadsInterruptedByBackgroundExpiration() {
+        let interruptionMessage = "HLS background download stopped. Resume when you are ready."
+        var resumedCount = 0
+        for index in downloads.indices {
+            guard downloads[index].status == .paused,
+                  downloads[index].error == interruptionMessage else { continue }
+            downloads[index].status = .queued
+            downloads[index].error = nil
+            downloads[index].retryNotBefore = nil
+            resumedCount += 1
+        }
+        if resumedCount > 0 {
+            Logger.shared.log(
+                "Resuming \(resumedCount) HLS download(s) interrupted by iOS background-task expiration",
+                type: "Download"
+            )
+        }
     }
 
     func applicationDidEnterBackground() {

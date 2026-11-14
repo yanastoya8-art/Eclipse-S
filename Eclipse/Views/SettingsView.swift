@@ -38,8 +38,8 @@ struct SettingsView: View {
     @AppStorage("githubReleaseURL", store: .standard) private var githubReleaseURL = ""
     @AppStorage("defaultScheduleMode") private var defaultScheduleModeRaw = ScheduleMode.anime.rawValue
     @AppStorage(ScheduleWindow.storageKey) private var scheduleWindowDays = ScheduleWindow.defaultValue.rawValue
-    @AppStorage("catalogHideBelowPG13Movies", store: .standard) private var hideBelowPG13Movies = false
-    @AppStorage("catalogHideBelowTV14Shows", store: .standard) private var hideBelowTV14Shows = false
+    @AppStorage("catalogHideBelowPG13Movies", store: .standard) private var hideBelowPG13Movies = true
+    @AppStorage("catalogHideBelowTV14Shows", store: .standard) private var hideBelowTV14Shows = true
     @AppStorage("catalogHideBelowPG13Anime", store: .standard) private var hideBelowPG13Anime = false
     @AppStorage("catalogRequireEnglishSpanishAudio", store: .standard) private var requireEnglishSpanishAudio = false
 #if !os(tvOS)
@@ -548,6 +548,15 @@ struct SettingsView: View {
 
                         NavigationLink(destination: settingsSearchableContent(ProductionsSettingsView())) {
                             GlassSettingsRow(icon: "film.stack", iconColor: .orange, title: "Productions")
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                GlassSection(header: "Search & Privacy") {
+                    VStack(spacing: 0) {
+                        NavigationLink(destination: settingsSearchableContent(SearchPrivacySettingsView())) {
+                            GlassSettingsRow(icon: "magnifyingglass", iconColor: .cyan, title: "Search History")
                         }
                         .buttonStyle(.plain)
                     }
@@ -5414,6 +5423,30 @@ private struct CloudSyncHealthSection: View {
 #endif
 
 
+private struct SearchPrivacySettingsView: View {
+    @AppStorage("searchHistorySavingEnabled") private var saveSearchHistory = true
+    @AppStorage("searchHistory") private var searchHistoryData: Data = Data()
+
+    var body: some View {
+        List {
+            Section {
+                Toggle("Save search history", isOn: $saveSearchHistory)
+                    .accessibilityIdentifier("settings.search.saveHistory")
+                    .onChange(of: saveSearchHistory) { enabled in
+                        if !enabled {
+                            searchHistoryData = Data()
+                        }
+                    }
+            } footer: {
+                Text("When disabled, Eclipse does not save new searches and clears the search history stored on this device.")
+            }
+        }
+        .eclipsePageTitle("Search History")
+        .eclipseSettingsStyle()
+        .preferredColorScheme(.dark)
+    }
+}
+
 private struct AgeFiltersSettingsView: View {
     @Binding var hideBelowPG13Movies: Bool
     @Binding var hideBelowTV14Shows: Bool
@@ -5426,17 +5459,17 @@ private struct AgeFiltersSettingsView: View {
     var body: some View {
         List {
             Section {
-                Toggle("Hide movies below PG-13", isOn: $hideBelowPG13Movies)
+                Toggle("Hide movies rated below 13+", isOn: $hideBelowPG13Movies)
                     .onChange(of: hideBelowPG13Movies) { _ in filtersDidChange() }
                     .accessibilityIdentifier("settings.contentFilters.moviesPG13")
-                Toggle("Hide TV shows below TV-14", isOn: $hideBelowTV14Shows)
+                Toggle("Hide TV shows rated below 13+", isOn: $hideBelowTV14Shows)
                     .onChange(of: hideBelowTV14Shows) { _ in filtersDidChange() }
                     .accessibilityIdentifier("settings.contentFilters.tv14")
                 Toggle("Hide anime below PG-13", isOn: $hideBelowPG13Anime)
                     .onChange(of: hideBelowPG13Anime) { _ in filtersDidChange() }
                     .accessibilityIdentifier("settings.contentFilters.animePG13")
             } footer: {
-                Text("Titles below the selected rating are hidden. Unknown ratings continue to follow the app's existing age-rating policy.")
+                Text("Movies use the selected movie certification. TV shows use European national content ratings only (for example 12+, 13+, 14+ and 16+); US and other non-European TV rating providers are ignored. Unknown ratings remain visible rather than being assigned an age without evidence.")
             }
         }
         .eclipsePageTitle("Age Filters")
@@ -5468,6 +5501,34 @@ private struct LanguageFiltersSettingsView: View {
                     .accessibilityIdentifier("settings.contentFilters.audioLanguages")
             } footer: {
                 Text("For movies and non-anime TV, public metadata verifies original language only. Anime can also qualify through verified episode-level English or Spanish dub data.")
+            }
+
+            Section {
+                NavigationLink {
+                    AnimeScheduleSettingsView()
+                } label: {
+                    HStack {
+                        Label("English Dub Schedule", systemImage: "calendar.badge.clock")
+                        Spacer()
+                        Text(AnimeScheduleAPIKeyStore.hasToken ? "Configured" : "Token needed")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .accessibilityIdentifier("settings.contentFilters.animeScheduleToken")
+
+                NavigationLink {
+                    JustWatchSettingsView()
+                } label: {
+                    HStack {
+                        Label("JustWatch API Key", systemImage: "key.horizontal")
+                        Spacer()
+                        Text(JustWatchAPIKeyStore.hasKey ? "Configured" : "Not configured")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .accessibilityIdentifier("settings.contentFilters.justWatchKey")
+            } footer: {
+                Text("Configure the API.SH key used to verify European TV episode release dates. The key is stored securely in Keychain.")
             }
 
             Section {
@@ -5570,6 +5631,7 @@ private struct AnimeFiltersSettingsView: View {
     @AppStorage("catalogHideHentai", store: .standard) private var hideHentai = false
     @AppStorage("catalogHideYuri", store: .standard) private var hideYuri = false
     @AppStorage("catalogHideYaoi", store: .standard) private var hideYaoi = false
+    @AppStorage("catalogHideAnimeSpecialsAndOVAs", store: .standard) private var hideAnimeSpecialsAndOVAs = false
 
     private func filtersDidChange() {
         NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil)
@@ -5589,6 +5651,14 @@ private struct AnimeFiltersSettingsView: View {
                     .accessibilityIdentifier("settings.contentFilters.hideYaoi")
             } footer: {
                 Text("Hides identified anime and, independently, titles whose available metadata identifies them as Hentai, Yuri or Yaoi.")
+            }
+
+            Section {
+                Toggle("Exclude anime Specials and OVAs", isOn: $hideAnimeSpecialsAndOVAs)
+                    .onChange(of: hideAnimeSpecialsAndOVAs) { _ in filtersDidChange() }
+                    .accessibilityIdentifier("settings.contentFilters.hideAnimeSpecialsOVAs")
+            } footer: {
+                Text("Hides anime catalog entries identified as SPECIAL or OVA by AniList, and removes the separate Specials & OVAs section from anime detail pages. Regular TV episodes remain available.")
             }
         }
         .onChange(of: hideAnime) { _ in filtersDidChange() }
