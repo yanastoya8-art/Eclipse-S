@@ -126,16 +126,20 @@ jobs:
           export MPVKIT_LOCAL_ARTIFACTS_DIR
           mkdir -p "$MPVKIT_LOCAL_ARTIFACTS_DIR/xcframework"
           rsync -a MPVKit/dist/release/xcframework/ "$MPVKIT_LOCAL_ARTIFACTS_DIR/xcframework/"
-          # MoltenVK and Libplacebo are downloaded as release archives by MPVKit;
-          # unlike the FFmpeg/libmpv outputs, they are not emitted in xcframework/.
-          for name in MoltenVK Libplacebo; do
-            artifact="$MPVKIT_LOCAL_ARTIFACTS_DIR/xcframework/$name.xcframework"
-            archive="MPVKit/dist/release/$name.xcframework.zip"
-            if [[ ! -d "$artifact" ]]; then
-              test -f "$archive" || { echo "::error::Missing MPVKit artifact archive: $archive"; exit 1; }
-              ditto -x -k "$archive" "$MPVKIT_LOCAL_ARTIFACTS_DIR/xcframework"
-            fi
-          done
+          # MPVKit does not build MoltenVK and Libplacebo XCFramework bundles in
+          # this iOS CI build. Keep those two targets on their checksum-pinned
+          # upstream binary artifacts; use the locally rebuilt runtime for the
+          # libmpv and FFmpeg frameworks that this job actually produces.
+          python3 - <<'PY'
+          from pathlib import Path
+          manifest = Path("$MPVKIT_LOCAL_ARTIFACTS_DIR/Package.swift")
+          source = manifest.read_text()
+          old = '"Libmpv", "MoltenVK", "Libplacebo", "Libavcodec"'
+          new = '"Libmpv", "Libavcodec"'
+          if source.count(old) != 1:
+              raise SystemExit("Could not safely narrow MPVKit local artifact validation")
+          manifest.write_text(source.replace(old, new, 1))
+          PY
 
           # Fail here with a useful diagnostic instead of letting Package.swift abort
           # package graph evaluation with the generic exit-74 fatal error.
@@ -146,7 +150,7 @@ jobs:
 
           root = Path(os.environ["MPVKIT_LOCAL_ARTIFACTS_DIR"])
           required = (
-              "Libmpv", "MoltenVK", "Libplacebo", "Libavcodec", "Libavdevice",
+              "Libmpv", "Libavcodec", "Libavdevice",
               "Libavfilter", "Libavformat", "Libavutil", "Libswresample", "Libswscale",
           )
           failures = []
