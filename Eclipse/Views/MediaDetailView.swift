@@ -254,6 +254,7 @@ private final class MediaDetailCacheStore {
 
 struct MediaDetailView: View {
     let searchResult: TMDBSearchResult
+    private let preloadedArtworkURL: String?
     private let initialNotificationSelection: MediaDetailInitialNotificationSelection?
     private let trackerPlaybackIntent: TrackerLibraryPlaybackIntent?
 
@@ -266,10 +267,12 @@ struct MediaDetailView: View {
 
     init(
         searchResult: TMDBSearchResult,
+        preloadedArtworkURL: String? = nil,
         initialNotificationSelection: MediaDetailInitialNotificationSelection? = nil,
         trackerPlaybackIntent: TrackerLibraryPlaybackIntent? = nil
     ) {
         self.searchResult = searchResult
+        self.preloadedArtworkURL = preloadedArtworkURL
         self.initialNotificationSelection = initialNotificationSelection
         self.trackerPlaybackIntent = trackerPlaybackIntent
 
@@ -299,6 +302,7 @@ struct MediaDetailView: View {
             case .allowed:
                 MediaDetailContentView(
                     searchResult: searchResult,
+                    preloadedArtworkURL: preloadedArtworkURL,
                     initialNotificationSelection: initialNotificationSelection,
                     trackerPlaybackIntent: trackerPlaybackIntent
                 )
@@ -411,6 +415,7 @@ struct MediaDetailContentView: View {
 #endif
 
     let searchResult: TMDBSearchResult
+    let preloadedArtworkURL: String?
     private let initialNotificationSelection: MediaDetailInitialNotificationSelection?
     private let trackerPlaybackIntent: TrackerLibraryPlaybackIntent?
 
@@ -2603,6 +2608,7 @@ struct MediaDetailContentView: View {
     }
 
     private var detailHeroImageURL: String? {
+        if let preloadedArtworkURL { return preloadedArtworkURL }
         let isAnimeTitle = searchResult.animeIdentitySeed != nil || searchResult.isAnimeHint == true
         if isAnimeTitle {
 #if !os(tvOS) && !os(macOS)
@@ -2743,33 +2749,9 @@ struct MediaDetailContentView: View {
 
     @ViewBuilder
     private var titleArtwork: some View {
-        if !mediaDetailTitleArtworkEnabled {
-            EmptyView()
-        } else if !titleArtworkLookupComplete {
-            titleText
-                .frame(
-                    width: ExperimentalFeatureState.isEnabledAtLaunch ? (isTvOS ? 720 : (usesWideDetailLayout ? 420 : 334)) : (usesWideDetailLayout ? 400 : 280),
-                    height: ExperimentalFeatureState.isEnabledAtLaunch ? (isTvOS ? 250 : 132) : (usesWideDetailLayout ? 140 : 100),
-                    alignment: .leading
-                )
-        } else if let logoURL = logoURL {
-            ResilientArtworkImage(
-                urls: [logoURL],
-                decodeSize: homeImageDecodeSize(width: isTvOS ? 720 : (usesWideDetailLayout ? 420 : 334), height: isTvOS ? 250 : 140),
-                contentMode: .fit
-            ) {
-                titleText
-            }
-            .frame(
-                maxWidth: ExperimentalFeatureState.isEnabledAtLaunch ? (isTvOS ? 720 : (usesWideDetailLayout ? 420 : 334)) : (usesWideDetailLayout ? 400 : 280),
-                maxHeight: ExperimentalFeatureState.isEnabledAtLaunch ? (isTvOS ? 250 : 132) : (usesWideDetailLayout ? 140 : 100)
-            )
-            .shadow(color: .black.opacity(0.52), radius: 6, x: 0, y: 3)
-            .padding(.horizontal, ExperimentalFeatureState.isEnabledAtLaunch ? (isTvOS ? 60 : (usesWideDetailLayout ? 36 : 26)) : 0)
-        } else {
-            titleText
-                .padding(.horizontal, ExperimentalFeatureState.isEnabledAtLaunch ? (isTvOS ? 60 : (usesWideDetailLayout ? 36 : 26)) : 0)
-        }
+        // The selected poster already carries its title treatment. Reuse it
+        // rather than requesting a separate logo asset.
+        EmptyView()
     }
 
     @ViewBuilder
@@ -6860,7 +6842,7 @@ struct MediaDetailContentView: View {
 
     private var shouldAnalyzeAlternatePoster: Bool {
 #if os(iOS)
-        !usesWideDetailLayout && (mediaDetailAlternatePosterEnabled || searchResult.fullPosterURL == nil)
+        false
 #else
         false
 #endif
@@ -7275,8 +7257,8 @@ struct MediaDetailContentView: View {
         isLoadingSimilarTitles = false
         selectedSpecialEpisodeContext = nil
         let detailLoadStartedAt = ProcessInfo.processInfo.systemUptime
+        titleArtworkLookupComplete = true
         prefetchDetailHeroImage()
-        startTitleArtworkLookup()
 
         detailLoadTask = Task {
             do {
