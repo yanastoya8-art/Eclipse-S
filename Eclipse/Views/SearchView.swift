@@ -2269,7 +2269,7 @@ private struct BrowseMediaView: View {
         let originalAudioFilterEnabled = UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
 
         let candidates = results.enumerated().filter { _, result in
-            guard result.animeIdentitySeed == nil else { return false }
+            guard result.animeArtworkURL == nil else { return false }
             let originalLanguage = result.originalLanguage?.lowercased() ?? ""
             let baseLanguage = originalLanguage.split(separator: "-").first.map(String.init) ?? originalLanguage
             let nativeAudioMatchesDubFilter = selectedDubLanguageCodes.contains {
@@ -2277,7 +2277,14 @@ private struct BrowseMediaView: View {
             }
             let needsDubIdentity = !selectedDubLanguageCodes.isEmpty && !nativeAudioMatchesDubFilter
             let needsAudioIdentity = originalAudioFilterEnabled && !["en", "es"].contains(baseLanguage)
-            return needsDubIdentity || needsAudioIdentity || result.fullPosterURL == nil
+            let likelyAnime = result.isAnimeHint == true
+                || (result.genreIds?.contains(16) == true
+                    && (["ja", "zh", "ko"].contains(baseLanguage)
+                        || result.originCountry?.contains(where: { ["JP", "CN", "KR", "TW"].contains($0) }) == true))
+            // AnimeList artwork is the preferred anime poster even when TMDB
+            // already supplied an image. TMDB remains the fallback if AniList
+            // has no matching cover.
+            return needsDubIdentity || needsAudioIdentity || likelyAnime || result.fullPosterURL == nil
         }
         guard !candidates.isEmpty else { return results }
 
@@ -2300,20 +2307,21 @@ private struct BrowseMediaView: View {
                         .filter { $0.mediaType?.lowercased() != "movie" }
                         .first { $0.anilistId != nil }
                         ?? mappings.first { $0.anilistId != nil }
-                    guard let anilistID = mapping?.anilistId, anilistID > 0 else {
+                    guard let anilistID = result.animeIdentitySeed?.anilistId ?? mapping?.anilistId,
+                          anilistID > 0 else {
                         return (index, result)
                     }
 
                     let artworkURL: String?
-                    if result.fullPosterURL == nil {
+                    if let existingArtwork = result.animeArtworkURL {
+                        artworkURL = existingArtwork
+                    } else {
                         let identity = await AniListService.shared.fetchAnimeSeasonIdentity(
                             anilistId: anilistID,
                             tmdbShowId: result.id,
                             title: result.displayTitle
                         )
-                        artworkURL = identity?.posterURL ?? result.animeArtworkURL
-                    } else {
-                        artworkURL = result.animeArtworkURL
+                        artworkURL = identity?.posterURL
                     }
                     let enriched = TMDBSearchResult(
                         id: result.id,
@@ -2333,7 +2341,7 @@ private struct BrowseMediaView: View {
                         originCountry: result.originCountry,
                         voteCount: result.voteCount,
                         isAnimeHint: true,
-                        animeIdentitySeed: AnimeMediaIdentitySeed(
+                        animeIdentitySeed: result.animeIdentitySeed ?? AnimeMediaIdentitySeed(
                             anilistId: anilistID,
                             malId: mapping?.malId,
                             kitsuId: mapping?.kitsuId,
@@ -2355,19 +2363,20 @@ private struct BrowseMediaView: View {
                             .filter { $0.mediaType?.lowercased() != "movie" }
                             .first { $0.anilistId != nil }
                             ?? mappings.first { $0.anilistId != nil }
-                        guard let anilistID = mapping?.anilistId, anilistID > 0 else {
+                        guard let anilistID = nextResult.animeIdentitySeed?.anilistId ?? mapping?.anilistId,
+                              anilistID > 0 else {
                             return (nextIndex, nextResult)
                         }
                         let artworkURL: String?
-                        if nextResult.fullPosterURL == nil {
+                        if let existingArtwork = nextResult.animeArtworkURL {
+                            artworkURL = existingArtwork
+                        } else {
                             let identity = await AniListService.shared.fetchAnimeSeasonIdentity(
                                 anilistId: anilistID,
                                 tmdbShowId: nextResult.id,
                                 title: nextResult.displayTitle
                             )
-                            artworkURL = identity?.posterURL ?? nextResult.animeArtworkURL
-                        } else {
-                            artworkURL = nextResult.animeArtworkURL
+                            artworkURL = identity?.posterURL
                         }
                         return (nextIndex, TMDBSearchResult(
                             id: nextResult.id, mediaType: nextResult.mediaType,
@@ -2380,8 +2389,10 @@ private struct BrowseMediaView: View {
                             originCountry: nextResult.originCountry, voteCount: nextResult.voteCount,
                             isAnimeHint: true,
                             animeIdentitySeed: AnimeMediaIdentitySeed(
-                                anilistId: anilistID, malId: mapping?.malId,
-                                kitsuId: mapping?.kitsuId, format: mapping?.mediaType
+                                anilistId: anilistID,
+                                malId: nextResult.animeIdentitySeed?.malId ?? mapping?.malId,
+                                kitsuId: nextResult.animeIdentitySeed?.kitsuId ?? mapping?.kitsuId,
+                                format: nextResult.animeIdentitySeed?.format ?? mapping?.mediaType
                             ),
                             animeArtworkURL: artworkURL
                         ))
