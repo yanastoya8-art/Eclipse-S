@@ -1016,16 +1016,20 @@ class TMDBContentFilter: ObservableObject {
         animeEligibilityLock.lock()
         let rating = animeAgeRatingsByID[anilistID]
         animeEligibilityLock.unlock()
-        guard let rating else { return true }
-        return rating == .unknown || rating >= .teen
+        // The anime policy is explicitly PG-13+: missing/unknown
+        // AniList age metadata cannot be treated as a verified PG-13 rating.
+        guard let rating, rating != .unknown else { return false }
+        return rating >= .teen
     }
 
     private func shouldIncludeTMDBAgeRating(isMovie: Bool, id: Int, enabled: Bool) -> Bool {
         guard enabled else { return true }
-        guard let rating = TMDBMaturityRatingStore.shared.rating(isMovie: isMovie, id: id) else {
-            return true
+        guard let rating = TMDBMaturityRatingStore.shared.rating(isMovie: isMovie, id: id),
+              rating != .unknown else {
+            // A 13+ catalog must not silently admit unrated titles.
+            return false
         }
-        return rating == .unknown || rating >= .teen
+        return rating >= .teen
     }
 
     private func runtimeCacheKey(for result: TMDBSearchResult) -> String {
@@ -1141,7 +1145,12 @@ class TMDBContentFilter: ObservableObject {
                 if let rating = TMDBMaturityRatingStore.shared.rating(
                     isMovie: result.isMovie,
                     id: result.id
-                ), rating != .unknown, rating < .teen {
+                ), rating == .unknown || rating < .teen {
+                    return false
+                } else if TMDBMaturityRatingStore.shared.rating(
+                    isMovie: result.isMovie,
+                    id: result.id
+                ) == nil {
                     return false
                 }
             }
