@@ -1582,7 +1582,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     private var midPlaybackStallLastPosition: Double?
 #endif
     private var lastIgnoredMPVBridgeDurationLogValue: Double = -1
-    private struct BackgroundRecoveryProgressGate {
+    private struct BackgroundRecoveryProgressGate: Sendable {
         let id: Int
         let mediaKey: String
         let source: String
