@@ -4,6 +4,16 @@ on:
   push:
     branches: [main]
     paths:
+      - '**/*.swift'
+      - '**/*.m'
+      - '**/*.mm'
+      - '**/*.h'
+      - '**/*.c'
+      - '**/*.cpp'
+      - Eclipse.xcodeproj/**
+      - Package.swift
+      - Package.resolved
+      - Build.xcconfig
       - .github/workflows/ios-unsigned-ipa.yml
   workflow_dispatch:
     inputs:
