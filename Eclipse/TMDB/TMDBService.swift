@@ -972,6 +972,28 @@ class TMDBService: ObservableObject {
            cached.isValidRemotePayload {
             return cached
         }
+
+        // TMDB's season-zero endpoint only exists when the show actually has
+        // a Specials season. Some shows have no season 0 even though tracker
+        // metadata can refer to a zero-based season; avoid a guaranteed 404.
+        if seasonNumber == 0 {
+            let show = try await getTVShowWithSeasons(id: tvShowId)
+            let hasSpecialsSeason = show.seasons.contains { $0.seasonNumber == 0 }
+            guard hasSpecialsSeason else {
+                let emptySpecials = TMDBSeasonDetail(
+                    id: tvShowId,
+                    name: "Specials",
+                    overview: nil,
+                    posterPath: nil,
+                    seasonNumber: 0,
+                    airDate: nil,
+                    episodes: []
+                )
+                detailCache.set(key: cacheKey, value: emptySpecials)
+                return emptySpecials
+            }
+        }
+
         var requestKey = cacheKey
 #if DEBUG
         if let namespace = AnimeMetadataLoadingValidation.requestNamespace {
