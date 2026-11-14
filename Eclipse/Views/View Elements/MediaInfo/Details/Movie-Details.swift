@@ -56,6 +56,6 @@ struct MovieDetailsSection: View {
     }
 
     private func getAgeRating(from releaseDates: TMDBReleaseDates?) -> String? {
-        releaseDates?.preferredCertification?.value
+        releaseDates?.preferredCertification?.displayValue
     }
 }

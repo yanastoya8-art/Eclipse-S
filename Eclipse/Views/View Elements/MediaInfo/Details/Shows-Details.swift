@@ -75,7 +75,7 @@ struct TVShowDetailsSection: View {
     }
 
     private func getAgeRating(from contentRatings: TMDBContentRatings?) -> String? {
-        contentRatings?.preferredCertification?.value
+        contentRatings?.preferredCertification?.displayValue
     }
 }
 

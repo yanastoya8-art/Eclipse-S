@@ -468,4 +468,51 @@ final class MaturityRatingRegionTests: XCTestCase {
         XCTAssertFalse(TMDBDiscoverFilterPolicy.hasMorePages(requestedPage: 3, totalPages: movie.totalPages))
         XCTAssertFalse(TMDBDiscoverFilterPolicy.hasMorePages(requestedPage: 1, totalPages: 0))
     }
+    func testRegionalBoardsUseTheirOwnAgeScales() {
+        XCTAssertEqual(MaturityRating.classify(certification: "12A", region: "GB"), .teen)
+        XCTAssertEqual(MaturityRating.classify(certification: "15", region: "GB"), .mature)
+        XCTAssertEqual(MaturityRating.classify(certification: "R18", region: "GB"), .adult)
+
+        XCTAssertEqual(MaturityRating.classify(certification: "7", region: "ES"), .general)
+        XCTAssertEqual(MaturityRating.classify(certification: "16", region: "ES"), .mature)
+        XCTAssertEqual(MaturityRating.classify(certification: "18", region: "ES"), .adult)
+
+        XCTAssertEqual(MaturityRating.classify(certification: "PG12", region: "JP"), .teen)
+        XCTAssertEqual(MaturityRating.classify(certification: "R15+", region: "JP"), .mature)
+        XCTAssertEqual(MaturityRating.classify(certification: "R18+", region: "JP"), .adult)
+
+        XCTAssertEqual(MaturityRating.classify(certification: "12", region: "DE"), .teen)
+        XCTAssertEqual(MaturityRating.classify(certification: "16", region: "DE"), .mature)
+        XCTAssertEqual(MaturityRating.classify(certification: "18", region: "DE"), .adult)
+
+        XCTAssertEqual(MaturityRating.classify(certification: "PG13", region: "SG"), .teen)
+        XCTAssertEqual(MaturityRating.classify(certification: "NC16", region: "SG"), .mature)
+        XCTAssertEqual(MaturityRating.classify(certification: "R21", region: "SG"), .adult)
+    }
+
+    func testBulgarianNationalAgeCategoriesAreMappedCorrectly() {
+        XCTAssertEqual(MaturityRating.classify(certification: "A", region: "BG"), .general)
+        XCTAssertEqual(MaturityRating.classify(certification: "B", region: "BG"), .teen)
+        XCTAssertEqual(MaturityRating.classify(certification: "C", region: "BG"), .mature)
+        XCTAssertEqual(MaturityRating.classify(certification: "D", region: "BG"), .adult)
+        XCTAssertEqual(MaturityRating.classify(certification: "X", region: "BG"), .adult)
+    }
+
+    func testAgeCertificationDisplayIncludesIssuingRegionAndAgeBand() throws {
+        let certification = try XCTUnwrap(MaturityRating.preferredCertification(
+            certificationsByRegion: ["gb": ["15"]],
+            regions: ["GB", "US"]
+        ))
+        XCTAssertEqual(certification.region, "GB")
+        XCTAssertEqual(certification.ageBand, "15+")
+        XCTAssertEqual(certification.displayValue, "15 · GB · 15+")
+    }
+
+    func testRegionalClassificationDoesNotLeakAcrossCountries() {
+        XCTAssertEqual(MaturityRating.classify(certification: "A", region: "IN"), .adult)
+        XCTAssertEqual(MaturityRating.classify(certification: "A", region: "ES"), .general)
+        XCTAssertEqual(MaturityRating.classify(certification: "R", region: "US"), .mature)
+        XCTAssertEqual(MaturityRating.classify(certification: "R", region: "CA"), .adult)
+    }
+
 }

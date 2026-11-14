@@ -41,6 +41,16 @@ enum TMDBImageRequestPolicy {
             case .profile: return "w185"
             }
         }
+
+        var standardSize: String {
+            switch self {
+            case .poster: return "w500"
+            case .backdrop: return "w1280"
+            case .still: return "w500"
+            case .artwork: return "w780"
+            case .profile: return "w342"
+            }
+        }
     }
 
     static func urlString(
@@ -54,8 +64,8 @@ enum TMDBImageRequestPolicy {
         } else {
             original = "https://image.tmdb.org/t/p/original\(path)"
         }
-        guard dataSaverEnabled,
-              var components = URLComponents(string: original),
+        let targetSize = dataSaverEnabled ? kind.reducedSize : kind.standardSize
+        guard var components = URLComponents(string: original),
               components.scheme?.lowercased() == "https",
               components.host?.lowercased() == "image.tmdb.org",
               components.port == nil || components.port == 443,
@@ -69,10 +79,10 @@ enum TMDBImageRequestPolicy {
         let size = String(parts[3])
         if size != "original" {
             guard size.hasPrefix("w"), let width = Int(size.dropFirst()),
-                  let targetWidth = Int(kind.reducedSize.dropFirst()),
+                  let targetWidth = Int(targetSize.dropFirst()),
                   width > targetWidth else { return original }
         }
-        components.percentEncodedPath = "/t/p/\(kind.reducedSize)/\(parts[4])"
+        components.percentEncodedPath = "/t/p/\(targetSize)/\(parts[4])"
         return components.string ?? original
     }
 }

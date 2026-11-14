@@ -434,6 +434,21 @@ enum AnimeScheduleFallback {
         selectedDubLanguages.isEmpty
     }
 
+    static func requiresDubSchedule(
+        selectedDubLanguages: Set<String>,
+        englishSpanishAudioFilterEnabled: Bool
+    ) -> Bool {
+        !selectedDubLanguages.isEmpty || englishSpanishAudioFilterEnabled
+    }
+
+    static func permitsEnglishDubSchedule(
+        selectedDubLanguages: Set<String>,
+        englishSpanishAudioFilterEnabled: Bool
+    ) -> Bool {
+        selectedDubLanguages.contains(MyDubListLanguage.english.rawValue)
+            || (selectedDubLanguages.isEmpty && englishSpanishAudioFilterEnabled)
+    }
+
     static func load(
         aniList: () async throws -> AnimeAiringScheduleResult,
         animeSchedule: () async throws -> AnimeAiringScheduleResult,

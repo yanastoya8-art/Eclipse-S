@@ -365,7 +365,8 @@ struct MangaDetailView: View {
                 color: experimental ? readerBleedColor : nil,
                 heroHeight: heroHeight,
                 tail: heroHeight * 0.62,
-                strength: theme.scopedBleedStrength(isReaderMode: true)
+                strength: theme.scopedBleedStrength(isReaderMode: true),
+                startOffset: experimental ? heroHeight * 0.58 : 0
             )
         }
         .coordinateSpace(name: "mangaDetailScroll")
@@ -439,20 +440,15 @@ struct MangaDetailView: View {
             let posterWidth = experimental ? min(viewportWidth * 0.84, heroHeight * 0.66) : max(viewportWidth - 20, 0)
             let posterHeight = experimental ? max(heroHeight * 0.74, 270) : max(heroHeight - 26, 260)
             let titleSize: CGFloat = experimental ? (isIPad ? 42 : 40) : (isIPad ? 40 : 32)
-            let gradientColors: [Color] = experimental ? [
-                Color.black.opacity(0.10),
-                readerHeroBlendColor.opacity(0.36),
-                readerHeroBlendColor.opacity(0.78),
-                readerHeroBlendColor.opacity(1.0)
-            ] : [
-                Color.black.opacity(0.02),
-                Color.black.opacity(0.28),
-                Color.black.opacity(0.98)
+            let gradientColors: [Color] = [
+                Color.black.opacity(0.04),
+                Color.black.opacity(0.18),
+                Color.black.opacity(experimental ? 0.34 : 0.98)
             ]
 
             ZStack(alignment: contentAlignment) {
                 if isIPad && experimental {
-                    readerHeroBlendColor.opacity(0.58)
+                    Color.black.opacity(0.08)
                 }
 
                 ReaderPinnedRemoteImage(
@@ -485,6 +481,21 @@ struct MangaDetailView: View {
                     endPoint: .bottom
                 )
                 .frame(width: viewportWidth, height: stretchedHeight)
+
+                if experimental {
+                    LinearGradient(
+                        colors: [
+                            .clear,
+                            readerHeroBlendColor.opacity(0.28),
+                            readerHeroBlendColor.opacity(0.78)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(width: viewportWidth, height: stretchedHeight * 0.42)
+                    .frame(maxHeight: .infinity, alignment: .bottom)
+                    .allowsHitTesting(false)
+                }
 
                 VStack(alignment: textAlignment, spacing: experimental ? 10 : 8) {
                     Text(selectedSourceDisplayTitle)

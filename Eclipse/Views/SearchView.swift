@@ -21,6 +21,7 @@ struct SearchView: View {
 #endif
     @AppStorage("tmdbLanguage") private var selectedLanguage = "en-US"
     @AppStorage("searchHistory") private var searchHistoryData: Data = Data()
+    @AppStorage("searchHistorySavingEnabled") private var searchHistorySavingEnabled = true
 
     @State private var searchText = ""
     @State private var searchResults: [TMDBSearchResult] = []
@@ -208,6 +209,11 @@ struct SearchView: View {
                             .font(.title2)
                             .foregroundColor(.secondary)
                             .padding()
+
+                        Toggle("Save search history", isOn: $searchHistorySavingEnabled)
+                            .font(.subheadline)
+                            .padding(.horizontal, 28)
+                            .padding(.bottom, 12)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
@@ -218,6 +224,10 @@ struct SearchView: View {
                                 .foregroundColor(.primary)
 
                             Spacer()
+
+                            Toggle("Save", isOn: $searchHistorySavingEnabled)
+                                .labelsHidden()
+                                .accessibilityLabel("Save search history")
 
                             Button("Clear") {
                                 clearSearchHistory()
@@ -413,6 +423,11 @@ struct SearchView: View {
 #endif
             loadSearchHistory()
         }
+        .onChangeComp(of: searchHistorySavingEnabled) { _, enabled in
+            guard !enabled else { return }
+            searchHistory.removeAll()
+            searchHistoryData = Data()
+        }
 
         .onReceive(NotificationCenter.default.publisher(for: .activeProfileDidChange)) { _ in
             reloadSearchResultsForProfileChange()
@@ -580,6 +595,11 @@ struct SearchView: View {
     }
 
     private func loadSearchHistory() {
+        guard searchHistorySavingEnabled else {
+            searchHistory.removeAll()
+            searchHistoryData = Data()
+            return
+        }
         guard let decodedHistory = BackupSearchHistory.decodedQueries(from: searchHistoryData) else {
             searchHistory = []
             return
@@ -589,6 +609,11 @@ struct SearchView: View {
     }
 
     private func saveSearchHistory() {
+        guard searchHistorySavingEnabled else {
+            searchHistory.removeAll()
+            searchHistoryData = Data()
+            return
+        }
 #if DEBUG
         if ProcessInfo.processInfo.environment["ECLIPSE_UI_POSTER_AUDIT"] == "1" { return }
 #endif
@@ -600,6 +625,7 @@ struct SearchView: View {
     }
 
     private func addToSearchHistory(_ query: String) {
+        guard searchHistorySavingEnabled else { return }
         guard let trimmedQuery = BackupSearchHistory.sanitizedQueries([query]).first else { return }
 
         searchHistory.removeAll { $0.lowercased() == trimmedQuery.lowercased() }
@@ -879,11 +905,11 @@ enum BrowseAgeRating: String, Codable, CaseIterable, Identifiable {
         case .all:
             return "Any Age Rating"
         case .general:
-            return "All Ages"
+            return "All Ages (G / U)"
         case .teen:
-            return "Up to 14+"
+            return "Up to 14 (PG-13 / TV-14)"
         case .mature:
-            return "Up to 17+"
+            return "Up to 17 (R / TV-MA)"
         case .adult:
             return "18+ Only"
         }
@@ -2166,6 +2192,7 @@ private struct BrowseMediaView: View {
                         keywordIds: selectedKeywordIDs,
                         excludedKeywordIds: excludedKeywordIDs,
                         year: year,
+                        dateGte: upcomingOnly ? Self.todayDateString() : nil,
                         originCountries: effectiveCountries,
                         originalLanguage: effectiveLanguage,
                         sortBy: tmdbSortValue,
@@ -2236,19 +2263,35 @@ private struct BrowseMediaView: View {
     private func resolveAnimeBrowseIdentities(
         _ results: [TMDBSearchResult]
     ) async -> [TMDBSearchResult] {
-        let dubLanguagesSelected = !MyDubListDubFilter.shared.selectedLanguages.isEmpty
+        let selectedDubLanguageCodes = Set(MyDubListDubFilter.shared.selectedLanguages.compactMap {
+            MyDubListLanguage(rawValue: $0)?.taizenLanguageCode
+        })
         let originalAudioFilterEnabled = UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
-        let needsIdentityForFiltering = dubLanguagesSelected || originalAudioFilterEnabled
 
         let candidates = results.enumerated().filter { _, result in
-            result.animeIdentitySeed == nil
-                && (needsIdentityForFiltering || result.fullPosterURL == nil)
+            guard result.animeIdentitySeed == nil else { return false }
+            let originalLanguage = result.originalLanguage?.lowercased() ?? ""
+            let baseLanguage = originalLanguage.split(separator: "-").first.map(String.init) ?? originalLanguage
+            let nativeAudioMatchesDubFilter = selectedDubLanguageCodes.contains {
+                originalLanguage == $0 || originalLanguage.hasPrefix($0 + "-")
+            }
+            let needsDubIdentity = !selectedDubLanguageCodes.isEmpty && !nativeAudioMatchesDubFilter
+            let needsAudioIdentity = originalAudioFilterEnabled && !["en", "es"].contains(baseLanguage)
+            return needsDubIdentity || needsAudioIdentity || result.fullPosterURL == nil
         }
         guard !candidates.isEmpty else { return results }
 
+        if !selectedDubLanguageCodes.isEmpty || originalAudioFilterEnabled {
+            Task(priority: .utility) {
+                await AniMapMappingService.shared.prepareGlobalIndexIfNeeded()
+            }
+        }
+
         return await withTaskGroup(of: (Int, TMDBSearchResult).self) { group in
             var iterator = candidates.makeIterator()
-            let concurrencyLimit = 5
+            // Cached mappings are cheap; modestly increase parallel resolution so
+            // dub-filtered pages do not serialize behind a handful of slow lookups.
+            let concurrencyLimit = 8
             for _ in 0..<min(concurrencyLimit, candidates.count) {
                 guard let (index, result) = iterator.next() else { continue }
                 group.addTask {
@@ -2261,11 +2304,17 @@ private struct BrowseMediaView: View {
                         return (index, result)
                     }
 
-                    let identity = await AniListService.shared.fetchAnimeSeasonIdentity(
-                        anilistId: anilistID,
-                        tmdbShowId: result.id,
-                        title: result.displayTitle
-                    )
+                    let artworkURL: String?
+                    if result.fullPosterURL == nil {
+                        let identity = await AniListService.shared.fetchAnimeSeasonIdentity(
+                            anilistId: anilistID,
+                            tmdbShowId: result.id,
+                            title: result.displayTitle
+                        )
+                        artworkURL = identity?.posterURL ?? result.animeArtworkURL
+                    } else {
+                        artworkURL = result.animeArtworkURL
+                    }
                     let enriched = TMDBSearchResult(
                         id: result.id,
                         mediaType: result.mediaType,
@@ -2290,7 +2339,7 @@ private struct BrowseMediaView: View {
                             kitsuId: mapping?.kitsuId,
                             format: mapping?.mediaType
                         ),
-                        animeArtworkURL: identity?.posterURL ?? result.animeArtworkURL
+                        animeArtworkURL: artworkURL
                     )
                     return (index, enriched)
                 }
@@ -2309,11 +2358,17 @@ private struct BrowseMediaView: View {
                         guard let anilistID = mapping?.anilistId, anilistID > 0 else {
                             return (nextIndex, nextResult)
                         }
-                        let identity = await AniListService.shared.fetchAnimeSeasonIdentity(
-                            anilistId: anilistID,
-                            tmdbShowId: nextResult.id,
-                            title: nextResult.displayTitle
-                        )
+                        let artworkURL: String?
+                        if nextResult.fullPosterURL == nil {
+                            let identity = await AniListService.shared.fetchAnimeSeasonIdentity(
+                                anilistId: anilistID,
+                                tmdbShowId: nextResult.id,
+                                title: nextResult.displayTitle
+                            )
+                            artworkURL = identity?.posterURL ?? nextResult.animeArtworkURL
+                        } else {
+                            artworkURL = nextResult.animeArtworkURL
+                        }
                         return (nextIndex, TMDBSearchResult(
                             id: nextResult.id, mediaType: nextResult.mediaType,
                             title: nextResult.title, name: nextResult.name,
@@ -2328,7 +2383,7 @@ private struct BrowseMediaView: View {
                                 anilistId: anilistID, malId: mapping?.malId,
                                 kitsuId: mapping?.kitsuId, format: mapping?.mediaType
                             ),
-                            animeArtworkURL: identity?.posterURL ?? nextResult.animeArtworkURL
+                            animeArtworkURL: artworkURL
                         ))
                     }
                 }
@@ -2360,16 +2415,40 @@ private struct BrowseMediaView: View {
         }
         guard !Task.isCancelled else { return [] }
 
-        await TMDBMaturityRatingStore.shared.resolve(
+        // Resolve both sources concurrently: anime age classifications come
+        // from Taizen/MAL, while TMDB supplies national movie/TV certifications.
+        async let tmdbRatingResolution: Void = TMDBMaturityRatingStore.shared.resolve(
             typeFiltered.map { (isMovie: $0.isMovie, id: $0.id) }
         )
+        async let animeRatingResolution = resolveBrowseAnimeAgeRatings(
+            typeFiltered,
+            mediaType: mediaType
+        )
+        await tmdbRatingResolution
+        let animeRatingsByID = await animeRatingResolution
         guard !Task.isCancelled else { return [] }
+
         return typeFiltered.filter { result in
             let hasExplicitContent = result.adult == true
                 || (mediaType.isAnime && TMDBContentFilter.hasExplicitAnimeMetadata(result))
-            let rating = TMDBMaturityRatingStore.shared.rating(isMovie: result.isMovie, id: result.id)
+            let tmdbRating = TMDBMaturityRatingStore.shared.rating(isMovie: result.isMovie, id: result.id)
+            let animeRating = result.animeIdentitySeed.flatMap { animeRatingsByID[$0.anilistId] }
+            let verifiedAnimeRating = animeRating.flatMap { $0 == .unknown ? nil : $0 }
+            let rating = mediaType.isAnime
+                ? (verifiedAnimeRating ?? tmdbRating)
+                : tmdbRating
             return ageRating.includes(rating, hasExplicitContent: hasExplicitContent)
         }
+    }
+
+    private func resolveBrowseAnimeAgeRatings(
+        _ results: [TMDBSearchResult],
+        mediaType: BrowseMediaType
+    ) async -> [Int: MaturityRating] {
+        guard mediaType.isAnime else { return [:] }
+        let identifiers = Array(Set(results.compactMap { $0.animeIdentitySeed?.anilistId }))
+        guard !identifiers.isEmpty, !Task.isCancelled else { return [:] }
+        return (try? await TaizenAnimeAgeRatingService.shared.ratings(anilistIDs: identifiers)) ?? [:]
     }
 
     private func animeLanguage(for countries: [String]) -> String? {

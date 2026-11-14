@@ -5456,6 +5456,7 @@ private struct LanguageFiltersSettingsView: View {
 
 
 private struct ReleaseDateFiltersSettingsView: View {
+    @AppStorage("catalogHideUnofficialContent", store: .standard) private var hideUnofficialContent = false
     @AppStorage("catalogHidePre1994Anime", store: .standard) private var hidePre1994Anime = false
     @AppStorage("catalogHidePre1994Movies", store: .standard) private var hidePre1994Movies = false
     @AppStorage("catalogHidePre1994TVShows", store: .standard) private var hidePre1994TVShows = false
@@ -5478,6 +5479,12 @@ private struct ReleaseDateFiltersSettingsView: View {
             }
 
             Section {
+                Toggle("Hide fan-made and YouTuber productions", isOn: $hideUnofficialContent)
+            } footer: {
+                Text("Uses title and description indicators such as fan-made, unofficial, YouTuber and YouTube-original. This is a best-effort metadata filter; entries without those indicators may remain visible.")
+            }
+
+            Section {
                 Toggle("Hide upcoming anime", isOn: $hideUnreleasedAnime)
                 Toggle("Hide upcoming movies", isOn: $hideUnreleasedMovies)
                 Toggle("Hide upcoming TV shows", isOn: $hideUnreleasedTVShows)
@@ -5485,6 +5492,7 @@ private struct ReleaseDateFiltersSettingsView: View {
                 Text("Hides titles with an officially announced release or first-air date in the future. Titles without a confirmed date are not treated as upcoming.")
             }
         }
+        .onChange(of: hideUnofficialContent) { _ in filtersDidChange() }
         .onChange(of: hidePre1994Anime) { _ in filtersDidChange() }
         .onChange(of: hidePre1994Movies) { _ in filtersDidChange() }
         .onChange(of: hidePre1994TVShows) { _ in filtersDidChange() }
