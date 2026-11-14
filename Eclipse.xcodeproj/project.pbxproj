@@ -1171,7 +1171,6 @@
 			children = (
 				1375466F2E5F079000B29944 /* Progress */,
 				AA9999902F10000000AA9990 /* Trackers */,
-				9C50A0010000000000000005 /* TrackerCloudSync.swift */,
 			);
 			path = Tracking;
 			sourceTree = "<group>";
@@ -1548,8 +1547,6 @@
 				259D916F531EA2DD391F08CE /* MediaDetailAppearanceSettings.swift */,
 				E6C1F0000000000000000002 /* MediaStateModels.swift */,
 				E6C1F0000000000000000003 /* MediaStateSync.swift */,
-				A5C900010000000000000003 /* AnimeScheduleService.swift */,
-				81ECB804A2424540A60DFE91 /* TrackerCollectionView.swift */,
 			);
 			path = Eclipse;
 			sourceTree = "<group>";
