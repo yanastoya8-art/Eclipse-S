@@ -368,6 +368,7 @@ final class ScheduleViewModel: ObservableObject {
     private var animeScheduleLoadID: UUID?
     private var animeScheduleCachedPolicyKey: String?
     private var animeScheduleLoadPolicyKey: String?
+    private var animeScheduleLastFailurePolicyKey: String?
     private var westernScheduleEntries: [ScheduleEntry]?
     private var westernScheduleFetchedAt: Date?
     private var westernScheduleDayCount = 0
@@ -791,7 +792,9 @@ final class ScheduleViewModel: ObservableObject {
             return try await animeEntries(dayCount: dayCount, forceRefresh: forceRefresh)
         }
 
-        if !forceRefresh, retryIsCoolingDown(since: animeScheduleLastFailureAt) {
+        if !forceRefresh,
+           animeScheduleLastFailurePolicyKey == policyKey,
+           retryIsCoolingDown(since: animeScheduleLastFailureAt) {
             throw ScheduleSourceLoadError.retryDeferred(ScheduleSource.anime.displayName)
         }
 
@@ -847,6 +850,7 @@ final class ScheduleViewModel: ObservableObject {
 
                     self.animeScheduleFetchedAt = fetchStartedAt
                     self.animeScheduleLastFailureAt = nil
+                    self.animeScheduleLastFailurePolicyKey = nil
                     self.animeScheduleLoadTask = nil
                     self.animeScheduleLoadID = nil
                 }
@@ -854,6 +858,7 @@ final class ScheduleViewModel: ObservableObject {
             } catch {
                 if self.animeScheduleLoadID == loadID {
                     self.animeScheduleLastFailureAt = Date()
+                    self.animeScheduleLastFailurePolicyKey = policyKey
                     self.animeScheduleLoadTask = nil
                     self.animeScheduleLoadID = nil
                     self.animeScheduleLoadPolicyKey = nil
