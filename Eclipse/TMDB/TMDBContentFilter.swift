@@ -714,6 +714,9 @@ class TMDBContentFilter: ObservableObject {
         if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
             Task(priority: .utility) { await self.resolveRuntimeMetadata(for: movies.map(\.asSearchResult)) }
         }
+        if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
+            scheduleAnimeAudioMetadataResolutionIfNeeded(for: movies.map(\.asSearchResult))
+        }
         return movies.filter { movie in
             guard !UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent")
                 || !Self.isUnofficialCreatorContent(title: movie.title, overview: movie.overview) else { return false }
@@ -756,6 +759,9 @@ class TMDBContentFilter: ObservableObject {
     func filterTVShows(_ tvShows: [TMDBTVShow]) -> [TMDBTVShow] {
         if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
             Task(priority: .utility) { await self.resolveRuntimeMetadata(for: tvShows.map(\.asSearchResult)) }
+        }
+        if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
+            scheduleAnimeAudioMetadataResolutionIfNeeded(for: tvShows.map(\.asSearchResult))
         }
         return tvShows.filter { tvShow in
             guard !UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent")
@@ -1130,31 +1136,41 @@ class TMDBContentFilter: ObservableObject {
     }
 
     private func shouldIncludeAnimeCategoryFilters(_ result: TMDBSearchResult) -> Bool {
-        let defaults = UserDefaults.standard
+        !Self.shouldExcludeAnimeCategory(
+            title: result.displayTitle,
+            overview: result.overview
+        )
+    }
+
+    static func shouldExcludeAnimeCategory(
+        title: String,
+        overview: String? = nil,
+        defaults: UserDefaults = .standard
+    ) -> Bool {
         guard defaults.bool(forKey: "catalogHideHentai")
                 || defaults.bool(forKey: "catalogHideYuri")
-                || defaults.bool(forKey: "catalogHideYaoi") else { return true }
-        let metadata = [result.displayTitle, result.overview ?? ""].joined(separator: " ")
+                || defaults.bool(forKey: "catalogHideYaoi") else { return false }
+        let metadata = [title, overview ?? ""].joined(separator: " ")
         if defaults.bool(forKey: "catalogHideHentai"),
-           Self.containsBlockedCatalogText(metadata, blockedTerms: [
+           containsBlockedCatalogText(metadata, blockedTerms: [
                 "hentai", "ova hentai", "adult anime", "adult animation",
                 "r18", "r 18", "pornographic", "pornography"
            ]) {
-            return false
+            return true
         }
         if defaults.bool(forKey: "catalogHideYuri"),
-           Self.containsBlockedCatalogText(metadata, blockedTerms: [
+           containsBlockedCatalogText(metadata, blockedTerms: [
                 "yuri", "girls love", "girl love", "shoujo ai", "shojo ai"
            ]) {
-            return false
+            return true
         }
         if defaults.bool(forKey: "catalogHideYaoi"),
-           Self.containsBlockedCatalogText(metadata, blockedTerms: [
+           containsBlockedCatalogText(metadata, blockedTerms: [
                 "yaoi", "boys love", "boy love", "shounen ai", "shonen ai"
            ]) {
-            return false
+            return true
         }
-        return true
+        return false
     }
 
     private static func isAnimeResult(_ result: TMDBSearchResult) -> Bool {
