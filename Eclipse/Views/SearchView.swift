@@ -2415,20 +2415,17 @@ private struct BrowseMediaView: View {
         }
         guard !Task.isCancelled else { return [] }
 
-        await TMDBMaturityRatingStore.shared.resolve(
+        // Resolve both sources concurrently: anime age classifications come
+        // from Taizen/MAL, while TMDB supplies national movie/TV certifications.
+        async let tmdbRatingResolution: Void = TMDBMaturityRatingStore.shared.resolve(
             typeFiltered.map { (isMovie: $0.isMovie, id: $0.id) }
         )
-        guard !Task.isCancelled else { return [] }
-
-        // Anime's age system is MyAnimeList/ Taizen, not a national TV
-        // certification. Use it when TMDB has no usable certification.
-        var animeRatingsByID: [Int: MaturityRating] = [:]
-        if mediaType.isAnime {
-            let animeIDs = Array(Set(typeFiltered.compactMap { $0.animeIdentitySeed?.anilistId }))
-            if !animeIDs.isEmpty {
-                animeRatingsByID = (try? await TaizenAnimeAgeRatingService.shared.ratings(anilistIDs: animeIDs)) ?? [:]
-            }
-        }
+        async let animeRatingResolution = resolveBrowseAnimeAgeRatings(
+            typeFiltered,
+            mediaType: mediaType
+        )
+        await tmdbRatingResolution
+        let animeRatingsByID = await animeRatingResolution
         guard !Task.isCancelled else { return [] }
 
         return typeFiltered.filter { result in
@@ -2439,6 +2436,16 @@ private struct BrowseMediaView: View {
             let rating = (tmdbRating == nil || tmdbRating == .unknown) ? animeRating : tmdbRating
             return ageRating.includes(rating, hasExplicitContent: hasExplicitContent)
         }
+    }
+
+    private func resolveBrowseAnimeAgeRatings(
+        _ results: [TMDBSearchResult],
+        mediaType: BrowseMediaType
+    ) async -> [Int: MaturityRating] {
+        guard mediaType.isAnime else { return [:] }
+        let identifiers = Array(Set(results.compactMap { $0.animeIdentitySeed?.anilistId }))
+        guard !identifiers.isEmpty, !Task.isCancelled else { return [:] }
+        return (try? await TaizenAnimeAgeRatingService.shared.ratings(anilistIDs: identifiers)) ?? [:]
     }
 
     private func animeLanguage(for countries: [String]) -> String? {
