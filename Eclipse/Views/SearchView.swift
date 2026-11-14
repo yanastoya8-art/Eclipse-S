@@ -2435,7 +2435,7 @@ private struct BrowseMediaView: View {
             let hasExplicitContent = result.adult == true
                 || (mediaType.isAnime && TMDBContentFilter.hasExplicitAnimeMetadata(result))
             let tmdbRating = TMDBMaturityRatingStore.shared.rating(isMovie: result.isMovie, id: result.id)
-            let animeRating = result.animeIdentitySeed?.anilistId.flatMap { animeRatingsByID[$0] }
+            let animeRating = result.animeIdentitySeed.flatMap { animeRatingsByID[$0.anilistId] }
             let rating = (tmdbRating == nil || tmdbRating == .unknown) ? animeRating : tmdbRating
             return ageRating.includes(rating, hasExplicitContent: hasExplicitContent)
         }
