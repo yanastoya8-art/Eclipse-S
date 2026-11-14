@@ -20,7 +20,7 @@ final class MaturityRatingRegionTests: XCTestCase {
     }
 
     func testIndianParentalGuidanceAndRestrictedTiers() {
-        XCTAssertEqual(MaturityRating.classify(certification: "UA", region: "IN"), .teen)
+        XCTAssertEqual(MaturityRating.classify(certification: "UA", region: "IN"), .age12)
         XCTAssertEqual(MaturityRating.classify(certification: "S", region: "IN"), .adult)
         XCTAssertEqual(MaturityRating.classify(certification: "U", region: "IN"), .general)
     }
@@ -67,7 +67,7 @@ final class MaturityRatingRegionTests: XCTestCase {
         XCTAssertEqual(MaturityRating.classify(certification: "PG18"), .adult)
         XCTAssertEqual(MaturityRating.classify(certification: "PG15"), .mature)
         XCTAssertEqual(MaturityRating.classify(certification: "PG13"), .teen)
-        XCTAssertEqual(MaturityRating.classify(certification: "PG12"), .teen)
+        XCTAssertEqual(MaturityRating.classify(certification: "PG12"), .age12)
     }
 
     func testBarePGIsStillGeneral() {
@@ -77,7 +77,7 @@ final class MaturityRatingRegionTests: XCTestCase {
 
     func testPG13AndTV14MeetTeenCatalogThreshold() {
         XCTAssertEqual(MaturityRating.classify(certification: "PG-13"), .teen)
-        XCTAssertEqual(MaturityRating.classify(certification: "TV-14"), .teen)
+        XCTAssertEqual(MaturityRating.classify(certification: "TV-14"), .age14)
         XCTAssertEqual(MaturityRating.classify(certification: "PG"), .general)
         XCTAssertEqual(MaturityRating.classify(certification: "TV-PG"), .general)
         XCTAssertEqual(MaturityRating.classify(certification: "G"), .general)
@@ -88,8 +88,8 @@ final class MaturityRatingRegionTests: XCTestCase {
         XCTAssertEqual(MaturityRating.classify(certification: "G"), .general)
         XCTAssertEqual(MaturityRating.classify(certification: "PG"), .general)
         XCTAssertEqual(MaturityRating.classify(certification: "PG-13"), .teen)
-        XCTAssertEqual(MaturityRating.classify(certification: "R"), .mature)
-        XCTAssertEqual(MaturityRating.classify(certification: "R+"), .mature)
+        XCTAssertEqual(MaturityRating.classify(certification: "R"), .age17)
+        XCTAssertEqual(MaturityRating.classify(certification: "R+"), .age17)
         XCTAssertEqual(MaturityRating.classify(certification: "Rx"), .adult)
     }
 
@@ -102,7 +102,7 @@ final class MaturityRatingRegionTests: XCTestCase {
     }
 
     func testCommonBoardsAreUnaffectedByTheRegionParameter() {
-        XCTAssertEqual(MaturityRating.classify(certification: "TV-MA", region: "US"), .mature)
+        XCTAssertEqual(MaturityRating.classify(certification: "TV-MA", region: "US"), .age17)
         XCTAssertEqual(MaturityRating.classify(certification: "R", region: "US"), .mature)
         XCTAssertEqual(MaturityRating.classify(certification: "NC-17", region: "US"), .adult)
         XCTAssertEqual(MaturityRating.classify(certification: "18", region: "GB"), .adult)
@@ -179,8 +179,9 @@ final class MaturityRatingRegionTests: XCTestCase {
         ])
         let movie = try JSONDecoder().decode(TMDBReleaseDates.self, from: movieData)
         let television = TMDBContentRatings(results: [
-            TMDBContentRating(descriptors: nil, iso31661: "US", rating: "TV-14"),
-            TMDBContentRating(descriptors: nil, iso31661: "US", rating: "TV-MA")
+            TMDBContentRating(descriptors: nil, iso31661: "US", rating: "TV-MA"),
+            TMDBContentRating(descriptors: nil, iso31661: "GB", rating: "12"),
+            TMDBContentRating(descriptors: nil, iso31661: "DE", rating: "16")
         ])
 
         XCTAssertEqual(movie.certificationsByRegion["US"]?.count, 3)
@@ -189,11 +190,36 @@ final class MaturityRatingRegionTests: XCTestCase {
             movie.preferredCertification?.rating,
             MaturityRating.classify(certificationsByRegion: movie.certificationsByRegion)
         )
-        XCTAssertEqual(television.preferredCertification?.value, "TV-MA")
+        XCTAssertEqual(television.preferredCertification?.value, "12")
+        XCTAssertEqual(television.preferredCertification?.region, "GB")
+        XCTAssertNil(TMDBContentRatings(results: [
+            TMDBContentRating(descriptors: nil, iso31661: "US", rating: "TV-MA")
+        ]).preferredCertification, "TV age ratings must not fall back to a US provider")
         XCTAssertEqual(
             television.preferredCertification?.rating,
-            MaturityRating.classify(certificationsByRegion: television.certificationsByRegion)
+            MaturityRating.preferredEuropeanCertification(certificationsByRegion: television.certificationsByRegion)?.rating
         )
+    }
+
+
+    func testThirteenPlusThresholdDistinguishesTwelveFromThirteen() {
+        XCTAssertLessThan(MaturityRating.age12, MaturityRating.teen)
+        XCTAssertEqual(MaturityRating.classify(certification: "12", region: "GB"), .age12)
+        XCTAssertEqual(MaturityRating.classify(certification: "13"), .teen)
+        XCTAssertEqual(MaturityRating.classify(certification: "14"), .age14)
+    }
+
+    func testTelevisionCertificationUsesEuropeanProvidersOnly() throws {
+        let mixed = TMDBContentRatings(results: [
+            TMDBContentRating(descriptors: nil, iso31661: "US", rating: "TV-MA"),
+            TMDBContentRating(descriptors: nil, iso31661: "GB", rating: "12")
+        ])
+        let selected = try XCTUnwrap(mixed.preferredCertification)
+        XCTAssertEqual(selected.region, "GB")
+        XCTAssertEqual(selected.value, "12")
+        XCTAssertNil(TMDBContentRatings(results: [
+            TMDBContentRating(descriptors: nil, iso31661: "US", rating: "TV-MA")
+        ]).preferredCertification)
     }
 
     func testFullKidsPolicyRejectsAdultAndBlockedGenreSignals() {
@@ -469,7 +495,7 @@ final class MaturityRatingRegionTests: XCTestCase {
         XCTAssertFalse(TMDBDiscoverFilterPolicy.hasMorePages(requestedPage: 1, totalPages: 0))
     }
     func testRegionalBoardsUseTheirOwnAgeScales() {
-        XCTAssertEqual(MaturityRating.classify(certification: "12A", region: "GB"), .teen)
+        XCTAssertEqual(MaturityRating.classify(certification: "12A", region: "GB"), .age12)
         XCTAssertEqual(MaturityRating.classify(certification: "15", region: "GB"), .mature)
         XCTAssertEqual(MaturityRating.classify(certification: "R18", region: "GB"), .adult)
 
@@ -477,12 +503,12 @@ final class MaturityRatingRegionTests: XCTestCase {
         XCTAssertEqual(MaturityRating.classify(certification: "16", region: "ES"), .mature)
         XCTAssertEqual(MaturityRating.classify(certification: "18", region: "ES"), .adult)
 
-        XCTAssertEqual(MaturityRating.classify(certification: "PG12", region: "JP"), .teen)
+        XCTAssertEqual(MaturityRating.classify(certification: "PG12", region: "JP"), .age12)
         XCTAssertEqual(MaturityRating.classify(certification: "R15+", region: "JP"), .mature)
         XCTAssertEqual(MaturityRating.classify(certification: "R18+", region: "JP"), .adult)
 
-        XCTAssertEqual(MaturityRating.classify(certification: "12", region: "DE"), .teen)
-        XCTAssertEqual(MaturityRating.classify(certification: "16", region: "DE"), .mature)
+        XCTAssertEqual(MaturityRating.classify(certification: "12", region: "DE"), .age12)
+        XCTAssertEqual(MaturityRating.classify(certification: "16", region: "DE"), .age16)
         XCTAssertEqual(MaturityRating.classify(certification: "18", region: "DE"), .adult)
 
         XCTAssertEqual(MaturityRating.classify(certification: "PG13", region: "SG"), .teen)
@@ -492,8 +518,8 @@ final class MaturityRatingRegionTests: XCTestCase {
 
     func testBulgarianNationalAgeCategoriesAreMappedCorrectly() {
         XCTAssertEqual(MaturityRating.classify(certification: "A", region: "BG"), .general)
-        XCTAssertEqual(MaturityRating.classify(certification: "B", region: "BG"), .teen)
-        XCTAssertEqual(MaturityRating.classify(certification: "C", region: "BG"), .mature)
+        XCTAssertEqual(MaturityRating.classify(certification: "B", region: "BG"), .age12)
+        XCTAssertEqual(MaturityRating.classify(certification: "C", region: "BG"), .age16)
         XCTAssertEqual(MaturityRating.classify(certification: "D", region: "BG"), .adult)
         XCTAssertEqual(MaturityRating.classify(certification: "X", region: "BG"), .adult)
     }
