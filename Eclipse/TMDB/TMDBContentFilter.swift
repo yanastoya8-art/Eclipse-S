@@ -368,6 +368,10 @@ class TMDBContentFilter: ObservableObject {
     @Published var filterHorror: Bool {
         didSet {
             ProfileSettingsStore.active.set(filterHorror, forKey: "filterHorror")
+            NotificationCenter.default.post(
+                name: Self.catalogFiltersDidChangeNotification,
+                object: nil
+            )
         }
     }
 
@@ -454,6 +458,10 @@ class TMDBContentFilter: ObservableObject {
             .sink { [weak self] revision in
                 guard let self, self.isKidsProfileActive else { return }
                 self.maturityRatingRevision = revision
+                NotificationCenter.default.post(
+                    name: Self.catalogFiltersDidChangeNotification,
+                    object: nil
+                )
             }
             .store(in: &cancellables)
     }
