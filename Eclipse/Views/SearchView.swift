@@ -431,6 +431,16 @@ struct SearchView: View {
                 performSearch(force: true)
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: TMDBContentFilter.catalogFiltersDidChangeNotification)) { _ in
+            guard !searchResults.isEmpty else { return }
+            let snapshot = searchResults
+            Task { @MainActor in
+                await contentFilter.prepareMaturityRatings(for: snapshot)
+                // Trigger a derived-results refresh only. Keep the source
+                // result array intact so SwiftUI preserves the scroll anchor.
+                filterRefreshRevision &+= 1
+            }
+        }
         .onAppear {
 #if os(tvOS)
             tvSearchIsVisible = true
