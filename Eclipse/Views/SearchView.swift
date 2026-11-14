@@ -2281,9 +2281,8 @@ private struct BrowseMediaView: View {
                 || (result.genreIds?.contains(16) == true
                     && (["ja", "zh", "ko"].contains(baseLanguage)
                         || result.originCountry?.contains(where: { ["JP", "CN", "KR", "TW"].contains($0) }) == true))
-            // AnimeList artwork is the preferred anime poster even when TMDB
-            // already supplied an image. TMDB remains the fallback if AniList
-            // has no matching cover.
+            // Taizen's fanart.tv poster is preferred for anime even when TMDB
+            // already supplied an image. AniList remains the fallback.
             return needsDubIdentity || needsAudioIdentity || likelyAnime || result.fullPosterURL == nil
         }
         guard !candidates.isEmpty else { return results }
@@ -2294,7 +2293,7 @@ private struct BrowseMediaView: View {
             }
         }
 
-        return await withTaskGroup(of: (Int, TMDBSearchResult).self) { group in
+        let resolvedResults = await withTaskGroup(of: (Int, TMDBSearchResult).self) { group in
             var iterator = candidates.makeIterator()
             // Cached mappings are cheap; modestly increase parallel resolution so
             // dub-filtered pages do not serialize behind a handful of slow lookups.
@@ -2347,7 +2346,8 @@ private struct BrowseMediaView: View {
                             kitsuId: mapping?.kitsuId,
                             format: mapping?.mediaType
                         ),
-                        animeArtworkURL: artworkURL
+                        animeArtworkURL: artworkURL,
+                        animeLogoURL: result.animeLogoURL
                     )
                     return (index, enriched)
                 }
@@ -2394,7 +2394,8 @@ private struct BrowseMediaView: View {
                                 kitsuId: nextResult.animeIdentitySeed?.kitsuId ?? mapping?.kitsuId,
                                 format: nextResult.animeIdentitySeed?.format ?? mapping?.mediaType
                             ),
-                            animeArtworkURL: artworkURL
+                            animeArtworkURL: artworkURL,
+                            animeLogoURL: nextResult.animeLogoURL
                         ))
                     }
                 }
@@ -2402,6 +2403,17 @@ private struct BrowseMediaView: View {
             return results.enumerated().map { index, result in
                 resolvedByIndex[index] ?? result
             }
+        }
+
+        let taizenArtwork = await TaizenAnimeArtworkService.shared.artworks(
+            forAniListIDs: resolvedResults.compactMap { $0.animeIdentitySeed?.anilistId }
+        )
+        return resolvedResults.map { result in
+            guard let anilistID = result.animeIdentitySeed?.anilistId,
+                  let artwork = taizenArtwork[anilistID] else { return result }
+            return result
+                .withAnimeArtworkURL(artwork.posterURL ?? result.animeArtworkURL)
+                .withAnimeLogoURL(artwork.logoURL ?? result.animeLogoURL)
         }
     }
 
