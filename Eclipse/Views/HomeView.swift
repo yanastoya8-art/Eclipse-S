@@ -1360,7 +1360,10 @@ struct HomeView: View {
             Color.clear
                 .navigationDestination(isPresented: $showingHeroDetail) {
                     if let selectedHeroForDetail {
-                        MediaDetailView(searchResult: selectedHeroForDetail)
+                        MediaDetailView(
+                            searchResult: selectedHeroForDetail,
+                            preloadedArtworkURL: heroImageURL(for: selectedHeroForDetail)
+                        )
                     }
                 }
         } else {
@@ -1368,7 +1371,10 @@ struct HomeView: View {
                 isActive: $showingHeroDetail,
                 destination: {
                     if let selectedHeroForDetail {
-                        MediaDetailView(searchResult: selectedHeroForDetail)
+                        MediaDetailView(
+                            searchResult: selectedHeroForDetail,
+                            preloadedArtworkURL: heroImageURL(for: selectedHeroForDetail)
+                        )
                     }
                 },
                 label: { EmptyView() }
