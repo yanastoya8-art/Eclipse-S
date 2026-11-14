@@ -441,7 +441,6 @@ struct SettingsGradientBackground: View {
     @Environment(\.scenePhase) private var scenePhase
     @ObservedObject private var theme = EclipseTheme.shared
     @AppStorage(HomeAnimatedBackgroundSettings.enabledKey) private var animatedBackgroundEnabled = HomeAnimatedBackgroundSettings.defaultEnabled
-    @State private var isVisible = false
     var allowsAnimatedBackground: Bool = true
 
     @ViewBuilder
@@ -453,12 +452,10 @@ struct SettingsGradientBackground: View {
                         topClearance: 0,
                         ambientColor: nil,
                         accentColor: theme.scopedGradientColor(),
-                        motionEnabled: !reduceMotion && scenePhase == .active && isVisible
+                        motionEnabled: !reduceMotion && scenePhase == .active
                     )
                 }
             }
-            .onAppear { isVisible = true }
-            .onDisappear { isVisible = false }
     }
 
     @ViewBuilder
