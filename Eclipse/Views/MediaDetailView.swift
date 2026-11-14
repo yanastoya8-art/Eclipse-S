@@ -1054,7 +1054,7 @@ struct MediaDetailContentView: View {
 #endif
         }
         .onAppear { detailViewportSize = geometry.size }
-        .onChange(of: geometry.size) { _, newSize in
+        .onChangeComp(of: geometry.size) { _, newSize in
             detailViewportSize = newSize
         }
         }
