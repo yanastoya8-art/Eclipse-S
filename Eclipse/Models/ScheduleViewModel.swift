@@ -20,7 +20,7 @@ enum ScheduleMode: String, CaseIterable, Identifiable, Sendable {
         case .anime:
             return "Anime"
         case .western:
-            return "Western"
+            return "Series"
         case .movies:
             return "Movies"
         case .combined:
@@ -33,11 +33,11 @@ enum ScheduleMode: String, CaseIterable, Identifiable, Sendable {
         case .anime:
             return nil
         case .western:
-            return "Western TV and streaming episodes from Trakt."
+            return "Upcoming TV and streaming series episodes."
         case .movies:
             return "Upcoming non-anime movie releases, including selected dubbed-language dates."
         case .combined:
-            return "Anime and Western episodes together."
+            return "Anime and series episodes together."
         }
     }
 
@@ -303,6 +303,31 @@ struct ScheduleEntry: Identifiable, Sendable {
         originalLanguage = movie.primaryLanguageCode?.lowercased()
         releaseYear = movie.year
         runtimeMinutes = movie.runtime
+        isMovie = true
+    }
+
+    fileprivate init(tmdbUpcomingMovie movie: TMDBMovie, releaseDate: Date) {
+        animeMALID = nil
+        airingTimeWithdrawn = false
+        id = "tmdb-upcoming-movie-\(movie.id)-\(movie.releaseDate ?? "")"
+        source = .western
+        provider = .traktMovie
+        sourceMediaId = movie.id
+        title = movie.title
+        airingAt = releaseDate
+        episode = 0
+        season = nil
+        coverImage = movie.fullPosterURL
+        englishTitle = movie.title
+        romajiTitle = nil
+        nativeTitle = nil
+        format = "MOVIE"
+        hasKnownAiringTime = false
+        isStreamingRelease = false
+        tmdbId = movie.id
+        originalLanguage = movie.originalLanguage?.lowercased()
+        releaseYear = Calendar(identifier: .gregorian).component(.year, from: releaseDate)
+        runtimeMinutes = nil
         isMovie = true
     }
 
@@ -904,8 +929,18 @@ final class ScheduleViewModel: ObservableObject {
             throw ScheduleSourceLoadError.retryDeferred("Movies")
         }
         do {
-            let rawEntries = try await retryOnceAfterTransientCancellation(operationName: "Trakt movie calendar") {
-                try await TraktScheduleService.shared.fetchMovieSchedule(dayCount: dayCount)
+            let rawEntries: [ScheduleEntry]
+            do {
+                rawEntries = try await retryOnceAfterTransientCancellation(operationName: "Trakt movie calendar") {
+                    try await TraktScheduleService.shared.fetchMovieSchedule(dayCount: dayCount)
+                }
+            } catch {
+                try Task.checkCancellation()
+                Logger.shared.log(
+                    "Trakt movie calendar unavailable; using TMDB upcoming releases: \(error.localizedDescription)",
+                    type: "Schedule"
+                )
+                rawEntries = try await tmdbUpcomingMovieEntries(in: window)
             }
             try Task.checkCancellation()
             let languageFiltered = await JustWatchScheduleService.shared.filterMovies(
@@ -923,6 +958,27 @@ final class ScheduleViewModel: ObservableObject {
             movieScheduleLastFailureAt = Date()
             throw error
         }
+    }
+
+    private func tmdbUpcomingMovieEntries(in window: DateInterval) async throws -> [ScheduleEntry] {
+        let movies = try await TMDBService.shared.getUpcomingMovies(page: 1)
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+
+        return movies.compactMap { movie in
+            guard let rawDate = movie.releaseDate,
+                  let releaseDate = formatter.date(from: rawDate),
+                  releaseDate >= window.start,
+                  releaseDate < window.end,
+                  !MovieSchedulePolicy.isAnime(
+                    language: movie.originalLanguage,
+                    genres: (movie.genreIds ?? []).map(String.init)
+                  ) else { return nil }
+            return ScheduleEntry(tmdbUpcomingMovie: movie, releaseDate: releaseDate)
+        }
+        .sorted { $0.airingAt < $1.airingAt }
     }
 
     private func applyShortRuntimeScheduleFilter(_ entries: [ScheduleEntry]) async -> [ScheduleEntry] {
