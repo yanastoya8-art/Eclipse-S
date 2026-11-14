@@ -3235,11 +3235,11 @@ struct AnimeScheduleSettingsView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             } footer: {
-                Text("AnimeSchedule.net requires an application token. Create an application in your AnimeSchedule account, then paste its token here. The token is stored in this device's Keychain.")
+                Text("Paste your AnimeSchedule API token here. It is stored securely in this device's Keychain. Without a token, the schedule uses AniList broadcast dates instead of English dub release dates.")
             }
 
             Section {
-                Link("AnimeSchedule API documentation", destination: URL(string: "https://animeschedule.net")!)
+                Link("AnimeSchedule website", destination: URL(string: "https://animeschedule.net")!)
             }
         }
         .navigationTitle("English Dub Schedule")
