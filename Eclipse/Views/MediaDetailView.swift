@@ -2502,7 +2502,7 @@ struct MediaDetailContentView: View {
                     // Reserve their full display height before placing metadata/actions.
                     Spacer(minLength: 0)
                         .frame(height: usesWideDetailLayout
-                            ? headerHeight * 0.70
+                            ? headerHeight * 0.78
                             : min(EclipseViewport.bounds.width * 1.5, headerHeight - 40))
                     headerSection
                         .frame(maxWidth: .infinity, alignment: usesLandscapeDetailComposition ? .center : (usesWideDetailLayout ? .trailing : .center))
@@ -2530,7 +2530,10 @@ struct MediaDetailContentView: View {
                 },
                 placeholderColor: shouldAnalyzeAlternatePoster ? .clear : Color.gray.opacity(0.3),
                 fallbackImageURLs: detailHeroFallbackImageURLs,
-                preservesArtworkComposition: true
+                // Portrait covers keep their native composition; wide
+                // layouts fill the banner so a portrait fallback does not
+                // leave empty bands around the artwork.
+                preservesArtworkComposition: !usesWideDetailLayout
             )
 #if DEBUG
             if ProcessInfo.processInfo.environment["ECLIPSE_UI_POSTER_AUDIT"] == "1" {
@@ -2774,8 +2777,8 @@ struct MediaDetailContentView: View {
                 : (usesWideDetailLayout ? 520 : .infinity),
             alignment: .center
         )
-        .padding(.top, usesWideDetailLayout ? 24 : 0)
-        .padding(.bottom, isTvOS ? 60 : (usesWideDetailLayout ? 24 : 34))
+        .padding(.top, usesWideDetailLayout ? 36 : 42)
+        .padding(.bottom, isTvOS ? 60 : (usesWideDetailLayout ? 30 : 42))
         .background {
             if usesWideDetailLayout && !usesLandscapeDetailComposition {
                 RoundedRectangle(cornerRadius: 28, style: .continuous)
