@@ -743,6 +743,70 @@ struct SearchView: View {
         }
     }
 
+    private func resolveSearchAnimeIdentities(_ results: [TMDBSearchResult]) async -> [TMDBSearchResult] {
+        let candidates = results.enumerated().filter { _, result in
+            guard result.animeIdentitySeed == nil else { return false }
+            let language = result.originalLanguage?.lowercased() ?? ""
+            let countryMatch = result.originCountry?.contains(where: { ["JP", "CN", "KR", "TW"].contains($0) }) == true
+            let languageMatch = ["ja", "zh", "ko"].contains(language)
+            return result.isAnimeHint == true
+                || (result.genreIds?.contains(16) == true && (countryMatch || languageMatch))
+        }
+        guard !candidates.isEmpty else { return results }
+
+        await AniMapMappingService.shared.prepareGlobalIndexIfNeeded()
+        return await withTaskGroup(of: (Int, TMDBSearchResult).self) { group in
+            for (index, result) in candidates {
+                group.addTask {
+                    let mappings = await AniMapMappingService.shared.mappings(forTMDBShowId: result.id)
+                    let mapping = mappings
+                        .filter { $0.mediaType?.lowercased() != "movie" }
+                        .first { $0.anilistId != nil }
+                        ?? mappings.first { $0.anilistId != nil }
+                    guard let anilistID = mapping?.anilistId, anilistID > 0 else {
+                        return (index, result)
+                    }
+                    let enriched = TMDBSearchResult(
+                        id: result.id,
+                        mediaType: result.mediaType,
+                        title: result.title,
+                        name: result.name,
+                        overview: result.overview,
+                        posterPath: result.posterPath,
+                        backdropPath: result.backdropPath,
+                        releaseDate: result.releaseDate,
+                        firstAirDate: result.firstAirDate,
+                        voteAverage: result.voteAverage,
+                        popularity: result.popularity,
+                        adult: result.adult,
+                        genreIds: result.genreIds,
+                        originalLanguage: result.originalLanguage,
+                        originCountry: result.originCountry,
+                        voteCount: result.voteCount,
+                        isAnimeHint: true,
+                        animeIdentitySeed: AnimeMediaIdentitySeed(
+                            anilistId: anilistID,
+                            malId: mapping?.malId,
+                            kitsuId: mapping?.kitsuId,
+                            format: mapping?.mediaType
+                        ),
+                        animeArtworkURL: result.animeArtworkURL,
+                        animeLogoURL: result.animeLogoURL,
+                        tvMazePosterURL: result.tvMazePosterURL,
+                        fanartTVPosterURL: result.fanartTVPosterURL
+                    )
+                    return (index, enriched)
+                }
+            }
+
+            var resolved = results
+            for await (index, result) in group {
+                resolved[index] = result
+            }
+            return resolved
+        }
+    }
+
     private func performSearch(force: Bool = false) {
         pendingSearchTask?.cancel()
 
@@ -765,14 +829,19 @@ struct SearchView: View {
         Task {
             do {
                 let results = try await tmdbService.searchMulti(query: query)
-                await contentFilter.prepareMaturityRatings(for: results)
+                let identityResolvedResults = await resolveSearchAnimeIdentities(results)
+                if !MyDubListDubFilter.shared.selectedLanguages.isEmpty,
+                   !MyDubListDubFilter.shared.prepareCachedSnapshot() {
+                    _ = await MyDubListDubFilter.shared.refresh()
+                }
+                await contentFilter.prepareMaturityRatings(for: identityResolvedResults)
 
                 await MainActor.run {
                     guard serial == searchRequestSerial,
                           searchText.trimmingCharacters(in: .whitespacesAndNewlines).caseInsensitiveCompare(query) == .orderedSame else {
                         return
                     }
-                    let filteredResults = contentFilter.filterSearchResults(results)
+                    let filteredResults = contentFilter.filterSearchResults(identityResolvedResults)
 #if os(tvOS)
                     let restoredFocus = restoredTVResultFocus(
                         previousID: tvFocusedResultID,
@@ -780,7 +849,7 @@ struct SearchView: View {
                         nextResults: filteredResultsForCurrentFilter(filteredResults)
                     )
 #endif
-                    self.searchResults = results
+                    self.searchResults = identityResolvedResults
                     self.isLoading = false
 #if os(tvOS)
                     if let restoredFocus {

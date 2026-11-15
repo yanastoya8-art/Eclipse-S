@@ -100,6 +100,18 @@ final class SettingsScopeTests: XCTestCase {
         }
     }
 
+    func testServiceAutoModeIsDisabledForFreshInstallButRespectsSavedChoice() throws {
+        let suiteName = "SettingsScopeTests.AutoMode.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        XCTAssertFalse(AutoModeSettings.isEnabled(defaults: defaults))
+        defaults.set(true, forKey: AutoModeSettings.enabledKey)
+        XCTAssertTrue(AutoModeSettings.isEnabled(defaults: defaults))
+        defaults.set(false, forKey: AutoModeSettings.enabledKey)
+        XCTAssertFalse(AutoModeSettings.isEnabled(defaults: defaults))
+    }
+
     func testServicesPrefixesCoverThePluginFamilies() {
         for key in [
             "servicesAutoModeSourceIds",

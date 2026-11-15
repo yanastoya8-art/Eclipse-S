@@ -129,6 +129,20 @@ final class MyDubListDubFilter: @unchecked Sendable {
             .filter { Self.supportedLanguages.contains($0) })
     }
 
+    /// Loads the last verified language snapshot synchronously before a search or
+    /// catalogue applies the dub gate. A cache miss is reported so callers can
+    /// decide whether they need to await a network refresh.
+    @discardableResult
+    func prepareCachedSnapshot() -> Bool {
+        let languages = selectedLanguages
+        guard !languages.isEmpty else {
+            clearSnapshot()
+            return true
+        }
+        loadCachedSnapshot(for: languages)
+        return hasSnapshot(for: languages)
+    }
+
     var selectedLanguagesIncludingCatalogAudioRequirement: Set<String> {
         var languages = selectedLanguages
         if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
@@ -1319,7 +1333,7 @@ class TMDBContentFilter: ObservableObject {
             && calendar.startOfDay(for: releaseDate) > calendar.startOfDay(for: Date())
     }
 
-    private static func isUnofficialCreatorContent(title: String, overview: String?) -> Bool {
+    static func isUnofficialCreatorContent(title: String, overview: String?) -> Bool {
         let text = normalizedCatalogText([title, overview ?? ""].joined(separator: " "))
         let indicators = [
             "fan made", "fanmade", "fan film", "fan films", "fan fiction", "fanfiction",

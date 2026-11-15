@@ -503,6 +503,24 @@ struct SettingsView: View {
                     if settingsSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
 
 
+                GlassSection(header: "Profiles") {
+                    VStack(spacing: 0) {
+                        NavigationLink(destination: settingsSearchableContent(ProfilesSettingsView())) {
+                            GlassSettingsRow(icon: "person.2.fill", iconColor: .mint, title: "Profiles") {
+                                HStack(spacing: 4) {
+                                    Text(activeProfileSummary)
+                                        .font(.subheadline)
+                                        .foregroundColor(.white.opacity(0.5))
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundColor(.white.opacity(0.3))
+                                }
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
                 GlassSection(header: "Content Filters") {
                     VStack(spacing: 0) {
                         NavigationLink(destination: settingsSearchableContent(AgeFiltersSettingsView(
@@ -638,26 +656,15 @@ struct SettingsView: View {
                     }
                 }
 
-                GlassSection(header: "Profiles") {
-                    VStack(spacing: 0) {
-                        NavigationLink(destination: settingsSearchableContent(ProfilesSettingsView())) {
-                            GlassSettingsRow(icon: "person.2.fill", iconColor: .mint, title: "Profiles") {
-                                HStack(spacing: 4) {
-                                    Text(activeProfileSummary)
-                                        .font(.subheadline)
-                                        .foregroundColor(.white.opacity(0.5))
-                                    Image(systemName: "chevron.right")
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .foregroundColor(.white.opacity(0.3))
-                                }
-                            }
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-
                 GlassSection(header: "Data") {
                     VStack(spacing: 0) {
+                        NavigationLink(destination: settingsSearchableContent(DownloadsSettingsView())) {
+                            GlassSettingsRow(icon: "arrow.down.circle.fill", iconColor: .blue, title: "Downloads")
+                        }
+                        .buttonStyle(.plain)
+
+                        GlassDivider()
+
                         NavigationLink(destination: settingsSearchableContent(StorageView())) {
                             GlassSettingsRow(icon: "internaldrive", iconColor: .gray, title: "Storage")
                         }
@@ -5508,7 +5515,7 @@ private struct LanguageFiltersSettingsView: View {
                     .accessibilityIdentifier("settings.contentFilters.dubLanguage.\(language.rawValue)")
                 }
             } header: {
-                Text("Dub Languages")
+                Text("Anime Dub Languages")
             } footer: {
                 Text("Select one or more languages. Anime catalogs require a verified dub in at least one selected language. The Western TV schedule keeps original air dates when the original audio matches your selection; otherwise, it uses only verified JustWatch episode release dates. JustWatch episode release dates are checked automatically when the app build includes the configured API key. Without a key or a matching release date, non-native entries are hidden.")
             }
