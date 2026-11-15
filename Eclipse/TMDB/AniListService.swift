@@ -12254,6 +12254,38 @@ struct AniListAnimeWithSeasons: Codable {
     let format: String? = nil
     let nextAiringEpisode: AniListAnime.AniListNextAiringEpisode? = nil
 
+    init(
+        id: Int,
+        malId: Int?,
+        title: String,
+        genres: [String]?,
+        seasons: [AniListSeasonWithPoster],
+        totalEpisodes: Int,
+        status: String,
+        rating: AnimeMetadataRating?,
+        tags: [AniListAnime.AniListTag]? = nil,
+        isAdult: Bool? = nil,
+        seasonYear: Int? = nil,
+        season: String? = nil,
+        format: String? = nil,
+        nextAiringEpisode: AniListAnime.AniListNextAiringEpisode? = nil
+    ) {
+        self.id = id
+        self.malId = malId
+        self.title = title
+        self.genres = genres
+        self.seasons = seasons
+        self.totalEpisodes = totalEpisodes
+        self.status = status
+        self.rating = rating
+        self.tags = tags
+        self.isAdult = isAdult
+        self.seasonYear = seasonYear
+        self.season = season
+        self.format = format
+        self.nextAiringEpisode = nextAiringEpisode
+    }
+
     var canonicalAniListTotalEpisodes: Int {
         RemoteMediaNumericBoundary.boundedSum(seasons.map { $0.canonicalAniListEpisodeCount ?? $0.episodes.count }) ?? totalEpisodes
     }
