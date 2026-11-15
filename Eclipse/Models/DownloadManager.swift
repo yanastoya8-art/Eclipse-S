@@ -4092,6 +4092,9 @@ final class DownloadManager: NSObject, ObservableObject {
                                   hasActiveTask: self.activeTasks[id] != nil,
                                   status: self.downloads.first(where: { $0.id == id })?.status
                               ) else {
+                            if self.pendingResumeDataTaskIdentifiers[id] == pausedTaskIdentifier {
+                                self.pendingResumeDataTaskIdentifiers.removeValue(forKey: id)
+                            }
                             self.resumeAfterPauseCompletion.remove(id)
                             return
                         }
