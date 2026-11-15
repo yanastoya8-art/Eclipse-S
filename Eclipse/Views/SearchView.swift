@@ -2058,6 +2058,9 @@ private struct BrowseMediaView: View {
         filterRefreshGeneration += 1
         loadTask?.cancel()
         loadTask = nil
+        if filterRefreshTask != nil {
+            filterRefreshPending = true
+        }
         filterRefreshTask?.cancel()
         filterRefreshTask = nil
         isLoading = false
