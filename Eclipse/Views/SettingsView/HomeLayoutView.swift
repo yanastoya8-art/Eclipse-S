@@ -171,7 +171,7 @@ struct HomeLayoutView: View {
                 title: "Hero Banner",
                 description: "The home catalogue used for the large banner.",
                 selection: $heroBannerCatalogId,
-                values: sortedCatalogs.map { ($0.id, $0.name) }
+                values: [("anime", "Anime")] + sortedCatalogs.map { ($0.id, $0.name) }
             )
 
             settingRow(title: "Hero Behavior", description: "When the banner changes.") {
@@ -190,7 +190,7 @@ struct HomeLayoutView: View {
                     Text("Choose Hero Shows")
                         .font(.subheadline)
                         .fontWeight(.medium)
-                    Text("Pick the exact movies and TV shows that can appear in the home banner. A custom selection overrides the catalogue above.")
+                    Text("Pick the exact movies, TV shows, and anime that can appear in the home banner. A custom selection overrides the catalogue above.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -599,7 +599,12 @@ private struct HomeHeroSelectionView: View {
     }
 
     private func titleKindAndYear(_ title: TMDBSearchResult) -> String {
-        let kind = title.isMovie ? "Movie" : "TV Show"
+        let isAnime = title.isTVShow && (
+            title.isAnimeHint == true
+                || (title.genreIds?.contains(16) == true
+                    && title.originCountry?.contains(where: { $0.uppercased() == "JP" }) == true)
+        )
+        let kind = title.isMovie ? "Movie" : (isAnime ? "Anime" : "TV Show")
         let year = title.displayDate.isEmpty ? nil : String(title.displayDate.prefix(4))
         return [kind, year].compactMap { $0 }.joined(separator: " · ")
     }
@@ -615,7 +620,13 @@ private struct HomeHeroSelectionView: View {
             do {
                 let results = try await tmdbService.searchMulti(query: query, maxPages: 1)
                 guard !Task.isCancelled else { return }
-                searchResults = results.filter { $0.isMovie || $0.isTVShow }
+                searchResults = results.filter { result in
+                    guard result.isMovie || result.isTVShow else { return false }
+                    return result.isMovie
+                        || result.isAnimeHint == true
+                        || (result.genreIds?.contains(16) == true
+                            && result.originCountry?.contains(where: { $0.uppercased() == "JP" }) == true)
+                }
             } catch {
                 guard !Task.isCancelled else { return }
                 errorMessage = error.localizedDescription
