@@ -2522,8 +2522,20 @@ final class DownloadManager: NSObject, ObservableObject {
     func applyHLSBackgroundDownloadsSettingChanged() {
         performOnMain {
 #if os(iOS) && !targetEnvironment(macCatalyst)
-            guard !self.hlsBackgroundDownloadsEnabled else { return }
+            if self.hlsBackgroundDownloadsEnabled {
+                // If the preference is enabled while a direct transfer is already
+                // active, attach its Live Activity without restarting the transfer.
+                for (id, task) in self.activeTasks {
+                    guard let item = self.downloads.first(where: { $0.id == id }),
+                          item.status == .downloading else { continue }
+                    self.beginDirectBackgroundAttempt(id: id, item: item, task: task)
+                }
+                return
+            }
             self.hlsForegroundIntents.removeAll()
+            for id in Array(self.directBackgroundAttempts.keys) {
+                self.finishDirectBackgroundAttempt(id: id, success: false)
+            }
             for (id, attempt) in self.hlsBackgroundAttempts {
                 if self.hlsApplicationIsActive {
                     attempt.revoked = true
@@ -2668,12 +2680,14 @@ final class DownloadManager: NSObject, ObservableObject {
         )
     }
 
-    private func updateDirectBackgroundProgress(id: String, stage: String) {
+    private func updateDirectBackgroundProgress(id: String, progress: Double? = nil, stage: String) {
         guard let attempt = directBackgroundAttempts[id],
               attempt.granted, !attempt.revoked,
               let item = downloads.first(where: { $0.id == id }) else { return }
-        let total = max(item.totalBytes, 1)
-        let completed = min(max(item.downloadedBytes, 0), total)
+        let total = item.totalBytes > 0 ? item.totalBytes : 1_000
+        let completed = item.totalBytes > 0
+            ? min(max(item.downloadedBytes, 0), total)
+            : Int64(Double(total) * min(max(progress ?? item.progress, 0), 1))
         hlsBackgroundScheduler?.updateProgress(
             attemptID: attempt.attemptID,
             completed: completed,
@@ -3836,7 +3850,7 @@ final class DownloadManager: NSObject, ObservableObject {
         if let hlsResumeSegmentIndex { downloads[index].hlsResumeSegmentIndex = max(0, hlsResumeSegmentIndex) }
         if let hlsResumeByteCount { downloads[index].hlsResumeByteCount = max(0, hlsResumeByteCount) }
 #if os(iOS) && !targetEnvironment(macCatalyst)
-        updateDirectBackgroundProgress(id: id, stage: "Downloading")
+        updateDirectBackgroundProgress(id: id, progress: progress, stage: "Downloading")
 #endif
     }
 
