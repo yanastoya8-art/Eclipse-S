@@ -2275,7 +2275,7 @@ struct MediaDetailContentView: View {
     @ViewBuilder
     private var iPadImmersiveHeroCard: some View {
         VStack(alignment: .leading, spacing: 16) {
-            iPadImmersiveTitle
+            iPadImmersiveTitleText
 
             if shouldShowHeroDetails {
                 iPadImmersiveMetadata
