@@ -6878,6 +6878,44 @@ final class AniListService {
               nodes.count <= 20 else { return [:] }
         return Dictionary(nodes.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
     }
+    /// Resolves a TMDB animation result that has no AniMap entry using an exact
+    /// AniList title match. Fuzzy matches are deliberately rejected so dub
+    /// filtering cannot attach another show's language evidence.
+    func searchAnimeIdentity(title: String) async -> AnimeMediaIdentitySeed? {
+        let queryTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !queryTitle.isEmpty,
+              queryTitle.utf8.count <= 200,
+              !queryTitle.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) else {
+            return nil
+        }
+
+        let nodes = await supplementalStructureNodeLookup(title: queryTitle, token: nil)
+        let candidates = nodes.values
+            .filter { $0.isAdult != true }
+            .sorted { $0.id < $1.id }
+        let candidateTitles = candidates.map {
+            AniListTitlePicker.titleCandidates(from: $0.title)
+        }
+        guard let selection = AniListTitlePicker.detailSearchSelection(
+            responseCandidateTitles: [candidateTitles],
+            searchedTitles: [queryTitle],
+            authoritativeTitles: []
+        ), selection.isExact,
+           selection.candidateIndexes.count == 1,
+           let index = selection.candidateIndexes.first,
+           candidates.indices.contains(index) else {
+            return nil
+        }
+
+        let anime = candidates[index]
+        return AnimeMediaIdentitySeed(
+            anilistId: anime.id,
+            malId: anime.idMal,
+            kitsuId: anime.kitsuId,
+            format: anime.format
+        ).sanitizedForPersistence
+    }
+
 
     fileprivate func mappedSupplementalEpisodePlacements(
         candidates: [AnimeStructureCourPlacementCandidate],
