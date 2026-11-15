@@ -608,19 +608,6 @@ struct SettingsView: View {
 
                         GlassDivider()
 
-                        NavigationLink(destination: settingsSearchableContent(MyDubListDubsSettingsView())) {
-                            GlassSettingsRow(icon: "character.bubble", iconColor: .purple, title: "Anime Dub Languages") {
-                                Text(MyDubListDubFilter.shared.selectedLanguages.count == 0
-                                     ? "Disabled"
-                                     : "\(MyDubListDubFilter.shared.selectedLanguages.count) selected")
-                                    .font(.subheadline)
-                                    .foregroundColor(.white.opacity(0.5))
-                            }
-                        }
-                        .buttonStyle(.plain)
-
-                        GlassDivider()
-
                         NavigationLink(destination: settingsSearchableContent(NotificationSettingsView())) {
                             GlassSettingsRow(icon: "bell.badge.fill", iconColor: .orange, title: "Notifications") {
                                 HStack(spacing: 4) {
