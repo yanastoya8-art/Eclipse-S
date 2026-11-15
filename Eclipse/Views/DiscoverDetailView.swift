@@ -90,7 +90,7 @@ struct DiscoverDetailView: View {
             if items.isEmpty {
                 items = initialItems
                 initialPageItemCount = initialItems.count
-                if initialItems.isEmpty {
+                if filteredItems.isEmpty {
                     loadNextPage()
                 }
             }
