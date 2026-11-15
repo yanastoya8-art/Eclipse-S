@@ -832,8 +832,24 @@ final class ScheduleViewModel: ObservableObject {
                         selectedDubLanguages: selectedDubLanguages,
                         englishSpanishAudioFilterEnabled: englishSpanishAudioFilterEnabled
                     ) {
-                        result = try await self.retryOnceAfterTransientCancellation(operationName: "DubOnly English-dub schedule") {
+                        // Fetch both independent English-dub timetables concurrently.
+                        // DubOnly may be unavailable when its free/API quota is exhausted;
+                        // Tsuzuki is a no-key fallback and can also correct/supplement dates.
+                        async let dubOnlyResult: AnimeAiringScheduleResult? = try? await self.retryOnceAfterTransientCancellation(operationName: "DubOnly English-dub schedule") {
                             try await AnimeScheduleService.shared.fetchSchedule(daysAhead: dayCount)
+                        }
+                        async let tsuzukiResult: AnimeAiringScheduleResult? = try? await TsuzukiAnimeDubScheduleService.shared.fetchSchedule(daysAhead: dayCount)
+                        let (dubOnly, tsuzuki) = await (dubOnlyResult, tsuzukiResult)
+                        try Task.checkCancellation()
+                        switch (dubOnly, tsuzuki) {
+                        case let (primary?, fallback?):
+                            result = AnimeScheduleFallback.mergeEnglishDubSchedules(primary: primary, fallback: fallback)
+                        case let (primary?, nil):
+                            result = primary
+                        case let (nil, fallback?):
+                            result = fallback
+                        case (nil, nil):
+                            throw AnimeScheduleError.unavailable
                         }
                     } else {
                         // DubOnly publishes English dates only. Never substitute
