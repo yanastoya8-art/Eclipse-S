@@ -9,28 +9,37 @@ import SwiftUI
 import Kingfisher
 
 enum PosterArtworkURLResolver {
+    static func originalTMDBPosterURL(for result: TMDBSearchResult) -> String? {
+        guard let path = result.posterPath,
+              path.hasPrefix("/"),
+              !path.hasPrefix("//"),
+              !path.contains(".."),
+              let url = URL(string: "https://image.tmdb.org/t/p/original\\(path)") else { return nil }
+        return url.absoluteString
+    }
+
     /// Prefer provider artwork at its source resolution. TMDB's original-size
-    /// path avoids the smaller w342/w500 derivatives used by many catalog APIs.
-    static func bestPosterURL(for result: TMDBSearchResult) -> String? {
-        if let fanart = result.fanartTVPosterURL, !fanart.isEmpty { return fanart }
-        if let tvMaze = result.tvMazePosterURL, !tvMaze.isEmpty { return tvMaze }
+    /// path avoids smaller w342/w500 derivatives used by many catalog APIs.
+    static func candidates(for result: TMDBSearchResult) -> [String] {
+        var candidates: [String] = []
+        if let fanart = result.fanartTVPosterURL, !fanart.isEmpty { candidates.append(fanart) }
+        if let tvMaze = result.tvMazePosterURL, !tvMaze.isEmpty { candidates.append(tvMaze) }
         if let anime = result.animeArtworkURL,
            !anime.isEmpty,
            (anime.localizedCaseInsensitiveContains("taizen.moe")
                 || anime.localizedCaseInsensitiveContains("fanart.tv")) {
-            return anime
+            candidates.append(anime)
         }
-        if let path = result.posterPath,
-           path.hasPrefix("/"),
-           !path.hasPrefix("//"),
-           !path.contains(".."),
-           let url = URL(string: "https://image.tmdb.org/t/p/original\(path)") {
-            return url.absoluteString
-        }
-        if let anime = result.animeArtworkURL, !anime.isEmpty { return anime }
-        return result.fullPosterURL
+        if let original = originalTMDBPosterURL(for: result) { candidates.append(original) }
+        if let full = result.fullPosterURL, !full.isEmpty { candidates.append(full) }
+        if let anime = result.animeArtworkURL, !anime.isEmpty { candidates.append(anime) }
+        var seen = Set<String>()
+        return candidates.filter { seen.insert($0).inserted }
     }
-}
+
+    static func bestPosterURL(for result: TMDBSearchResult) -> String? {
+        candidates(for: result).first
+    }
 
 struct CenteredPosterTitleOverlay: View {
     let title: String
@@ -128,11 +137,7 @@ struct SearchResultCard: View {
     private var posterImage: some View {
         ZStack {
             ResilientArtworkImage(
-                urls: [
-                    PosterArtworkURLResolver.bestPosterURL(for: result),
-                    result.fullPosterURL,
-                    result.animeArtworkURL
-                ].compactMap { $0 },
+                urls: PosterArtworkURLResolver.candidates(for: result),
                 decodeSize: CGSize(width: posterDecodeWidth, height: posterDecodeWidth * 1.5),
                 contentMode: .fill
             ) {
