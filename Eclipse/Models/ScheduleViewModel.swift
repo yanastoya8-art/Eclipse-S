@@ -178,6 +178,7 @@ struct ScheduleEntry: Identifiable, Sendable {
     let romajiTitle: String?
     let nativeTitle: String?
     let format: String?
+    let overview: String?
     var hasKnownAiringTime: Bool
     var isStreamingRelease: Bool
     let tmdbId: Int?
@@ -215,6 +216,7 @@ struct ScheduleEntry: Identifiable, Sendable {
         romajiTitle = animeEntry.romajiTitle
         nativeTitle = animeEntry.nativeTitle
         format = animeEntry.format
+        overview = nil
         hasKnownAiringTime = animeEntry.hasKnownAiringTime
         isStreamingRelease = false
         tmdbId = nil
@@ -242,6 +244,7 @@ struct ScheduleEntry: Identifiable, Sendable {
         romajiTitle = nil
         nativeTitle = nil
         format = nil
+        overview = westernEpisode.show.summary
         hasKnownAiringTime = airing.hasKnownAiringTime
         isStreamingRelease = westernEpisode.show.webChannel != nil
         tmdbId = nil
@@ -271,6 +274,7 @@ struct ScheduleEntry: Identifiable, Sendable {
         romajiTitle = nil
         nativeTitle = nil
         format = nil
+        overview = tmdbDetail?.overview
         hasKnownAiringTime = true
         isStreamingRelease = false
         tmdbId = traktItem.show.ids.tmdb
@@ -298,6 +302,7 @@ struct ScheduleEntry: Identifiable, Sendable {
         romajiTitle = nil
         nativeTitle = nil
         format = "MOVIE"
+        overview = nil
         hasKnownAiringTime = false
         isStreamingRelease = false
         tmdbId = movie.ids.tmdb
@@ -323,6 +328,7 @@ struct ScheduleEntry: Identifiable, Sendable {
         romajiTitle = nil
         nativeTitle = nil
         format = "MOVIE"
+        overview = movie.overview
         hasKnownAiringTime = false
         isStreamingRelease = false
         tmdbId = movie.id
@@ -2193,6 +2199,7 @@ fileprivate struct TVMazeShow: Decodable {
     let premiered: String?
     let type: String?
     let genres: [String]
+    let summary: String?
     let image: TVMazeImage?
     let network: TVMazeChannel?
     let webChannel: TVMazeChannel?
