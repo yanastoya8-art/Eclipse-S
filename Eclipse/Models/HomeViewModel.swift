@@ -109,7 +109,12 @@ final class HomeViewModel: ObservableObject {
         for (key, value) in widgetData where widgetSnapshot[key] == nil {
             widgetSnapshot[key] = value
         }
-        let allResults = Array(catalogSnapshot.values.joined()) + Array(widgetSnapshot.values.joined())
+        // A title commonly appears in several shelves and widgets. Prepare expensive
+        // age/runtime/audio metadata once per unique media identity instead of once
+        // per shelf occurrence whenever a filter changes.
+        var seenIdentities = Set<String>()
+        let allResults = (Array(catalogSnapshot.values.joined()) + Array(widgetSnapshot.values.joined()))
+            .filter { seenIdentities.insert($0.stableIdentity).inserted }
         await contentFilter.prepareMaturityRatings(for: allResults)
 
         catalogResults = catalogSnapshot.mapValues { contentFilter.filterSearchResults($0) }
@@ -551,6 +556,12 @@ final class HomeViewModel: ObservableObject {
         if enabledCatalogIds.contains("popularAnime") { kinds.insert(.popular) }
         if needsTopRatedAnime { kinds.insert(.topRated) }
         if enabledCatalogIds.contains("airingAnime") { kinds.insert(.airing) }
+
+        // The hero banner is independent from the visible shelf configuration.
+        // Selecting Anime must still load candidates when anime shelves are hidden.
+        if ProfileSettingsStore.active.string(forKey: "heroBannerCatalogId") == "anime" {
+            kinds.formUnion([.trending, .popular])
+        }
         return kinds
     }
 
@@ -1008,6 +1019,14 @@ final class HomeViewModel: ObservableObject {
     }
 
     private func heroCandidates(for catalogId: String) -> [TMDBSearchResult] {
+        if catalogId == "anime" {
+            let animeCatalogIDs = ["trendingAnime", "popularAnime", "topRatedAnime", "airingAnime", "bestAnime"]
+            var seen = Set<String>()
+            return animeCatalogIDs
+                .flatMap { catalogResults[$0] ?? [] }
+                .filter { seen.insert($0.stableIdentity).inserted }
+        }
+
         if let items = catalogResults[catalogId], !items.isEmpty {
             return items
         }
