@@ -8,6 +8,24 @@
 import SwiftUI
 import Kingfisher
 
+enum PosterArtworkURLResolver {
+    /// Prefer provider artwork at its source resolution. TMDB's original-size
+    /// path avoids the smaller w342/w500 derivatives used by many catalog APIs.
+    static func bestPosterURL(for result: TMDBSearchResult) -> String? {
+        if let fanart = result.fanartTVPosterURL, !fanart.isEmpty { return fanart }
+        if let tvMaze = result.tvMazePosterURL, !tvMaze.isEmpty { return tvMaze }
+        if let anime = result.animeArtworkURL, !anime.isEmpty { return anime }
+        if let path = result.posterPath,
+           path.hasPrefix("/"),
+           !path.hasPrefix("//"),
+           !path.contains(".."),
+           let url = URL(string: "https://image.tmdb.org/t/p/original\\(path)") {
+            return url.absoluteString
+        }
+        return result.fullPosterURL
+    }
+}
+
 struct CenteredPosterTitleOverlay: View {
     let title: String
     let logoURL: String?
@@ -99,7 +117,7 @@ struct SearchResultCard: View {
 
     private var posterImage: some View {
         ZStack {
-            KFImage(URL(string: result.fullPosterURL ?? ""))
+            KFImage(URL(string: PosterArtworkURLResolver.bestPosterURL(for: result) ?? ""))
                 .placeholder {
                     FallbackImageView(
                         isMovie: result.isMovie,
