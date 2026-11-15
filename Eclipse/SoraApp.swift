@@ -396,10 +396,14 @@ struct SoraApp: App {
             // implicit animation, which also animates unrelated state updates throughout both
             // large app trees and can cause dropped frames during the cross-mode transition.
             .onChange(of: showKanzen) { newValue in
-                if modeSwitchTransitionCoordinator.activeBurst == nil {
-                    modeSwitchTransitionCoordinator.beginBurst(toReaderMode: newValue)
-                }
-                if !newValue {
+                if newValue {
+                    if modeSwitchTransitionCoordinator.activeBurst == nil {
+                        modeSwitchTransitionCoordinator.beginBurst(toReaderMode: true)
+                    }
+                } else {
+                    // Do not run the expensive full-screen wavelet overlay
+                    // when returning to Watch mode.
+                    modeSwitchTransitionCoordinator.cancelBurst()
                     warmSchedulesAfterStartup()
                 }
             }
@@ -517,9 +521,12 @@ struct SoraApp: App {
 #if !os(tvOS)
     private func modeSwitchTransition(isReaderMode: Bool) -> AnyTransition {
         guard modeSwitchAnimationEnabled else { return .identity }
+        // The Reader-to-Watch path replaces two large view trees. Keep
+        // that return immediate instead of masking/recompositing the full
+        // screen while the video catalogs hydrate again.
         return isReaderMode
             ? .eclipseModeWave(origin: modeSwitchTransitionCoordinator.origin)
-            : .eclipseMediaModeReturn
+            : .identity
     }
 
 #endif
