@@ -2167,8 +2167,9 @@ struct MediaDetailContentView: View {
 #endif
 
     private var iPadImmersiveSecondaryElements: [MediaDetailElement] {
+        // Keep the synopsis in the normal app surface below the full-width hero.
         visibleMediaDetailElements.filter {
-            $0 != .actions && $0 != .overview && $0 != .details && $0 != .episodes
+            $0 != .actions && $0 != .details && $0 != .episodes
         }
     }
 
@@ -2180,22 +2181,16 @@ struct MediaDetailContentView: View {
     private var iPadImmersiveDetailLayout: some View {
         GeometryReader { proxy in
             ZStack(alignment: .topLeading) {
-                iPadImmersiveBackdrop(proxy: proxy)
+                detailBackground
+                    .ignoresSafeArea()
 
                 ScrollViewReader { scrollProxy in
                     ScrollView(showsIndicators: false) {
                         VStack(alignment: .leading, spacing: 24) {
-                            Color.clear
-                                .frame(height: proxy.size.height < 500
-                                    ? 72
-                                    : max(150, proxy.size.height * 0.16))
+                            iPadImmersiveBackdrop(proxy: proxy)
+                                .padding(.horizontal, -max(32, proxy.safeAreaInsets.leading + 28))
 
                             iPadImmersiveHeroCard
-
-                            if showsIPadImmersiveEpisodes {
-                                episodesSection
-                                    .id(Self.notificationEpisodesAnchor)
-                            }
 
                             if !iPadImmersiveSecondaryElements.isEmpty {
                                 VStack(alignment: .leading, spacing: max(20, designMetrics.sectionSpacing * 0.68)) {
@@ -2204,6 +2199,11 @@ struct MediaDetailContentView: View {
                                     }
                                 }
                                 .frame(maxWidth: 900, alignment: .leading)
+                            }
+
+                            if showsIPadImmersiveEpisodes {
+                                episodesSection
+                                    .id(Self.notificationEpisodesAnchor)
                             }
 
                             Spacer(minLength: max(48, proxy.safeAreaInsets.bottom + 24))
@@ -2233,71 +2233,52 @@ struct MediaDetailContentView: View {
 
     @ViewBuilder
     private func iPadImmersiveBackdrop(proxy: GeometryProxy) -> some View {
-        EclipseTheme.shared.backgroundBase
-            .ignoresSafeArea()
-
-        ResilientArtworkImage(
-            urls: ([detailHeroImageURL].compactMap { $0 } + detailHeroFallbackImageURLs),
-            decodeSize: homeImageDecodeSize(width: proxy.size.width, height: proxy.size.height),
-            contentMode: .fill,
-            onImageLoaded: { color in ambientColor = color }
-        ) {
-            Rectangle().fill(EclipseTheme.shared.backgroundBase)
-        }
-            .frame(width: proxy.size.width, height: proxy.size.height)
+        let bannerHeight = min(max(proxy.size.height * 0.56, 280), 500)
+        ZStack(alignment: .bottom) {
+            ResilientArtworkImage(
+                urls: ([detailHeroImageURL].compactMap { $0 } + detailHeroFallbackImageURLs),
+                decodeSize: homeImageDecodeSize(width: proxy.size.width, height: bannerHeight),
+                contentMode: .fill,
+                onImageLoaded: { color in ambientColor = color }
+            ) {
+                Rectangle().fill(EclipseTheme.shared.backgroundBase)
+            }
+            .frame(width: proxy.size.width, height: bannerHeight)
             .clipped()
-            .ignoresSafeArea()
 
-        LinearGradient(
-            stops: [
-                .init(color: Color.black.opacity(0.08), location: 0.00),
-                .init(color: Color.black.opacity(0.14), location: 0.24),
-                .init(color: heroBlendColor.opacity(0.42), location: 0.56),
-                .init(color: heroBlendColor.opacity(0.80), location: 0.76),
-                .init(color: EclipseTheme.shared.backgroundBase.opacity(0.96), location: 1.00)
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-        .ignoresSafeArea()
+            LinearGradient(
+                stops: [
+                    .init(color: Color.black.opacity(0.06), location: 0.00),
+                    .init(color: Color.black.opacity(0.12), location: 0.38),
+                    .init(color: heroBlendColor.opacity(0.48), location: 0.72),
+                    .init(color: EclipseTheme.shared.backgroundBase, location: 1.00)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
 
-        LinearGradient(
-            stops: [
-                .init(color: Color.black.opacity(0.72), location: 0.00),
-                .init(color: Color.black.opacity(0.42), location: 0.34),
-                .init(color: Color.black.opacity(0.12), location: 0.66),
-                .init(color: .clear, location: 1.00)
-            ],
-            startPoint: .leading,
-            endPoint: .trailing
-        )
-        .frame(width: min(proxy.size.width * 0.72, 900))
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .ignoresSafeArea()
+            LinearGradient(
+                stops: [
+                    .init(color: Color.black.opacity(0.52), location: 0.00),
+                    .init(color: Color.black.opacity(0.22), location: 0.42),
+                    .init(color: .clear, location: 1.00)
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        }
+        .frame(width: proxy.size.width, height: bannerHeight)
+        .clipped()
+        .accessibilityHidden(true)
     }
 
     @ViewBuilder
     private var iPadImmersiveHeroCard: some View {
         VStack(alignment: .leading, spacing: 16) {
-            iPadImmersiveTitle
+            iPadImmersiveTitleText
 
             if shouldShowHeroDetails {
                 iPadImmersiveMetadata
-            }
-
-            if shouldShowHeroOverview, let overviewText = currentOverviewText {
-                Text(overviewText)
-                    .font(.system(size: 17, weight: .regular))
-                    .foregroundColor(.white.opacity(0.88))
-                    .lineLimit(showFullSynopsis ? nil : 3)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        guard overviewText.count > 180 else { return }
-                        withAnimation(.easeInOut(duration: 0.28)) {
-                            showFullSynopsis.toggle()
-                        }
-                    }
             }
 
             if shouldShowHeroActions {

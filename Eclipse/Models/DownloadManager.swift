@@ -2522,7 +2522,34 @@ final class DownloadManager: NSObject, ObservableObject {
 
     func applicationDidBecomeActive() {
         resumeHLSDownloadsInterruptedByBackgroundExpiration()
+        resumeOrphanedHLSDownloads()
         processQueue()
+    }
+
+    /// A suspended foreground HLS worker can be lost without receiving the
+    /// continued-processing expiration callback. Re-queue only rows that have
+    /// no live worker/attempt; direct URLSession background tasks are untouched.
+    private func resumeOrphanedHLSDownloads() {
+#if os(iOS) && !targetEnvironment(macCatalyst)
+        var changed = false
+        for index in downloads.indices {
+            let item = downloads[index]
+            guard item.isHLS,
+                  item.status == .downloading,
+                  activeHLSDownloaders[item.id] == nil,
+                  activeHLSAttemptIDs[item.id] == nil,
+                  hlsBackgroundAttempts[item.id] == nil else { continue }
+            downloads[index].status = .queued
+            downloads[index].error = nil
+            downloads[index].retryNotBefore = nil
+            changed = true
+            Logger.shared.log(
+                "Re-queued interrupted HLS download after app activation: \(item.id)",
+                type: "Download"
+            )
+        }
+        if changed { saveDownloads() }
+#endif
     }
 
     private func resumeHLSDownloadsInterruptedByBackgroundExpiration() {
