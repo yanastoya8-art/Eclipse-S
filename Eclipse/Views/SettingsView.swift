@@ -5532,7 +5532,7 @@ private struct LanguageFiltersSettingsView: View {
             }
 
             Section {
-                ForEach(MyDubListLanguage.allCases) { language in
+                ForEach(MyDubListLanguage.allCases.filter { MyDubListDubFilter.supportedLanguages.contains($0.rawValue) }) { language in
                     Toggle(language.displayName, isOn: Binding(
                         get: { selectedDubLanguages.contains(language.rawValue) },
                         set: { isSelected in

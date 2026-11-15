@@ -71,6 +71,13 @@ private final class AnimeFillerURLProtocol: URLProtocol {
 }
 
 final class AnimeStructurePolicyTests: XCTestCase {
+    func testAnimeDubFilterOnlySupportsEnglishAndSpanish() {
+        XCTAssertEqual(
+            MyDubListDubFilter.supportedLanguages,
+            Set([MyDubListLanguage.english.rawValue, MyDubListLanguage.spanish.rawValue])
+        )
+    }
+
     func testContainedCourKeepsKnownFinishedPrefixAndLeavesUndatedTailUnowned() throws {
         let rows = [courProofEpisode(1, date: "2024-07-06"), courProofEpisode(2, date: "2024-07-13"), courProofEpisode(3, date: nil)]
         let result = try XCTUnwrap(containedCourProof(count: 2, end: "2024-07-13", rows: rows))
