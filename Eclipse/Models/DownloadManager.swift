@@ -2553,6 +2553,9 @@ final class DownloadManager: NSObject, ObservableObject {
         resumeHLSDownloadsInterruptedByBackgroundExpiration()
         resumeOrphanedHLSDownloads()
         processQueue()
+#if os(iOS) && !targetEnvironment(macCatalyst)
+        attachLiveActivitiesToActiveDirectDownloads()
+#endif
     }
 
     /// A suspended foreground HLS worker can be lost without receiving the
@@ -2631,6 +2634,15 @@ final class DownloadManager: NSObject, ObservableObject {
     private func captureHLSForegroundIntent() -> HLSForegroundIntent? {
         guard hlsBackgroundDownloadsEnabled, hlsApplicationIsActive else { return nil }
         return HLSForegroundIntent(ownerID: ProfileManager.shared.activeProfileID, scopeGeneration: ServiceStoreScope.generation)
+    }
+
+    private func attachLiveActivitiesToActiveDirectDownloads() {
+        guard hlsBackgroundDownloadsEnabled, hlsApplicationIsActive else { return }
+        for (id, task) in activeTasks {
+            guard let item = downloads.first(where: { $0.id == id }),
+                  item.status == .downloading else { continue }
+            beginDirectBackgroundAttempt(id: id, item: item, task: task)
+        }
     }
 
     /// Direct HTTP(S) media uses URLSession's OS-managed background transfer.
@@ -9182,6 +9194,11 @@ final class DownloadManager: NSObject, ObservableObject {
                     if task.state == .suspended {
                         task.resume()
                     }
+#if os(iOS) && !targetEnvironment(macCatalyst)
+                    if hlsApplicationIsActive {
+                        beginDirectBackgroundAttempt(id: id, item: downloads[index], task: task)
+                    }
+#endif
                 }
 
                 self.restoringBackgroundTasks = false
