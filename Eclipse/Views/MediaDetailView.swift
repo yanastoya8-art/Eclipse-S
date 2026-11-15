@@ -2534,6 +2534,18 @@ struct MediaDetailContentView: View {
                 .offset(y: -headerHeight * 0.015)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
+            } else {
+                Text(searchResult.displayTitle)
+                    .font(.system(size: min(max(headerHeight * 0.075, 25), 48), weight: .heavy, design: .rounded))
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.72)
+                    .shadow(color: .black.opacity(0.85), radius: 9, x: 0, y: 4)
+                    .padding(.horizontal, 22)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
             }
         }
     }
@@ -5950,6 +5962,9 @@ struct MediaDetailContentView: View {
 
             let stills = (images?.backdrops ?? [])
                 .sorted {
+                    let lhsPixels = Double(max(0, $0.width)) * Double(max(0, $0.height))
+                    let rhsPixels = Double(max(0, $1.width)) * Double(max(0, $1.height))
+                    if lhsPixels != rhsPixels { return lhsPixels > rhsPixels }
                     let lhsVotes = $0.voteCount ?? 0
                     let rhsVotes = $1.voteCount ?? 0
                     if lhsVotes != rhsVotes { return lhsVotes > rhsVotes }
