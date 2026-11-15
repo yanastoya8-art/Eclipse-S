@@ -730,6 +730,15 @@ struct SearchView: View {
             return
         }
 
+        // Enter the loading state before the debounce window so an empty
+        // result snapshot never flashes a false "No results found" message.
+        isLoading = true
+        errorMessage = nil
+        searchResults = []
+#if os(tvOS)
+        tvFocusedResultID = nil
+#endif
+
         pendingSearchTask = Task { [query] in
             try? await Task.sleep(nanoseconds: 450_000_000)
             guard !Task.isCancelled else { return }
