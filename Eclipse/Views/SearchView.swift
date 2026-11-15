@@ -2094,13 +2094,14 @@ private struct BrowseMediaView: View {
             )
             guard !Task.isCancelled else { return }
 
-            let contentFiltered = contentFilter.filterSearchResults(
+            let contentFiltered = await contentFilter.filterSearchResultsResolvingRatings(
                 filterExcludedResults(
                     browseTypeFiltered,
                     excludedGenreIds: excludedGenreIDs,
                     excludedYears: yearsToExclude
                 )
             )
+            guard !Task.isCancelled else { return }
             let filtered = regionGuardedResults(contentFiltered, countries: countries)
 
             await MainActor.run {
