@@ -1469,13 +1469,13 @@ struct HomeView: View {
         LinearGradient(
             gradient: Gradient(stops: ExperimentalFeatureState.isEnabledAtLaunch ? [
                 .init(color: heroBlendColor.opacity(0.0), location: 0.0),
-                .init(color: heroBlendColor.opacity(0.32), location: 0.34),
-                .init(color: heroBlendColor.opacity(0.66), location: 0.62),
+                .init(color: heroBlendColor.opacity(0.0), location: 0.34),
+                .init(color: heroBlendColor.opacity(0.0), location: 0.62),
                 .init(color: heroBlendColor.opacity(0.90), location: 0.84),
                 .init(color: heroBlendColor.opacity(1.0), location: 1.0)
             ] : [
                 .init(color: ambientColor.opacity(0.0), location: 0.0),
-                .init(color: Color.black.opacity(0.26), location: 0.18),
+                .init(color: ambientColor.opacity(0.0), location: 0.18),
                 .init(color: atmosphereColor.opacity(0.72), location: 0.58),
                 .init(color: atmosphereColor.opacity(1), location: 1.0)
             ]),
@@ -2058,7 +2058,8 @@ struct HomeView: View {
         DiscoverDetailView(
             title: title,
             initialItems: initialItems,
-            loadMore: sectionLoadMoreHandler(for: catalog)
+            loadMore: sectionLoadMoreHandler(for: catalog),
+            allowsUpcomingContent: catalog.id == "upcomingMovies" || catalog.id == "upcomingTV"
         )
     }
 
@@ -2084,13 +2085,21 @@ struct HomeView: View {
             }
         case "upcomingMovies":
             return { page in
-                await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
+                await loadFilteredSectionPage(
+                    catalogId: catalog.id,
+                    page: page,
+                    allowUpcomingContent: true
+                ) {
                     try await tmdbService.getUpcomingMovies(page: page).map(\.asSearchResult)
                 }
             }
         case "upcomingTV":
             return { page in
-                await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
+                await loadFilteredSectionPage(
+                    catalogId: catalog.id,
+                    page: page,
+                    allowUpcomingContent: true
+                ) {
                     try await tmdbService.getUpcomingTVShows(page: page).map(\.asSearchResult)
                 }
             }
@@ -2140,10 +2149,14 @@ struct HomeView: View {
     private func loadFilteredSectionPage(
         catalogId: String,
         page: Int,
+        allowUpcomingContent: Bool = false,
         fetch: () async throws -> [TMDBSearchResult]
     ) async -> [TMDBSearchResult] {
         do {
-            return await contentFilter.filterSearchResultsResolvingRatings(try await fetch())
+            return await contentFilter.filterSearchResultsResolvingRatings(
+                try await fetch(),
+                allowUpcomingContent: allowUpcomingContent
+            )
         } catch {
             Logger.shared.log("HomeView: section \(catalogId) page \(page) failed: \(error.localizedDescription)", type: "TMDB")
             return []

@@ -178,6 +178,8 @@ struct ScheduleEntry: Identifiable, Sendable {
     let romajiTitle: String?
     let nativeTitle: String?
     let format: String?
+    let overview: String?
+    let metadataTags: [String]
     var hasKnownAiringTime: Bool
     var isStreamingRelease: Bool
     let tmdbId: Int?
@@ -215,6 +217,8 @@ struct ScheduleEntry: Identifiable, Sendable {
         romajiTitle = animeEntry.romajiTitle
         nativeTitle = animeEntry.nativeTitle
         format = animeEntry.format
+        overview = nil
+        metadataTags = animeEntry.tags ?? []
         hasKnownAiringTime = animeEntry.hasKnownAiringTime
         isStreamingRelease = false
         tmdbId = nil
@@ -242,6 +246,8 @@ struct ScheduleEntry: Identifiable, Sendable {
         romajiTitle = nil
         nativeTitle = nil
         format = nil
+        overview = westernEpisode.show.summary
+        metadataTags = []
         hasKnownAiringTime = airing.hasKnownAiringTime
         isStreamingRelease = westernEpisode.show.webChannel != nil
         tmdbId = nil
@@ -271,6 +277,8 @@ struct ScheduleEntry: Identifiable, Sendable {
         romajiTitle = nil
         nativeTitle = nil
         format = nil
+        overview = tmdbDetail?.overview
+        metadataTags = []
         hasKnownAiringTime = true
         isStreamingRelease = false
         tmdbId = traktItem.show.ids.tmdb
@@ -298,6 +306,8 @@ struct ScheduleEntry: Identifiable, Sendable {
         romajiTitle = nil
         nativeTitle = nil
         format = "MOVIE"
+        overview = nil
+        metadataTags = []
         hasKnownAiringTime = false
         isStreamingRelease = false
         tmdbId = movie.ids.tmdb
@@ -323,6 +333,8 @@ struct ScheduleEntry: Identifiable, Sendable {
         romajiTitle = nil
         nativeTitle = nil
         format = "MOVIE"
+        overview = movie.overview
+        metadataTags = []
         hasKnownAiringTime = false
         isStreamingRelease = false
         tmdbId = movie.id
@@ -758,7 +770,7 @@ final class ScheduleViewModel: ObservableObject {
     }
 
     private func filteredAnimeScheduleResult(_ result: AnimeScheduleLoadResult) -> AnimeScheduleLoadResult {
-        let selectedLanguages = MyDubListDubFilter.shared.selectedLanguages
+        let selectedLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
         let hideAnimeSpecials = UserDefaults.standard.bool(forKey: "catalogHideAnimeSpecialsAndOVAs")
 
         let entries = result.entries.filter { entry in
@@ -772,7 +784,15 @@ final class ScheduleViewModel: ObservableObject {
             guard !selectedLanguages.isEmpty else { return true }
             // DubOnly entries are already verified English-dub timetable rows;
             // do not require a second, unrelated MyDubList lookup to retain them.
-            if entry.provider == .dubOnly { return true }
+            if entry.provider == .dubOnly || entry.provider == .tsuzuki {
+                // Both schedule providers return verified English-dub dates.
+                // The global audio filter explicitly accepts English alongside
+                // Spanish, even when the anime-specific picker only contains Spanish.
+                if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
+                    || selectedLanguages.contains(MyDubListLanguage.english.rawValue) {
+                    return true
+                }
+            }
             let anilistID = entry.sourceMediaId > 0 ? entry.sourceMediaId : nil
             let malID = entry.animeMALID ?? (entry.sourceMediaId < 0 ? -entry.sourceMediaId : nil)
             return MyDubListDubFilter.shared.shouldInclude(
@@ -789,7 +809,7 @@ final class ScheduleViewModel: ObservableObject {
 
     @MainActor
     private func currentAnimeSchedulePolicyKey() -> String {
-        let languages = MyDubListDubFilter.shared.selectedLanguages.sorted().joined(separator: ",")
+        let languages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement.sorted().joined(separator: ",")
         let audioFilter = UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
         return "languages=\(languages)|englishSpanishAudio=\(audioFilter)"
     }
@@ -842,7 +862,7 @@ final class ScheduleViewModel: ObservableObject {
         let loadTask = Task { @MainActor [weak self] () throws -> AnimeScheduleLoadResult in
             guard let self else { throw CancellationError() }
             do {
-                let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguages
+                let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
                 let englishSpanishAudioFilterEnabled = UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
                 let requiresDubSchedule = AnimeScheduleFallback.requiresDubSchedule(
                     selectedDubLanguages: selectedDubLanguages,
@@ -2185,6 +2205,7 @@ fileprivate struct TVMazeShow: Decodable {
     let premiered: String?
     let type: String?
     let genres: [String]
+    let summary: String?
     let image: TVMazeImage?
     let network: TVMazeChannel?
     let webChannel: TVMazeChannel?
@@ -2275,7 +2296,7 @@ enum ScheduleReleaseDatePolicy {
     }
 }
 
-private actor JustWatchScheduleService {
+actor JustWatchScheduleService {
     static let shared = JustWatchScheduleService()
 
     private struct CachedEpisodeDates: Codable {
@@ -2286,6 +2307,10 @@ private actor JustWatchScheduleService {
         let fetchedAt: Date
         let dates: [Date]
     }
+    private struct CachedAudioAvailability: Codable {
+        let fetchedAt: Date
+        let isAvailable: Bool
+    }
 
     private let baseURL = URL(string: "https://api.api.sh/justwatch/v1")!
     private let cacheLifetime: TimeInterval = 12 * 60 * 60
@@ -2293,16 +2318,166 @@ private actor JustWatchScheduleService {
     private var seasonDateCache: [String: CachedEpisodeDates] = [:]
     private var movieIDCache: [String: String] = [:]
     private var movieDateCache: [String: CachedMovieDates] = [:]
+    private var audioAvailabilityCache: [String: CachedAudioAvailability] = [:]
+
+    private static func effectiveScheduleLanguageCodes(_ selectedLanguages: Set<String>) -> Set<String>? {
+        let languageFilterEnabled = !selectedLanguages.isEmpty
+            || UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
+        guard languageFilterEnabled else { return nil }
+
+        var effectiveLanguages = selectedLanguages
+        if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
+            effectiveLanguages.formUnion([
+                MyDubListLanguage.english.rawValue,
+                MyDubListLanguage.spanish.rawValue
+            ])
+        }
+        let configuredCodes = Set(effectiveLanguages.flatMap { raw in
+            MyDubListLanguage(rawValue: raw)?.episodeMetadataLanguageCodes.map { $0.lowercased() } ?? []
+        })
+        // The global content-language switch means English or Spanish native
+        // audio / dubbed availability even when the separate language picker
+        // has no explicit selections. Never interpret an enabled filter as
+        // "show every language".
+        return configuredCodes.isEmpty ? ["en", "es"] : configuredCodes
+    }
+
+    func hasAudioLanguageOffer(
+        tmdbID: Int,
+        title: String,
+        releaseYear: Int?,
+        isMovie: Bool,
+        originalLanguage: String?,
+        selectedLanguages: Set<String>
+    ) async -> Bool? {
+        guard let selectedCodes = Self.effectiveScheduleLanguageCodes(selectedLanguages) else {
+            return true
+        }
+        if Self.language(originalLanguage, matches: selectedCodes) { return true }
+        guard tmdbID > 0,
+              let apiKey = JustWatchAPIKeyStore.load(),
+              !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+
+        let cacheKey = "\(isMovie ? "movie" : "show")|\(tmdbID)|BG|\(selectedCodes.sorted().joined(separator: ","))"
+        let now = Date()
+        if let cached = audioAvailabilityCache[cacheKey],
+           JustWatchScheduleCachePolicy.isFresh(fetchedAt: cached.fetchedAt, now: now, lifetime: cacheLifetime) {
+            return cached.isAvailable
+        }
+        let persistedKey = "justWatchCatalogAudioV1.\(cacheKey)"
+        if let data = UserDefaults.standard.data(forKey: persistedKey),
+           let cached = try? JSONDecoder().decode(CachedAudioAvailability.self, from: data),
+           JustWatchScheduleCachePolicy.isFresh(fetchedAt: cached.fetchedAt, now: now, lifetime: cacheLifetime) {
+            audioAvailabilityCache[cacheKey] = cached
+            return cached.isAvailable
+        }
+
+        do {
+            let justWatchID = try await resolveCatalogTitleID(
+                tmdbID: tmdbID,
+                title: title,
+                releaseYear: releaseYear,
+                isMovie: isMovie,
+                apiKey: apiKey
+            )
+            var components = URLComponents(
+                url: baseURL.appendingPathComponent("title"),
+                resolvingAgainstBaseURL: false
+            )
+            components?.queryItems = [
+                URLQueryItem(name: "id", value: justWatchID),
+                URLQueryItem(name: "countries", value: "BG"),
+                URLQueryItem(name: "language", value: "en")
+            ]
+            guard let url = components?.url else { return nil }
+            let payload = try await requestJSON(url: url, apiKey: apiKey)
+            let offersByCountry = payload["offers"] as? [String: [[String: Any]]] ?? [:]
+            let offers = offersByCountry["BG"] ?? offersByCountry.values.flatMap { $0 }
+            let isAvailable = offers.contains {
+                Self.languages($0["audio_languages"], match: selectedCodes)
+            }
+            let cached = CachedAudioAvailability(fetchedAt: Date(), isAvailable: isAvailable)
+            audioAvailabilityCache[cacheKey] = cached
+            if let data = try? JSONEncoder().encode(cached) {
+                UserDefaults.standard.set(data, forKey: persistedKey)
+            }
+            return isAvailable
+        } catch {
+            Logger.shared.log(
+                "JustWatch catalog audio lookup failed for \(tmdbID): \(error.localizedDescription)",
+                type: "TMDB"
+            )
+            return nil
+        }
+    }
+
+    private func resolveCatalogTitleID(
+        tmdbID: Int,
+        title: String,
+        releaseYear: Int?,
+        isMovie: Bool,
+        apiKey: String
+    ) async throws -> String {
+        let cacheKey = "\(tmdbID)|\(title.lowercased())|\(releaseYear ?? 0)"
+        let memoryCache = isMovie ? movieIDCache[cacheKey] : showIDCache[cacheKey]
+        if let memoryCache { return memoryCache }
+        let persistedPrefix = isMovie ? "justWatchMovieIDV1." : "justWatchShowIDV1."
+        if let persisted = UserDefaults.standard.string(forKey: persistedPrefix + cacheKey),
+           persisted.hasPrefix(isMovie ? "tm" : "ts") {
+            if isMovie { movieIDCache[cacheKey] = persisted }
+            else { showIDCache[cacheKey] = persisted }
+            return persisted
+        }
+
+        var components = URLComponents(
+            url: baseURL.appendingPathComponent("search"),
+            resolvingAgainstBaseURL: false
+        )
+        components?.queryItems = [
+            URLQueryItem(name: "q", value: title),
+            URLQueryItem(name: "country", value: "BG"),
+            URLQueryItem(name: "type", value: isMovie ? "movie" : "show"),
+            URLQueryItem(name: "limit", value: "40")
+        ]
+        guard let url = components?.url else { throw JustWatchScheduleError.invalidURL }
+        let payload = try await requestJSON(url: url, apiKey: apiKey)
+        guard let titles = payload["titles"] as? [[String: Any]] else {
+            throw JustWatchScheduleError.invalidResponse
+        }
+        let expectedType = isMovie ? "MOVIE" : "SHOW"
+        let normalized = Self.normalizedTitle(title)
+        let candidates = titles.filter { candidate in
+            guard (candidate["type"] as? String)?.uppercased() == expectedType else { return false }
+            if Self.stringValue(candidate["tmdb_id"]) == String(tmdbID) { return true }
+            let names = [
+                candidate["title"] as? String,
+                candidate["original_title"] as? String
+            ].compactMap { $0 }.map(Self.normalizedTitle)
+            guard names.contains(normalized) else { return false }
+            if let releaseYear, let candidateYear = Self.intValue(candidate["year"]) {
+                return abs(candidateYear - releaseYear) <= 1
+            }
+            return true
+        }
+        guard let id = candidates.first?["id"] as? String,
+              id.hasPrefix(isMovie ? "tm" : "ts") else {
+            throw JustWatchScheduleError.titleNotFound
+        }
+        if isMovie { movieIDCache[cacheKey] = id }
+        else { showIDCache[cacheKey] = id }
+        UserDefaults.standard.set(id, forKey: persistedPrefix + cacheKey)
+        return id
+    }
 
     func filterMovies(
         entries: [ScheduleEntry],
         selectedLanguages: Set<String>
     ) async -> [ScheduleEntry] {
-        guard !selectedLanguages.isEmpty else { return entries }
-        let selectedCodes = Set(selectedLanguages.flatMap { raw in
-            MyDubListLanguage(rawValue: raw)?.episodeMetadataLanguageCodes.map { $0.lowercased() } ?? []
-        })
-        guard !selectedCodes.isEmpty else { return entries }
+        guard let selectedCodes = Self.effectiveScheduleLanguageCodes(selectedLanguages) else {
+            return entries
+        }
         var filtered: [ScheduleEntry] = []
         for entry in entries {
             let nativeDate = Self.language(entry.originalLanguage, matches: selectedCodes) ? entry.airingAt : nil
@@ -2422,11 +2597,9 @@ private actor JustWatchScheduleService {
         entries: [ScheduleEntry],
         selectedLanguages: Set<String>
     ) async -> [ScheduleEntry] {
-        guard !selectedLanguages.isEmpty else { return entries }
-        let selectedCodes = Set(selectedLanguages.flatMap { raw in
-            MyDubListLanguage(rawValue: raw)?.episodeMetadataLanguageCodes.map { $0.lowercased() } ?? []
-        })
-        guard !selectedCodes.isEmpty else { return entries }
+        guard let selectedCodes = Self.effectiveScheduleLanguageCodes(selectedLanguages) else {
+            return entries
+        }
 
         let groups = Dictionary(grouping: entries, by: { entry in
             "\(entry.tmdbId.map(String.init) ?? "title")|\(entry.title.lowercased())|\(entry.releaseYear.map(String.init) ?? "0")"

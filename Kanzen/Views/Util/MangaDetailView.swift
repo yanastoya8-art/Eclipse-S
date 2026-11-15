@@ -466,13 +466,31 @@ struct MangaDetailView: View {
             ]
 
             ZStack(alignment: contentAlignment) {
+                // Fill the entire reader hero with a soft, enlarged version of
+                // the cover. The sharp, fitted cover remains a separate layer
+                // below, so the banner gains depth without sacrificing artwork.
+                ReaderPinnedRemoteImage(
+                    url: URL(string: coverURLString),
+                    onImage: { image in
+                        headerAmbientColor = Color.ambientColor(from: image)
+                    }
+                ) {
+                    Color.black.opacity(0.22)
+                }
+                .scaledToFill()
+                .frame(width: viewportWidth, height: stretchedHeight)
+                .clipped()
+                .blur(radius: readerDetailHeroBlurRadius)
+                .overlay(Color.black.opacity(experimental ? 0.30 : 0.42))
+                .accessibilityHidden(true)
+
                 if isIPad && experimental {
                     Color.black.opacity(0.08)
                 }
 
-                // Keep the actual cover artwork sharp. Color bleed is rendered
-                // separately below so the poster itself is never blurred.
-                Color.black.opacity(experimental ? 0.08 : 0.18)
+                // Keep the foreground cover sharp. Only the enlarged backdrop
+                // and the lower color-bleed tail receive blur.
+                Color.clear
 
                 ReaderPinnedRemoteImage(
                     url: URL(string: coverURLString),

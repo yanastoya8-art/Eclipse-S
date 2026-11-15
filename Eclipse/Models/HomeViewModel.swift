@@ -247,7 +247,17 @@ final class HomeViewModel: ObservableObject {
             )
             guard !Task.isCancelled else { return }
             let tmdbLoadedCatalogs = rawTMDBLoadedCatalogs
-                .mapValues { contentFilter.filterSearchResults($0) }
+                .map { catalogID, results in
+                    let isExplicitUpcomingCatalog = catalogID == "upcomingMovies" || catalogID == "upcomingTV"
+                    return (
+                        catalogID,
+                        contentFilter.filterSearchResults(
+                            results,
+                            allowUpcomingContent: isExplicitUpcomingCatalog
+                        )
+                    )
+                }
+                .reduce(into: [String: [TMDBSearchResult]]()) { $0[$1.0] = $1.1 }
                 .merging(kidsLoadedCatalogs) { _, kids in kids }
             let tmdbLoadedCatalogCount = tmdbLoadedCatalogs.values.filter { !$0.isEmpty }.count
 

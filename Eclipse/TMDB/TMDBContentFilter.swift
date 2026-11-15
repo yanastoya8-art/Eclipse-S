@@ -371,10 +371,16 @@ class TMDBContentFilter: ObservableObject {
     private var animeAgeRatingsByID: [Int: MaturityRating] = [:]
     private var animeAgeCheckedIDs: Set<Int> = []
     private var animeAgeLoadingIDs: Set<Int> = []
+    private var animeAgeRetryAfterByID: [Int: Date] = [:]
     private var animeAudioEligibleIDs: Set<Int> = []
     private var animeAudioCheckedIDs: Set<Int> = []
     private var animeAudioLoadingIDs: Set<Int> = []
     private var animeAudioRetryAfterByID: [Int: Date] = [:]
+    private var catalogAudioEligibleKeys: Set<String> = []
+    private var catalogAudioCheckedKeys: Set<String> = []
+    private var catalogAudioLoadingKeys: Set<String> = []
+    private var catalogAudioRetryAfterByKey: [String: Date] = [:]
+    @Published private(set) var catalogAudioRevision = 0
     private let runtimeMetadataLock = NSLock()
     private var runtimeMinutesByKey: [String: Int] = [:]
     private var runtimeCheckedKeys = Set<String>()
@@ -550,6 +556,9 @@ class TMDBContentFilter: ObservableObject {
 
         let hideBelowAnime = defaults.bool(forKey: "catalogHideBelowPG13Anime")
         let requireVerifiedAudio = defaults.bool(forKey: "catalogRequireEnglishSpanishAudio")
+        if requireVerifiedAudio {
+            scheduleCatalogAudioAvailabilityResolutionIfNeeded(for: results)
+        }
         let shouldResolveAnimeAgeRatings = kidsModeEnabled || hideBelowAnime
         guard shouldResolveAnimeAgeRatings || requireVerifiedAudio else { return }
 
@@ -563,10 +572,10 @@ class TMDBContentFilter: ObservableObject {
         if shouldResolveAnimeAgeRatings {
             let identifiers = Array(uniqueAnime.keys)
             if kidsModeEnabled {
-                await resolveAnimeAgeRatings(for: identifiers)
+                await resolveAnimeAgeRatings(for: animeResults)
             } else {
                 Task(priority: .utility) {
-                    await TMDBContentFilter.shared.resolveAnimeAgeRatings(for: identifiers)
+                    await TMDBContentFilter.shared.resolveAnimeAgeRatings(for: animeResults)
                 }
             }
         }
@@ -577,32 +586,66 @@ class TMDBContentFilter: ObservableObject {
         }
     }
 
-    private func resolveAnimeAgeRatings(for identifiers: [Int]) async {
-        let unresolved = identifiers.filter { id in
+    private func resolveAnimeAgeRatings(for results: [TMDBSearchResult]) async {
+        let uniqueResults = Dictionary(
+            results.compactMap { result -> (Int, TMDBSearchResult)? in
+                guard let id = result.animeIdentitySeed?.anilistId, id > 0 else { return nil }
+                return (id, result)
+            },
+            uniquingKeysWith: { first, _ in first }
+        )
+        let unresolved = uniqueResults.values.filter { result in
+            guard let id = result.animeIdentitySeed?.anilistId else { return false }
             animeEligibilityLock.lock()
             defer { animeEligibilityLock.unlock() }
-            guard !animeAgeCheckedIDs.contains(id), !animeAgeLoadingIDs.contains(id) else { return false }
+            guard !animeAgeCheckedIDs.contains(id),
+                  !animeAgeLoadingIDs.contains(id),
+                  Date() >= (animeAgeRetryAfterByID[id] ?? .distantPast) else { return false }
             animeAgeLoadingIDs.insert(id)
             return true
         }
         guard !unresolved.isEmpty else { return }
 
-        guard let ratings = try? await TaizenAnimeAgeRatingService.shared.ratings(anilistIDs: unresolved) else {
-            animeEligibilityLock.lock()
-            animeAgeLoadingIDs.subtract(unresolved)
-            animeEligibilityLock.unlock()
-            return
+        let identifiers = unresolved.compactMap { $0.animeIdentitySeed?.anilistId }
+        var ratings = (try? await TaizenAnimeAgeRatingService.shared.ratings(anilistIDs: identifiers)) ?? [:]
+        let missingResults = unresolved.filter { result in
+            guard let id = result.animeIdentitySeed?.anilistId else { return false }
+            return ratings[id] == nil || ratings[id] == .unknown
+        }
+
+        // Taizen does not have complete age-rating coverage. When a MAL client
+        // ID is configured, use MyAnimeList's official PG/R/R+ classification
+        // as a second source instead of permanently marking the title unrated.
+        if MALMetadataService.shared.isConfigured, !missingResults.isEmpty {
+            await withTaskGroup(of: (Int, MaturityRating?).self) { group in
+                for result in missingResults {
+                    guard let anilistID = result.animeIdentitySeed?.anilistId,
+                          let malID = result.animeIdentitySeed?.malId,
+                          malID > 0 else { continue }
+                    group.addTask {
+                        let rating = await MALMetadataService.shared.fetchMaturityRating(malID: malID)
+                        return (anilistID, rating)
+                    }
+                }
+                while let (id, rating) = await group.next() {
+                    if let rating { ratings[id] = rating }
+                }
+            }
         }
 
         var didResolveAny = false
-        for (id, rating) in ratings {
-            storeAnimeAgeRating(rating, for: id)
-            didResolveAny = true
+        for result in unresolved {
+            guard let id = result.animeIdentitySeed?.anilistId else { continue }
+            if let rating = ratings[id], rating != .unknown {
+                storeAnimeAgeRating(rating, for: id)
+                didResolveAny = true
+            } else {
+                animeEligibilityLock.lock()
+                animeAgeLoadingIDs.remove(id)
+                animeAgeRetryAfterByID[id] = Date().addingTimeInterval(2 * 60 * 60)
+                animeEligibilityLock.unlock()
+            }
         }
-        animeEligibilityLock.lock()
-        animeAgeLoadingIDs.subtract(unresolved)
-        animeAgeCheckedIDs.formUnion(unresolved)
-        animeEligibilityLock.unlock()
 
         if didResolveAny {
             NotificationCenter.default.post(
@@ -701,7 +744,10 @@ class TMDBContentFilter: ObservableObject {
         }
     }
 
-    func filterSearchResultsResolvingRatings(_ results: [TMDBSearchResult]) async -> [TMDBSearchResult] {
+    func filterSearchResultsResolvingRatings(
+        _ results: [TMDBSearchResult],
+        allowUpcomingContent: Bool = false
+    ) async -> [TMDBSearchResult] {
         // Resolve dub evidence before prepareMaturityRatings schedules its
         // background refresh. Otherwise that task can claim the loading IDs
         // first and make this awaited pass return before metadata is ready.
@@ -710,7 +756,7 @@ class TMDBContentFilter: ObservableObject {
             await resolveAnimeAudioMetadata(for: animeResults)
         }
         await prepareMaturityRatings(for: results)
-        return filterSearchResults(results)
+        return filterSearchResults(results, allowUpcomingContent: allowUpcomingContent)
     }
 
     func filterFastAnimeSearchResultsResolvingRatings(_ results: [TMDBSearchResult]) async -> [TMDBSearchResult] {
@@ -744,13 +790,17 @@ class TMDBContentFilter: ObservableObject {
         }
     }
 
-    func filterSearchResults(_ results: [TMDBSearchResult]) -> [TMDBSearchResult] {
+    func filterSearchResults(
+        _ results: [TMDBSearchResult],
+        allowUpcomingContent: Bool = false
+    ) -> [TMDBSearchResult] {
         if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
             Task(priority: .utility) { await self.resolveRuntimeMetadata(for: results) }
         }
         scheduleAnimeAudioMetadataResolutionIfNeeded(for: results)
+        scheduleCatalogAudioAvailabilityResolutionIfNeeded(for: results)
         return results.filter { result in
-            shouldIncludeCatalogResult(result)
+            shouldIncludeCatalogResult(result, allowUpcomingContent: allowUpcomingContent)
         }
     }
 
@@ -799,8 +849,7 @@ class TMDBContentFilter: ObservableObject {
                 guard let language = movie.originalLanguage?.lowercased() else { return false }
                 let hasNativeAudio = language.hasPrefix("en") || language.hasPrefix("es")
                 if !hasNativeAudio {
-                    guard movieAnime,
-                          shouldIncludeForConfiguredAgeAndAudio(movie.asSearchResult) else { return false }
+                    guard shouldIncludeForConfiguredAgeAndAudio(movieResult) else { return false }
                 }
             }
             if movieAnime {
@@ -855,8 +904,7 @@ class TMDBContentFilter: ObservableObject {
                 guard let language = tvShow.originalLanguage?.lowercased() else { return false }
                 let hasNativeAudio = language.hasPrefix("en") || language.hasPrefix("es")
                 if !hasNativeAudio {
-                    guard isAnime,
-                          shouldIncludeForConfiguredAgeAndAudio(tvShow.asSearchResult) else { return false }
+                    guard shouldIncludeForConfiguredAgeAndAudio(tvResult) else { return false }
                 }
             }
             if isAnime {
@@ -890,7 +938,10 @@ class TMDBContentFilter: ObservableObject {
         )
     }
 
-    private func shouldIncludeCatalogResult(_ result: TMDBSearchResult) -> Bool {
+    private func shouldIncludeCatalogResult(
+        _ result: TMDBSearchResult,
+        allowUpcomingContent: Bool = false
+    ) -> Bool {
         guard !shouldExcludeAnimeSpecialOrOVA(result) else { return false }
         guard !UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent")
             || !Self.isUnofficialCreatorContent(title: result.displayTitle, overview: result.overview) else {
@@ -899,7 +950,10 @@ class TMDBContentFilter: ObservableObject {
         guard MyDubListDubFilter.shared.shouldInclude(result) else { return false }
         guard result.adult != true else { return false }
         if Self.isAnimeResult(result), !shouldIncludeAnimeCategoryFilters(result) { return false }
-        guard shouldIncludeForConfiguredAgeAndAudio(result) else { return false }
+        guard shouldIncludeForConfiguredAgeAndAudio(
+            result,
+            allowUpcomingContent: allowUpcomingContent
+        ) else { return false }
         guard shouldIncludeCatalogTitle(result.displayTitle) else { return false }
         guard shouldIncludeForKids(
             title: result.displayTitle,
@@ -1071,8 +1125,113 @@ class TMDBContentFilter: ObservableObject {
         animeEligibilityLock.lock()
         animeAgeRatingsByID[id] = rating
         animeAgeLoadingIDs.remove(id)
+        animeAgeRetryAfterByID.removeValue(forKey: id)
         animeAgeCheckedIDs.insert(id)
         animeEligibilityLock.unlock()
+    }
+
+    private func catalogAudioAvailabilityKey(for result: TMDBSearchResult) -> String {
+        "\(result.isMovie ? "movie" : "tv")-\(result.id)"
+    }
+
+    private func hasVerifiedCatalogAudio(for result: TMDBSearchResult) -> Bool {
+        let key = catalogAudioAvailabilityKey(for: result)
+        animeEligibilityLock.lock()
+        defer { animeEligibilityLock.unlock() }
+        return catalogAudioEligibleKeys.contains(key)
+    }
+
+    private func scheduleCatalogAudioAvailabilityResolutionIfNeeded(for results: [TMDBSearchResult]) {
+        guard UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") else { return }
+        let candidates = results.filter { result in
+            guard !Self.isAnimeResult(result),
+                  (result.isMovie || result.isTVShow),
+                  result.id > 0 else { return false }
+            let language = result.originalLanguage?.lowercased() ?? ""
+            guard !(language.hasPrefix("en") || language.hasPrefix("es")) else { return false }
+            let key = catalogAudioAvailabilityKey(for: result)
+            animeEligibilityLock.lock()
+            defer { animeEligibilityLock.unlock() }
+            guard !catalogAudioCheckedKeys.contains(key),
+                  !catalogAudioLoadingKeys.contains(key),
+                  Date() >= (catalogAudioRetryAfterByKey[key] ?? .distantPast) else { return false }
+            catalogAudioLoadingKeys.insert(key)
+            return true
+        }
+        guard !candidates.isEmpty else { return }
+
+        let selectedLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
+        Task(priority: .utility) {
+            await withTaskGroup(of: (String, Bool?).self) { group in
+                var iterator = candidates.makeIterator()
+                let concurrencyLimit = 4
+                for _ in 0..<min(concurrencyLimit, candidates.count) {
+                    guard let result = iterator.next() else { continue }
+                    let key = self.catalogAudioAvailabilityKey(for: result)
+                    group.addTask {
+                        let rawDate = result.isMovie ? result.releaseDate : result.firstAirDate
+                        let year = rawDate.flatMap { Int($0.prefix(4)) }
+                        let available = await JustWatchScheduleService.shared.hasAudioLanguageOffer(
+                            tmdbID: result.id,
+                            title: result.displayTitle,
+                            releaseYear: year,
+                            isMovie: result.isMovie,
+                            originalLanguage: result.originalLanguage,
+                            selectedLanguages: selectedLanguages
+                        )
+                        return (key, available)
+                    }
+                }
+
+                var didResolveAny = false
+                while let (key, available) = await group.next() {
+                    animeEligibilityLock.lock()
+                    catalogAudioLoadingKeys.remove(key)
+                    if let available {
+                        catalogAudioCheckedKeys.insert(key)
+                        catalogAudioRetryAfterByKey.removeValue(forKey: key)
+                        if available {
+                            catalogAudioEligibleKeys.insert(key)
+                        } else {
+                            catalogAudioEligibleKeys.remove(key)
+                        }
+                        didResolveAny = true
+                    } else {
+                        // A provider outage is not proof that a title has no dub.
+                        // Keep it hidden until verified, then retry after a cooldown.
+                        catalogAudioRetryAfterByKey[key] = Date().addingTimeInterval(10 * 60)
+                    }
+                    animeEligibilityLock.unlock()
+
+                    if let result = iterator.next() {
+                        let nextKey = self.catalogAudioAvailabilityKey(for: result)
+                        group.addTask {
+                            let rawDate = result.isMovie ? result.releaseDate : result.firstAirDate
+                            let year = rawDate.flatMap { Int($0.prefix(4)) }
+                            let available = await JustWatchScheduleService.shared.hasAudioLanguageOffer(
+                                tmdbID: result.id,
+                                title: result.displayTitle,
+                                releaseYear: year,
+                                isMovie: result.isMovie,
+                                originalLanguage: result.originalLanguage,
+                                selectedLanguages: selectedLanguages
+                            )
+                            return (nextKey, available)
+                        }
+                    }
+                }
+
+                if didResolveAny {
+                    await MainActor.run {
+                        self.catalogAudioRevision &+= 1
+                        NotificationCenter.default.post(
+                            name: Self.catalogFiltersDidChangeNotification,
+                            object: nil
+                        )
+                    }
+                }
+            }
+        }
     }
 
     private func storeAnimeAudioEligibility(_ isEligible: Bool, for id: Int) {
@@ -1210,7 +1369,10 @@ class TMDBContentFilter: ObservableObject {
         return storedValue
     }
 
-    private func shouldIncludeForConfiguredAgeAndAudio(_ result: TMDBSearchResult) -> Bool {
+    private func shouldIncludeForConfiguredAgeAndAudio(
+        _ result: TMDBSearchResult,
+        allowUpcomingContent: Bool = false
+    ) -> Bool {
         let defaults = UserDefaults.standard
         let isAnime = Self.isAnimeResult(result)
         if defaults.bool(forKey: "catalogHideAnime"), isAnime { return false }
@@ -1235,21 +1397,27 @@ class TMDBContentFilter: ObservableObject {
             }
         }
 
-        if Self.shouldHideForReleaseDate(result, defaults: defaults) { return false }
+        if Self.shouldHideForReleaseDate(
+            result,
+            defaults: defaults,
+            allowUpcomingContent: allowUpcomingContent
+        ) { return false }
 
         if defaults.bool(forKey: "catalogRequireEnglishSpanishAudio") {
             guard let originalLanguage = result.originalLanguage?.lowercased() else { return false }
             let hasNativeAudio = originalLanguage.hasPrefix("en") || originalLanguage.hasPrefix("es")
             if !hasNativeAudio {
-                guard isAnime,
-                      let anilistID = result.animeIdentitySeed?.anilistId,
-                      anilistID > 0 else { return false }
-                animeEligibilityLock.lock()
-                let hasVerifiedDub = animeAudioEligibleIDs.contains(anilistID)
-                animeEligibilityLock.unlock()
-                // Fail closed while dub metadata is loading or unavailable. The
-                // metadata resolver posts a filter refresh when it completes.
-                guard hasVerifiedDub else { return false }
+                if isAnime {
+                    guard let anilistID = result.animeIdentitySeed?.anilistId,
+                          anilistID > 0 else { return false }
+                    animeEligibilityLock.lock()
+                    let hasVerifiedDub = animeAudioEligibleIDs.contains(anilistID)
+                    animeEligibilityLock.unlock()
+                    // Fail closed while anime dub metadata is loading or unavailable.
+                    guard hasVerifiedDub else { return false }
+                } else {
+                    guard hasVerifiedCatalogAudio(for: result) else { return false }
+                }
             }
         }
         return true
@@ -1303,13 +1471,15 @@ class TMDBContentFilter: ObservableObject {
 
     private static func shouldHideForReleaseDate(
         _ result: TMDBSearchResult,
-        defaults: UserDefaults
+        defaults: UserDefaults,
+        allowUpcomingContent: Bool = false
     ) -> Bool {
         shouldHideForReleaseDate(
             rawDate: result.isMovie ? result.releaseDate : (result.firstAirDate ?? result.releaseDate),
             isAnime: isAnimeResult(result),
             isMovie: result.isMovie,
-            defaults: defaults
+            defaults: defaults,
+            allowUpcomingContent: allowUpcomingContent
         )
     }
 
@@ -1317,7 +1487,8 @@ class TMDBContentFilter: ObservableObject {
         rawDate: String?,
         isAnime: Bool,
         isMovie: Bool,
-        defaults: UserDefaults
+        defaults: UserDefaults,
+        allowUpcomingContent: Bool = false
     ) -> Bool {
         guard let rawDate, rawDate.count >= 10, !rawDate.hasPrefix("0001-") else { return false }
         let formatter = ISO8601DateFormatter()
@@ -1332,7 +1503,8 @@ class TMDBContentFilter: ObservableObject {
             return true
         }
         let calendar = Calendar.current
-        return defaults.bool(forKey: unreleasedKey)
+        return !allowUpcomingContent
+            && defaults.bool(forKey: unreleasedKey)
             && calendar.startOfDay(for: releaseDate) > calendar.startOfDay(for: Date())
     }
 

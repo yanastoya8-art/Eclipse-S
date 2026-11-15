@@ -5666,7 +5666,8 @@ final class AniListService {
                     nativeTitle: schedule.media.title.native,
                     format: schedule.media.format,
                     hasKnownAiringTime: true,
-                    malID: schedule.media.idMal
+                    malID: schedule.media.idMal,
+                    tags: schedule.media.tags?.map(\.name)
                 )
             }
             .filter { entry in
@@ -12182,6 +12183,7 @@ struct AniListAiringScheduleEntry: Identifiable, Codable, Sendable {
     var scheduleProvider: ScheduleProvider? = nil
     var malID: Int? = nil
     var airingTimeWithdrawn: Bool? = nil
+    var tags: [String]? = nil
 }
 
 struct AnimeAiringScheduleResult: Sendable {
@@ -13328,7 +13330,7 @@ enum AniListTitlePicker {
     }
 }
 
-private final class MALMetadataService {
+final class MALMetadataService {
     static let shared = MALMetadataService()
 
 #if DEBUG
@@ -13373,6 +13375,23 @@ private final class MALMetadataService {
         let raw = Bundle.main.object(forInfoDictionaryKey: "MALClientID") as? String ?? ""
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.contains("$(") ? "" : trimmed
+    }
+
+    var isConfigured: Bool { !clientID.isEmpty }
+
+    func fetchMaturityRating(malID: Int) async -> MaturityRating? {
+        guard isConfigured,
+              let details = try? await fetchAnimeDetails(id: malID),
+              let rawRating = details.rating?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !rawRating.isEmpty else {
+            return nil
+        }
+        // MAL sends labels such as "PG-13 - Teens 13 or older". Keep the
+        // classification token intact (including the hyphen in PG-13).
+        let code = rawRating.components(separatedBy: " - ").first?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? rawRating
+        let rating = MaturityRating.classify(certification: code)
+        return rating == .unknown ? nil : rating
     }
 
     func fetchAllAnimeCatalogs(

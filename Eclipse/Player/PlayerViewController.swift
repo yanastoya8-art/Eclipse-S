@@ -5471,9 +5471,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         let secondaryDataHash = defaults.data(forKey: MPVPlayerSkinSettings.customSecondaryColorKey)?.hashValue ?? 0
         let animationsEnabled = MPVPlayerSkinSettings.animationsEnabled(defaults: defaults)
         let tintControlsOnly = selectedSkin != .defaultSkin && MPVPlayerSkinSettings.tintControlsOnly(defaults: defaults)
-        let liquidGlassEnabled = isMPVRenderer && MPVPlayerSkinSettings.liquidGlassControlsEnabled(defaults: defaults)
+        // Liquid Glass player controls were removed from the settings UI.
+        // Ignore any legacy saved preference and keep the standard control design.
+        let liquidGlassEnabled = false
         let animationStyle = MPVPlayerSkinSettings.animationStyle(for: selectedSkin, defaults: defaults)
-        let signature = "\(selectedSkin.rawValue)|\(primaryDataHash)|\(secondaryDataHash)|\(animationsEnabled)|\(tintControlsOnly)|\(liquidGlassEnabled)|\(animationStyle.rawValue)"
+        let signature = "\(selectedSkin.rawValue)|\(primaryDataHash)|\(secondaryDataHash)|\(animationsEnabled)|\(tintControlsOnly)|\(animationStyle.rawValue)"
         guard force || signature != activePlayerSkinSignature else { return }
 
         activePlayerSkinSignature = signature
@@ -5983,14 +5985,14 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             pipButton.heightAnchor.constraint(equalToConstant: 36),
 
             castButton.centerYAnchor.constraint(equalTo: closeButton.centerYAnchor),
-            castButton.leadingAnchor.constraint(equalTo: pipButton.trailingAnchor, constant: 8),
+            castButton.trailingAnchor.constraint(equalTo: progressContainer.trailingAnchor, constant: -4),
             castButton.widthAnchor.constraint(equalToConstant: 36),
             castButton.heightAnchor.constraint(equalToConstant: 36),
 
-
             playerTitleLabel.centerYAnchor.constraint(equalTo: closeButton.centerYAnchor),
             playerTitleCenterConstraint,
-            playerTitleLabel.trailingAnchor.constraint(lessThanOrEqualTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -20),
+            playerTitleLabel.leadingAnchor.constraint(greaterThanOrEqualTo: pipButton.trailingAnchor, constant: 12),
+            playerTitleLabel.trailingAnchor.constraint(lessThanOrEqualTo: castButton.leadingAnchor, constant: -12),
 
             skipBackwardButton.centerYAnchor.constraint(equalTo: centerPlayPauseButton.centerYAnchor),
             skipBackwardButton.trailingAnchor.constraint(equalTo: centerPlayPauseButton.leadingAnchor, constant: -48),
@@ -13349,11 +13351,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         guard isViewLoaded else { return }
         let headers = playbackLaunchContext?.headers ?? initialHeaders ?? [:]
         let candidates = [URL(string: playbackLaunchContext?.streamURL ?? ""), initialURL].compactMap { $0 }
-        castButton.isHidden = !isMPVRenderer
+        castButton.isHidden = candidates.isEmpty
         castButton.isEnabled = !candidates.isEmpty
         castButton.accessibilityHint = candidates.isEmpty
             ? "No stream URL is available to cast."
-            : "Automatically use LG webOS for MKV, local files, and streams requiring provider headers; use Chromecast for other streams."
+            : "Use LG webOS for Nuvio, Mangayomi, MKV, local files, and authenticated streams; use Chromecast for other supported streams."
         let castTint = activePlayerSkinAppearance.primary
         castButton.tintColor = castButton.isEnabled ? castTint : castTint.withAlphaComponent(0.35)
     }
@@ -13368,7 +13370,15 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         let requiresHeaderProxy = headers.keys.contains { key in
             !["user-agent", "accept", "accept-language", "connection", "range"].contains(key.lowercased())
         }
-        if url.isFileURL || url.pathExtension.lowercased() == "mkv" || requiresHeaderProxy {
+        let providerRequiresLGRoute = playbackLaunchContext?.sourceKind == .nuvio
+            || playbackLaunchContext?.usesMangayomiSource == true
+        if providerRequiresLGRoute
+            || url.isFileURL
+            || url.pathExtension.lowercased() == "mkv"
+            || requiresHeaderProxy {
+            // Nuvio and Mangayomi streams frequently depend on provider-specific
+            // request headers or short-lived URLs. Route them through the TV
+            // receiver that supports authenticated HTTP playback.
             prepareLGWebOSCastForCurrentStream()
         } else {
             guard let castableURL = candidates.first(where: {

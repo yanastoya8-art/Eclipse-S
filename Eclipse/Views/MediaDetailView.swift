@@ -2502,8 +2502,8 @@ struct MediaDetailContentView: View {
                     // Reserve their full display height before placing metadata/actions.
                     Spacer(minLength: 0)
                         .frame(height: usesWideDetailLayout
-                            ? headerHeight * 0.16
-                            : min(EclipseViewport.bounds.width * 1.5, headerHeight - 80))
+                            ? headerHeight * 0.70
+                            : min(EclipseViewport.bounds.width * 1.5, headerHeight - 40))
                     headerSection
                         .frame(maxWidth: .infinity, alignment: usesLandscapeDetailComposition ? .center : (usesWideDetailLayout ? .trailing : .center))
                         .padding(.horizontal, usesWideDetailLayout ? 48 : 0)

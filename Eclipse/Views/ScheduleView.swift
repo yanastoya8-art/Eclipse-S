@@ -40,8 +40,29 @@ struct ScheduleView: View {
         let profileEntries = UserDefaults.standard.bool(forKey: "catalogHideAnime")
             ? entries.filter { $0.source != .anime }
             : entries
-        guard ProfileManager.shared.isKidsModeActive else { return profileEntries }
-        return profileEntries.filter { entry in
+        let unofficialFilteredEntries: [ScheduleEntry]
+        if UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent") {
+            unofficialFilteredEntries = profileEntries.filter { entry in
+                let searchableTitle = [
+                    entry.title,
+                    entry.englishTitle,
+                    entry.romajiTitle,
+                    entry.nativeTitle,
+                    entry.format,
+                    entry.metadataTags.joined(separator: " ")
+                ]
+                .compactMap { $0 }
+                .joined(separator: " ")
+                return !TMDBContentFilter.isUnofficialCreatorContent(
+                    title: searchableTitle,
+                    overview: entry.overview
+                )
+            }
+        } else {
+            unofficialFilteredEntries = profileEntries
+        }
+        guard ProfileManager.shared.isKidsModeActive else { return unofficialFilteredEntries }
+        return unofficialFilteredEntries.filter { entry in
             guard let tmdbId = entry.tmdbId else { return false }
             guard resolvedKidsScheduleIds.contains(tmdbId) else { return false }
             return !kidsBlockedScheduleIds.contains(tmdbId)
@@ -552,15 +573,21 @@ struct ScheduleView: View {
                 if viewModel.isLoading {
                     loadingView
                         .frame(minHeight: 360)
-                } else if let errorMessage = viewModel.errorMessage {
-                    errorView(errorMessage)
-                        .frame(minHeight: 360)
-                } else if viewModel.dayBuckets.allSatisfy({ $0.items.isEmpty }) {
-                    emptyStateView
-                        .frame(minHeight: 360)
                 } else {
+                    // Keep date navigation available even when a provider has
+                    // no matching dub timetable or temporarily fails. Users
+                    // can still move between dates instead of being trapped
+                    // on a full-screen error state.
                     dayPickerSection
-                    selectedDaySection
+                    if let errorMessage = viewModel.errorMessage {
+                        errorView(errorMessage)
+                            .frame(minHeight: 360)
+                    } else if viewModel.dayBuckets.allSatisfy({ $0.items.isEmpty }) {
+                        emptyStateView
+                            .frame(minHeight: 360)
+                    } else {
+                        selectedDaySection
+                    }
                 }
             }
             .padding(.top)
@@ -1006,32 +1033,48 @@ struct ScheduleView: View {
         .padding(.horizontal)
     }
 
+    private var dayPickerDates: [Date] {
+        if !viewModel.dayBuckets.isEmpty {
+            return viewModel.dayBuckets.map(\.date)
+        }
+        let calendar = scheduleCalendar
+        let start = calendar.startOfDay(for: Date())
+        return (0..<scheduleWindow.rawValue).compactMap {
+            calendar.date(byAdding: .day, value: $0, to: start)
+        }
+    }
+
     private var dayPickerSection: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(viewModel.dayBuckets) { bucket in
-                    dayChip(bucket)
+                ForEach(dayPickerDates, id: \.self) { date in
+                    let count = viewModel.dayBuckets.first {
+                        scheduleCalendar.isDate($0.date, inSameDayAs: date)
+                    }.map { visibleToProfile($0.items).count } ?? 0
+                    dayChip(date: date, itemCount: count)
                 }
             }
             .padding(.horizontal)
         }
     }
 
-    private func dayChip(_ bucket: DayBucket) -> some View {
-        let selected = selectedBucket.map { scheduleCalendar.isDate($0.date, inSameDayAs: bucket.date) } ?? false
-        let isToday = scheduleCalendar.isDate(bucket.date, inSameDayAs: Date())
+    private func dayChip(date: Date, itemCount: Int) -> some View {
+        let fallbackSelection = viewModel.dayBuckets.first?.date ?? scheduleCalendar.startOfDay(for: Date())
+        let selectedDate = selectedScheduleDate ?? fallbackSelection
+        let selected = scheduleCalendar.isDate(selectedDate, inSameDayAs: date)
+        let isToday = scheduleCalendar.isDate(date, inSameDayAs: Date())
 
         return Button {
-            selectedScheduleDate = bucket.date
+            selectedScheduleDate = date
         } label: {
             VStack(spacing: 4) {
-                Text(shortDay(bucket.date))
+                Text(shortDay(date))
                     .font(.caption.weight(.semibold))
 
-                Text(dayNumber(bucket.date))
+                Text(dayNumber(date))
                     .font(.system(size: 20, weight: .bold))
 
-                Text("\(visibleToProfile(bucket.items).count)")
+                Text("\(itemCount)")
                     .font(.caption2.weight(.semibold))
                     .foregroundColor(selected ? .black.opacity(0.65) : .white.opacity(0.5))
             }

@@ -80,6 +80,12 @@ jobs:
           JUSTWATCH_API_KEY: ${{ secrets.JUSTWATCH_API_KEY }}
           ANIMESCHEDULE_API_TOKEN: ${{ secrets.ANIMESCHEDULE_API_TOKEN }}
           DUBSONLY_API_KEY: ${{ secrets.DUBSONLY_API_KEY }}
+          ANILIST_CLIENT_ID: ${{ secrets.ANILIST_CLIENT_ID }}
+          ANILIST_CLIENT_SECRET: ${{ secrets.ANILIST_CLIENT_SECRET }}
+          ANILIST_REDIRECT_URI: ${{ secrets.ANILIST_REDIRECT_URI }}
+          MAL_CLIENT_ID: ${{ secrets.MAL_CLIENT_ID }}
+          MAL_CLIENT_SECRET: ${{ secrets.MAL_CLIENT_SECRET }}
+          MAL_REDIRECT_URI: ${{ secrets.MAL_REDIRECT_URI }}
         run: |
           set -euo pipefail
           {
@@ -88,6 +94,12 @@ jobs:
             printf 'JUSTWATCH_API_KEY = %s\n' "${JUSTWATCH_API_KEY:-}"
             printf 'ANIMESCHEDULE_API_TOKEN = %s\n' "${ANIMESCHEDULE_API_TOKEN:-}"
             printf 'DUBSONLY_API_KEY = %s\n' "${DUBSONLY_API_KEY:-}"
+            printf 'ANILIST_CLIENT_ID = %s\n' "${ANILIST_CLIENT_ID:-}"
+            printf 'ANILIST_CLIENT_SECRET = %s\n' "${ANILIST_CLIENT_SECRET:-}"
+            printf 'ANILIST_REDIRECT_URI = %s\n' "${ANILIST_REDIRECT_URI:-}"
+            printf 'MAL_CLIENT_ID = %s\n' "${MAL_CLIENT_ID:-}"
+            printf 'MAL_CLIENT_SECRET = %s\n' "${MAL_CLIENT_SECRET:-}"
+            printf 'MAL_REDIRECT_URI = %s\n' "${MAL_REDIRECT_URI:-}"
           } > Build.local.xcconfig
 
       - name: Parse all iOS app and test Swift sources

@@ -541,9 +541,11 @@ final class MaturityRatingRegionTests: XCTestCase {
 
     func testBulgarianNationalAgeCategoriesAreMappedCorrectly() {
         XCTAssertEqual(MaturityRating.classify(certification: "A", region: "BG"), .general)
-        XCTAssertEqual(MaturityRating.classify(certification: "B", region: "BG"), .age12)
-        XCTAssertEqual(MaturityRating.classify(certification: "C", region: "BG"), .age16)
-        XCTAssertEqual(MaturityRating.classify(certification: "D", region: "BG"), .adult)
+        XCTAssertEqual(MaturityRating.classify(certification: "B", region: "BG"), .general)
+        XCTAssertEqual(MaturityRating.classify(certification: "C", region: "BG"), .age12)
+        XCTAssertEqual(MaturityRating.classify(certification: "C+", region: "BG"), .age14)
+        XCTAssertEqual(MaturityRating.classify(certification: "D", region: "BG"), .age16)
+        XCTAssertEqual(MaturityRating.classify(certification: "D+", region: "BG"), .age16)
         XCTAssertEqual(MaturityRating.classify(certification: "X", region: "BG"), .adult)
     }
 
