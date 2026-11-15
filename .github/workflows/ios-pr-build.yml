@@ -95,7 +95,22 @@ jobs:
           python3 -m venv "$MPVKIT_BUILD_VENV"
           "$MPVKIT_BUILD_VENV/bin/python" -m pip install --disable-pip-version-check meson==1.4.2
           export PATH="$MPVKIT_BUILD_VENV/bin:$PATH"
-          make -C MPVKit build enable-gpl version=0.41.0 platform=ios
+          MPVKIT_BUILD_SUCCEEDED=false
+          for attempt in 1 2 3; do
+            if make -C MPVKit build enable-gpl version=0.41.0 platform=ios; then
+              MPVKIT_BUILD_SUCCEEDED=true
+              break
+            fi
+          
+            echo "::warning::MPVKit build attempt $attempt failed. Retrying transient upstream download failures."
+            # Remove incomplete OpenSSL downloads so the next attempt starts cleanly.
+            rm -rf MPVKit/dist/openssl-3.3.5 MPVKit/dist/openssl-3.3.5.log
+            if [ "$attempt" -lt 3 ]; then sleep "$((attempt * 10))"; fi
+          done
+          if [ "$MPVKIT_BUILD_SUCCEEDED" != true ]; then
+            echo "::error::MPVKit did not build successfully after three attempts."
+            exit 1
+          fi
           test -f MPVKit/dist/release/Package.swift
           
       - name: Verify patched MPVKit source and local frameworks
