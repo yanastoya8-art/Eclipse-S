@@ -7107,6 +7107,7 @@ struct MediaDetailContentView: View {
                 self.optionalPresentationCacheWritable = true
                 self.isAnimeShow = cached.isAnimeShow
                 self.animeRating = cached.animeRating
+                self.animeMetadata = nil
                 self.anilistEpisodes = cached.anilistEpisodes
                 self.animeSeasonTitles = cached.animeSeasonTitles
                 self.animeSeasonRomajiTitles = cached.animeSeasonRomajiTitles
@@ -7181,6 +7182,7 @@ struct MediaDetailContentView: View {
         seasonDetail = nil
         selectedEpisodeForSearch = nil
         animeRating = nil
+        animeMetadata = nil
         animeSeasonRomajiTitles = [:]
         animeSeasonAniListIds = [:]
         animeSeasonKitsuIds = [:]
@@ -7227,6 +7229,7 @@ struct MediaDetailContentView: View {
 #endif
                         self.castMembers = []
                         self.animeRating = nil
+                        self.animeMetadata = nil
                         self.animeSpecialEntries = []
                         self.isLoadingAnimeSpecials = false
                         self.selectedSpecialEpisodeContext = nil
