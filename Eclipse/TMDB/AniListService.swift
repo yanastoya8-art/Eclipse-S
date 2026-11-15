@@ -5666,7 +5666,8 @@ final class AniListService {
                     nativeTitle: schedule.media.title.native,
                     format: schedule.media.format,
                     hasKnownAiringTime: true,
-                    malID: schedule.media.idMal
+                    malID: schedule.media.idMal,
+                    tags: schedule.media.tags?.map(\.name)
                 )
             }
             .filter { entry in
@@ -12182,6 +12183,7 @@ struct AniListAiringScheduleEntry: Identifiable, Codable, Sendable {
     var scheduleProvider: ScheduleProvider? = nil
     var malID: Int? = nil
     var airingTimeWithdrawn: Bool? = nil
+    var tags: [String]? = nil
 }
 
 struct AnimeAiringScheduleResult: Sendable {
