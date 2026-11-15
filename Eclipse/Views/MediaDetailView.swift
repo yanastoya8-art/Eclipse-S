@@ -2656,11 +2656,11 @@ struct MediaDetailContentView: View {
 
     private var detailHeroFallbackImageURLs: [String] {
         guard let primary = detailHeroImageURL else { return [] }
-        let candidates: [String?] =
+        let candidates =
             PosterArtworkURLResolver.candidates(for: searchResult)
-            + [searchResult.fullBackdropURL]
+            + [searchResult.fullBackdropURL].compactMap { $0 }
         var seen: Set<String> = []
-        return candidates.compactMap { $0 }.filter { value in
+        return candidates.filter { value in
             guard value != primary,
                   let url = URL(string: value),
                   ["https", "http"].contains(url.scheme?.lowercased() ?? ""),
