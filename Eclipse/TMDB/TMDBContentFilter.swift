@@ -744,7 +744,10 @@ class TMDBContentFilter: ObservableObject {
         }
     }
 
-    func filterSearchResultsResolvingRatings(_ results: [TMDBSearchResult]) async -> [TMDBSearchResult] {
+    func filterSearchResultsResolvingRatings(
+        _ results: [TMDBSearchResult],
+        allowUpcomingContent: Bool = false
+    ) async -> [TMDBSearchResult] {
         // Resolve dub evidence before prepareMaturityRatings schedules its
         // background refresh. Otherwise that task can claim the loading IDs
         // first and make this awaited pass return before metadata is ready.
@@ -753,7 +756,7 @@ class TMDBContentFilter: ObservableObject {
             await resolveAnimeAudioMetadata(for: animeResults)
         }
         await prepareMaturityRatings(for: results)
-        return filterSearchResults(results)
+        return filterSearchResults(results, allowUpcomingContent: allowUpcomingContent)
     }
 
     func filterFastAnimeSearchResultsResolvingRatings(_ results: [TMDBSearchResult]) async -> [TMDBSearchResult] {
@@ -787,13 +790,17 @@ class TMDBContentFilter: ObservableObject {
         }
     }
 
-    func filterSearchResults(_ results: [TMDBSearchResult]) -> [TMDBSearchResult] {
+    func filterSearchResults(
+        _ results: [TMDBSearchResult],
+        allowUpcomingContent: Bool = false
+    ) -> [TMDBSearchResult] {
         if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
             Task(priority: .utility) { await self.resolveRuntimeMetadata(for: results) }
         }
         scheduleAnimeAudioMetadataResolutionIfNeeded(for: results)
+        scheduleCatalogAudioAvailabilityResolutionIfNeeded(for: results)
         return results.filter { result in
-            shouldIncludeCatalogResult(result)
+            shouldIncludeCatalogResult(result, allowUpcomingContent: allowUpcomingContent)
         }
     }
 
@@ -931,7 +938,10 @@ class TMDBContentFilter: ObservableObject {
         )
     }
 
-    private func shouldIncludeCatalogResult(_ result: TMDBSearchResult) -> Bool {
+    private func shouldIncludeCatalogResult(
+        _ result: TMDBSearchResult,
+        allowUpcomingContent: Bool = false
+    ) -> Bool {
         guard !shouldExcludeAnimeSpecialOrOVA(result) else { return false }
         guard !UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent")
             || !Self.isUnofficialCreatorContent(title: result.displayTitle, overview: result.overview) else {
@@ -940,7 +950,10 @@ class TMDBContentFilter: ObservableObject {
         guard MyDubListDubFilter.shared.shouldInclude(result) else { return false }
         guard result.adult != true else { return false }
         if Self.isAnimeResult(result), !shouldIncludeAnimeCategoryFilters(result) { return false }
-        guard shouldIncludeForConfiguredAgeAndAudio(result) else { return false }
+        guard shouldIncludeForConfiguredAgeAndAudio(
+            result,
+            allowUpcomingContent: allowUpcomingContent
+        ) else { return false }
         guard shouldIncludeCatalogTitle(result.displayTitle) else { return false }
         guard shouldIncludeForKids(
             title: result.displayTitle,
@@ -1355,7 +1368,10 @@ class TMDBContentFilter: ObservableObject {
         return storedValue
     }
 
-    private func shouldIncludeForConfiguredAgeAndAudio(_ result: TMDBSearchResult) -> Bool {
+    private func shouldIncludeForConfiguredAgeAndAudio(
+        _ result: TMDBSearchResult,
+        allowUpcomingContent: Bool = false
+    ) -> Bool {
         let defaults = UserDefaults.standard
         let isAnime = Self.isAnimeResult(result)
         if defaults.bool(forKey: "catalogHideAnime"), isAnime { return false }
@@ -1380,7 +1396,11 @@ class TMDBContentFilter: ObservableObject {
             }
         }
 
-        if Self.shouldHideForReleaseDate(result, defaults: defaults) { return false }
+        if Self.shouldHideForReleaseDate(
+            result,
+            defaults: defaults,
+            allowUpcomingContent: allowUpcomingContent
+        ) { return false }
 
         if defaults.bool(forKey: "catalogRequireEnglishSpanishAudio") {
             guard let originalLanguage = result.originalLanguage?.lowercased() else { return false }
@@ -1450,13 +1470,15 @@ class TMDBContentFilter: ObservableObject {
 
     private static func shouldHideForReleaseDate(
         _ result: TMDBSearchResult,
-        defaults: UserDefaults
+        defaults: UserDefaults,
+        allowUpcomingContent: Bool = false
     ) -> Bool {
         shouldHideForReleaseDate(
             rawDate: result.isMovie ? result.releaseDate : (result.firstAirDate ?? result.releaseDate),
             isAnime: isAnimeResult(result),
             isMovie: result.isMovie,
-            defaults: defaults
+            defaults: defaults,
+            allowUpcomingContent: allowUpcomingContent
         )
     }
 
@@ -1464,7 +1486,8 @@ class TMDBContentFilter: ObservableObject {
         rawDate: String?,
         isAnime: Bool,
         isMovie: Bool,
-        defaults: UserDefaults
+        defaults: UserDefaults,
+        allowUpcomingContent: Bool = false
     ) -> Bool {
         guard let rawDate, rawDate.count >= 10, !rawDate.hasPrefix("0001-") else { return false }
         let formatter = ISO8601DateFormatter()
@@ -1479,7 +1502,8 @@ class TMDBContentFilter: ObservableObject {
             return true
         }
         let calendar = Calendar.current
-        return defaults.bool(forKey: unreleasedKey)
+        return !allowUpcomingContent
+            && defaults.bool(forKey: unreleasedKey)
             && calendar.startOfDay(for: releaseDate) > calendar.startOfDay(for: Date())
     }
 
