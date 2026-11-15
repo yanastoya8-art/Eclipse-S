@@ -1927,9 +1927,35 @@ class TMDBService: ObservableObject {
             return try JSONDecoder().decode(TMDBVideosResponse.self, from: data).results
         }
 
+        func sortVideos(_ videos: [TMDBVideo]) -> [TMDBVideo] {
+            videos.sorted { lhs, rhs in
+                if (lhs.official ?? false) != (rhs.official ?? false) {
+                    return (lhs.official ?? false) && !(rhs.official ?? false)
+                }
+                if lhs.type.lowercased() != rhs.type.lowercased() {
+                    return lhs.type.lowercased() == "trailer"
+                }
+                return (lhs.publishedAt ?? "") > (rhs.publishedAt ?? "")
+            }
+        }
+
         do {
             try Task.checkCancellation()
-            let primary = try await fetch(language: currentLanguage)
+            let primary: [TMDBVideo]
+            do {
+                primary = try await fetch(language: currentLanguage)
+            } catch {
+                if Task.isCancelled { throw CancellationError() }
+                guard currentLanguage.caseInsensitiveCompare("en-US") != .orderedSame else { throw error }
+                // A localized endpoint can fail independently of the English
+                // video catalogue. Keep the trailer section useful in that case.
+                let fallback = try await fetch(language: "en-US")
+                let sortedFallback = sortVideos(fallback)
+                try Task.checkCancellation()
+                detailCache.set(key: cacheKey, value: sortedFallback)
+                return sortedFallback
+            }
+
             try Task.checkCancellation()
             var combined = primary
             // TMDB video records are localized. If the selected UI language has
@@ -1948,15 +1974,7 @@ class TMDBService: ObservableObject {
                 }
             }
 
-            let sorted = combined.sorted { lhs, rhs in
-                if (lhs.official ?? false) != (rhs.official ?? false) {
-                    return (lhs.official ?? false) && !(rhs.official ?? false)
-                }
-                if lhs.type.lowercased() != rhs.type.lowercased() {
-                    return lhs.type.lowercased() == "trailer"
-                }
-                return (lhs.publishedAt ?? "") > (rhs.publishedAt ?? "")
-            }
+            let sorted = sortVideos(combined)
             try Task.checkCancellation()
             detailCache.set(key: cacheKey, value: sorted)
             return sorted
