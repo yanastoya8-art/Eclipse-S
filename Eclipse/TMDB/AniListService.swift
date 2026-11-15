@@ -1630,7 +1630,7 @@ enum AniListImportMetadata {
         season
         format
         type
-        coverImage { large medium }
+        averageScore isAdult genres tags { name rank isMediaSpoiler } nextAiringEpisode { episode airingAt } coverImage { large medium }
     """
 
     static func resolve(
@@ -5243,7 +5243,7 @@ final class AniListService {
                             externalLinks { site siteId url }
                             title { romaji english native }
                             episodes status seasonYear season
-                            coverImage { large medium }
+                            averageScore isAdult genres tags { name rank isMediaSpoiler } nextAiringEpisode { episode airingAt } coverImage { large medium }
                             format
                         }
                     }
@@ -5398,7 +5398,7 @@ final class AniListService {
                     status
                     seasonYear
                     season
-                    coverImage { large medium }
+                    averageScore isAdult genres tags { name rank isMediaSpoiler } nextAiringEpisode { episode airingAt } coverImage { large medium }
                     format
                 }
             }
@@ -5614,7 +5614,7 @@ final class AniListService {
                             idMal
                             isAdult
                             title { romaji english native }
-                            coverImage { large medium }
+                            averageScore isAdult genres tags { name rank isMediaSpoiler } nextAiringEpisode { episode airingAt } coverImage { large medium }
                             format
                         }
                     }
@@ -5740,7 +5740,7 @@ final class AniListService {
             externalLinks { site siteId url }
             title { romaji english native }
             episodes
-            coverImage { large medium }
+            averageScore isAdult genres tags { name rank isMediaSpoiler } nextAiringEpisode { episode airingAt } coverImage { large medium }
         """
 
         do {
@@ -6860,7 +6860,7 @@ final class AniListService {
                 media(search: $search, type: ANIME, sort: START_DATE_DESC) {
                     id idMal title { romaji english native } episodes status format
                     startDate { year month day } endDate { year month day }
-                    coverImage { large medium }
+                    averageScore isAdult genres tags { name rank isMediaSpoiler } nextAiringEpisode { episode airingAt } coverImage { large medium }
                     relations { edges { relationType node { id type format title { romaji english native } } } }
                 }
             }
@@ -7528,7 +7528,7 @@ final class AniListService {
                                             season
                                             format
                                             type
-                                            coverImage { large medium }
+                                            averageScore isAdult genres tags { name rank isMediaSpoiler } nextAiringEpisode { episode airingAt } coverImage { large medium }
                                         }
                                     }
                                 }
@@ -8131,7 +8131,7 @@ final class AniListService {
                             status
                             seasonYear
                             season
-                            coverImage { large medium }
+                            averageScore isAdult genres tags { name rank isMediaSpoiler } nextAiringEpisode { episode airingAt } coverImage { large medium }
                             format
                             type
                         }
@@ -10170,7 +10170,7 @@ final class AniListService {
                                 status
                                 seasonYear
                                 season
-                                coverImage { large medium }
+                                averageScore isAdult genres tags { name rank isMediaSpoiler } nextAiringEpisode { episode airingAt } coverImage { large medium }
                                 format
                             }
                         }
@@ -10765,7 +10765,7 @@ final class AniListService {
             season
             format
             type
-            coverImage { large medium }
+            averageScore isAdult genres tags { name rank isMediaSpoiler } nextAiringEpisode { episode airingAt } coverImage { large medium }
             nextAiringEpisode { episode airingAt }
             relations {
                 edges {
@@ -10787,7 +10787,7 @@ final class AniListService {
                         season
                         format
                         type
-                        coverImage { large medium }
+                        averageScore isAdult genres tags { name rank isMediaSpoiler } nextAiringEpisode { episode airingAt } coverImage { large medium }
                     }
                 }
             }
@@ -10885,7 +10885,7 @@ final class AniListService {
             season
             format
             type
-            coverImage { large medium }
+            averageScore isAdult genres tags { name rank isMediaSpoiler } nextAiringEpisode { episode airingAt } coverImage { large medium }
             relations {
                 edges {
                     relationType
@@ -10906,7 +10906,7 @@ final class AniListService {
                         season
                         format
                         type
-                        coverImage { large medium }
+                        averageScore isAdult genres tags { name rank isMediaSpoiler } nextAiringEpisode { episode airingAt } coverImage { large medium }
                         relations {
                             edges {
                                 relationType
@@ -10925,7 +10925,7 @@ final class AniListService {
                                     season
                                     format
                                     type
-                                    coverImage { large medium }
+                                    averageScore isAdult genres tags { name rank isMediaSpoiler } nextAiringEpisode { episode airingAt } coverImage { large medium }
                                 }
                             }
                         }
