@@ -160,6 +160,7 @@ final class HLSBackgroundDownloadCoordinator: HLSBackgroundDownloadScheduling {
             task.expirationHandler = nil
             task.setTaskCompleted(success: success && !request.expired)
         } else {
+            slot.request = nil
             BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: slot.identifier)
         }
     }
@@ -180,6 +181,7 @@ final class HLSBackgroundDownloadCoordinator: HLSBackgroundDownloadScheduling {
             slot.request = nil
             onRejected?()
         } else if request.attemptID == nil {
+            slot.request = nil
             BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: slot.identifier)
         }
     }
