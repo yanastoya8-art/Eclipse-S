@@ -1396,6 +1396,19 @@ struct HomeView: View {
             heroGradientOverlay
                 .allowsHitTesting(false)
 
+            if let hero = homeViewModel.heroContent {
+                CenteredPosterTitleOverlay(
+                    title: hero.displayTitle,
+                    logoURL: hero.animeLogoURL ?? heroLogoURL,
+                    fontSize: usesWideHomeLayout ? 34 : 24
+                )
+                .frame(maxWidth: min(EclipseViewport.bounds.width * 0.78, 760))
+                .frame(height: min(max(heroHeight * 0.24, 112), 190))
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                .padding(.horizontal, 20)
+                .accessibilityHidden(true)
+            }
+
             heroContentInfo
                 .id("hero-content-\(heroIdentity)")
                 .transition(.opacity)
@@ -1487,11 +1500,6 @@ struct HomeView: View {
     @ViewBuilder
     private func experimentalHeroContent(_ hero: TMDBSearchResult) -> some View {
         VStack(alignment: .center, spacing: isTvOS ? 20 : (usesWideHomeLayout ? 13 : 10)) {
-            if experimentalHeroShouldShowTitle(hero) {
-                heroTitleArtwork(hero)
-                    .padding(.horizontal, isTvOS ? 60 : (usesWideHomeLayout ? 90 : 24))
-            }
-
             Text(experimentalMetadataLine(hero))
                 .font(.system(size: isTvOS ? 29 : (usesWideHomeLayout ? 20 : 17), weight: .medium))
                 .foregroundColor(.white.opacity(0.92))
@@ -1567,8 +1575,6 @@ struct HomeView: View {
                     .applyLiquidGlassBackground(cornerRadius: 12)
                 }
             }
-
-            heroTitleArtwork(hero)
 
             if let overview = hero.overview, !overview.isEmpty {
                 Text(String(overview.prefix(100)) + (overview.count > 100 ? "..." : ""))
@@ -1685,12 +1691,6 @@ struct HomeView: View {
         let genres = genreNames(for: hero).prefix(3).joined(separator: ", ")
         let kind = genres.isEmpty ? (hero.isMovie ? "Movie" : "TV Series") : genres
         return [date, kind].compactMap { $0 }.joined(separator: " \u{00B7} ")
-    }
-
-    private func experimentalHeroShouldShowTitle(_ hero: TMDBSearchResult) -> Bool {
-        // The selected poster is the title artwork. Render a text title only
-        // when no poster is available, rather than waiting for a separate logo request.
-        hero.fullPosterURL == nil
     }
 
     private func heroOverview(_ hero: TMDBSearchResult) -> String? {
