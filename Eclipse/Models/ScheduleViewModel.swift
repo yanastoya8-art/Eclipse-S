@@ -758,7 +758,7 @@ final class ScheduleViewModel: ObservableObject {
     }
 
     private func filteredAnimeScheduleResult(_ result: AnimeScheduleLoadResult) -> AnimeScheduleLoadResult {
-        let selectedLanguages = MyDubListDubFilter.shared.selectedLanguages
+        let selectedLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
         let hideAnimeSpecials = UserDefaults.standard.bool(forKey: "catalogHideAnimeSpecialsAndOVAs")
 
         let entries = result.entries.filter { entry in
@@ -772,7 +772,15 @@ final class ScheduleViewModel: ObservableObject {
             guard !selectedLanguages.isEmpty else { return true }
             // DubOnly entries are already verified English-dub timetable rows;
             // do not require a second, unrelated MyDubList lookup to retain them.
-            if entry.provider == .dubOnly { return true }
+            if entry.provider == .dubOnly || entry.provider == .tsuzuki {
+                // Both schedule providers return verified English-dub dates.
+                // The global audio filter explicitly accepts English alongside
+                // Spanish, even when the anime-specific picker only contains Spanish.
+                if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
+                    || selectedLanguages.contains(MyDubListLanguage.english.rawValue) {
+                    return true
+                }
+            }
             let anilistID = entry.sourceMediaId > 0 ? entry.sourceMediaId : nil
             let malID = entry.animeMALID ?? (entry.sourceMediaId < 0 ? -entry.sourceMediaId : nil)
             return MyDubListDubFilter.shared.shouldInclude(
@@ -789,7 +797,7 @@ final class ScheduleViewModel: ObservableObject {
 
     @MainActor
     private func currentAnimeSchedulePolicyKey() -> String {
-        let languages = MyDubListDubFilter.shared.selectedLanguages.sorted().joined(separator: ",")
+        let languages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement.sorted().joined(separator: ",")
         let audioFilter = UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
         return "languages=\(languages)|englishSpanishAudio=\(audioFilter)"
     }
@@ -842,7 +850,7 @@ final class ScheduleViewModel: ObservableObject {
         let loadTask = Task { @MainActor [weak self] () throws -> AnimeScheduleLoadResult in
             guard let self else { throw CancellationError() }
             do {
-                let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguages
+                let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
                 let englishSpanishAudioFilterEnabled = UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
                 let requiresDubSchedule = AnimeScheduleFallback.requiresDubSchedule(
                     selectedDubLanguages: selectedDubLanguages,
@@ -2299,7 +2307,14 @@ private actor JustWatchScheduleService {
             || UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
         guard languageFilterEnabled else { return nil }
 
-        let configuredCodes = Set(selectedLanguages.flatMap { raw in
+        var effectiveLanguages = selectedLanguages
+        if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
+            effectiveLanguages.formUnion([
+                MyDubListLanguage.english.rawValue,
+                MyDubListLanguage.spanish.rawValue
+            ])
+        }
+        let configuredCodes = Set(effectiveLanguages.flatMap { raw in
             MyDubListLanguage(rawValue: raw)?.episodeMetadataLanguageCodes.map { $0.lowercased() } ?? []
         })
         // The global content-language switch means English or Spanish native
