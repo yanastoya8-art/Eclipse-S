@@ -14,7 +14,12 @@ enum PosterArtworkURLResolver {
     static func bestPosterURL(for result: TMDBSearchResult) -> String? {
         if let fanart = result.fanartTVPosterURL, !fanart.isEmpty { return fanart }
         if let tvMaze = result.tvMazePosterURL, !tvMaze.isEmpty { return tvMaze }
-        if let anime = result.animeArtworkURL, !anime.isEmpty { return anime }
+        if let anime = result.animeArtworkURL,
+           !anime.isEmpty,
+           anime.localizedCaseInsensitiveContains("taizen.moe")
+            || anime.localizedCaseInsensitiveContains("fanart.tv") {
+            return anime
+        }
         if let path = result.posterPath,
            path.hasPrefix("/"),
            !path.hasPrefix("//"),
@@ -22,6 +27,7 @@ enum PosterArtworkURLResolver {
            let url = URL(string: "https://image.tmdb.org/t/p/original\\(path)") {
             return url.absoluteString
         }
+        if let anime = result.animeArtworkURL, !anime.isEmpty { return anime }
         return result.fullPosterURL
     }
 }
