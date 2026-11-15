@@ -8770,7 +8770,13 @@ final class AniListService {
             seasons: seasons,
             totalEpisodes: totalEpisodes,
             status: aggregateStatus,
-            rating: aniListRating(from: anime.averageScore)
+            rating: aniListRating(from: anime.averageScore),
+            tags: anime.tags,
+            isAdult: anime.isAdult,
+            seasonYear: anime.seasonYear,
+            season: anime.season,
+            format: anime.format,
+            nextAiringEpisode: anime.nextAiringEpisode
         )
         await logDetailTiming(
             "ready",
@@ -12241,6 +12247,12 @@ struct AniListAnimeWithSeasons: Codable {
     let totalEpisodes: Int
     let status: String
     let rating: AnimeMetadataRating?
+    let tags: [AniListAnime.AniListTag]? = nil
+    let isAdult: Bool? = nil
+    let seasonYear: Int? = nil
+    let season: String? = nil
+    let format: String? = nil
+    let nextAiringEpisode: AniListAnime.AniListNextAiringEpisode? = nil
 
     var canonicalAniListTotalEpisodes: Int {
         RemoteMediaNumericBoundary.boundedSum(seasons.map { $0.canonicalAniListEpisodeCount ?? $0.episodes.count }) ?? totalEpisodes
