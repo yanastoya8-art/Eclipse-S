@@ -12247,12 +12247,12 @@ struct AniListAnimeWithSeasons: Codable {
     let totalEpisodes: Int
     let status: String
     let rating: AnimeMetadataRating?
-    let tags: [AniListAnime.AniListTag]? = nil
-    let isAdult: Bool? = nil
-    let seasonYear: Int? = nil
-    let season: String? = nil
-    let format: String? = nil
-    let nextAiringEpisode: AniListAnime.AniListNextAiringEpisode? = nil
+    let tags: [AniListAnime.AniListTag]?
+    let isAdult: Bool?
+    let seasonYear: Int?
+    let season: String?
+    let format: String?
+    let nextAiringEpisode: AniListAnime.AniListNextAiringEpisode?
 
     init(
         id: Int,
