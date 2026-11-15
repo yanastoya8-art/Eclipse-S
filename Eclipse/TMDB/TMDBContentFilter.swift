@@ -371,6 +371,7 @@ class TMDBContentFilter: ObservableObject {
     private var animeAgeRatingsByID: [Int: MaturityRating] = [:]
     private var animeAgeCheckedIDs: Set<Int> = []
     private var animeAgeLoadingIDs: Set<Int> = []
+    private var animeAgeRetryAfterByID: [Int: Date] = [:]
     private var animeAudioEligibleIDs: Set<Int> = []
     private var animeAudioCheckedIDs: Set<Int> = []
     private var animeAudioLoadingIDs: Set<Int> = []
@@ -571,10 +572,10 @@ class TMDBContentFilter: ObservableObject {
         if shouldResolveAnimeAgeRatings {
             let identifiers = Array(uniqueAnime.keys)
             if kidsModeEnabled {
-                await resolveAnimeAgeRatings(for: identifiers)
+                await resolveAnimeAgeRatings(for: animeResults)
             } else {
                 Task(priority: .utility) {
-                    await TMDBContentFilter.shared.resolveAnimeAgeRatings(for: identifiers)
+                    await TMDBContentFilter.shared.resolveAnimeAgeRatings(for: animeResults)
                 }
             }
         }
@@ -585,32 +586,66 @@ class TMDBContentFilter: ObservableObject {
         }
     }
 
-    private func resolveAnimeAgeRatings(for identifiers: [Int]) async {
-        let unresolved = identifiers.filter { id in
+    private func resolveAnimeAgeRatings(for results: [TMDBSearchResult]) async {
+        let uniqueResults = Dictionary(
+            results.compactMap { result -> (Int, TMDBSearchResult)? in
+                guard let id = result.animeIdentitySeed?.anilistId, id > 0 else { return nil }
+                return (id, result)
+            },
+            uniquingKeysWith: { first, _ in first }
+        )
+        let unresolved = uniqueResults.values.filter { result in
+            guard let id = result.animeIdentitySeed?.anilistId else { return false }
             animeEligibilityLock.lock()
             defer { animeEligibilityLock.unlock() }
-            guard !animeAgeCheckedIDs.contains(id), !animeAgeLoadingIDs.contains(id) else { return false }
+            guard !animeAgeCheckedIDs.contains(id),
+                  !animeAgeLoadingIDs.contains(id),
+                  Date() >= (animeAgeRetryAfterByID[id] ?? .distantPast) else { return false }
             animeAgeLoadingIDs.insert(id)
             return true
         }
         guard !unresolved.isEmpty else { return }
 
-        guard let ratings = try? await TaizenAnimeAgeRatingService.shared.ratings(anilistIDs: unresolved) else {
-            animeEligibilityLock.lock()
-            animeAgeLoadingIDs.subtract(unresolved)
-            animeEligibilityLock.unlock()
-            return
+        let identifiers = unresolved.compactMap { $0.animeIdentitySeed?.anilistId }
+        var ratings = (try? await TaizenAnimeAgeRatingService.shared.ratings(anilistIDs: identifiers)) ?? [:]
+        let missingResults = unresolved.filter { result in
+            guard let id = result.animeIdentitySeed?.anilistId else { return false }
+            return ratings[id] == nil || ratings[id] == .unknown
+        }
+
+        // Taizen does not have complete age-rating coverage. When a MAL client
+        // ID is configured, use MyAnimeList's official PG/R/R+ classification
+        // as a second source instead of permanently marking the title unrated.
+        if MALMetadataService.shared.isConfigured, !missingResults.isEmpty {
+            await withTaskGroup(of: (Int, MaturityRating?).self) { group in
+                for result in missingResults {
+                    guard let anilistID = result.animeIdentitySeed?.anilistId,
+                          let malID = result.animeIdentitySeed?.malId,
+                          malID > 0 else { continue }
+                    group.addTask {
+                        let rating = await MALMetadataService.shared.fetchMaturityRating(malID: malID)
+                        return (anilistID, rating)
+                    }
+                }
+                while let (id, rating) = await group.next() {
+                    if let rating { ratings[id] = rating }
+                }
+            }
         }
 
         var didResolveAny = false
-        for (id, rating) in ratings {
-            storeAnimeAgeRating(rating, for: id)
-            didResolveAny = true
+        for result in unresolved {
+            guard let id = result.animeIdentitySeed?.anilistId else { continue }
+            if let rating = ratings[id], rating != .unknown {
+                storeAnimeAgeRating(rating, for: id)
+                didResolveAny = true
+            } else {
+                animeEligibilityLock.lock()
+                animeAgeLoadingIDs.remove(id)
+                animeAgeRetryAfterByID[id] = Date().addingTimeInterval(2 * 60 * 60)
+                animeEligibilityLock.unlock()
+            }
         }
-        animeEligibilityLock.lock()
-        animeAgeLoadingIDs.subtract(unresolved)
-        animeAgeCheckedIDs.formUnion(unresolved)
-        animeEligibilityLock.unlock()
 
         if didResolveAny {
             NotificationCenter.default.post(
