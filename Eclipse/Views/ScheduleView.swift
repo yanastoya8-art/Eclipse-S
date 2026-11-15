@@ -34,6 +34,7 @@ struct ScheduleView: View {
     @State private var resolvedKidsScheduleIds: Set<Int> = []
 
     @State private var kidsScheduleFilterGeneration = 0
+    @State private var scheduleNeedsFilterRefresh = false
 
     private func visibleToProfile(_ entries: [ScheduleEntry]) -> [ScheduleEntry] {
         let profileEntries = UserDefaults.standard.bool(forKey: "catalogHideAnime")
@@ -177,7 +178,10 @@ struct ScheduleView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("scheduleContentFiltersDidChange"))) { _ in
-            guard isActive else { return }
+            guard isActive else {
+                scheduleNeedsFilterRefresh = true
+                return
+            }
             Task {
                 await viewModel.loadSchedule(
                     mode: selectedScheduleMode,
@@ -215,6 +219,17 @@ struct ScheduleView: View {
         }
         .onChangeComp(of: isActive) { _, active in
             guard active else { return }
+            if scheduleNeedsFilterRefresh {
+                scheduleNeedsFilterRefresh = false
+                Task {
+                    await viewModel.loadSchedule(
+                        mode: selectedScheduleMode,
+                        localTimeZone: showLocalScheduleTime,
+                        forceRefresh: true
+                    )
+                }
+                return
+            }
 #if !os(tvOS)
             if scenePhase == .active,
                notificationManager.shouldHandlePendingNavigation(

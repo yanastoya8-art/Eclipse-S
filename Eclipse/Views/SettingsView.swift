@@ -5359,6 +5359,7 @@ private struct LanguageFiltersSettingsView: View {
     private func saveDubLanguages(_ languages: Set<String>) {
         MyDubListDubFilter.shared.setSelectedLanguages(languages)
         NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil)
+        NotificationCenter.default.post(name: Notification.Name("scheduleContentFiltersDidChange"), object: nil)
         Task {
             _ = await MyDubListDubFilter.shared.refresh()
             NotificationCenter.default.post(name: MyDubListDubFilter.didRefreshNotification, object: nil)
@@ -5371,6 +5372,7 @@ private struct LanguageFiltersSettingsView: View {
                 Toggle("Require English/Spanish original audio or verified anime dub", isOn: $requireEnglishSpanishAudio)
                     .onChange(of: requireEnglishSpanishAudio) { _ in
                         NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil)
+                        NotificationCenter.default.post(name: Notification.Name("scheduleContentFiltersDidChange"), object: nil)
                     }
                     .accessibilityIdentifier("settings.contentFilters.audioLanguages")
             } footer: {
@@ -5482,6 +5484,7 @@ private struct ProductionsSettingsView: View {
 
     private func filtersDidChange() {
         NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil)
+        NotificationCenter.default.post(name: Notification.Name("scheduleContentFiltersDidChange"), object: nil)
     }
 
     var body: some View {
@@ -5550,6 +5553,7 @@ private struct RuntimeFiltersSettingsView: View {
 
     private func filtersDidChange() {
         NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil)
+        NotificationCenter.default.post(name: Notification.Name("scheduleContentFiltersDidChange"), object: nil)
     }
 
     var body: some View {
