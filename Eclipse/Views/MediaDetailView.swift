@@ -6001,7 +6001,7 @@ struct MediaDetailContentView: View {
         isLoadingExperimentalExtras = detailStills.isEmpty && detailTrailers.isEmpty
 
         experimentalExtrasLoadTask = Task(priority: .userInitiated) {
-            async let stillsLoad: Void = {
+            func loadStills() async {
                 let images: TMDBImagesResponse?
                 if isMovie {
                     images = try? await tmdbService.getMovieImages(id: tmdbId, preferredLanguage: selectedLanguage)
@@ -6028,9 +6028,9 @@ struct MediaDetailContentView: View {
                     self.detailStills = stills
                     self.refreshDetailContentLayout(reason: "experimental-stills")
                 }
-            }()
+            }
 
-            async let trailersLoad: Void = {
+            func loadTrailers() async {
                 let videos: [TMDBVideo]?
                 if isMovie {
                     videos = try? await tmdbService.getMovieVideos(id: tmdbId)
@@ -6047,16 +6047,18 @@ struct MediaDetailContentView: View {
                     self.detailTrailers = trailers
                     self.refreshDetailContentLayout(reason: "experimental-trailers")
                 }
-            }()
+            }
 
+            async let stillsLoad: Void = loadStills()
+            async let trailersLoad: Void = loadTrailers()
             await stillsLoad
             await trailersLoad
 
             guard !Task.isCancelled else { return }
             await MainActor.run {
                 guard !Task.isCancelled,
-                          self.searchResult.id == tmdbId,
-                          self.searchResult.isMovie == isMovie else { return }
+                      self.searchResult.id == tmdbId,
+                      self.searchResult.isMovie == isMovie else { return }
                 self.isLoadingExperimentalExtras = false
                 self.experimentalExtrasLoadTask = nil
                 self.refreshDetailContentLayout(reason: "experimental-extras")
