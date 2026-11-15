@@ -7962,7 +7962,9 @@ final class DownloadManager: NSObject, ObservableObject {
             "HLS resume checkpoint rejected; restarting from segment zero id=\\(id) reason=\\(reason)",
             type: "Download"
         )
-        processQueue()
+        DispatchQueue.main.async { [weak self] in
+            self?.processQueue()
+        }
     }
 
     private func handleCancelledHLSDownload(id: String) {
