@@ -542,7 +542,7 @@ struct AlternativeUIView: View {
             .id(AppearanceSettingsSearchTarget.showUnairedEpisodes.anchorID)
             toggleRow(
                 title: "Show Age Rating",
-                description: "Display the available content age rating on movie and series detail pages.",
+                description: "Display the available content age rating on movie, series and anime detail pages.",
                 isOn: $mediaDetailAgeRatingEnabled
             )
             .id(AppearanceSettingsSearchTarget.ageRating.anchorID)
