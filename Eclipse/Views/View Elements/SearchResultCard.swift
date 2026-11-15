@@ -40,6 +40,7 @@ enum PosterArtworkURLResolver {
     static func bestPosterURL(for result: TMDBSearchResult) -> String? {
         candidates(for: result).first
     }
+}
 
 struct CenteredPosterTitleOverlay: View {
     let title: String
