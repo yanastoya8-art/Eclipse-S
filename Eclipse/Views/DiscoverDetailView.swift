@@ -6,6 +6,7 @@ struct DiscoverDetailView: View {
     let initialItems: [TMDBSearchResult]
     var heroItem: TMDBSearchResult? = nil
     var loadMore: ((Int) async -> [TMDBSearchResult])? = nil
+    var allowsUpcomingContent: Bool = false
 
     @State private var items: [TMDBSearchResult] = []
     @State private var initialPageItemCount = 0
@@ -18,7 +19,10 @@ struct DiscoverDetailView: View {
 
     private var filteredItems: [TMDBSearchResult] {
         _ = filterRefreshRevision
-        return contentFilter.filterSearchResults(items)
+        return contentFilter.filterSearchResults(
+            items,
+            allowUpcomingContent: allowsUpcomingContent
+        )
     }
 
     private var columns: [GridItem] {
