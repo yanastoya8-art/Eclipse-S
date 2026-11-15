@@ -29,6 +29,8 @@ DUBSONLY_API_KEY =
 
 // Expose repository/local secrets through generated Info.plist so
 // Bundle.main.object(forInfoDictionaryKey:) can resolve them at runtime.
+INFOPLIST_KEY_TMDBAPIKey = $(TMDB_API_KEY)
+INFOPLIST_KEY_JustWatchAPIKey = $(JUSTWATCH_API_KEY)
 INFOPLIST_KEY_AnimeScheduleAPIToken = $(ANIMESCHEDULE_API_TOKEN)
 INFOPLIST_KEY_DubsOnlyAPIKey = $(DUBSONLY_API_KEY)
 TRAKT_CLIENT_ID =
