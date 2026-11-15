@@ -5985,14 +5985,14 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             pipButton.heightAnchor.constraint(equalToConstant: 36),
 
             castButton.centerYAnchor.constraint(equalTo: closeButton.centerYAnchor),
-            castButton.leadingAnchor.constraint(equalTo: pipButton.trailingAnchor, constant: 8),
+            castButton.trailingAnchor.constraint(equalTo: progressContainer.trailingAnchor, constant: -4),
             castButton.widthAnchor.constraint(equalToConstant: 36),
             castButton.heightAnchor.constraint(equalToConstant: 36),
 
-
             playerTitleLabel.centerYAnchor.constraint(equalTo: closeButton.centerYAnchor),
             playerTitleCenterConstraint,
-            playerTitleLabel.trailingAnchor.constraint(lessThanOrEqualTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -20),
+            playerTitleLabel.leadingAnchor.constraint(greaterThanOrEqualTo: pipButton.trailingAnchor, constant: 12),
+            playerTitleLabel.trailingAnchor.constraint(lessThanOrEqualTo: castButton.leadingAnchor, constant: -12),
 
             skipBackwardButton.centerYAnchor.constraint(equalTo: centerPlayPauseButton.centerYAnchor),
             skipBackwardButton.trailingAnchor.constraint(equalTo: centerPlayPauseButton.leadingAnchor, constant: -48),
