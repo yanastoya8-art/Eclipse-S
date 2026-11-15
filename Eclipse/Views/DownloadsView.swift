@@ -1,6 +1,9 @@
 import SwiftUI
 import AVKit
 import Kingfisher
+#if os(iOS)
+import UIKit
+#endif
 
 enum DownloadLibraryPosterSize: String, CaseIterable, Identifiable {
     case compact
@@ -596,6 +599,17 @@ struct DownloadsView: View {
                     Label("Share", systemImage: "square.and.arrow.up")
                 }
             }
+#if os(iOS)
+            if DownloadSourceLinkPolicy.copyableURL(item.streamURL) != nil {
+                Button {
+                    if let url = DownloadSourceLinkPolicy.copyableURL(item.streamURL) {
+                        UIPasteboard.general.url = url
+                    }
+                } label: {
+                    Label("Copy Download Link", systemImage: "link")
+                }
+            }
+#endif
 #endif
             Button(role: .destructive, action: { downloadManager.removeDownload(id: item.id, deleteFile: true) }) {
                 Label("Delete", systemImage: "trash")
