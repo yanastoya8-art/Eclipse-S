@@ -4083,6 +4083,10 @@ final class DownloadManager: NSObject, ObservableObject {
                 resumeAfterPauseCompletion.remove(id)
                 pendingResumeDataTaskIdentifiers[id] = pausedTaskIdentifier
                 invalidatedDirectTaskIdentifiers.insert(pausedTaskIdentifier)
+                // Publish the paused state before requesting cancellation so
+                // even a synchronous URLSession callback can persist its data.
+                downloads[index].status = .paused
+                saveDownloads()
                 task.cancel(byProducingResumeData: { [weak self] data in
                     self?.performOnMain {
                         guard let self,
