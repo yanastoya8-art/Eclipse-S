@@ -5106,6 +5106,8 @@ final class AniListService {
     }
 
     private let animeDetailsCache = NSCache<NSString, AniListAnimeWithSeasonsWrapper>()
+    private let supplementalStructureLookupCache = NSCache<NSString, SupplementalStructureLookupCacheWrapper>()
+    private let supplementalStructureLookupCacheTTL: TimeInterval = 10 * 60
     private let shallowSnapshotCache = AniListShallowSnapshotCache.shared
     private let animeCacheTTL: TimeInterval = 300
 
@@ -5115,6 +5117,15 @@ final class AniListService {
         init(_ value: AniListAnimeWithSeasons) {
             self.value = value
             self.timestamp = Date()
+        }
+    }
+
+    private final class SupplementalStructureLookupCacheWrapper {
+        let nodes: [Int: AniListAnime]
+        let timestamp = Date()
+
+        init(nodes: [Int: AniListAnime]) {
+            self.nodes = nodes
         }
     }
 
@@ -5139,6 +5150,7 @@ final class AniListService {
 
         animeDetailsCache.countLimit = 8
         animeDetailsCache.totalCostLimit = 4_000
+        supplementalStructureLookupCache.countLimit = 96
         specialEntriesCache.countLimit = 16
         specialEntriesCache.totalCostLimit = 1_000
 
@@ -6854,6 +6866,21 @@ final class AniListService {
     }
 
     private func supplementalStructureNodeLookup(title: String, token: String?) async -> [Int: AniListAnime] {
+        let normalizedTitle = title
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(
+                options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+                locale: Locale(identifier: "en_US_POSIX")
+            )
+        guard !normalizedTitle.isEmpty else { return [:] }
+        let cacheKey = normalizedTitle as NSString
+        if let cached = supplementalStructureLookupCache.object(forKey: cacheKey) {
+            if Date().timeIntervalSince(cached.timestamp) < supplementalStructureLookupCacheTTL {
+                return cached.nodes
+            }
+            supplementalStructureLookupCache.removeObject(forKey: cacheKey)
+        }
+
         let query = """
         query ($search: String) {
             Page(perPage: 20) {
@@ -6876,7 +6903,16 @@ final class AniListService {
         guard let data = try? await executeGraphQLQuery(query, token: token, variables: ["search": title]),
               let nodes = try? JSONDecoder().decode(Response.self, from: data).data?.Page.media,
               nodes.count <= 20 else { return [:] }
-        return Dictionary(nodes.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let result = Dictionary(nodes.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        // Cache only successfully decoded, non-empty responses. Network failures
+        // and empty responses remain retryable instead of becoming sticky misses.
+        if !result.isEmpty {
+            supplementalStructureLookupCache.setObject(
+                SupplementalStructureLookupCacheWrapper(nodes: result),
+                forKey: cacheKey
+            )
+        }
+        return result
     }
     /// Resolves a TMDB animation result that has no AniMap entry using an exact
     /// AniList title match. Fuzzy matches are deliberately rejected so dub
