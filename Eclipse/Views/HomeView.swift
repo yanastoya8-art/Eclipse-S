@@ -1402,7 +1402,7 @@ struct HomeView: View {
                     logoURL: hero.animeLogoURL ?? heroLogoURL,
                     fontSize: usesWideHomeLayout ? 34 : 24
                 )
-                .frame(maxWidth: min(EclipseViewport.bounds.width * 0.78, 760))
+                .frame(maxWidth: usesWideHomeLayout ? 760 : 520)
                 .frame(height: min(max(heroHeight * 0.24, 112), 190))
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 .padding(.horizontal, 20)
