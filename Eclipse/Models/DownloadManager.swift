@@ -730,6 +730,25 @@ enum DownloadSourceLinkPolicy {
     }
 }
 
+enum DirectDownloadResumeDisposition: Equatable {
+    case waitForPauseCompletion
+    case continueSavedProgress
+    case restartFromBeginning
+
+    static func resolve(
+        pauseCompletionPending: Bool,
+        hasResumeData: Bool,
+        hasCheckpoint: Bool,
+        downloadedBytes: Int64
+    ) -> DirectDownloadResumeDisposition {
+        if pauseCompletionPending { return .waitForPauseCompletion }
+        if hasResumeData || hasCheckpoint || downloadedBytes <= 0 {
+            return .continueSavedProgress
+        }
+        return .restartFromBeginning
+    }
+}
+
 enum DirectDownloadResumePolicy {
     static let chunkBytes: Int64 = 64 * 1024 * 1024
     static let maximumResumeDataBytes = 1024 * 1024
@@ -1786,6 +1805,9 @@ final class DownloadManager: NSObject, ObservableObject {
 
     private var invalidatedDirectTaskIdentifiers = Set<Int>()
     private var pendingResumeDataTaskIdentifiers: [String: Int] = [:]
+    // A resume tapped before cancel(byProducingResumeData:) completes must wait
+    // for that callback, otherwise the queue starts a replacement task at byte zero.
+    private var resumeAfterPauseCompletion = Set<String>()
     private var resumeDataStore: [String: Data] = [:]
     private var lastProgressUpdate: [String: Date] = [:]
     private var restoringBackgroundTasks = true
@@ -4056,9 +4078,11 @@ final class DownloadManager: NSObject, ObservableObject {
             }
 #endif
 
-            if let task = activeTasks[id] {
+            if let task = activeTasks.removeValue(forKey: id) {
                 let pausedTaskIdentifier = task.taskIdentifier
+                resumeAfterPauseCompletion.remove(id)
                 pendingResumeDataTaskIdentifiers[id] = pausedTaskIdentifier
+                invalidatedDirectTaskIdentifiers.insert(pausedTaskIdentifier)
                 task.cancel(byProducingResumeData: { [weak self] data in
                     self?.performOnMain {
                         guard let self,
@@ -4067,7 +4091,10 @@ final class DownloadManager: NSObject, ObservableObject {
                                   callbackTaskIdentifier: pausedTaskIdentifier,
                                   hasActiveTask: self.activeTasks[id] != nil,
                                   status: self.downloads.first(where: { $0.id == id })?.status
-                              ) else { return }
+                              ) else {
+                            self.resumeAfterPauseCompletion.remove(id)
+                            return
+                        }
                         self.pendingResumeDataTaskIdentifiers.removeValue(forKey: id)
                         self.storeResumeData(data, id: id)
                         if let index = self.downloads.firstIndex(where: { $0.id == id }) {
@@ -4077,17 +4104,29 @@ final class DownloadManager: NSObject, ObservableObject {
                                 resumeData: usableData,
                                 downloadedBytes: self.downloads[index].downloadedBytes
                             )
-                            if usableData == nil, self.downloads[index].downloadedBytes > 0 {
+                            if usableData == nil,
+                               self.downloads[index].directResumeCheckpoint == nil,
+                               self.downloads[index].downloadedBytes > 0 {
                                 self.downloads[index].directRangeUnsupported = true
+                                // URLSession's temporary file is lost without
+                                // resume data, so clear stale progress before a
+                                // deliberate restart from byte zero.
+                                self.downloads[index].progress = 0
+                                self.downloads[index].downloadedBytes = 0
+                                self.downloads[index].totalBytes = 0
                                 self.downloads[index].error = self.downloads[index].resumeLimitationMessage
                             }
+                            if self.resumeAfterPauseCompletion.remove(id) != nil {
+                                self.downloads[index].status = .queued
+                                self.downloads[index].error = nil
+                            }
                             self.saveDownloads()
+                        } else {
+                            self.resumeAfterPauseCompletion.remove(id)
                         }
                         self.processQueue()
                     }
                 })
-                activeTasks.removeValue(forKey: id)
-                invalidatedDirectTaskIdentifiers.insert(task.taskIdentifier)
             } else if let downloader = activeHLSDownloaders[id] {
 
                 downloader.cancel()
@@ -4108,6 +4147,28 @@ final class DownloadManager: NSObject, ObservableObject {
                   let index = downloads.firstIndex(where: { $0.id == id }),
                   downloads[index].status == .paused || downloads[index].status == .failed else {
                 return
+            }
+
+            let resumeDisposition = downloads[index].isHLS
+                ? DirectDownloadResumeDisposition.continueSavedProgress
+                : DirectDownloadResumeDisposition.resolve(
+                    pauseCompletionPending: pendingResumeDataTaskIdentifiers[id] != nil,
+                    hasResumeData: storedResumeData(id: id) != nil,
+                    hasCheckpoint: downloads[index].directResumeCheckpoint != nil,
+                    downloadedBytes: downloads[index].downloadedBytes
+                )
+            if resumeDisposition == .waitForPauseCompletion {
+                resumeAfterPauseCompletion.insert(id)
+                Logger.shared.log("Resume deferred until pause checkpoint is saved: \(id)", type: "Download")
+                return
+            }
+            if resumeDisposition == .restartFromBeginning {
+                downloads[index].directRangeUnsupported = true
+                downloads[index].directResumeCheckpoint = nil
+                downloads[index].progress = 0
+                downloads[index].downloadedBytes = 0
+                downloads[index].totalBytes = 0
+                Logger.shared.log("No direct resume data available; restarting from byte zero: \(id)", type: "Download")
             }
 
             invalidateSourceRefresh(id: id)
@@ -4158,6 +4219,7 @@ final class DownloadManager: NSObject, ObservableObject {
 #endif
             storeResumeData(nil, id: id)
             pendingResumeDataTaskIdentifiers.removeValue(forKey: id)
+            resumeAfterPauseCompletion.remove(id)
             lastHLSCheckpointSave.removeValue(forKey: id)
             removeDownload(id: id, deleteFile: true)
             processQueue()
@@ -4186,6 +4248,7 @@ final class DownloadManager: NSObject, ObservableObject {
                 task.cancel()
             }
             self.pendingResumeDataTaskIdentifiers.removeValue(forKey: id)
+            self.resumeAfterPauseCompletion.remove(id)
             self.storeResumeData(nil, id: id)
             if !deleteFile { self.directChunkWriteTokens.removeValue(forKey: id) }
             if let downloader = self.activeHLSDownloaders[id] {
