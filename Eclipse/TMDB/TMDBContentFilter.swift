@@ -9,6 +9,9 @@ import Combine
 import Foundation
 
 enum MyDubListLanguage: String, CaseIterable, Identifiable, Sendable {
+    // Keep every language picker in sync with the two supported choices.
+    static var allCases: [MyDubListLanguage] { [.english, .spanish] }
+
     case english, spanish, german, french, italian, chinese, portuguese, korean
     case tagalog, arabic, polish, hindi, hungarian, hebrew, swedish, norwegian
     case dutch, thai, indonesian, russian, danish, finnish, turkish, catalan, vietnamese
@@ -18,7 +21,7 @@ enum MyDubListLanguage: String, CaseIterable, Identifiable, Sendable {
     var displayName: String {
         switch self {
         case .english: return "English"
-        case .spanish: return "Spanish (Latino or Castellano)"
+        case .spanish: return "Spanish (Castellano o Latino)"
         case .german: return "German"
         case .french: return "French"
         case .italian: return "Italian"
