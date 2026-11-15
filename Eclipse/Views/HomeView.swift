@@ -3114,11 +3114,13 @@ struct ExperimentalMediaCard: View {
                 mediaImage
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(result.displayTitle)
-                        .font(.system(size: resolvedStyle == .poster ? (usesWideHomeLayout ? 19 : 17) : (usesWideHomeLayout ? 21 : 20), weight: .medium))
-                        .foregroundColor(.white)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.82)
+                    if resolvedStyle != .poster {
+                        Text(result.displayTitle)
+                            .font(.system(size: usesWideHomeLayout ? 21 : 20, weight: .medium))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.82)
+                    }
 
                     HomeCardSubtitle(result: result)
                         .font(.system(size: usesWideHomeLayout ? 16 : 15, weight: .regular))
@@ -3273,21 +3275,6 @@ struct MediaCard: View {
             .heroSource(id: heroID, namespace: heroNamespace)
 
             VStack(alignment: .leading, spacing: isTvOS ? 10 : 3) {
-                Text(result.displayTitle)
-                    .tvos({ view in
-                        view
-                            .foregroundColor(.white.opacity(0.88))
-                            .font(.system(size: 27, weight: .semibold))
-                    }, else: { view in
-                        view
-                            .foregroundColor(.white)
-                            .fontWeight(.medium)
-                            .font(.caption)
-                    })
-                    .lineLimit(1)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity, alignment: .center)
-
                 HStack(alignment: .center, spacing: isTvOS ? 18 : 8) {
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Image(systemName: "star.fill")
