@@ -4,6 +4,10 @@ import XCTest
 #if os(iOS)
 
 final class SettingsScopeTests: XCTestCase {
+    func testDetailAgeRatingIsEnabledByDefault() {
+        XCTAssertTrue(MediaDetailAgeRatingSettings.defaultEnabled)
+    }
+
 
     func testPlaybackAndLibraryPreferencesKeepTheirDeclaredScopeAndTransportBounds() {
         let booleanKeys = ["autoplayNextEpisodeEnabled", "rememberPlaybackSelectionEnabled",
