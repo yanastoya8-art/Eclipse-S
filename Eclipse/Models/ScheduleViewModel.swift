@@ -515,8 +515,19 @@ final class ScheduleViewModel: ObservableObject {
             )
             let hideUnofficialContent = UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent")
             let entries = loadResult.entries.filter { entry in
-                !hideUnofficialContent
-                    || !TMDBContentFilter.isUnofficialCreatorContent(title: entry.title, overview: nil)
+                guard hideUnofficialContent else { return true }
+                let searchableTitle = [
+                    entry.title,
+                    entry.englishTitle,
+                    entry.romajiTitle,
+                    entry.nativeTitle
+                ]
+                .compactMap { $0 }
+                .joined(separator: " ")
+                return !TMDBContentFilter.isUnofficialCreatorContent(
+                    title: searchableTitle,
+                    overview: nil
+                )
             }
             let didPublish = await MainActor.run { () -> Bool in
                 guard activeLoadID == loadID else { return false }
