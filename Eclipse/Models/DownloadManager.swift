@@ -2681,6 +2681,12 @@ final class DownloadManager: NSObject, ObservableObject {
     }
 
     private func updateDirectBackgroundProgress(id: String, progress: Double? = nil, stage: String) {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in
+                self?.updateDirectBackgroundProgress(id: id, progress: progress, stage: stage)
+            }
+            return
+        }
         guard let attempt = directBackgroundAttempts[id],
               attempt.granted, !attempt.revoked,
               let item = downloads.first(where: { $0.id == id }) else { return }
@@ -2695,7 +2701,8 @@ final class DownloadManager: NSObject, ObservableObject {
             // Unknown Content-Length: use a monotonic byte-based progress
             // estimate and show the exact transferred byte count in the subtitle.
             let downloaded = max(item.downloadedBytes, 0)
-            total = max(downloaded + 1_000_000_000, 1_000_000_000)
+            let (estimatedTotal, overflow) = downloaded.addingReportingOverflow(1_000_000_000)
+            total = overflow ? Int64.max : max(estimatedTotal, 1_000_000_000)
             completed = downloaded > 0
                 ? downloaded
                 : Int64(Double(total) * min(max(progress ?? item.progress, 0), 1))
