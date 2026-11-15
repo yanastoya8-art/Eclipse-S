@@ -2721,19 +2721,16 @@ struct MediaDetailContentView: View {
 
     @ViewBuilder
     private var legacyHeaderSection: some View {
-        VStack(alignment: .center, spacing: 8) {
-            titleArtwork
-        }
-        .frame(maxWidth: .infinity, alignment: .center)
-        .padding(.bottom, 10)
-        .padding(.horizontal, 16)
+        // The hero backdrop owns the single centered title/logo overlay.
+        // Keep this spacer for the legacy layout's original vertical rhythm.
+        Color.clear
+            .frame(height: 1)
+            .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder
     private var experimentalHeaderSection: some View {
         VStack(alignment: .center, spacing: isTvOS ? 20 : (usesWideDetailLayout ? 13 : 10)) {
-            titleArtwork
-
             if shouldShowHeroDetails, let metadata = detailMetadataLine {
                 Text(metadata)
                     .font(.system(
