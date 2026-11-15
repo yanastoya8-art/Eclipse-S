@@ -4,6 +4,15 @@ import XCTest
 #if os(iOS)
 
 final class SettingsScopeTests: XCTestCase {
+    func testBackgroundStylePickerContainsOnlyThreeRenderingModes() {
+        XCTAssertEqual(AtmosphereStyle.selectableCases, [.gradient, .multiGradient, .solid])
+        XCTAssertEqual(AtmosphereStyle.sanitized("aurora"), .multiGradient)
+        XCTAssertEqual(AtmosphereStyle.sanitized("ember"), .multiGradient)
+        XCTAssertEqual(AtmosphereStyle.sanitized("gradient"), .gradient)
+        XCTAssertEqual(AtmosphereStyle.sanitized("multiGradient"), .multiGradient)
+        XCTAssertEqual(AtmosphereStyle.sanitized("solid"), .solid)
+    }
+
 
     func testPlaybackAndLibraryPreferencesKeepTheirDeclaredScopeAndTransportBounds() {
         let booleanKeys = ["autoplayNextEpisodeEnabled", "rememberPlaybackSelectionEnabled",
