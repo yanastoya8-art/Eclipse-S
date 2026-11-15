@@ -2030,6 +2030,8 @@ enum AtmospherePaletteID: String, CaseIterable, Identifiable {
     case nocturne
     case velvet
     case mutedAurora
+    case aurora
+    case ember
     case custom
 
     var id: String { rawValue }
@@ -2041,6 +2043,8 @@ enum AtmospherePaletteID: String, CaseIterable, Identifiable {
         case .nocturne: return "Nocturne"
         case .velvet: return "Velvet"
         case .mutedAurora: return "Muted Aurora"
+        case .aurora: return "Aurora"
+        case .ember: return "Ember"
         case .custom: return "Custom"
         }
     }
@@ -2117,12 +2121,46 @@ enum AppearancePalettes {
         topWash: c(0.16, 0.52, 0.54)
     )
 
+    static let aurora = AtmospherePalette(
+        id: "aurora", displayName: "Aurora",
+        mesh: [
+            c(0.025, 0.115, 0.235), c(0.035, 0.205, 0.285), c(0.075, 0.125, 0.310),
+            c(0.035, 0.285, 0.315), c(0.085, 0.315, 0.390), c(0.115, 0.190, 0.390),
+            c(0.060, 0.205, 0.310), c(0.095, 0.245, 0.365), c(0.130, 0.155, 0.340),
+            c(0.025, 0.060, 0.135), c(0.035, 0.075, 0.155), c(0.025, 0.055, 0.125)
+        ],
+        verticalStops: [
+            .init(color: c(0.035, 0.205, 0.285), location: 0.0),
+            .init(color: c(0.075, 0.235, 0.340), location: 0.42),
+            .init(color: c(0.025, 0.060, 0.135), location: 1.0)
+        ],
+        topWash: c(0.12, 0.58, 0.66)
+    )
+
+    static let ember = AtmospherePalette(
+        id: "ember", displayName: "Ember",
+        mesh: [
+            c(0.235, 0.075, 0.045), c(0.315, 0.105, 0.045), c(0.265, 0.075, 0.090),
+            c(0.385, 0.135, 0.045), c(0.405, 0.185, 0.065), c(0.305, 0.105, 0.105),
+            c(0.295, 0.095, 0.055), c(0.345, 0.145, 0.085), c(0.245, 0.085, 0.105),
+            c(0.105, 0.045, 0.045), c(0.125, 0.052, 0.045), c(0.085, 0.038, 0.042)
+        ],
+        verticalStops: [
+            .init(color: c(0.315, 0.105, 0.045), location: 0.0),
+            .init(color: c(0.365, 0.145, 0.060), location: 0.42),
+            .init(color: c(0.105, 0.045, 0.045), location: 1.0)
+        ],
+        topWash: c(0.72, 0.28, 0.08)
+    )
+
     static func base(for id: AtmospherePaletteID) -> AtmospherePalette {
         switch id {
         case .midnightPurple: return midnightPurple
         case .nocturne: return nocturne
         case .velvet: return velvet
         case .mutedAurora: return mutedAurora
+        case .aurora: return aurora
+        case .ember: return ember
         case .custom: return midnightPurple
         }
     }
