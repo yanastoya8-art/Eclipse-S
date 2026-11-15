@@ -556,6 +556,12 @@ final class HomeViewModel: ObservableObject {
         if enabledCatalogIds.contains("popularAnime") { kinds.insert(.popular) }
         if needsTopRatedAnime { kinds.insert(.topRated) }
         if enabledCatalogIds.contains("airingAnime") { kinds.insert(.airing) }
+
+        // The hero banner is independent from the visible shelf configuration.
+        // Selecting Anime must still load candidates when anime shelves are hidden.
+        if ProfileSettingsStore.active.string(forKey: "heroBannerCatalogId") == "anime" {
+            kinds.formUnion([.trending, .popular])
+        }
         return kinds
     }
 
