@@ -1630,7 +1630,7 @@ enum AniListImportMetadata {
         season
         format
         type
-        coverImage { large medium }
+        averageScore isAdult genres tags { name rank isMediaSpoiler } nextAiringEpisode { episode airingAt } coverImage { large medium }
     """
 
     static func resolve(
@@ -5243,7 +5243,7 @@ final class AniListService {
                             externalLinks { site siteId url }
                             title { romaji english native }
                             episodes status seasonYear season
-                            coverImage { large medium }
+                            averageScore isAdult genres tags { name rank isMediaSpoiler } nextAiringEpisode { episode airingAt } coverImage { large medium }
                             format
                         }
                     }
@@ -5398,7 +5398,7 @@ final class AniListService {
                     status
                     seasonYear
                     season
-                    coverImage { large medium }
+                    averageScore isAdult genres tags { name rank isMediaSpoiler } nextAiringEpisode { episode airingAt } coverImage { large medium }
                     format
                 }
             }
@@ -5614,7 +5614,7 @@ final class AniListService {
                             idMal
                             isAdult
                             title { romaji english native }
-                            coverImage { large medium }
+                            averageScore isAdult genres tags { name rank isMediaSpoiler } nextAiringEpisode { episode airingAt } coverImage { large medium }
                             format
                         }
                     }
@@ -5740,7 +5740,7 @@ final class AniListService {
             externalLinks { site siteId url }
             title { romaji english native }
             episodes
-            coverImage { large medium }
+            averageScore isAdult genres tags { name rank isMediaSpoiler } nextAiringEpisode { episode airingAt } coverImage { large medium }
         """
 
         do {
@@ -6860,7 +6860,7 @@ final class AniListService {
                 media(search: $search, type: ANIME, sort: START_DATE_DESC) {
                     id idMal title { romaji english native } episodes status format
                     startDate { year month day } endDate { year month day }
-                    coverImage { large medium }
+                    averageScore isAdult genres tags { name rank isMediaSpoiler } nextAiringEpisode { episode airingAt } coverImage { large medium }
                     relations { edges { relationType node { id type format title { romaji english native } } } }
                 }
             }
@@ -7528,7 +7528,7 @@ final class AniListService {
                                             season
                                             format
                                             type
-                                            coverImage { large medium }
+                                            averageScore isAdult genres tags { name rank isMediaSpoiler } nextAiringEpisode { episode airingAt } coverImage { large medium }
                                         }
                                     }
                                 }
@@ -8131,7 +8131,7 @@ final class AniListService {
                             status
                             seasonYear
                             season
-                            coverImage { large medium }
+                            averageScore isAdult genres tags { name rank isMediaSpoiler } nextAiringEpisode { episode airingAt } coverImage { large medium }
                             format
                             type
                         }
@@ -8770,7 +8770,13 @@ final class AniListService {
             seasons: seasons,
             totalEpisodes: totalEpisodes,
             status: aggregateStatus,
-            rating: aniListRating(from: anime.averageScore)
+            rating: aniListRating(from: anime.averageScore),
+            tags: anime.tags,
+            isAdult: anime.isAdult,
+            seasonYear: anime.seasonYear,
+            season: anime.season,
+            format: anime.format,
+            nextAiringEpisode: anime.nextAiringEpisode
         )
         await logDetailTiming(
             "ready",
@@ -10170,7 +10176,7 @@ final class AniListService {
                                 status
                                 seasonYear
                                 season
-                                coverImage { large medium }
+                                averageScore isAdult genres tags { name rank isMediaSpoiler } nextAiringEpisode { episode airingAt } coverImage { large medium }
                                 format
                             }
                         }
@@ -10765,7 +10771,7 @@ final class AniListService {
             season
             format
             type
-            coverImage { large medium }
+            averageScore isAdult genres tags { name rank isMediaSpoiler } nextAiringEpisode { episode airingAt } coverImage { large medium }
             nextAiringEpisode { episode airingAt }
             relations {
                 edges {
@@ -10787,7 +10793,7 @@ final class AniListService {
                         season
                         format
                         type
-                        coverImage { large medium }
+                        averageScore isAdult genres tags { name rank isMediaSpoiler } nextAiringEpisode { episode airingAt } coverImage { large medium }
                     }
                 }
             }
@@ -10885,7 +10891,7 @@ final class AniListService {
             season
             format
             type
-            coverImage { large medium }
+            averageScore isAdult genres tags { name rank isMediaSpoiler } nextAiringEpisode { episode airingAt } coverImage { large medium }
             relations {
                 edges {
                     relationType
@@ -10906,7 +10912,7 @@ final class AniListService {
                         season
                         format
                         type
-                        coverImage { large medium }
+                        averageScore isAdult genres tags { name rank isMediaSpoiler } nextAiringEpisode { episode airingAt } coverImage { large medium }
                         relations {
                             edges {
                                 relationType
@@ -10925,7 +10931,7 @@ final class AniListService {
                                     season
                                     format
                                     type
-                                    coverImage { large medium }
+                                    averageScore isAdult genres tags { name rank isMediaSpoiler } nextAiringEpisode { episode airingAt } coverImage { large medium }
                                 }
                             }
                         }
@@ -12241,6 +12247,12 @@ struct AniListAnimeWithSeasons: Codable {
     let totalEpisodes: Int
     let status: String
     let rating: AnimeMetadataRating?
+    let tags: [AniListAnime.AniListTag]? = nil
+    let isAdult: Bool? = nil
+    let seasonYear: Int? = nil
+    let season: String? = nil
+    let format: String? = nil
+    let nextAiringEpisode: AniListAnime.AniListNextAiringEpisode? = nil
 
     var canonicalAniListTotalEpisodes: Int {
         RemoteMediaNumericBoundary.boundedSum(seasons.map { $0.canonicalAniListEpisodeCount ?? $0.episodes.count }) ?? totalEpisodes
