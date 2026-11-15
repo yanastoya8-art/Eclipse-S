@@ -2192,11 +2192,6 @@ struct MediaDetailContentView: View {
 
                             iPadImmersiveHeroCard
 
-                            if showsIPadImmersiveEpisodes {
-                                episodesSection
-                                    .id(Self.notificationEpisodesAnchor)
-                            }
-
                             if !iPadImmersiveSecondaryElements.isEmpty {
                                 VStack(alignment: .leading, spacing: max(20, designMetrics.sectionSpacing * 0.68)) {
                                     ForEach(iPadImmersiveSecondaryElements) { element in
@@ -2204,6 +2199,11 @@ struct MediaDetailContentView: View {
                                     }
                                 }
                                 .frame(maxWidth: 900, alignment: .leading)
+                            }
+
+                            if showsIPadImmersiveEpisodes {
+                                episodesSection
+                                    .id(Self.notificationEpisodesAnchor)
                             }
 
                             Spacer(minLength: max(48, proxy.safeAreaInsets.bottom + 24))
