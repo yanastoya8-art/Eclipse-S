@@ -39,6 +39,54 @@ final class DownloadResumeTests: XCTestCase {
         XCTAssertTrue(StreamLanguageFilter.shouldHide(languageHints: hints, metadata: metadata, defaults: defaults))
     }
 
+    func testDirectDownloadResumeWaitsForPauseCheckpointAndRestartsCleanlyWhenMissing() {
+        XCTAssertEqual(
+            DirectDownloadResumeDisposition.resolve(
+                pauseCompletionPending: true,
+                hasResumeData: false,
+                hasCheckpoint: false,
+                downloadedBytes: 8_000
+            ),
+            .waitForPauseCompletion
+        )
+        XCTAssertEqual(
+            DirectDownloadResumeDisposition.resolve(
+                pauseCompletionPending: false,
+                hasResumeData: true,
+                hasCheckpoint: false,
+                downloadedBytes: 8_000
+            ),
+            .continueSavedProgress
+        )
+        XCTAssertEqual(
+            DirectDownloadResumeDisposition.resolve(
+                pauseCompletionPending: false,
+                hasResumeData: false,
+                hasCheckpoint: true,
+                downloadedBytes: 8_000
+            ),
+            .continueSavedProgress
+        )
+        XCTAssertEqual(
+            DirectDownloadResumeDisposition.resolve(
+                pauseCompletionPending: false,
+                hasResumeData: false,
+                hasCheckpoint: false,
+                downloadedBytes: 8_000
+            ),
+            .restartFromBeginning
+        )
+        XCTAssertEqual(
+            DirectDownloadResumeDisposition.resolve(
+                pauseCompletionPending: false,
+                hasResumeData: false,
+                hasCheckpoint: false,
+                downloadedBytes: 0
+            ),
+            .continueSavedProgress
+        )
+    }
+
     func testDownloadSourceLinkPolicySupportsDirectStreamingFormats() {
         let urls = [
             "https://cdn.example/video.mp4?token=abc",
