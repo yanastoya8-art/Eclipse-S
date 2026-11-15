@@ -2615,6 +2615,12 @@ final class DownloadManager: NSObject, ObservableObject {
             downloads[index].status = .queued
             downloads[index].error = nil
             downloads[index].retryNotBefore = nil
+#if os(iOS) && !targetEnvironment(macCatalyst)
+            // A recovered worker must receive a fresh foreground intent;
+            // otherwise it can resume in-app but can never attach the
+            // continued-processing task when the app is backgrounded again.
+            hlsForegroundIntents[item.id] = captureHLSForegroundIntent()
+#endif
             changed = true
             Logger.shared.log(
                 "Re-queued interrupted HLS download after app activation: \(item.id)",
@@ -2634,6 +2640,9 @@ final class DownloadManager: NSObject, ObservableObject {
             downloads[index].status = .queued
             downloads[index].error = nil
             downloads[index].retryNotBefore = nil
+#if os(iOS) && !targetEnvironment(macCatalyst)
+            hlsForegroundIntents[downloads[index].id] = captureHLSForegroundIntent()
+#endif
             resumedCount += 1
         }
         if resumedCount > 0 {
@@ -9376,6 +9385,11 @@ final class DownloadManager: NSObject, ObservableObject {
                 where downloads[index].status == .downloading
                     && !retainedTaskIDs.contains(downloads[index].id) {
                     let limitation = downloads[index].resumeLimitationMessage
+#if os(iOS) && !targetEnvironment(macCatalyst)
+                    if downloads[index].isHLS, limitation == nil {
+                        hlsForegroundIntents[downloads[index].id] = captureHLSForegroundIntent()
+                    }
+#endif
                     downloads[index].status = limitation == nil ? .queued : .paused
                     downloads[index].error = limitation
                 }
