@@ -1778,39 +1778,6 @@ struct HomeView: View {
     }
 
     @ViewBuilder
-    private func heroTitleArtwork(_ hero: TMDBSearchResult) -> some View {
-        if let logoURL = hero.animeLogoURL ?? heroLogoURL, !logoURL.isEmpty {
-            ResilientArtworkImage(
-                urls: [logoURL],
-                decodeSize: heroLogoDecodeSize,
-                contentMode: .fit
-            ) {
-                heroTitleText(hero)
-            }
-            .frame(width: heroLogoMaxWidth, height: heroLogoMaxHeight)
-            .frame(maxWidth: .infinity, alignment: .center)
-            .accessibilityLabel(hero.displayTitle)
-        } else {
-            heroTitleText(hero)
-        }
-    }
-
-    @ViewBuilder
-    private func heroTitleText(_ hero: TMDBSearchResult) -> some View {
-        Text(hero.displayTitle)
-            .font(
-                ExperimentalFeatureState.isEnabledAtLaunch
-                    ? .system(size: isTvOS ? 76 : (usesWideHomeLayout ? 52 : 40), weight: .heavy)
-                    : .system(size: isTvOS ? 40 : 25)
-            )
-            .fontWeight(.bold)
-            .shadow(color: .black.opacity(0.6), radius: 8, x: 0, y: 4)
-            .foregroundColor(.white)
-            .lineLimit(2)
-            .multilineTextAlignment(.center)
-    }
-
-    @ViewBuilder
     private var contentSections: some View {
         LazyVStack(spacing: 0) {
             let catalogs = enabledCatalogs.filter { catalog in
