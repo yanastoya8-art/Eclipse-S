@@ -101,7 +101,7 @@ final class SettingsScopeTests: XCTestCase {
     }
 
     func testServiceAutoModeIsDisabledForFreshInstallButRespectsSavedChoice() throws {
-        let suiteName = "SettingsScopeTests.AutoMode.\\(UUID().uuidString)"
+        let suiteName = "SettingsScopeTests.AutoMode.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
