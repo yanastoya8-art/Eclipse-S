@@ -470,29 +470,22 @@ struct MangaDetailView: View {
                     Color.black.opacity(0.08)
                 }
 
+                // Keep the actual cover artwork sharp. Color bleed is rendered
+                // separately below so the poster itself is never blurred.
+                Color.black.opacity(experimental ? 0.08 : 0.18)
+
                 ReaderPinnedRemoteImage(
                     url: URL(string: coverURLString),
                     onImage: { image in
                         headerAmbientColor = Color.ambientColor(from: image)
                     }
                 ) {
-                    Color.black.opacity(0.18)
+                    Color.clear
                 }
-                    .aspectRatio(contentMode: isIPad && experimental ? .fit : .fill)
-                    .frame(width: viewportWidth, height: stretchedHeight)
-                    .clipped()
-                    .blur(radius: readerDetailHeroBlurRadius)
-                    .overlay(Color.black.opacity(experimental ? 0.10 : 0.34))
-
-                if !experimental {
-                    ReaderPinnedRemoteImage(url: URL(string: coverURLString)) {
-                        Color.clear
-                    }
-                        .scaledToFit()
-                        .frame(width: posterWidth, height: posterHeight, alignment: .center)
-                        .frame(width: viewportWidth, alignment: .center)
-                        .padding(.top, 10)
-                }
+                    .scaledToFit()
+                    .frame(width: posterWidth, height: posterHeight, alignment: .center)
+                    .frame(width: viewportWidth, alignment: .center)
+                    .padding(.top, 10)
 
                 LinearGradient(
                     colors: gradientColors,
@@ -501,20 +494,21 @@ struct MangaDetailView: View {
                 )
                 .frame(width: viewportWidth, height: stretchedHeight)
 
-                if experimental {
-                    LinearGradient(
-                        colors: [
-                            .clear,
-                            readerHeroBlendColor.opacity(0.28),
-                            readerHeroBlendColor.opacity(0.78)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(width: viewportWidth, height: stretchedHeight * 0.42)
-                    .frame(maxHeight: .infinity, alignment: .bottom)
-                    .allowsHitTesting(false)
-                }
+                LinearGradient(
+                    colors: [
+                        .clear,
+                        readerHeroBlendColor.opacity(0.28),
+                        readerHeroBlendColor.opacity(0.78)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(width: viewportWidth, height: stretchedHeight * 0.30)
+                .blur(radius: readerDetailHeroBlurRadius)
+                .frame(maxHeight: .infinity, alignment: .bottom)
+                .clipped()
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
 
                 VStack(alignment: textAlignment, spacing: experimental ? 10 : 8) {
                     Text(selectedSourceDisplayTitle)

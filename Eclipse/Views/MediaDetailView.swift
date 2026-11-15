@@ -590,6 +590,19 @@ struct MediaDetailContentView: View {
         detailViewportSize.width > 0 ? detailViewportSize.width : EclipseViewport.bounds.width
     }
 
+    private var usesLandscapeDetailComposition: Bool {
+#if os(macOS)
+        false
+#else
+        let viewport = detailViewportSize == .zero ? EclipseViewport.bounds.size : detailViewportSize
+        return viewport.width > viewport.height
+#endif
+    }
+
+    private var wideDetailContentMaxWidth: CGFloat {
+        min(max(detailViewportWidth * 0.82, 640), 1_120)
+    }
+
     private var usesWideDetailLayout: Bool {
 #if os(macOS)
         (detailViewportSize == .zero ? EclipseViewport.bounds.size : detailViewportSize).width >= 1000
@@ -1815,9 +1828,11 @@ struct MediaDetailContentView: View {
 #if os(macOS)
         macDetailLayout
 #else
-        if usesWideDetailLayout {
+        if usesWideDetailLayout && !usesLandscapeDetailComposition {
             iPadImmersiveDetailLayout
         } else {
+            // In landscape, keep the same hero/actions/synopsis composition as
+            // portrait and let its content width expand to use the available space.
             ScrollViewReader { proxy in
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 0) {
@@ -2489,7 +2504,7 @@ struct MediaDetailContentView: View {
                             ? headerHeight * 0.16
                             : min(EclipseViewport.bounds.width * 1.5, headerHeight - 80))
                     headerSection
-                        .frame(maxWidth: .infinity, alignment: usesWideDetailLayout ? .trailing : .center)
+                        .frame(maxWidth: .infinity, alignment: usesLandscapeDetailComposition ? .center : (usesWideDetailLayout ? .trailing : .center))
                         .padding(.horizontal, usesWideDetailLayout ? 48 : 0)
                 }
                 .frame(maxWidth: .infinity, alignment: .top)
@@ -2575,7 +2590,7 @@ struct MediaDetailContentView: View {
 
                 Spacer(minLength: 50)
             }
-            .frame(maxWidth: usesWideDetailLayout ? 900 : .infinity)
+            .frame(maxWidth: usesLandscapeDetailComposition ? wideDetailContentMaxWidth : (usesWideDetailLayout ? 900 : .infinity))
             .background(
                 detailContentBackground
             )
@@ -2752,11 +2767,16 @@ struct MediaDetailContentView: View {
                     .padding(.top, isTvOS ? 12 : (usesWideDetailLayout ? 2 : 0))
             }
         }
-        .frame(maxWidth: usesWideDetailLayout ? 520 : .infinity, alignment: .center)
+        .frame(
+            maxWidth: usesLandscapeDetailComposition
+                ? wideDetailContentMaxWidth
+                : (usesWideDetailLayout ? 520 : .infinity),
+            alignment: .center
+        )
         .padding(.top, usesWideDetailLayout ? 24 : 0)
         .padding(.bottom, isTvOS ? 60 : (usesWideDetailLayout ? 24 : 34))
         .background {
-            if usesWideDetailLayout {
+            if usesWideDetailLayout && !usesLandscapeDetailComposition {
                 RoundedRectangle(cornerRadius: 28, style: .continuous)
                     .fill(.ultraThinMaterial)
                     .overlay(
