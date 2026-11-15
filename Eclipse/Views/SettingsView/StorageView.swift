@@ -622,8 +622,6 @@ struct DownloadsSettingsView: View {
     }
 #endif
 
-#endif
-
     var body: some View {
         ScrollView {
             VStack(spacing: 22) {
