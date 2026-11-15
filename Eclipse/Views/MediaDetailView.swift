@@ -2848,6 +2848,16 @@ struct MediaDetailContentView: View {
             if animeMetadata.isAdult == true {
                 values.append("Adult")
             }
+            if let format = animeMetadata.format, !format.isEmpty {
+                values.append(format.replacingOccurrences(of: "_", with: " ").capitalized)
+            }
+            if let tags = animeMetadata.tags {
+                values.append(contentsOf: tags
+                    .filter { $0.isMediaSpoiler != true }
+                    .sorted { ($0.rank ?? 0) > ($1.rank ?? 0) }
+                    .prefix(3)
+                    .map(\.name))
+            }
             if let nextEpisode = animeMetadata.nextAiringEpisode?.episode, nextEpisode > 0 {
                 values.append("Next EP \(nextEpisode)")
             }
