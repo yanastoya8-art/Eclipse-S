@@ -26,6 +26,11 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     ) -> Bool {
         EclipseCastCoordinator.shared.configure()
 #if os(iOS)
+        if #available(iOS 26.0, *) {
+            // Register the continued-processing wildcard during launch, before
+            // BGTaskScheduler's registration window closes.
+            _ = HLSBackgroundDownloadCoordinator.shared
+        }
         registerAnimeScheduleRefresh()
 #endif
         return true
