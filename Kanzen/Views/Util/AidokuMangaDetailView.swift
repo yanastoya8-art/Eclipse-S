@@ -330,6 +330,25 @@ struct ReaderExtensionMangaDetailView: View {
                 .clipped()
                 .blur(radius: readerDetailHeroBlurRadius)
 
+                // Keep a crisp, fitted cover in front of the full-bleed
+                // blurred artwork so Reader Extension titles get the same
+                // poster-led hero treatment as AniList-backed manga.
+                ReaderScopedRemoteImage(
+                    url: URL(string: coverURL),
+                    readerExtensionSourceID: sourceID,
+                    onImage: { ambientColor = Color.ambientColor(from: $0) }
+                ) {
+                    Color.clear
+                }
+                .scaledToFit()
+                .frame(
+                    width: min(viewportWidth * 0.72, height * 0.70),
+                    height: height * 0.78
+                )
+                .frame(width: viewportWidth, alignment: .center)
+                .padding(.top, 8)
+                .accessibilityHidden(true)
+
                 LinearGradient(
                     colors: [.clear, ambientColor.opacity(0.45), .black.opacity(0.95)],
                     startPoint: .top,
