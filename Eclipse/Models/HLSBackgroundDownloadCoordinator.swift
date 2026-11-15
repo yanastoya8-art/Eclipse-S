@@ -52,7 +52,8 @@ final class HLSBackgroundDownloadCoordinator: HLSBackgroundDownloadScheduling {
             onRejected: @escaping () -> Void
         ) {
             self.attemptID = attemptID
-            self.title = String(title.trimmingCharacters(in: .whitespacesAndNewlines).prefix(72))
+            let normalizedTitle = title.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+            self.title = String(normalizedTitle.prefix(64))
             self.onGranted = onGranted
             self.onExpiration = onExpiration
             self.onRejected = onRejected
@@ -109,7 +110,8 @@ final class HLSBackgroundDownloadCoordinator: HLSBackgroundDownloadScheduling {
             onRejected()
             return
         }
-        let safeTitle = String(title.trimmingCharacters(in: .whitespacesAndNewlines).prefix(72))
+        let normalizedTitle = title.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        let safeTitle = String(normalizedTitle.prefix(64))
         let request = Request(attemptID: attemptID, title: safeTitle.isEmpty ? "Downloading video" : safeTitle, onGranted: onGranted, onExpiration: onExpiration, onRejected: onRejected)
         slot.request = request
         log("requested", request: request, slot: slot)
