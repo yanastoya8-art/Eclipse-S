@@ -109,7 +109,12 @@ final class HomeViewModel: ObservableObject {
         for (key, value) in widgetData where widgetSnapshot[key] == nil {
             widgetSnapshot[key] = value
         }
-        let allResults = Array(catalogSnapshot.values.joined()) + Array(widgetSnapshot.values.joined())
+        // A title commonly appears in several shelves and widgets. Prepare expensive
+        // age/runtime/audio metadata once per unique media identity instead of once
+        // per shelf occurrence whenever a filter changes.
+        var seenIdentities = Set<String>()
+        let allResults = (catalogSnapshot.values.lazy.flatMap { $0 } + widgetSnapshot.values.lazy.flatMap { $0 })
+            .filter { seenIdentities.insert($0.stableIdentity).inserted }
         await contentFilter.prepareMaturityRatings(for: allResults)
 
         catalogResults = catalogSnapshot.mapValues { contentFilter.filterSearchResults($0) }
