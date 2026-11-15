@@ -43,6 +43,18 @@ private final class AnimeScheduleURLProtocol: URLProtocol {
 }
 
 final class AnimeScheduleFallbackTests: XCTestCase {
+    func testDubLanguagePickerOnlyExposesEnglishAndSpanish() {
+        XCTAssertEqual(
+            Set(MyDubListLanguage.allCases.map(\\.rawValue)),
+            Set([MyDubListLanguage.english.rawValue, MyDubListLanguage.spanish.rawValue])
+        )
+        XCTAssertEqual(
+            MyDubListDubFilter.supportedLanguages,
+            Set([MyDubListLanguage.english.rawValue, MyDubListLanguage.spanish.rawValue])
+        )
+        XCTAssertEqual(MyDubListLanguage.spanish.displayName, "Spanish (Castellano o Latino)")
+    }
+
     func testJustWatchScheduleCacheExpiresAndRejectsFutureTimestamps() {
         let now = Date(timeIntervalSince1970: 2_000_000_000)
         let lifetime: TimeInterval = 12 * 60 * 60
