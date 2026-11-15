@@ -2656,11 +2656,9 @@ struct MediaDetailContentView: View {
 
     private var detailHeroFallbackImageURLs: [String] {
         guard let primary = detailHeroImageURL else { return [] }
-        let candidates: [String?] = [
-            searchResult.fullPosterURL,
-            searchResult.animeArtworkURL,
-            searchResult.fullBackdropURL
-        ]
+        let candidates: [String?] =
+            PosterArtworkURLResolver.candidates(for: searchResult)
+            + [searchResult.fullBackdropURL]
         var seen: Set<String> = []
         return candidates.compactMap { $0 }.filter { value in
             guard value != primary,
