@@ -227,8 +227,10 @@ struct SettingsView: View {
             .init(id: "ratings-follow-season", title: "Lock Ratings & Notes to Season", location: "Ratings & Notes", icon: "lock", color: .yellow, keywords: ["reviews", "ratings", "season selector", "anime", "score"], action: .destination(.ratings)),
             .init(id: "deep-tracker-library", title: "Deep Library Integration", location: "Trackers", icon: "books.vertical", color: .blue, keywords: ["AniList", "MAL", "Trakt", "manga", "watchlist", "status", "score", "progress"], action: .destination(.trackers)),
             .init(id: "storage", title: "Storage", location: "Data", icon: "internaldrive", color: .gray, keywords: ["downloads", "cache", "files", "clear"], action: .destination(.storage)),
-            .init(id: "download-concurrency", title: "Concurrent Downloads", location: "Storage > Downloads", icon: "arrow.down.circle", color: .gray, keywords: ["parallel", "simultaneous", "HLS"], action: .destination(.storage)),
-            .init(id: "download-skip-filler", title: "Skip Filler in Download All", location: "Storage > Downloads", icon: "forward.end.fill", color: .yellow, keywords: ["anime", "batch", "filler"], action: .destination(.storage)),
+            .init(id: "download-concurrency", title: "Concurrent Downloads", location: "Downloads", icon: "arrow.down.circle", color: .gray, keywords: ["parallel", "simultaneous", "video"], action: .destination(.downloads)),
+            .init(id: "download-hls-concurrency", title: "Concurrent HLS Downloads", location: "Downloads", icon: "film", color: .gray, keywords: ["parallel", "simultaneous", "HLS", "playlist"], action: .destination(.downloads)),
+            .init(id: "download-poster-size", title: "Downloaded Show Poster Size", location: "Downloads", icon: "photo", color: .purple, keywords: ["poster", "image", "downloads library", "size"], action: .destination(.downloads)),
+            .init(id: "download-skip-filler", title: "Skip Filler in Download All", location: "Downloads", icon: "forward.end.fill", color: .yellow, keywords: ["anime", "batch", "filler"], action: .destination(.downloads)),
             .init(id: "backup", title: "Backup & Restore", location: "Data", icon: "arrow.triangle.2.circlepath", color: .teal, keywords: ["export", "import", "settings"], action: .destination(.backup)),
             .init(id: "logger", title: "Logger", location: "Data", icon: "doc.text", color: .yellow, keywords: ["logs", "diagnostics", "errors", "export"], action: .destination(.logger)),
             .init(id: "reader-mode", title: "Switch to Reader Mode", location: "Others", icon: "book.fill", color: .orange, keywords: ["Kanzen", "manga", "reader"], action: .readerMode),
@@ -237,7 +239,7 @@ struct SettingsView: View {
 
 #if os(iOS) && !targetEnvironment(macCatalyst)
         if #available(iOS 26.0, *), PlatformCapabilities.current.supportsHLSBackgroundDownloads {
-            entries.append(.init(id: "background-downloads", title: "Background Downloads", location: "Storage > Video Downloads", icon: "arrow.down.circle", color: .blue, keywords: ["background", "HLS", "direct", "video", "download", "continue"], action: .destination(.storage)))
+            entries.append(.init(id: "background-downloads", title: "Background Downloads", location: "Downloads", icon: "arrow.down.circle", color: .blue, keywords: ["background", "HLS", "direct", "video", "download", "continue"], action: .destination(.downloads)))
         }
 #endif
 
@@ -997,6 +999,8 @@ struct SettingsView: View {
             return AnyView(settingsSearchableContent(RatingsSettingsView()))
         case .storage:
             return AnyView(settingsSearchableContent(StorageView()))
+        case .downloads:
+            return AnyView(settingsSearchableContent(DownloadsSettingsView()))
         case .backup:
             return AnyView(settingsSearchableContent(BackupManagementView()))
         case .cloud:
@@ -1891,6 +1895,7 @@ private enum SettingsSearchDestination: Hashable {
     case trackers
     case ratings
     case storage
+    case downloads
     case backup
     case cloud
     case logger
@@ -3789,20 +3794,6 @@ struct ScheduleSettingsView: View {
                 GlassSectionFooter("Performance warning: This range also controls automatic episode notification checks and delayed startup warming. Longer ranges—especially 21 or 30 days—can load more slowly and use more data, particularly during provider fallback. Eclipse still schedules only the nearest 48 managed reminders. \(ScheduleWindow.defaultValue.rawValue) days remains the recommended default.")
 #endif
 
-                GlassSection(header: "Anime Dub Schedule") {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("The anime and combined schedules now use the English-dub timetable shown by DubOnly. The schedule data is credited by DubOnly to AnimeSchedule.net.")
-                            .font(.subheadline)
-                            .foregroundColor(.white.opacity(0.75))
-                            .fixedSize(horizontal: false, vertical: true)
-                        Link("Open DubOnly Schedule", destination: URL(string: "https://dubonly.com/schedule/")!)
-                            .font(.subheadline)
-                        Link("AnimeSchedule.net data source", destination: URL(string: "https://animeschedule.net/")!)
-                            .font(.subheadline)
-                    }
-                    .padding(14)
-                }
-                GlassSectionFooter("DubOnly currently publishes English-dub release times only, using AnimeSchedule.net schedule data. The anime and combined schedules therefore include only titles with an English dub when English is selected—even if Spanish or other languages are also selected. If English is not selected, the app shows a notice rather than presenting English release times as another language's schedule.")
             }
             .padding(.top, 16)
             .padding(.bottom, 32)
@@ -3813,117 +3804,6 @@ struct ScheduleSettingsView: View {
     }
 }
 
-struct MyDubListDubsSettingsView: View {
-    @State private var selectedLanguages = MyDubListDubFilter.shared.selectedLanguages
-    @State private var isRefreshing = false
-    @State private var refreshMessage = "Dub data is refreshed from MyDubList when these settings change."
-
-    @StateObject private var accentColorManager = AccentColorManager.shared
-
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 22) {
-                GlassSection(header: "Anime Dub Filter") {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Select one or more dub languages. Episode lists show only the sequential episodes covered by at least one selected language's reported dub count for that exact anime season. Anime with no matching dub remain hidden from anime catalog sections. A new season with no released dub episodes shows a countdown when a scheduled English dub episode date is available, otherwise TBA.")
-                            .font(.subheadline)
-                            .foregroundColor(.white.opacity(0.75))
-                            .fixedSize(horizontal: false, vertical: true)
-
-                        HStack {
-                            Text(selectedLanguages.isEmpty ? "Filter disabled" : "\(selectedLanguages.count) languages selected")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Spacer()
-                            if isRefreshing {
-                                ProgressView()
-                                    .controlSize(.small)
-                            }
-                        }
-                    }
-                    .padding(14)
-                }
-
-                GlassSection(header: "Available Dub Languages") {
-                    VStack(spacing: 0) {
-                        ForEach(Array(MyDubListLanguage.allCases.filter { MyDubListDubFilter.supportedLanguages.contains($0.rawValue) }.enumerated()), id: \.element.id) { index, language in
-                            GlassSelectionRow(
-                                title: language.displayName,
-                                subtitle: language.rawValue.capitalized,
-                                isSelected: selectedLanguages.contains(language.rawValue),
-                                accent: accentColorManager.currentAccentColor
-                            ) {
-                                toggle(language)
-                            }
-                            if index < MyDubListDubFilter.supportedLanguages.count - 1 {
-                                GlassDivider(leadingInset: 16)
-                            }
-                        }
-                    }
-                }
-
-                GlassSectionFooter("Multiple languages use OR logic: English + Spanish means either dub qualifies. With no languages selected, no dub filtering is applied. MyDubList supplies broad title-level language matching; Taizen and anidub supply season-specific episode counts. anidub can distinguish Spanish (Latino, es-419) and Spanish (Castellano, es-ES) when its evidence contains those locale tags; generic Spanish records remain region-unspecified.")
-
-                GlassSection(header: "Data & Attribution") {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text(refreshMessage)
-                            .font(.caption)
-                            .foregroundColor(.white.opacity(0.65))
-                        Text("Dub data © MyDubList (CC BY 4.0). Season episode counts are cross-checked with Taizen and anidub. anidub derives dub status from AnimeSchedule availability, verified community submissions, Anime News Network and Crunchyroll News evidence. Eclipse matches each season by AniList identity where available.")
-                            .font(.caption)
-                            .foregroundColor(.white.opacity(0.65))
-                        Link("Powered by MyDubList", destination: URL(string: "https://mydublist.com")!)
-                            .font(.subheadline)
-                        Link("Taizen episode metadata & API", destination: URL(string: "https://taizen.moe/api-docs")!)
-                            .font(.subheadline)
-                        Link("anidub regional dub API & methodology", destination: URL(string: "https://www.anidub.moe/api-docs")!)
-                            .font(.subheadline)
-                        Link("anidub evidence methodology", destination: URL(string: "https://www.anidub.moe/methodology")!)
-                            .font(.subheadline)
-                        Link("Dataset license: CC BY 4.0", destination: URL(string: "https://creativecommons.org/licenses/by/4.0/")!)
-                            .font(.subheadline)
-                        Link("Report inaccurate dub data", destination: URL(string: "https://github.com/Joelis57/MyDubList/issues/new/choose")!)
-                            .font(.subheadline)
-                    }
-                    .padding(14)
-                }
-            }
-            .padding(.top, 16)
-            .padding(.bottom, 32)
-        }
-        .eclipsePageTitle("Anime Dub Languages")
-        .background(SettingsGradientBackground().ignoresSafeArea())
-        .eclipseDarkToolbar()
-        .task {
-            await refresh()
-        }
-    }
-
-    private func toggle(_ language: MyDubListLanguage) {
-        if selectedLanguages.contains(language.rawValue) {
-            selectedLanguages.remove(language.rawValue)
-        } else {
-            selectedLanguages.insert(language.rawValue)
-        }
-        MyDubListDubFilter.shared.setSelectedLanguages(selectedLanguages)
-        Task { await refresh() }
-    }
-
-    @MainActor
-    private func refresh() async {
-        isRefreshing = true
-        defer { isRefreshing = false }
-        let didLoad = await MyDubListDubFilter.shared.refresh()
-        selectedLanguages = MyDubListDubFilter.shared.selectedLanguages
-        if selectedLanguages.isEmpty {
-            refreshMessage = "Dub filtering is disabled."
-        } else if didLoad {
-            refreshMessage = "MyDubList language data is ready for the selected languages."
-        } else {
-            refreshMessage = "MyDubList could not be reached and no matching offline cache is available. Anime results will remain hidden until the selected language data can be loaded."
-        }
-    }
-}
 
 struct LegalNoticeView: View {
     let sourceCodeURL: URL
@@ -5498,6 +5378,19 @@ private struct LanguageFiltersSettingsView: View {
             }
 
             Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Anime Dub Filter")
+                        .font(.headline)
+                    Text("Choose English, Spanish (Castellano o Latino), or both. Anime catalogs require a verified dub in at least one selected language. Episode lists are limited to the sequential episodes covered by the selected language's verified dub count for that exact season. Multiple languages use OR logic.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Text(selectedDubLanguages.isEmpty ? "Dub filtering is disabled." : "\(selectedDubLanguages.count) dub language(s) selected.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Section {
                 ForEach(MyDubListLanguage.allCases.filter { MyDubListDubFilter.supportedLanguages.contains($0.rawValue) }) { language in
                     Toggle(language.displayName, isOn: Binding(
                         get: { selectedDubLanguages.contains(language.rawValue) },
@@ -5518,6 +5411,21 @@ private struct LanguageFiltersSettingsView: View {
                 Text("Anime Dub Languages")
             } footer: {
                 Text("Select one or more languages. Anime catalogs require a verified dub in at least one selected language. The Western TV schedule keeps original air dates when the original audio matches your selection; otherwise, it uses only verified JustWatch episode release dates. JustWatch episode release dates are checked automatically when the app build includes the configured API key. Without a key or a matching release date, non-native entries are hidden.")
+            }
+
+            Section {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Dub data is refreshed from MyDubList when the selected languages change. Season episode counts are cross-checked with Taizen and anidub.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Text("anidub can distinguish Spanish (Latino, es-419) and Spanish (Castellano, es-ES) when regional evidence is available. Both are treated as the single Spanish selection.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Link("Powered by MyDubList", destination: URL(string: "https://mydublist.com")!)
+                    Link("Taizen episode metadata & API", destination: URL(string: "https://taizen.moe/api-docs")!)
+                    Link("anidub regional dub API & methodology", destination: URL(string: "https://www.anidub.moe/api-docs")!)
+                    Link("Dataset license: CC BY 4.0", destination: URL(string: "https://creativecommons.org/licenses/by/4.0/")!)
+                }
             }
         }
         .eclipsePageTitle("Language Filters")
