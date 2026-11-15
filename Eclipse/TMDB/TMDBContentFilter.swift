@@ -375,6 +375,11 @@ class TMDBContentFilter: ObservableObject {
     private var animeAudioCheckedIDs: Set<Int> = []
     private var animeAudioLoadingIDs: Set<Int> = []
     private var animeAudioRetryAfterByID: [Int: Date] = [:]
+    private var catalogAudioEligibleKeys: Set<String> = []
+    private var catalogAudioCheckedKeys: Set<String> = []
+    private var catalogAudioLoadingKeys: Set<String> = []
+    private var catalogAudioRetryAfterByKey: [String: Date] = [:]
+    @Published private(set) var catalogAudioRevision = 0
     private let runtimeMetadataLock = NSLock()
     private var runtimeMinutesByKey: [String: Int] = [:]
     private var runtimeCheckedKeys = Set<String>()
@@ -550,6 +555,9 @@ class TMDBContentFilter: ObservableObject {
 
         let hideBelowAnime = defaults.bool(forKey: "catalogHideBelowPG13Anime")
         let requireVerifiedAudio = defaults.bool(forKey: "catalogRequireEnglishSpanishAudio")
+        if requireVerifiedAudio {
+            scheduleCatalogAudioAvailabilityResolutionIfNeeded(for: results)
+        }
         let shouldResolveAnimeAgeRatings = kidsModeEnabled || hideBelowAnime
         guard shouldResolveAnimeAgeRatings || requireVerifiedAudio else { return }
 
@@ -799,8 +807,7 @@ class TMDBContentFilter: ObservableObject {
                 guard let language = movie.originalLanguage?.lowercased() else { return false }
                 let hasNativeAudio = language.hasPrefix("en") || language.hasPrefix("es")
                 if !hasNativeAudio {
-                    guard movieAnime,
-                          shouldIncludeForConfiguredAgeAndAudio(movie.asSearchResult) else { return false }
+                    guard shouldIncludeForConfiguredAgeAndAudio(movieResult) else { return false }
                 }
             }
             if movieAnime {
@@ -855,8 +862,7 @@ class TMDBContentFilter: ObservableObject {
                 guard let language = tvShow.originalLanguage?.lowercased() else { return false }
                 let hasNativeAudio = language.hasPrefix("en") || language.hasPrefix("es")
                 if !hasNativeAudio {
-                    guard isAnime,
-                          shouldIncludeForConfiguredAgeAndAudio(tvShow.asSearchResult) else { return false }
+                    guard shouldIncludeForConfiguredAgeAndAudio(tvResult) else { return false }
                 }
             }
             if isAnime {
@@ -1075,6 +1081,110 @@ class TMDBContentFilter: ObservableObject {
         animeEligibilityLock.unlock()
     }
 
+    private func catalogAudioAvailabilityKey(for result: TMDBSearchResult) -> String {
+        "\(result.isMovie ? "movie" : "tv")-\(result.id)"
+    }
+
+    private func hasVerifiedCatalogAudio(for result: TMDBSearchResult) -> Bool {
+        let key = catalogAudioAvailabilityKey(for: result)
+        animeEligibilityLock.lock()
+        defer { animeEligibilityLock.unlock() }
+        return catalogAudioEligibleKeys.contains(key)
+    }
+
+    private func scheduleCatalogAudioAvailabilityResolutionIfNeeded(for results: [TMDBSearchResult]) {
+        guard UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") else { return }
+        let candidates = results.filter { result in
+            guard !Self.isAnimeResult(result),
+                  (result.isMovie || result.isTVShow),
+                  result.id > 0 else { return false }
+            let language = result.originalLanguage?.lowercased() ?? ""
+            guard !(language.hasPrefix("en") || language.hasPrefix("es")) else { return false }
+            let key = catalogAudioAvailabilityKey(for: result)
+            animeEligibilityLock.lock()
+            defer { animeEligibilityLock.unlock() }
+            guard !catalogAudioCheckedKeys.contains(key),
+                  !catalogAudioLoadingKeys.contains(key),
+                  Date() >= (catalogAudioRetryAfterByKey[key] ?? .distantPast) else { return false }
+            catalogAudioLoadingKeys.insert(key)
+            return true
+        }
+        guard !candidates.isEmpty else { return }
+
+        let selectedLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
+        Task(priority: .utility) {
+            await withTaskGroup(of: (String, Bool?).self) { group in
+                var iterator = candidates.makeIterator()
+                let concurrencyLimit = 4
+                for _ in 0..<min(concurrencyLimit, candidates.count) {
+                    guard let result = iterator.next() else { continue }
+                    let key = self.catalogAudioAvailabilityKey(for: result)
+                    group.addTask {
+                        let rawDate = result.isMovie ? result.releaseDate : result.firstAirDate
+                        let year = rawDate.flatMap { Int($0.prefix(4)) }
+                        let available = await JustWatchScheduleService.shared.hasAudioLanguageOffer(
+                            tmdbID: result.id,
+                            title: result.displayTitle,
+                            releaseYear: year,
+                            isMovie: result.isMovie,
+                            originalLanguage: result.originalLanguage,
+                            selectedLanguages: selectedLanguages
+                        )
+                        return (key, available)
+                    }
+                }
+
+                var didResolveAny = false
+                while let (key, available) = await group.next() {
+                    animeEligibilityLock.lock()
+                    catalogAudioLoadingKeys.remove(key)
+                    if let available {
+                        catalogAudioCheckedKeys.insert(key)
+                        catalogAudioRetryAfterByKey.removeValue(forKey: key)
+                        if available {
+                            catalogAudioEligibleKeys.insert(key)
+                        } else {
+                            catalogAudioEligibleKeys.remove(key)
+                        }
+                        didResolveAny = true
+                    } else {
+                        // A provider outage is not proof that a title has no dub.
+                        // Keep it hidden until verified, then retry after a cooldown.
+                        catalogAudioRetryAfterByKey[key] = Date().addingTimeInterval(10 * 60)
+                    }
+                    animeEligibilityLock.unlock()
+
+                    if let result = iterator.next() {
+                        let nextKey = self.catalogAudioAvailabilityKey(for: result)
+                        group.addTask {
+                            let rawDate = result.isMovie ? result.releaseDate : result.firstAirDate
+                            let year = rawDate.flatMap { Int($0.prefix(4)) }
+                            let available = await JustWatchScheduleService.shared.hasAudioLanguageOffer(
+                                tmdbID: result.id,
+                                title: result.displayTitle,
+                                releaseYear: year,
+                                isMovie: result.isMovie,
+                                originalLanguage: result.originalLanguage,
+                                selectedLanguages: selectedLanguages
+                            )
+                            return (nextKey, available)
+                        }
+                    }
+                }
+
+                if didResolveAny {
+                    await MainActor.run {
+                        self.catalogAudioRevision &+= 1
+                        NotificationCenter.default.post(
+                            name: Self.catalogFiltersDidChangeNotification,
+                            object: nil
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     private func storeAnimeAudioEligibility(_ isEligible: Bool, for id: Int) {
         animeEligibilityLock.lock()
         animeAudioLoadingIDs.remove(id)
@@ -1241,15 +1351,17 @@ class TMDBContentFilter: ObservableObject {
             guard let originalLanguage = result.originalLanguage?.lowercased() else { return false }
             let hasNativeAudio = originalLanguage.hasPrefix("en") || originalLanguage.hasPrefix("es")
             if !hasNativeAudio {
-                guard isAnime,
-                      let anilistID = result.animeIdentitySeed?.anilistId,
-                      anilistID > 0 else { return false }
-                animeEligibilityLock.lock()
-                let hasVerifiedDub = animeAudioEligibleIDs.contains(anilistID)
-                animeEligibilityLock.unlock()
-                // Fail closed while dub metadata is loading or unavailable. The
-                // metadata resolver posts a filter refresh when it completes.
-                guard hasVerifiedDub else { return false }
+                if isAnime {
+                    guard let anilistID = result.animeIdentitySeed?.anilistId,
+                          anilistID > 0 else { return false }
+                    animeEligibilityLock.lock()
+                    let hasVerifiedDub = animeAudioEligibleIDs.contains(anilistID)
+                    animeEligibilityLock.unlock()
+                    // Fail closed while anime dub metadata is loading or unavailable.
+                    guard hasVerifiedDub else { return false }
+                } else {
+                    guard hasVerifiedCatalogAudio(for: result) else { return false }
+                }
             }
         }
         return true
