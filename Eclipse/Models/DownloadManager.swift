@@ -2758,15 +2758,23 @@ final class DownloadManager: NSObject, ObservableObject {
     }
 
     private func hasActiveDirectBackgroundTransfer(id: String) -> Bool {
-        guard hlsBackgroundDownloadsEnabled,
-              let attempt = directBackgroundAttempts[id],
-              !attempt.revoked,
-              hlsIntentIsCurrent(attempt.intent),
-              activeTasks[id]?.taskIdentifier == attempt.taskIdentifier,
-              downloads.first(where: { $0.id == id })?.status == .downloading else { return false }
-        // URLSession owns the transfer independently of the app process; keep
-        // protected provider headers alive while that transfer is active even
-        // if the optional continued-processing Live Activity was rejected.
+#if os(iOS) && !targetEnvironment(macCatalyst)
+        if #available(iOS 26.0, *), !hlsBackgroundDownloadsEnabled { return false }
+#endif
+        guard let item = downloads.first(where: { $0.id == id }),
+              !item.isHLS,
+              item.status == .downloading,
+              let task = activeTasks[id],
+              task.state == .running || task.state == .suspended else { return false }
+#if os(iOS) && !targetEnvironment(macCatalyst)
+        if let attempt = directBackgroundAttempts[id] {
+            guard !attempt.revoked, hlsIntentIsCurrent(attempt.intent),
+                  attempt.taskIdentifier == task.taskIdentifier else { return false }
+        }
+#endif
+        // Direct transfers are owned by URLSession's background session and
+        // can continue on older iOS versions even without a continued-processing
+        // Live Activity. Keep protected headers alive only while that task exists.
         return true
     }
 
