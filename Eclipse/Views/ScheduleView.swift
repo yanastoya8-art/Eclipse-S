@@ -40,8 +40,27 @@ struct ScheduleView: View {
         let profileEntries = UserDefaults.standard.bool(forKey: "catalogHideAnime")
             ? entries.filter { $0.source != .anime }
             : entries
-        guard ProfileManager.shared.isKidsModeActive else { return profileEntries }
-        return profileEntries.filter { entry in
+        let unofficialFilteredEntries: [ScheduleEntry]
+        if UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent") {
+            unofficialFilteredEntries = profileEntries.filter { entry in
+                let searchableTitle = [
+                    entry.title,
+                    entry.englishTitle,
+                    entry.romajiTitle,
+                    entry.nativeTitle
+                ]
+                .compactMap { $0 }
+                .joined(separator: " ")
+                return !TMDBContentFilter.isUnofficialCreatorContent(
+                    title: searchableTitle,
+                    overview: nil
+                )
+            }
+        } else {
+            unofficialFilteredEntries = profileEntries
+        }
+        guard ProfileManager.shared.isKidsModeActive else { return unofficialFilteredEntries }
+        return unofficialFilteredEntries.filter { entry in
             guard let tmdbId = entry.tmdbId else { return false }
             guard resolvedKidsScheduleIds.contains(tmdbId) else { return false }
             return !kidsBlockedScheduleIds.contains(tmdbId)
@@ -552,15 +571,21 @@ struct ScheduleView: View {
                 if viewModel.isLoading {
                     loadingView
                         .frame(minHeight: 360)
-                } else if let errorMessage = viewModel.errorMessage {
-                    errorView(errorMessage)
-                        .frame(minHeight: 360)
-                } else if viewModel.dayBuckets.allSatisfy({ $0.items.isEmpty }) {
-                    emptyStateView
-                        .frame(minHeight: 360)
                 } else {
+                    // Keep date navigation available even when a provider has
+                    // no matching dub timetable or temporarily fails. Users
+                    // can still move between dates instead of being trapped
+                    // on a full-screen error state.
                     dayPickerSection
-                    selectedDaySection
+                    if let errorMessage = viewModel.errorMessage {
+                        errorView(errorMessage)
+                            .frame(minHeight: 360)
+                    } else if viewModel.dayBuckets.allSatisfy({ $0.items.isEmpty }) {
+                        emptyStateView
+                            .frame(minHeight: 360)
+                    } else {
+                        selectedDaySection
+                    }
                 }
             }
             .padding(.top)
