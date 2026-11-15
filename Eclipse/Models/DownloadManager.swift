@@ -2791,7 +2791,7 @@ final class DownloadManager: NSObject, ObservableObject {
 
     private func hasActiveDirectBackgroundTransfer(id: String) -> Bool {
 #if os(iOS) && !targetEnvironment(macCatalyst)
-        if #available(iOS 26.0, *), !hlsBackgroundDownloadsEnabled { return false }
+        if #available(iOS 26.0, *), !BackgroundDownloadSettings.isEnabled() { return false }
 #endif
         guard let item = downloads.first(where: { $0.id == id }),
               !item.isHLS,
@@ -7406,8 +7406,8 @@ final class DownloadManager: NSObject, ObservableObject {
         for id in protectedIDs {
 #if os(iOS) && !targetEnvironment(macCatalyst)
             if preservingGrantedHLS,
-               hasGrantedHLSBackgroundContinuation(id: id)
-                || hasActiveDirectBackgroundTransfer(id: id) { continue }
+               (hasGrantedHLSBackgroundContinuation(id: id)
+                    || hasActiveDirectBackgroundTransfer(id: id)) { continue }
             revokeHLSBackgroundAttempt(id: id)
             finishDirectBackgroundAttempt(id: id, success: false)
 #endif
