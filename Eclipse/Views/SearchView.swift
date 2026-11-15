@@ -1352,6 +1352,11 @@ private struct BrowseMediaView: View {
     @State private var filterConfigurations: [BrowseMediaType: BrowseFilterConfiguration]
     @State private var showingFilters = false
     @State private var results: [TMDBSearchResult] = []
+    // Keep the provider snapshot separate from the visible filtered grid.
+    // Metadata notifications should re-filter these rows, not restart the query.
+    @State private var unfilteredResults: [TMDBSearchResult] = []
+    @State private var filterRefreshTask: Task<Void, Never>?
+    @State private var filterRefreshGeneration = 0
     @State private var currentPage = 1
     @State private var hasMorePages = true
     @State private var isLoading = false
@@ -1594,15 +1599,11 @@ private struct BrowseMediaView: View {
         .onChangeComp(of: selectedLanguage) { _, _ in
             reloadResults()
         }
-        .onChangeComp(of: contentFilter.filterHorror) { _, _ in
-            reloadResults()
-        }
-
         .onReceive(NotificationCenter.default.publisher(for: .activeProfileDidChange)) { _ in
             applyProfileChange()
         }
         .onReceive(NotificationCenter.default.publisher(for: TMDBContentFilter.catalogFiltersDidChangeNotification)) { _ in
-            reloadResults()
+            reapplyCurrentFiltersToRetainedResults()
         }
     }
 
@@ -2035,8 +2036,13 @@ private struct BrowseMediaView: View {
     }
 
     private func reloadResults() {
+        requestSerial += 1
+        filterRefreshGeneration += 1
+        filterRefreshTask?.cancel()
+        filterRefreshTask = nil
         currentPage = 1
         hasMorePages = true
+        unfilteredResults = []
         results = []
         errorMessage = nil
         loadPage(1, replacing: true)
@@ -2044,9 +2050,54 @@ private struct BrowseMediaView: View {
 
     private func cancelBrowseLoad() {
         requestSerial += 1
+        filterRefreshGeneration += 1
         loadTask?.cancel()
         loadTask = nil
+        filterRefreshTask?.cancel()
+        filterRefreshTask = nil
         isLoading = false
+    }
+
+    private func reapplyCurrentFiltersToRetainedResults() {
+        guard !unfilteredResults.isEmpty else { return }
+
+        filterRefreshGeneration += 1
+        let generation = filterRefreshGeneration
+        let snapshot = unfilteredResults
+        let selectedMediaType = mediaType
+        let selectedAgeRating = ageRating
+        let excludedGenreIDs = excludedGenreKeys.compactMap { key in
+            selectedMediaType.genres.first(where: { $0.id == key })?.tmdbGenreID
+        }
+        let yearsToExclude = excludedYears
+        let countries = Set(selectedCountryCodes)
+        let selectedSort = sort
+
+        filterRefreshTask?.cancel()
+        filterRefreshTask = Task {
+            let browseTypeFiltered = await filterResultsForBrowseType(
+                snapshot,
+                mediaType: selectedMediaType,
+                ageRating: selectedAgeRating
+            )
+            guard !Task.isCancelled else { return }
+
+            let contentFiltered = contentFilter.filterSearchResults(
+                filterExcludedResults(
+                    browseTypeFiltered,
+                    excludedGenreIds: excludedGenreIDs,
+                    excludedYears: yearsToExclude
+                )
+            )
+            let filtered = regionGuardedResults(contentFiltered, countries: countries)
+
+            await MainActor.run {
+                guard generation == filterRefreshGeneration,
+                      selectedMediaType == mediaType else { return }
+                results = sortedDeduplicatedResults(filtered, by: selectedSort)
+                filterRefreshTask = nil
+            }
+        }
     }
 
     private func loadNextPage() {
@@ -2070,7 +2121,11 @@ private struct BrowseMediaView: View {
         let minimumRating = self.minimumRating
         let ageRating = self.ageRating
         let upcomingOnly = currentFilters.showsUpcomingOnly == true
+        let existingRawResults = replacing ? [] : unfilteredResults
 
+        filterRefreshGeneration += 1
+        filterRefreshTask?.cancel()
+        filterRefreshTask = nil
         isLoading = true
         errorMessage = nil
 
@@ -2094,8 +2149,11 @@ private struct BrowseMediaView: View {
                     ? await resolveAnimeBrowseIdentities(pageResult.results)
                     : pageResult.results
                 try Task.checkCancellation()
+                let combinedRawResults = replacing
+                    ? identityResolvedResults
+                    : existingRawResults + identityResolvedResults
                 let browseTypeFiltered = await filterResultsForBrowseType(
-                    identityResolvedResults,
+                    combinedRawResults,
                     mediaType: browseMediaType,
                     ageRating: ageRating
                 )
@@ -2117,8 +2175,8 @@ private struct BrowseMediaView: View {
                     guard serial == requestSerial else { return }
                     loadTask = nil
 
-                    let combinedResults = replacing ? filtered : results + filtered
-                    results = sortedDeduplicatedResults(combinedResults, by: sort)
+                    unfilteredResults = sortedDeduplicatedResults(combinedRawResults, by: sort)
+                    results = sortedDeduplicatedResults(filtered, by: sort)
 
                     currentPage = page
                     hasMorePages = pageResult.hasMore
