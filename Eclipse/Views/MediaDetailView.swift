@@ -6001,41 +6001,56 @@ struct MediaDetailContentView: View {
         isLoadingExperimentalExtras = detailStills.isEmpty && detailTrailers.isEmpty
 
         experimentalExtrasLoadTask = Task(priority: .userInitiated) {
-            let images: TMDBImagesResponse?
-            let trailers: [TMDBVideo]
-
-            if isMovie {
-                async let imagesResult: TMDBImagesResponse? = try? tmdbService.getMovieImages(id: tmdbId, preferredLanguage: selectedLanguage)
-                async let videosResult: [TMDBVideo]? = try? tmdbService.getMovieVideos(id: tmdbId)
-
-                images = await imagesResult
-                let loadedVideos = (await videosResult) ?? []
-                trailers = loadedVideos.filter { $0.isTrailerLike && $0.playbackURL != nil }
-            } else {
-                async let imagesResult: TMDBImagesResponse? = try? tmdbService.getTVShowImages(id: tmdbId, preferredLanguage: selectedLanguage)
-                async let videosResult: [TMDBVideo]? = try? tmdbService.getTVShowVideos(id: tmdbId)
-
-                images = await imagesResult
-                let loadedVideos = (await videosResult) ?? []
-                trailers = loadedVideos.filter { $0.isTrailerLike && $0.playbackURL != nil }
-            }
-
-            let stills = (images?.backdrops ?? [])
-                .sorted {
-                    let lhsPixels = Double(max(0, $0.width)) * Double(max(0, $0.height))
-                    let rhsPixels = Double(max(0, $1.width)) * Double(max(0, $1.height))
-                    if lhsPixels != rhsPixels { return lhsPixels > rhsPixels }
-                    let lhsVotes = $0.voteCount ?? 0
-                    let rhsVotes = $1.voteCount ?? 0
-                    if lhsVotes != rhsVotes { return lhsVotes > rhsVotes }
-                    return ($0.voteAverage ?? 0) > ($1.voteAverage ?? 0)
+            async let stillsLoad: Void = {
+                let images: TMDBImagesResponse?
+                if isMovie {
+                    images = try? await tmdbService.getMovieImages(id: tmdbId, preferredLanguage: selectedLanguage)
+                } else {
+                    images = try? await tmdbService.getTVShowImages(id: tmdbId, preferredLanguage: selectedLanguage)
                 }
+
+                let stills = (images?.backdrops ?? [])
+                    .sorted {
+                        let lhsPixels = Double(max(0, $0.width)) * Double(max(0, $0.height))
+                        let rhsPixels = Double(max(0, $1.width)) * Double(max(0, $1.height))
+                        if lhsPixels != rhsPixels { return lhsPixels > rhsPixels }
+                        let lhsVotes = $0.voteCount ?? 0
+                        let rhsVotes = $1.voteCount ?? 0
+                        if lhsVotes != rhsVotes { return lhsVotes > rhsVotes }
+                        return ($0.voteAverage ?? 0) > ($1.voteAverage ?? 0)
+                    }
+
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    guard !Task.isCancelled, self.searchResult.id == tmdbId else { return }
+                    self.detailStills = stills
+                    self.refreshDetailContentLayout(reason: "experimental-stills")
+                }
+            }()
+
+            async let trailersLoad: Void = {
+                let videos: [TMDBVideo]?
+                if isMovie {
+                    videos = try? await tmdbService.getMovieVideos(id: tmdbId)
+                } else {
+                    videos = try? await tmdbService.getTVShowVideos(id: tmdbId)
+                }
+                let trailers = (videos ?? []).filter { $0.isTrailerLike && $0.playbackURL != nil }
+
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    guard !Task.isCancelled, self.searchResult.id == tmdbId else { return }
+                    self.detailTrailers = trailers
+                    self.refreshDetailContentLayout(reason: "experimental-trailers")
+                }
+            }()
+
+            await stillsLoad
+            await trailersLoad
 
             guard !Task.isCancelled else { return }
             await MainActor.run {
                 guard !Task.isCancelled, self.searchResult.id == tmdbId else { return }
-                self.detailStills = stills
-                self.detailTrailers = trailers
                 self.isLoadingExperimentalExtras = false
                 self.experimentalExtrasLoadTask = nil
                 self.refreshDetailContentLayout(reason: "experimental-extras")
