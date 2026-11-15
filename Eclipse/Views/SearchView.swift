@@ -830,7 +830,8 @@ struct SearchView: View {
             do {
                 let results = try await tmdbService.searchMulti(query: query)
                 let identityResolvedResults = await resolveSearchAnimeIdentities(results)
-                if !MyDubListDubFilter.shared.selectedLanguages.isEmpty {
+                if !MyDubListDubFilter.shared.selectedLanguages.isEmpty,
+                   !MyDubListDubFilter.shared.prepareCachedSnapshot() {
                     _ = await MyDubListDubFilter.shared.refresh()
                 }
                 await contentFilter.prepareMaturityRatings(for: identityResolvedResults)
