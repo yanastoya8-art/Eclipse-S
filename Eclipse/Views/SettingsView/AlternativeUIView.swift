@@ -281,12 +281,12 @@ struct AlternativeUIView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Background Atmosphere")
+                    Text("Background Style")
                         .font(.subheadline)
                         .fontWeight(.medium)
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
-                            ForEach(AtmosphereStyle.allCases) { style in
+                            ForEach(AtmosphereStyle.selectableCases) { style in
                                 let selected = backgroundStyleBinding.wrappedValue == style
                                 Button {
                                     backgroundStyleBinding.wrappedValue = style
