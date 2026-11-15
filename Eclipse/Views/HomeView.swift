@@ -1406,7 +1406,7 @@ struct HomeView: View {
                 .frame(height: min(max(heroHeight * 0.24, 112), 190))
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 .padding(.horizontal, 20)
-                .accessibilityHidden(true)
+                .accessibilityLabel(hero.displayTitle)
             }
 
             heroContentInfo
