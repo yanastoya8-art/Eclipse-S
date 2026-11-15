@@ -248,7 +248,7 @@ final class TMDBMaturityRatingStore: ObservableObject {
                 return .resolved(.unknown, kidsDetailPolicyAllows: detailPolicyAllows)
             }
             return .resolved(
-                contentRatings.preferredEuropeanCertification?.rating ?? .unknown,
+                contentRatings.preferredCertification?.rating ?? .unknown,
                 kidsDetailPolicyAllows: detailPolicyAllows
             )
         } catch {
