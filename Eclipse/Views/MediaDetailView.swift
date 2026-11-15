@@ -2670,13 +2670,14 @@ struct MediaDetailContentView: View {
     private var detailHeroImageURL: String? {
         let bestPoster = PosterArtworkURLResolver.bestPosterURL(for: searchResult)
         if usesWideDetailLayout {
-            // A landscape banner needs landscape artwork. Using a portrait
-            // poster here would crop most of its height to fill a 3:1 frame.
-            return searchResult.fullBackdropURL
+            // Reuse the artwork already loaded for the selected card first.
+            // Wide hero rendering fills the banner, so a poster fallback is
+            // immediately useful instead of waiting for a separate backdrop.
+            return preloadedArtworkURL
+                ?? bestPoster
+                ?? searchResult.fullBackdropURL
                 ?? movieDetail?.fullBackdropURL
                 ?? tvShowDetail?.fullBackdropURL
-                ?? preloadedArtworkURL
-                ?? bestPoster
                 ?? movieDetail?.fullPosterURL
                 ?? tvShowDetail?.fullPosterURL
         }
