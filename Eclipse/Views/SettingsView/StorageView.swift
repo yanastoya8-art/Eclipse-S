@@ -538,7 +538,6 @@ struct DownloadsSettingsView: View {
     private var accent: Color { accentColorManager.currentAccentColor }
 
     private var downloadSettingsSection: some View {
-            private var downloadSettingsSection: some View {
                 GlassSection(header: "Video Downloads") {
                     VStack(spacing: 0) {
                         GlassDetailRow(icon: "arrow.down.circle", iconColor: .blue, title: "Concurrent Downloads") {
@@ -620,7 +619,6 @@ struct DownloadsSettingsView: View {
                     }
                     .disabled(ProfileManager.shared.isKidsModeActive)
                 }
-            }
     }
 
     var body: some View {
