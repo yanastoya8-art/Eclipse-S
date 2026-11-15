@@ -296,9 +296,14 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
             "U": .general, "PG": .general, "12A": .age12,
             "12": .age12, "15": .mature, "18": .adult, "R18": .adult
         ],
-        // Bulgaria: A/B/C/D/X are national age-category labels.
+        // Bulgaria's current film categories map to minimum-age guidance:
+        // A = recommended for children; B = no age restriction;
+        // C = 12+, C+ = 14+, D/D+ = 16+, X = 18+.
         "BG": [
-            "A": .general, "B": .age12, "C": .age16, "D": .adult, "X": .adult
+            "A": .general, "B": .general,
+            "C": .age12, "CPLUS": .age14,
+            "D": .age16, "DPLUS": .age16,
+            "X": .adult
         ],
         "ES": [
             "APTA": .general, "7": .age7, "12": .age12,
