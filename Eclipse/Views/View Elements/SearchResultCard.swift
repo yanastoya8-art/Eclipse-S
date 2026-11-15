@@ -10,12 +10,11 @@ import Kingfisher
 
 enum PosterArtworkURLResolver {
     static func originalTMDBPosterURL(for result: TMDBSearchResult) -> String? {
-        guard let path = result.posterPath,
-              path.hasPrefix("/"),
-              !path.hasPrefix("//"),
-              !path.contains(".."),
-              let url = URL(string: "https://image.tmdb.org/t/p/original\(path)") else { return nil }
-        return url.absoluteString
+        guard let path = result.posterPath else { return nil }
+        if ImageDataSaverSettings.isEnabled() {
+            return TMDBImageRequestPolicy.urlString(for: path, kind: .poster)
+        }
+        return TMDBImageRequestPolicy.originalURLString(for: path)
     }
 
     /// Prefer provider artwork at its source resolution. TMDB's original-size
