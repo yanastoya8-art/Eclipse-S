@@ -463,6 +463,7 @@ struct MediaDetailContentView: View {
     @State private var tvMazePosterURL: String?
     @State private var isAnimeShow = false
     @State private var animeRating: AnimeMetadataRating?
+    @State private var animeMetadata: AniListAnimeWithSeasons?
     @State private var anilistEpisodes: [AniListEpisode]? = nil
     @State private var animeSeasonTitles: [Int: String]? = nil
     @State private var animeSeasonRomajiTitles: [Int: String] = [:]
@@ -2794,6 +2795,23 @@ struct MediaDetailContentView: View {
             }
             if let status = tvShowDetail.status, !status.isEmpty {
                 values.append(status)
+            }
+        }
+
+        if isAnimeShow, let animeMetadata {
+            if let rating = animeMetadata.rating, rating.value > 0 {
+                values.append(rating.displayText)
+            }
+            if let season = animeMetadata.season, let year = animeMetadata.seasonYear {
+                values.append("\(season.capitalized) \(year)")
+            } else if let year = animeMetadata.seasonYear {
+                values.append(String(year))
+            }
+            if animeMetadata.isAdult == true {
+                values.append("Adult")
+            }
+            if let nextEpisode = animeMetadata.nextAiringEpisode?.episode, nextEpisode > 0 {
+                values.append("Next EP \(nextEpisode)")
             }
         }
 
@@ -6685,6 +6703,7 @@ struct MediaDetailContentView: View {
         )
 
         self.tvShowDetail = detailWithAniSeasons
+        self.animeMetadata = animeData
         if let rating = metadata.rating {
             self.animeRating = rating
         }
@@ -7486,6 +7505,7 @@ struct MediaDetailContentView: View {
                             )
 
                             self.tvShowDetail = detailWithAniSeasons
+                            self.animeMetadata = animeData
 
                             var seasonTitles: [Int: String] = [:]
                             var seasonRomajiTitles: [Int: String] = [:]
