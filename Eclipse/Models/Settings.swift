@@ -521,7 +521,7 @@ enum ServicesSheetPresentationSettings {
 
 enum AutoModeSettings {
     static let enabledKey = "servicesAutoModeEnabled"
-    static let defaultEnabled = true
+    static let defaultEnabled = false
 
     static func isEnabled(defaults: UserDefaults = ProfileSettingsStore.services) -> Bool {
         defaults.object(forKey: enabledKey) == nil ? defaultEnabled : defaults.bool(forKey: enabledKey)
