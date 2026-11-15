@@ -2283,7 +2283,7 @@ enum ScheduleReleaseDatePolicy {
     }
 }
 
-private actor JustWatchScheduleService {
+actor JustWatchScheduleService {
     static let shared = JustWatchScheduleService()
 
     private struct CachedEpisodeDates: Codable {
@@ -2294,6 +2294,10 @@ private actor JustWatchScheduleService {
         let fetchedAt: Date
         let dates: [Date]
     }
+    private struct CachedAudioAvailability: Codable {
+        let fetchedAt: Date
+        let isAvailable: Bool
+    }
 
     private let baseURL = URL(string: "https://api.api.sh/justwatch/v1")!
     private let cacheLifetime: TimeInterval = 12 * 60 * 60
@@ -2301,6 +2305,7 @@ private actor JustWatchScheduleService {
     private var seasonDateCache: [String: CachedEpisodeDates] = [:]
     private var movieIDCache: [String: String] = [:]
     private var movieDateCache: [String: CachedMovieDates] = [:]
+    private var audioAvailabilityCache: [String: CachedAudioAvailability] = [:]
 
     private static func effectiveScheduleLanguageCodes(_ selectedLanguages: Set<String>) -> Set<String>? {
         let languageFilterEnabled = !selectedLanguages.isEmpty
@@ -2322,6 +2327,135 @@ private actor JustWatchScheduleService {
         // has no explicit selections. Never interpret an enabled filter as
         // "show every language".
         return configuredCodes.isEmpty ? ["en", "es"] : configuredCodes
+    }
+
+    func hasAudioLanguageOffer(
+        tmdbID: Int,
+        title: String,
+        releaseYear: Int?,
+        isMovie: Bool,
+        originalLanguage: String?,
+        selectedLanguages: Set<String>
+    ) async -> Bool? {
+        guard let selectedCodes = Self.effectiveScheduleLanguageCodes(selectedLanguages) else {
+            return true
+        }
+        if Self.language(originalLanguage, matches: selectedCodes) { return true }
+        guard tmdbID > 0,
+              let apiKey = JustWatchAPIKeyStore.load(),
+              !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+
+        let cacheKey = "\(isMovie ? "movie" : "show")|\(tmdbID)|BG|\(selectedCodes.sorted().joined(separator: ","))"
+        let now = Date()
+        if let cached = audioAvailabilityCache[cacheKey],
+           JustWatchScheduleCachePolicy.isFresh(fetchedAt: cached.fetchedAt, now: now, lifetime: cacheLifetime) {
+            return cached.isAvailable
+        }
+        let persistedKey = "justWatchCatalogAudioV1.\(cacheKey)"
+        if let data = UserDefaults.standard.data(forKey: persistedKey),
+           let cached = try? JSONDecoder().decode(CachedAudioAvailability.self, from: data),
+           JustWatchScheduleCachePolicy.isFresh(fetchedAt: cached.fetchedAt, now: now, lifetime: cacheLifetime) {
+            audioAvailabilityCache[cacheKey] = cached
+            return cached.isAvailable
+        }
+
+        do {
+            let justWatchID = try await resolveCatalogTitleID(
+                tmdbID: tmdbID,
+                title: title,
+                releaseYear: releaseYear,
+                isMovie: isMovie,
+                apiKey: apiKey
+            )
+            var components = URLComponents(
+                url: baseURL.appendingPathComponent("title"),
+                resolvingAgainstBaseURL: false
+            )
+            components?.queryItems = [
+                URLQueryItem(name: "id", value: justWatchID),
+                URLQueryItem(name: "countries", value: "BG"),
+                URLQueryItem(name: "language", value: "en")
+            ]
+            guard let url = components?.url else { return nil }
+            let payload = try await requestJSON(url: url, apiKey: apiKey)
+            let offersByCountry = payload["offers"] as? [String: [[String: Any]]] ?? [:]
+            let offers = offersByCountry["BG"] ?? offersByCountry.values.flatMap { $0 }
+            let isAvailable = offers.contains {
+                Self.languages($0["audio_languages"], match: selectedCodes)
+            }
+            let cached = CachedAudioAvailability(fetchedAt: Date(), isAvailable: isAvailable)
+            audioAvailabilityCache[cacheKey] = cached
+            if let data = try? JSONEncoder().encode(cached) {
+                UserDefaults.standard.set(data, forKey: persistedKey)
+            }
+            return isAvailable
+        } catch {
+            Logger.shared.log(
+                "JustWatch catalog audio lookup failed for \(tmdbID): \(error.localizedDescription)",
+                type: "TMDB"
+            )
+            return nil
+        }
+    }
+
+    private func resolveCatalogTitleID(
+        tmdbID: Int,
+        title: String,
+        releaseYear: Int?,
+        isMovie: Bool,
+        apiKey: String
+    ) async throws -> String {
+        let cacheKey = "\(tmdbID)|\(title.lowercased())|\(releaseYear ?? 0)"
+        let memoryCache = isMovie ? movieIDCache[cacheKey] : showIDCache[cacheKey]
+        if let memoryCache { return memoryCache }
+        let persistedPrefix = isMovie ? "justWatchMovieIDV1." : "justWatchShowIDV1."
+        if let persisted = UserDefaults.standard.string(forKey: persistedPrefix + cacheKey),
+           persisted.hasPrefix(isMovie ? "tm" : "ts") {
+            if isMovie { movieIDCache[cacheKey] = persisted }
+            else { showIDCache[cacheKey] = persisted }
+            return persisted
+        }
+
+        var components = URLComponents(
+            url: baseURL.appendingPathComponent("search"),
+            resolvingAgainstBaseURL: false
+        )
+        components?.queryItems = [
+            URLQueryItem(name: "q", value: title),
+            URLQueryItem(name: "country", value: "BG"),
+            URLQueryItem(name: "type", value: isMovie ? "movie" : "show"),
+            URLQueryItem(name: "limit", value: "40")
+        ]
+        guard let url = components?.url else { throw JustWatchScheduleError.invalidURL }
+        let payload = try await requestJSON(url: url, apiKey: apiKey)
+        guard let titles = payload["titles"] as? [[String: Any]] else {
+            throw JustWatchScheduleError.invalidResponse
+        }
+        let expectedType = isMovie ? "MOVIE" : "SHOW"
+        let normalized = Self.normalizedTitle(title)
+        let candidates = titles.filter { candidate in
+            guard (candidate["type"] as? String)?.uppercased() == expectedType else { return false }
+            if Self.stringValue(candidate["tmdb_id"]) == String(tmdbID) { return true }
+            let names = [
+                candidate["title"] as? String,
+                candidate["original_title"] as? String
+            ].compactMap { $0 }.map(Self.normalizedTitle)
+            guard names.contains(normalized) else { return false }
+            if let releaseYear, let candidateYear = Self.intValue(candidate["year"]) {
+                return abs(candidateYear - releaseYear) <= 1
+            }
+            return true
+        }
+        guard let id = candidates.first?["id"] as? String,
+              id.hasPrefix(isMovie ? "tm" : "ts") else {
+            throw JustWatchScheduleError.titleNotFound
+        }
+        if isMovie { movieIDCache[cacheKey] = id }
+        else { showIDCache[cacheKey] = id }
+        UserDefaults.standard.set(id, forKey: persistedPrefix + cacheKey)
+        return id
     }
 
     func filterMovies(
