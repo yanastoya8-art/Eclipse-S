@@ -2235,24 +2235,27 @@ struct MediaDetailContentView: View {
 
     @ViewBuilder
     private func iPadImmersiveBackdrop(proxy: GeometryProxy) -> some View {
-        let bannerHeight = min(max(proxy.size.height * 0.56, 280), 500)
-        ZStack(alignment: .bottom) {
+        // In landscape the artwork is a true edge-to-edge banner. The
+        // synopsis and episode list remain on Eclipse's normal background below.
+        let bannerHeight = min(max(proxy.size.height * 0.68, 300), 520)
+        let bannerWidth = max(proxy.size.width, EclipseViewport.bounds.width)
+        ZStack {
             ResilientArtworkImage(
                 urls: ([detailHeroImageURL].compactMap { $0 } + detailHeroFallbackImageURLs),
-                decodeSize: homeImageDecodeSize(width: proxy.size.width, height: bannerHeight),
+                decodeSize: homeImageDecodeSize(width: bannerWidth, height: bannerHeight),
                 contentMode: .fill,
                 onImageLoaded: { color in ambientColor = color }
             ) {
                 Rectangle().fill(EclipseTheme.shared.backgroundBase)
             }
-            .frame(width: proxy.size.width, height: bannerHeight)
+            .frame(width: bannerWidth, height: bannerHeight)
             .clipped()
 
             LinearGradient(
                 stops: [
-                    .init(color: Color.black.opacity(0.06), location: 0.00),
-                    .init(color: Color.black.opacity(0.12), location: 0.38),
-                    .init(color: heroBlendColor.opacity(0.48), location: 0.72),
+                    .init(color: Color.black.opacity(0.10), location: 0.00),
+                    .init(color: Color.black.opacity(0.18), location: 0.40),
+                    .init(color: heroBlendColor.opacity(0.52), location: 0.76),
                     .init(color: EclipseTheme.shared.backgroundBase, location: 1.00)
                 ],
                 startPoint: .top,
@@ -2261,24 +2264,52 @@ struct MediaDetailContentView: View {
 
             LinearGradient(
                 stops: [
-                    .init(color: Color.black.opacity(0.52), location: 0.00),
-                    .init(color: Color.black.opacity(0.22), location: 0.42),
+                    .init(color: Color.black.opacity(0.42), location: 0.00),
+                    .init(color: Color.black.opacity(0.16), location: 0.48),
                     .init(color: .clear, location: 1.00)
                 ],
                 startPoint: .leading,
                 endPoint: .trailing
             )
+
+            let centeredTitleLogoURL = searchResult.animeLogoURL ?? logoURL
+            Group {
+                if let centeredTitleLogoURL, !centeredTitleLogoURL.isEmpty {
+                    ResilientArtworkImage(
+                        urls: [centeredTitleLogoURL],
+                        decodeSize: CGSize(width: max(bannerWidth * 0.56, 1), height: max(bannerHeight * 0.32, 1)),
+                        contentMode: .fit
+                    ) {
+                        iPadImmersiveBannerTitle
+                    }
+                    .frame(maxWidth: bannerWidth * 0.62, maxHeight: bannerHeight * 0.34)
+                } else {
+                    iPadImmersiveBannerTitle
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            .padding(.horizontal, 28)
         }
-        .frame(width: proxy.size.width, height: bannerHeight)
+        .frame(width: bannerWidth, height: bannerHeight)
         .clipped()
-        .accessibilityHidden(true)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(searchResult.displayTitle)
+    }
+
+    private var iPadImmersiveBannerTitle: some View {
+        Text(searchResult.displayTitle)
+            .font(.system(size: min(max(detailViewportHeight * 0.095, 30), 58), weight: .heavy, design: .rounded))
+            .foregroundStyle(.white)
+            .multilineTextAlignment(.center)
+            .lineLimit(3)
+            .minimumScaleFactor(0.72)
+            .shadow(color: .black.opacity(0.88), radius: 10, x: 0, y: 4)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     @ViewBuilder
     private var iPadImmersiveHeroCard: some View {
         VStack(alignment: .leading, spacing: 16) {
-            iPadImmersiveTitleText
-
             if shouldShowHeroDetails {
                 iPadImmersiveMetadata
             }
