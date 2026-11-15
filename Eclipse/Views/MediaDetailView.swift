@@ -2943,7 +2943,7 @@ struct MediaDetailContentView: View {
 
         let certification = searchResult.isMovie
             ? movieDetail?.releaseDates?.preferredCertification
-            : tvShowDetail?.contentRatings?.preferredEuropeanCertification
+            : tvShowDetail?.contentRatings?.preferredCertification
         return certification?.displayValue
     }
 
