@@ -2680,8 +2680,9 @@ final class DownloadManager: NSObject, ObservableObject {
                 guard let self, let attempt,
                       self.directBackgroundAttempts[id] === attempt,
                       !attempt.granted else { return }
-                self.directBackgroundAttempts.removeValue(forKey: id)
-                Logger.shared.log("Direct background continuation unavailable; URLSession transfer remains OS-managed", type: "Download")
+                // Keep the transfer record: URLSession still owns the HTTP(S)
+                // download even when the continued-processing UI is unavailable.
+                Logger.shared.log("Direct continued-processing UI unavailable; retaining OS-managed URLSession transfer", type: "Download")
             }
         )
     }
@@ -2753,6 +2754,19 @@ final class DownloadManager: NSObject, ObservableObject {
         if let protectedAttemptID = attempt.protectedAttemptID {
             return protectedProviderAttempts[id]?.attemptID == protectedAttemptID
         }
+        return true
+    }
+
+    private func hasActiveDirectBackgroundTransfer(id: String) -> Bool {
+        guard hlsBackgroundDownloadsEnabled,
+              let attempt = directBackgroundAttempts[id],
+              !attempt.revoked,
+              hlsIntentIsCurrent(attempt.intent),
+              activeTasks[id]?.taskIdentifier == attempt.taskIdentifier,
+              downloads.first(where: { $0.id == id })?.status == .downloading else { return false }
+        // URLSession owns the transfer independently of the app process; keep
+        // protected provider headers alive while that transfer is active even
+        // if the optional continued-processing Live Activity was rejected.
         return true
     }
 
@@ -7351,8 +7365,11 @@ final class DownloadManager: NSObject, ObservableObject {
         nuvioAutoValidationProxyURLs.removeAll()
         for id in protectedIDs {
 #if os(iOS) && !targetEnvironment(macCatalyst)
-            if preservingGrantedHLS, hasGrantedHLSBackgroundContinuation(id: id) { continue }
+            if preservingGrantedHLS,
+               hasGrantedHLSBackgroundContinuation(id: id)
+                || hasActiveDirectBackgroundTransfer(id: id) { continue }
             revokeHLSBackgroundAttempt(id: id)
+            finishDirectBackgroundAttempt(id: id, success: false)
 #endif
             let wasRecoveringMedia = sourceRefreshes.kind(for: id) == .rejectedMedia
             invalidateSourceRefresh(id: id)
