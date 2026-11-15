@@ -4089,13 +4089,13 @@ final class DownloadManager: NSObject, ObservableObject {
                 saveDownloads()
                 task.cancel(byProducingResumeData: { [weak self] data in
                     self?.performOnMain {
-                        guard let self,
-                              DirectDownloadResumePolicy.mayStoreResumeData(
-                                  pendingTaskIdentifier: self.pendingResumeDataTaskIdentifiers[id],
-                                  callbackTaskIdentifier: pausedTaskIdentifier,
-                                  hasActiveTask: self.activeTasks[id] != nil,
-                                  status: self.downloads.first(where: { $0.id == id })?.status
-                              ) else {
+                        guard let self else { return }
+                        guard DirectDownloadResumePolicy.mayStoreResumeData(
+                            pendingTaskIdentifier: self.pendingResumeDataTaskIdentifiers[id],
+                            callbackTaskIdentifier: pausedTaskIdentifier,
+                            hasActiveTask: self.activeTasks[id] != nil,
+                            status: self.downloads.first(where: { $0.id == id })?.status
+                        ) else {
                             if self.pendingResumeDataTaskIdentifiers[id] == pausedTaskIdentifier {
                                 self.pendingResumeDataTaskIdentifiers.removeValue(forKey: id)
                             }
