@@ -21,17 +21,33 @@ enum PosterArtworkURLResolver {
     /// path avoids smaller w342/w500 derivatives used by many catalog APIs.
     static func candidates(for result: TMDBSearchResult) -> [String] {
         var candidates: [String] = []
-        if let fanart = result.fanartTVPosterURL, !fanart.isEmpty { candidates.append(fanart) }
-        if let tvMaze = result.tvMazePosterURL, !tvMaze.isEmpty { candidates.append(tvMaze) }
+
+        // Use specialist art first where it is most useful, then TMDB's
+        // original-size asset before smaller catalogue derivatives.
+        if result.isMovie, let fanart = result.fanartTVPosterURL, !fanart.isEmpty {
+            candidates.append(fanart)
+        }
         if let anime = result.animeArtworkURL,
            !anime.isEmpty,
-           (anime.localizedCaseInsensitiveContains("taizen.moe")
-                || anime.localizedCaseInsensitiveContains("fanart.tv")) {
+           anime.localizedCaseInsensitiveContains("taizen.moe") {
             candidates.append(anime)
         }
-        if let original = originalTMDBPosterURL(for: result) { candidates.append(original) }
-        if let full = result.fullPosterURL, !full.isEmpty { candidates.append(full) }
-        if let anime = result.animeArtworkURL, !anime.isEmpty { candidates.append(anime) }
+        if let original = originalTMDBPosterURL(for: result) {
+            candidates.append(original)
+        }
+        if let fanart = result.fanartTVPosterURL, !fanart.isEmpty {
+            candidates.append(fanart)
+        }
+        if let tvMaze = result.tvMazePosterURL, !tvMaze.isEmpty {
+            candidates.append(tvMaze)
+        }
+        if let anime = result.animeArtworkURL, !anime.isEmpty {
+            candidates.append(anime)
+        }
+        if let full = result.fullPosterURL, !full.isEmpty {
+            candidates.append(full)
+        }
+
         var seen = Set<String>()
         return candidates.filter { seen.insert($0).inserted }
     }
