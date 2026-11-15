@@ -73,6 +73,23 @@ jobs:
         with:
           xcode-version: latest-stable
 
+      - name: Create local build config from repository secrets
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          FANART_TV_API_KEY: ${{ secrets.FANART_TV_API_KEY }}
+          JUSTWATCH_API_KEY: ${{ secrets.JUSTWATCH_API_KEY }}
+          ANIMESCHEDULE_API_TOKEN: ${{ secrets.ANIMESCHEDULE_API_TOKEN }}
+          DUBSONLY_API_KEY: ${{ secrets.DUBSONLY_API_KEY }}
+        run: |
+          set -euo pipefail
+          {
+            printf 'TMDB_API_KEY = %s\n' "${TMDB_API_KEY:-}"
+            printf 'FANART_TV_API_KEY = %s\n' "${FANART_TV_API_KEY:-}"
+            printf 'JUSTWATCH_API_KEY = %s\n' "${JUSTWATCH_API_KEY:-}"
+            printf 'ANIMESCHEDULE_API_TOKEN = %s\n' "${ANIMESCHEDULE_API_TOKEN:-}"
+            printf 'DUBSONLY_API_KEY = %s\n' "${DUBSONLY_API_KEY:-}"
+          } > Build.local.xcconfig
+
       - name: Parse all iOS app and test Swift sources
         run: |
           set -euo pipefail
