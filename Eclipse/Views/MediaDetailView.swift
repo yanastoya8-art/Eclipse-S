@@ -5958,7 +5958,7 @@ struct MediaDetailContentView: View {
         let isMovie = searchResult.isMovie
         isLoadingExperimentalExtras = detailStills.isEmpty && detailTrailers.isEmpty
 
-        experimentalExtrasLoadTask = Task {
+        experimentalExtrasLoadTask = Task(priority: .userInitiated) {
             let images: TMDBImagesResponse?
             let trailers: [TMDBVideo]
 
