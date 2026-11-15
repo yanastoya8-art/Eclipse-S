@@ -1805,8 +1805,25 @@ final class DownloadManager: NSObject, ObservableObject {
         }
     }
 
+    private final class DirectBackgroundAttempt {
+        let attemptID: UUID
+        var taskIdentifier: Int
+        let intent: HLSForegroundIntent
+        let dateAdded: Date
+        var granted = false
+        var revoked = false
+
+        init(attemptID: UUID, taskIdentifier: Int, intent: HLSForegroundIntent, dateAdded: Date) {
+            self.attemptID = attemptID
+            self.taskIdentifier = taskIdentifier
+            self.intent = intent
+            self.dateAdded = dateAdded
+        }
+    }
+
     private var hlsForegroundIntents: [String: HLSForegroundIntent] = [:]
     private var hlsBackgroundAttempts: [String: HLSBackgroundAttempt] = [:]
+    private var directBackgroundAttempts: [String: DirectBackgroundAttempt] = [:]
     private struct HLSBackgroundSubtitle {
         let attemptID: UUID
         let ownerID: UUID
@@ -2505,8 +2522,20 @@ final class DownloadManager: NSObject, ObservableObject {
     func applyHLSBackgroundDownloadsSettingChanged() {
         performOnMain {
 #if os(iOS) && !targetEnvironment(macCatalyst)
-            guard !self.hlsBackgroundDownloadsEnabled else { return }
+            if self.hlsBackgroundDownloadsEnabled {
+                // If the preference is enabled while a direct transfer is already
+                // active, attach its Live Activity without restarting the transfer.
+                for (id, task) in self.activeTasks {
+                    guard let item = self.downloads.first(where: { $0.id == id }),
+                          item.status == .downloading else { continue }
+                    self.beginDirectBackgroundAttempt(id: id, item: item, task: task)
+                }
+                return
+            }
             self.hlsForegroundIntents.removeAll()
+            for id in Array(self.directBackgroundAttempts.keys) {
+                self.finishDirectBackgroundAttempt(id: id, success: false)
+            }
             for (id, attempt) in self.hlsBackgroundAttempts {
                 if self.hlsApplicationIsActive {
                     attempt.revoked = true
@@ -2524,6 +2553,10 @@ final class DownloadManager: NSObject, ObservableObject {
         resumeHLSDownloadsInterruptedByBackgroundExpiration()
         resumeOrphanedHLSDownloads()
         processQueue()
+#if os(iOS) && !targetEnvironment(macCatalyst)
+        attachLiveActivitiesToActiveHLSDownloads()
+        attachLiveActivitiesToActiveDirectDownloads()
+#endif
     }
 
     /// A suspended foreground HLS worker can be lost without receiving the
@@ -2604,6 +2637,139 @@ final class DownloadManager: NSObject, ObservableObject {
         return HLSForegroundIntent(ownerID: ProfileManager.shared.activeProfileID, scopeGeneration: ServiceStoreScope.generation)
     }
 
+    private func attachLiveActivitiesToActiveHLSDownloads() {
+        guard hlsBackgroundDownloadsEnabled, hlsApplicationIsActive,
+              let intent = captureHLSForegroundIntent() else { return }
+        for (id, downloader) in activeHLSDownloaders {
+            guard let attemptID = activeHLSAttemptIDs[id],
+                  let item = downloads.first(where: { $0.id == id }),
+                  item.status == .downloading,
+                  item.hasVerifiedHLSCheckpoint || item.hlsResumeManifestSHA256 != nil else { continue }
+            beginHLSBackgroundAttempt(
+                id: id,
+                attemptID: attemptID,
+                intent: intent,
+                protectedAttemptID: protectedProviderAttempts[id]?.attemptID,
+                downloader: downloader
+            )
+        }
+    }
+
+    private func attachLiveActivitiesToActiveDirectDownloads() {
+        guard hlsBackgroundDownloadsEnabled, hlsApplicationIsActive else { return }
+        for (id, task) in activeTasks {
+            guard let item = downloads.first(where: { $0.id == id }),
+                  item.status == .downloading else { continue }
+            beginDirectBackgroundAttempt(id: id, item: item, task: task)
+        }
+    }
+
+    /// Direct HTTP(S) media uses URLSession's OS-managed background transfer.
+    /// A continued-processing task keeps Apple's system progress UI updated
+    /// and gives Eclipse runtime to report progress while the app is backgrounded.
+    private func beginDirectBackgroundAttempt(id: String, item: DownloadItem, task: URLSessionDownloadTask) {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in
+                self?.beginDirectBackgroundAttempt(id: id, item: item, task: task)
+            }
+            return
+        }
+        guard let intent = captureHLSForegroundIntent(),
+              let scheduler = hlsBackgroundScheduler,
+              directBackgroundAttempts[id] == nil else { return }
+        let attempt = DirectBackgroundAttempt(
+            attemptID: UUID(),
+            taskIdentifier: task.taskIdentifier,
+            intent: intent,
+            dateAdded: item.dateAdded
+        )
+        directBackgroundAttempts[id] = attempt
+        scheduler.request(
+            attemptID: attempt.attemptID,
+            title: "Downloading \(item.displayTitle)",
+            onGranted: { [weak self, weak attempt] in
+                guard let self, let attempt,
+                      self.directBackgroundAttempts[id] === attempt,
+                      !attempt.revoked,
+                      self.hlsBackgroundDownloadsEnabled,
+                      self.hlsIntentIsCurrent(intent),
+                      self.activeTasks[id]?.taskIdentifier == attempt.taskIdentifier,
+                      let current = self.downloads.first(where: { $0.id == id }),
+                      current.dateAdded == attempt.dateAdded,
+                      current.status == .downloading else { return false }
+                attempt.granted = true
+                self.updateDirectBackgroundProgress(id: id, stage: "Downloading")
+                return true
+            },
+            onExpiration: { [weak self, weak attempt] in
+                guard let self, let attempt,
+                      self.directBackgroundAttempts[id] === attempt else { return }
+                attempt.revoked = true
+                self.pauseDownload(id: id)
+            },
+            onRejected: { [weak self, weak attempt] in
+                guard let self, let attempt,
+                      self.directBackgroundAttempts[id] === attempt,
+                      !attempt.granted else { return }
+                // Release the rejected slot so a later foreground transition can
+                // retry the progress activity without restarting the URLSession task.
+                self.directBackgroundAttempts.removeValue(forKey: id)
+                Logger.shared.log("Direct continued-processing UI unavailable; retaining OS-managed URLSession transfer", type: "Download")
+            }
+        )
+    }
+
+    private func updateDirectBackgroundProgress(id: String, progress: Double? = nil, stage: String) {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in
+                self?.updateDirectBackgroundProgress(id: id, progress: progress, stage: stage)
+            }
+            return
+        }
+        guard let attempt = directBackgroundAttempts[id],
+              attempt.granted, !attempt.revoked,
+              let item = downloads.first(where: { $0.id == id }) else { return }
+        let total: Int64
+        let completed: Int64
+        let subtitle: String
+        if item.totalBytes > 0 {
+            total = item.totalBytes
+            completed = min(max(item.downloadedBytes, 0), total)
+            subtitle = item.formattedSize
+        } else {
+            // Unknown Content-Length: use a monotonic byte-based progress
+            // estimate and show the exact transferred byte count in the subtitle.
+            let downloaded = max(item.downloadedBytes, 0)
+            let (estimatedTotal, overflow) = downloaded.addingReportingOverflow(1_000_000_000)
+            total = overflow ? Int64.max : max(estimatedTotal, 1_000_000_000)
+            completed = downloaded > 0
+                ? downloaded
+                : Int64(Double(total) * min(max(progress ?? item.progress, 0), 1))
+            subtitle = downloaded > 0
+                ? "\(DownloadByteCountFormatter.string(fromByteCount: downloaded)) downloaded"
+                : stage
+        }
+        hlsBackgroundScheduler?.updateProgress(
+            attemptID: attempt.attemptID,
+            completed: completed,
+            total: total,
+            subtitle: subtitle
+        )
+    }
+
+    private func finishDirectBackgroundAttempt(id: String, taskIdentifier: Int? = nil, success: Bool) {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in
+                self?.finishDirectBackgroundAttempt(id: id, taskIdentifier: taskIdentifier, success: success)
+            }
+            return
+        }
+        guard let attempt = directBackgroundAttempts[id],
+              taskIdentifier == nil || attempt.taskIdentifier == taskIdentifier else { return }
+        directBackgroundAttempts.removeValue(forKey: id)
+        hlsBackgroundScheduler?.finish(attemptID: attempt.attemptID, success: success && !attempt.revoked)
+    }
+
     private func hlsIntentIsCurrent(_ intent: HLSForegroundIntent) -> Bool {
         intent.ownerID == ProfileManager.shared.activeProfileID
             && ServiceStoreScope.isCurrent(intent.scopeGeneration)
@@ -2623,6 +2789,27 @@ final class DownloadManager: NSObject, ObservableObject {
         return true
     }
 
+    private func hasActiveDirectBackgroundTransfer(id: String) -> Bool {
+#if os(iOS) && !targetEnvironment(macCatalyst)
+        if #available(iOS 26.0, *), !BackgroundDownloadSettings.isEnabled() { return false }
+#endif
+        guard let item = downloads.first(where: { $0.id == id }),
+              !item.isHLS,
+              item.status == .downloading,
+              let task = activeTasks[id],
+              task.state == .running || task.state == .suspended else { return false }
+#if os(iOS) && !targetEnvironment(macCatalyst)
+        if let attempt = directBackgroundAttempts[id] {
+            guard !attempt.revoked, hlsIntentIsCurrent(attempt.intent),
+                  attempt.taskIdentifier == task.taskIdentifier else { return false }
+        }
+#endif
+        // Direct transfers are owned by URLSession's background session and
+        // can continue on older iOS versions even without a continued-processing
+        // Live Activity. Keep protected headers alive only while that task exists.
+        return true
+    }
+
     private func beginHLSBackgroundAttempt(id: String, attemptID: UUID, intent: HLSForegroundIntent, protectedAttemptID: UUID?, downloader: HLSDownloader) {
         guard hlsBackgroundDownloadsEnabled, hlsApplicationIsActive,
               hlsIntentIsCurrent(intent), hlsBackgroundAttempts[id] == nil,
@@ -2630,7 +2817,7 @@ final class DownloadManager: NSObject, ObservableObject {
               let scheduler = hlsBackgroundScheduler else { return }
         let attempt = HLSBackgroundAttempt(attemptID: attemptID, intent: intent, protectedAttemptID: protectedAttemptID, downloader: downloader, dateAdded: item.dateAdded)
         hlsBackgroundAttempts[id] = attempt
-        scheduler.request(attemptID: attemptID, title: "Downloading video", onGranted: { [weak self, weak attempt] in
+        scheduler.request(attemptID: attemptID, title: "Downloading \(item.displayTitle)", onGranted: { [weak self, weak attempt] in
             guard let self, let attempt,
                   self.hlsBackgroundAttempts[id] === attempt,
                   self.hlsBackgroundDownloadsEnabled, !attempt.revoked, !attempt.finishing,
@@ -2693,6 +2880,9 @@ final class DownloadManager: NSObject, ObservableObject {
 
     private func revokeAllHLSBackgroundAttempts() {
         hlsForegroundIntents.removeAll()
+        for id in Array(directBackgroundAttempts.keys) {
+            finishDirectBackgroundAttempt(id: id, success: false)
+        }
         for operation in hlsBackgroundSubtitles.values { operation.task.cancel() }
         hlsBackgroundSubtitles.removeAll()
         for (id, attempt) in hlsBackgroundAttempts {
@@ -3745,11 +3935,14 @@ final class DownloadManager: NSObject, ObservableObject {
         guard let index = downloads.firstIndex(where: { $0.id == id }) else { return }
         isUpdatingDownloadProgress = true
         defer { isUpdatingDownloadProgress = false }
-        if let progress { downloads[index].progress = progress }
-        if let downloadedBytes { downloads[index].downloadedBytes = downloadedBytes }
-        if let totalBytes { downloads[index].totalBytes = totalBytes }
-        if let hlsResumeSegmentIndex { downloads[index].hlsResumeSegmentIndex = hlsResumeSegmentIndex }
-        if let hlsResumeByteCount { downloads[index].hlsResumeByteCount = hlsResumeByteCount }
+        if let progress { downloads[index].progress = min(max(progress, 0), 1) }
+        if let downloadedBytes { downloads[index].downloadedBytes = max(0, downloadedBytes) }
+        if let totalBytes { downloads[index].totalBytes = max(0, totalBytes) }
+        if let hlsResumeSegmentIndex { downloads[index].hlsResumeSegmentIndex = max(0, hlsResumeSegmentIndex) }
+        if let hlsResumeByteCount { downloads[index].hlsResumeByteCount = max(0, hlsResumeByteCount) }
+#if os(iOS) && !targetEnvironment(macCatalyst)
+        updateDirectBackgroundProgress(id: id, progress: progress, stage: "Downloading")
+#endif
     }
 
     private func captureKidsPolicyDetails(forDownload id: String, tmdbId: Int, isMovie: Bool) {
@@ -3802,6 +3995,7 @@ final class DownloadManager: NSObject, ObservableObject {
 
 #if os(iOS) && !targetEnvironment(macCatalyst)
             revokeHLSBackgroundAttempt(id: id)
+            finishDirectBackgroundAttempt(id: id, success: false)
 #endif
             invalidateSourceRefresh(id: id)
             nuvioDispatchValidationPendingIDs.remove(id)
@@ -3914,6 +4108,9 @@ final class DownloadManager: NSObject, ObservableObject {
             #if os(macOS)
             guard self.permitsMacStorageMutation() else { return }
             #endif
+#if os(iOS) && !targetEnvironment(macCatalyst)
+            finishDirectBackgroundAttempt(id: id, success: false)
+#endif
             if let task = activeTasks[id] {
                 task.cancel()
                 activeTasks.removeValue(forKey: id)
@@ -3946,6 +4143,7 @@ final class DownloadManager: NSObject, ObservableObject {
             #endif
 #if os(iOS) && !targetEnvironment(macCatalyst)
             self.revokeHLSBackgroundAttempt(id: id)
+            self.finishDirectBackgroundAttempt(id: id, success: false)
 #endif
             self.invalidateSourceRefresh(id: id)
             self.mediaSourceRecoveryAttempts.removeValue(forKey: id)
@@ -6118,6 +6316,9 @@ final class DownloadManager: NSObject, ObservableObject {
                 downloads[index].totalBytes = 0
             }
             saveDownloads()
+#if os(iOS) && !targetEnvironment(macCatalyst)
+            beginDirectBackgroundAttempt(id: item.id, item: downloads[index], task: task)
+#endif
         }
 
         task.resume()
@@ -7204,8 +7405,11 @@ final class DownloadManager: NSObject, ObservableObject {
         nuvioAutoValidationProxyURLs.removeAll()
         for id in protectedIDs {
 #if os(iOS) && !targetEnvironment(macCatalyst)
-            if preservingGrantedHLS, hasGrantedHLSBackgroundContinuation(id: id) { continue }
+            if preservingGrantedHLS,
+               (hasGrantedHLSBackgroundContinuation(id: id)
+                    || hasActiveDirectBackgroundTransfer(id: id)) { continue }
             revokeHLSBackgroundAttempt(id: id)
+            finishDirectBackgroundAttempt(id: id, success: false)
 #endif
             let wasRecoveringMedia = sourceRefreshes.kind(for: id) == .rejectedMedia
             invalidateSourceRefresh(id: id)
@@ -8814,6 +9018,13 @@ final class DownloadManager: NSObject, ObservableObject {
         let task = backgroundSession.downloadTask(with: request)
         task.taskDescription = id
         activeTasks[id] = task
+#if os(iOS) && !targetEnvironment(macCatalyst)
+        if let backgroundAttempt = directBackgroundAttempts[id] {
+            backgroundAttempt.taskIdentifier = task.taskIdentifier
+        } else if hlsApplicationIsActive, let item = downloads.first(where: { $0.id == id }) {
+            beginDirectBackgroundAttempt(id: id, item: item, task: task)
+        }
+#endif
         registerNuvioMainTask(task, id: id, attemptID: attemptID)
         task.resume()
     }
@@ -8919,6 +9130,9 @@ final class DownloadManager: NSObject, ObservableObject {
     private func markFailed(id: String, error: String) {
         performOnMain { [weak self] in
             guard let self else { return }
+#if os(iOS) && !targetEnvironment(macCatalyst)
+            finishDirectBackgroundAttempt(id: id, success: false)
+#endif
             if let task = activeTasks.removeValue(forKey: id) {
                 invalidatedDirectTaskIdentifiers.insert(task.taskIdentifier)
                 task.cancel()
@@ -9007,6 +9221,11 @@ final class DownloadManager: NSObject, ObservableObject {
                     if task.state == .suspended {
                         task.resume()
                     }
+#if os(iOS) && !targetEnvironment(macCatalyst)
+                    if hlsApplicationIsActive {
+                        beginDirectBackgroundAttempt(id: id, item: downloads[index], task: task)
+                    }
+#endif
                 }
 
                 self.restoringBackgroundTasks = false
@@ -10161,12 +10380,21 @@ extension DownloadManager: URLSessionDownloadDelegate {
         DispatchQueue.main.async {
 
             if self.invalidatedDirectTaskIdentifiers.remove(task.taskIdentifier) != nil {
+#if os(iOS) && !targetEnvironment(macCatalyst)
+                self.finishDirectBackgroundAttempt(id: downloadId, taskIdentifier: task.taskIdentifier, success: false)
+#endif
                 return
             }
             guard self.claimDirectDownloadTaskIfCurrent(downloadTask, downloadID: downloadId) else {
+#if os(iOS) && !targetEnvironment(macCatalyst)
+                self.finishDirectBackgroundAttempt(id: downloadId, taskIdentifier: task.taskIdentifier, success: false)
+#endif
                 return
             }
             if let error = error as NSError? {
+#if os(iOS) && !targetEnvironment(macCatalyst)
+                self.finishDirectBackgroundAttempt(id: downloadId, taskIdentifier: task.taskIdentifier, success: false)
+#endif
                 let resumeData = error.userInfo[NSURLSessionDownloadTaskResumeData] as? Data
                 if let resumeData { self.storeResumeData(resumeData, id: downloadId) }
                 self.activeTasks.removeValue(forKey: downloadId)
@@ -10196,6 +10424,10 @@ extension DownloadManager: URLSessionDownloadDelegate {
                     error: self.boundedDownloadFailureMessage(error)
                 )
                 self.invalidatedDirectTaskIdentifiers.remove(task.taskIdentifier)
+            } else {
+#if os(iOS) && !targetEnvironment(macCatalyst)
+                self.finishDirectBackgroundAttempt(id: downloadId, taskIdentifier: task.taskIdentifier, success: true)
+#endif
             }
         }
     }
