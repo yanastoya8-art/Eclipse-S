@@ -45,7 +45,7 @@ private final class AnimeScheduleURLProtocol: URLProtocol {
 final class AnimeScheduleFallbackTests: XCTestCase {
     func testDubLanguagePickerOnlyExposesEnglishAndSpanish() {
         XCTAssertEqual(
-            Set(MyDubListLanguage.allCases.map(\\.rawValue)),
+            Set(MyDubListLanguage.allCases.map(\.rawValue)),
             Set([MyDubListLanguage.english.rawValue, MyDubListLanguage.spanish.rawValue])
         )
         XCTAssertEqual(
