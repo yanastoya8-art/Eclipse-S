@@ -222,6 +222,17 @@ struct AnimeMediaIdentitySeed: Codable, Equatable, Sendable {
 
 }
 
+/// Shared format policy for anime catalogue and schedule surfaces. Unknown
+/// formats remain visible rather than being guessed to be specials or OVAs.
+enum AnimeSpecialFormatPolicy {
+    static func shouldExclude(format: String?, enabled: Bool) -> Bool {
+        guard enabled,
+              let format else { return false }
+        let normalized = format.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        return normalized == "SPECIAL" || normalized == "OVA"
+    }
+}
+
 struct TMDBSearchResult: Codable, Identifiable, Sendable {
     let id: Int
     let mediaType: String

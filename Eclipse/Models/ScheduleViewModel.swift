@@ -744,10 +744,13 @@ final class ScheduleViewModel: ObservableObject {
 
     private func filteredAnimeScheduleResult(_ result: AnimeScheduleLoadResult) -> AnimeScheduleLoadResult {
         let selectedLanguages = MyDubListDubFilter.shared.selectedLanguages
-        guard !selectedLanguages.isEmpty else { return result }
+        let hideAnimeSpecials = UserDefaults.standard.bool(forKey: "catalogHideAnimeSpecialsAndOVAs")
 
         let entries = result.entries.filter { entry in
             guard entry.source == .anime else { return true }
+            guard !AnimeSpecialFormatPolicy.shouldExclude(format: entry.format, enabled: hideAnimeSpecials) else {
+                return false
+            }
             // DubOnly entries are already verified English-dub timetable rows;
             // do not require a second, unrelated MyDubList lookup to retain them.
             if entry.provider == .dubOnly { return true }
