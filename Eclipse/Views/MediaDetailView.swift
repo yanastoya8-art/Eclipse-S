@@ -2013,9 +2013,10 @@ struct MediaDetailContentView: View {
     }
 
     private func macDetailPoster(width: CGFloat) -> some View {
+        let bestPoster = PosterArtworkURLResolver.bestPosterURL(for: searchResult)
         let candidates: [String?] = searchResult.isMovie
-            ? [movieDetail?.fullPosterURL, searchResult.fullPosterURL, movieDetail?.fullBackdropURL, searchResult.fullBackdropURL]
-            : [searchResult.fullPosterURL, searchResult.animeArtworkURL, tvShowDetail?.fullPosterURL, tvShowDetail?.fullBackdropURL, searchResult.fullBackdropURL]
+            ? [bestPoster, movieDetail?.fullPosterURL, movieDetail?.fullBackdropURL, searchResult.fullBackdropURL]
+            : [bestPoster, tvShowDetail?.fullPosterURL, tvShowDetail?.fullBackdropURL, searchResult.fullBackdropURL]
         return ResilientArtworkImage(
             urls: candidates.compactMap { $0 },
             decodeSize: homeImageDecodeSize(width: width, height: width * 1.5),
@@ -2640,8 +2641,7 @@ struct MediaDetailContentView: View {
 
     private var detailHeroImageURL: String? {
         preloadedArtworkURL
-            ?? searchResult.fullPosterURL
-            ?? searchResult.animeArtworkURL
+            ?? PosterArtworkURLResolver.bestPosterURL(for: searchResult)
             ?? movieDetail?.fullPosterURL
             ?? tvShowDetail?.fullPosterURL
             ?? searchResult.fullBackdropURL
