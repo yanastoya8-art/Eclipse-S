@@ -2363,12 +2363,10 @@ struct ModulesSearchResultsSheet: View {
             } label: {
                 Label("Copy Stream URL", systemImage: "doc.on.doc")
             }
-            if !["m3u8", "mpd"].contains(URL(string: resolved.option.url)?.pathExtension.lowercased() ?? "") {
-                Button {
-                    copyProviderDownloadURL(resolved.option.url, headers: resolved.option.headers)
-                } label: {
-                    Label("Copy Download URL", systemImage: "arrow.down.doc")
-                }
+            Button {
+                copyProviderDownloadURL(resolved.option.url, headers: resolved.option.headers)
+            } label: {
+                Label("Copy Download URL", systemImage: "arrow.down.doc")
             }
         }
 #endif
