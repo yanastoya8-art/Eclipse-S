@@ -121,17 +121,26 @@ struct SearchResultCard: View {
         }
     }
 
+    private var posterDecodeWidth: CGFloat {
+        isTvOS ? 640 : (isIPad ? 480 : 320)
+    }
+
     private var posterImage: some View {
         ZStack {
-            KFImage(URL(string: PosterArtworkURLResolver.bestPosterURL(for: result) ?? ""))
-                .placeholder {
-                    FallbackImageView(
-                        isMovie: result.isMovie,
-                        size: isTvOS ? CGSize(width: 260, height: 390) : CGSize(width: 120, height: 180)
-                    )
-                }
-                .resizable()
-                .aspectRatio(2/3, contentMode: .fill)
+            ResilientArtworkImage(
+                urls: [
+                    PosterArtworkURLResolver.bestPosterURL(for: result),
+                    result.fullPosterURL,
+                    result.animeArtworkURL
+                ].compactMap { $0 },
+                decodeSize: CGSize(width: posterDecodeWidth, height: posterDecodeWidth * 1.5),
+                contentMode: .fill
+            ) {
+                FallbackImageView(
+                    isMovie: result.isMovie,
+                    size: CGSize(width: posterDecodeWidth, height: posterDecodeWidth * 1.5)
+                )
+            }
 
             CenteredPosterTitleOverlay(
                 title: result.displayTitle,
