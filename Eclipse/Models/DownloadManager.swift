@@ -2751,7 +2751,7 @@ final class DownloadManager: NSObject, ObservableObject {
               let scheduler = hlsBackgroundScheduler else { return }
         let attempt = HLSBackgroundAttempt(attemptID: attemptID, intent: intent, protectedAttemptID: protectedAttemptID, downloader: downloader, dateAdded: item.dateAdded)
         hlsBackgroundAttempts[id] = attempt
-        scheduler.request(attemptID: attemptID, title: "Downloading video", onGranted: { [weak self, weak attempt] in
+        scheduler.request(attemptID: attemptID, title: "Downloading \(item.displayTitle)", onGranted: { [weak self, weak attempt] in
             guard let self, let attempt,
                   self.hlsBackgroundAttempts[id] === attempt,
                   self.hlsBackgroundDownloadsEnabled, !attempt.revoked, !attempt.finishing,
