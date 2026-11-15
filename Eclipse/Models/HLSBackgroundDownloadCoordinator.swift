@@ -5,7 +5,9 @@ enum BackgroundDownloadSettings {
     static let enabledKey = "hlsBackgroundDownloadsEnabled"
 
     static func isEnabled(defaults: UserDefaults = .standard) -> Bool {
-        defaults.bool(forKey: enabledKey)
+        // Background continuation is enabled by default for user-initiated downloads.
+        // Preserve an explicit opt-out saved by an existing installation.
+        defaults.object(forKey: enabledKey) as? Bool ?? true
     }
 }
 
@@ -34,6 +36,8 @@ final class HLSBackgroundDownloadCoordinator: HLSBackgroundDownloadScheduling {
 
     private final class Request {
         let token = UUID()
+        let identifier: String
+        let title: String
         var attemptID: UUID?
         var onGranted: (() -> Bool)?
         var onExpiration: (() -> Void)?
@@ -42,12 +46,17 @@ final class HLSBackgroundDownloadCoordinator: HLSBackgroundDownloadScheduling {
         var expired = false
 
         init(
+            identifier: String,
             attemptID: UUID,
+            title: String,
             onGranted: @escaping () -> Bool,
             onExpiration: @escaping () -> Void,
             onRejected: @escaping () -> Void
         ) {
+            self.identifier = identifier
             self.attemptID = attemptID
+            let normalizedTitle = title.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+            self.title = String(normalizedTitle.prefix(64))
             self.onGranted = onGranted
             self.onExpiration = onExpiration
             self.onRejected = onRejected
@@ -62,32 +71,44 @@ final class HLSBackgroundDownloadCoordinator: HLSBackgroundDownloadScheduling {
     }
 
     private final class Slot {
-        let identifier: String
         var registered = false
         var request: Request?
-
-        init(identifier: String) {
-            self.identifier = identifier
-        }
     }
 
     private let slots: [Slot]
+    private let taskIdentifierPrefix: String?
 
     private init() {
         dispatchPrecondition(condition: .onQueue(.main))
         guard let bundleIdentifier = Bundle.main.bundleIdentifier else {
+            taskIdentifierPrefix = nil
             slots = []
             return
         }
-        slots = (0..<4).map { Slot(identifier: "\(bundleIdentifier).hls-download.\($0)") }
-        for slot in slots {
-            slot.registered = BGTaskScheduler.shared.register(forTaskWithIdentifier: slot.identifier, using: .main) { [weak self, weak slot] task in
-                guard let self, let slot, let task = task as? BGContinuedProcessingTask else {
-                    task.setTaskCompleted(success: false)
-                    return
-                }
-                self.receive(task, in: slot)
+
+        let prefix = "\(bundleIdentifier).hls-download"
+        taskIdentifierPrefix = prefix
+        let createdSlots = (0..<4).map { _ in Slot() }
+        slots = createdSlots
+
+        // Continued-processing requests use unique identifiers beneath a
+        // registered wildcard, as required by Apple's iOS 26 API.
+        let wildcardIdentifier = "\(prefix).*"
+        let registered = BGTaskScheduler.shared.register(
+            forTaskWithIdentifier: wildcardIdentifier,
+            using: .main
+        ) { [weak self] task in
+            guard let self, let continuedTask = task as? BGContinuedProcessingTask else {
+                task.setTaskCompleted(success: false)
+                return
             }
+            self.receive(continuedTask)
+        }
+        for slot in slots {
+            slot.registered = registered
+        }
+        if !registered {
+            Logger.shared.log("Could not register continued-processing wildcard \(wildcardIdentifier)", type: "Download")
         }
     }
 
@@ -100,21 +121,35 @@ final class HLSBackgroundDownloadCoordinator: HLSBackgroundDownloadScheduling {
     ) {
         dispatchPrecondition(condition: .onQueue(.main))
         guard !slots.contains(where: { $0.request?.attemptID == attemptID }) else { return }
-        guard let slot = slots.first(where: { $0.registered && $0.request == nil }) else {
+        guard let prefix = taskIdentifierPrefix,
+              let slot = slots.first(where: { $0.registered && $0.request == nil }) else {
             onRejected()
             return
         }
-        let request = Request(attemptID: attemptID, onGranted: onGranted, onExpiration: onExpiration, onRejected: onRejected)
+
+        let normalizedTitle = title.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        let safeTitle = String(normalizedTitle.prefix(64))
+        let identifier = "\(prefix).\(UUID().uuidString)"
+        let request = Request(
+            identifier: identifier,
+            attemptID: attemptID,
+            title: safeTitle.isEmpty ? "Downloading video" : safeTitle,
+            onGranted: onGranted,
+            onExpiration: onExpiration,
+            onRejected: onRejected
+        )
         slot.request = request
         log("requested", request: request, slot: slot)
-        let taskRequest = BGContinuedProcessingTaskRequest(identifier: slot.identifier, title: "Downloading video", subtitle: "Preparing download")
+
+        let taskRequest = BGContinuedProcessingTaskRequest(
+            identifier: request.identifier,
+            title: request.title,
+            subtitle: "Preparing download"
+        )
         taskRequest.strategy = .fail
         let token = request.token
         DispatchQueue.global(qos: .utility).async { [weak self, weak slot] in
             do {
-                // Keep using the throwing API supported by the repository's Xcode SDK.
-                // The newer submitTaskRequest completion-handler overload is not present
-                // in every SDK used by the CI runner.
                 try BGTaskScheduler.shared.submit(taskRequest)
                 DispatchQueue.main.async {
                     guard let self, let slot else { return }
@@ -138,7 +173,7 @@ final class HLSBackgroundDownloadCoordinator: HLSBackgroundDownloadScheduling {
         task.progress.totalUnitCount = boundedTotal
         task.progress.completedUnitCount = min(max(0, completed), boundedTotal)
         let displaySubtitle = subtitle.contains("://") ? "Downloading video" : String(subtitle.prefix(120))
-        task.updateTitle("Downloading video", subtitle: displaySubtitle)
+        task.updateTitle(request.title, subtitle: displaySubtitle)
     }
 
     func finish(attemptID: UUID, success: Bool) {
@@ -152,7 +187,8 @@ final class HLSBackgroundDownloadCoordinator: HLSBackgroundDownloadScheduling {
             task.expirationHandler = nil
             task.setTaskCompleted(success: success && !request.expired)
         } else {
-            BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: slot.identifier)
+            slot.request = nil
+            BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: request.identifier)
         }
     }
 
@@ -172,13 +208,15 @@ final class HLSBackgroundDownloadCoordinator: HLSBackgroundDownloadScheduling {
             slot.request = nil
             onRejected?()
         } else if request.attemptID == nil {
-            BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: slot.identifier)
+            slot.request = nil
+            BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: request.identifier)
         }
     }
 
-    private func receive(_ task: BGContinuedProcessingTask, in slot: Slot) {
+    private func receive(_ task: BGContinuedProcessingTask) {
         dispatchPrecondition(condition: .onQueue(.main))
-        guard let request = slot.request else {
+        guard let slot = slots.first(where: { $0.request?.identifier == task.identifier }),
+              let request = slot.request else {
             task.setTaskCompleted(success: false)
             return
         }
@@ -191,6 +229,7 @@ final class HLSBackgroundDownloadCoordinator: HLSBackgroundDownloadScheduling {
             task.setTaskCompleted(success: false)
             return
         }
+
         request.task = task
         task.progress.totalUnitCount = 1
         task.progress.completedUnitCount = 0

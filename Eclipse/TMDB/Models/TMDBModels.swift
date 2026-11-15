@@ -53,6 +53,20 @@ enum TMDBImageRequestPolicy {
         }
     }
 
+    static func originalURLString(for path: String) -> String {
+        let original = path.lowercased().hasPrefix("https://")
+            ? path
+            : "https://image.tmdb.org/t/p/original\(path.hasPrefix("/") ? path : "/" + path)"
+        guard let components = URLComponents(string: original),
+              components.scheme?.lowercased() == "https",
+              components.host?.lowercased() == "image.tmdb.org",
+              components.port == nil || components.port == 443,
+              components.user == nil, components.password == nil,
+              components.query == nil, components.fragment == nil,
+              !components.path.lowercased().hasSuffix(".svg") else { return original }
+        return components.string ?? original
+    }
+
     static func urlString(
         for path: String,
         kind: Kind,
@@ -1374,8 +1388,10 @@ struct TMDBImage: Codable {
         case voteCount = "vote_count"
     }
 
+    /// Original provider resolution; callers downsample at display size to
+    /// retain sharp stills without decoding multi-megapixel images at full size.
     var fullURL: String {
-        return TMDBImageRequestPolicy.urlString(for: filePath, kind: .artwork)
+        return TMDBImageRequestPolicy.originalURLString(for: filePath)
     }
 }
 
@@ -1422,6 +1438,15 @@ struct TMDBVideo: Codable, Identifiable {
     var thumbnailURL: URL? {
         guard site.lowercased() == "youtube" else { return nil }
         return URL(string: "https://img.youtube.com/vi/\(key)/hqdefault.jpg")
+    }
+
+    var thumbnailURLs: [String] {
+        guard site.lowercased() == "youtube" else { return [] }
+        return [
+            "https://img.youtube.com/vi/\(key)/maxresdefault.jpg",
+            "https://img.youtube.com/vi/\(key)/sddefault.jpg",
+            "https://img.youtube.com/vi/\(key)/hqdefault.jpg"
+        ]
     }
 }
 

@@ -463,6 +463,7 @@ struct MediaDetailContentView: View {
     @State private var tvMazePosterURL: String?
     @State private var isAnimeShow = false
     @State private var animeRating: AnimeMetadataRating?
+    @State private var animeMetadata: AniListAnimeWithSeasons?
     @State private var anilistEpisodes: [AniListEpisode]? = nil
     @State private var animeSeasonTitles: [Int: String]? = nil
     @State private var animeSeasonRomajiTitles: [Int: String] = [:]
@@ -2013,9 +2014,10 @@ struct MediaDetailContentView: View {
     }
 
     private func macDetailPoster(width: CGFloat) -> some View {
+        let bestPoster = PosterArtworkURLResolver.bestPosterURL(for: searchResult)
         let candidates: [String?] = searchResult.isMovie
-            ? [movieDetail?.fullPosterURL, searchResult.fullPosterURL, movieDetail?.fullBackdropURL, searchResult.fullBackdropURL]
-            : [searchResult.fullPosterURL, searchResult.animeArtworkURL, tvShowDetail?.fullPosterURL, tvShowDetail?.fullBackdropURL, searchResult.fullBackdropURL]
+            ? [bestPoster, movieDetail?.fullPosterURL, movieDetail?.fullBackdropURL, searchResult.fullBackdropURL]
+            : [bestPoster, tvShowDetail?.fullPosterURL, tvShowDetail?.fullBackdropURL, searchResult.fullBackdropURL]
         return ResilientArtworkImage(
             urls: candidates.compactMap { $0 },
             decodeSize: homeImageDecodeSize(width: width, height: width * 1.5),
@@ -2233,24 +2235,27 @@ struct MediaDetailContentView: View {
 
     @ViewBuilder
     private func iPadImmersiveBackdrop(proxy: GeometryProxy) -> some View {
-        let bannerHeight = min(max(proxy.size.height * 0.56, 280), 500)
-        ZStack(alignment: .bottom) {
+        // In landscape the artwork is a true edge-to-edge banner. The
+        // synopsis and episode list remain on Eclipse's normal background below.
+        let bannerHeight = min(max(proxy.size.height * 0.68, 300), 520)
+        let bannerWidth = max(proxy.size.width, EclipseViewport.bounds.width)
+        ZStack {
             ResilientArtworkImage(
                 urls: ([detailHeroImageURL].compactMap { $0 } + detailHeroFallbackImageURLs),
-                decodeSize: homeImageDecodeSize(width: proxy.size.width, height: bannerHeight),
+                decodeSize: homeImageDecodeSize(width: bannerWidth, height: bannerHeight),
                 contentMode: .fill,
                 onImageLoaded: { color in ambientColor = color }
             ) {
                 Rectangle().fill(EclipseTheme.shared.backgroundBase)
             }
-            .frame(width: proxy.size.width, height: bannerHeight)
+            .frame(width: bannerWidth, height: bannerHeight)
             .clipped()
 
             LinearGradient(
                 stops: [
-                    .init(color: Color.black.opacity(0.06), location: 0.00),
-                    .init(color: Color.black.opacity(0.12), location: 0.38),
-                    .init(color: heroBlendColor.opacity(0.48), location: 0.72),
+                    .init(color: Color.black.opacity(0.10), location: 0.00),
+                    .init(color: Color.black.opacity(0.18), location: 0.40),
+                    .init(color: heroBlendColor.opacity(0.52), location: 0.76),
                     .init(color: EclipseTheme.shared.backgroundBase, location: 1.00)
                 ],
                 startPoint: .top,
@@ -2259,24 +2264,52 @@ struct MediaDetailContentView: View {
 
             LinearGradient(
                 stops: [
-                    .init(color: Color.black.opacity(0.52), location: 0.00),
-                    .init(color: Color.black.opacity(0.22), location: 0.42),
+                    .init(color: Color.black.opacity(0.42), location: 0.00),
+                    .init(color: Color.black.opacity(0.16), location: 0.48),
                     .init(color: .clear, location: 1.00)
                 ],
                 startPoint: .leading,
                 endPoint: .trailing
             )
+
+            let centeredTitleLogoURL = searchResult.animeLogoURL ?? logoURL
+            Group {
+                if let centeredTitleLogoURL, !centeredTitleLogoURL.isEmpty {
+                    ResilientArtworkImage(
+                        urls: [centeredTitleLogoURL],
+                        decodeSize: CGSize(width: max(bannerWidth * 0.56, 1), height: max(bannerHeight * 0.32, 1)),
+                        contentMode: .fit
+                    ) {
+                        iPadImmersiveBannerTitle
+                    }
+                    .frame(maxWidth: bannerWidth * 0.62, maxHeight: bannerHeight * 0.34)
+                } else {
+                    iPadImmersiveBannerTitle
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            .padding(.horizontal, 28)
         }
-        .frame(width: proxy.size.width, height: bannerHeight)
+        .frame(width: bannerWidth, height: bannerHeight)
         .clipped()
-        .accessibilityHidden(true)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(searchResult.displayTitle)
+    }
+
+    private var iPadImmersiveBannerTitle: some View {
+        Text(searchResult.displayTitle)
+            .font(.system(size: min(max(detailViewportHeight * 0.095, 30), 58), weight: .heavy, design: .rounded))
+            .foregroundStyle(.white)
+            .multilineTextAlignment(.center)
+            .lineLimit(3)
+            .minimumScaleFactor(0.72)
+            .shadow(color: .black.opacity(0.88), radius: 10, x: 0, y: 4)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     @ViewBuilder
     private var iPadImmersiveHeroCard: some View {
         VStack(alignment: .leading, spacing: 16) {
-            iPadImmersiveTitleText
-
             if shouldShowHeroDetails {
                 iPadImmersiveMetadata
             }
@@ -2534,6 +2567,18 @@ struct MediaDetailContentView: View {
                 .offset(y: -headerHeight * 0.015)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
+            } else {
+                Text(searchResult.displayTitle)
+                    .font(.system(size: min(max(headerHeight * 0.075, 25), 48), weight: .heavy, design: .rounded))
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.72)
+                    .shadow(color: .black.opacity(0.85), radius: 9, x: 0, y: 4)
+                    .padding(.horizontal, 22)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
             }
         }
     }
@@ -2611,13 +2656,11 @@ struct MediaDetailContentView: View {
 
     private var detailHeroFallbackImageURLs: [String] {
         guard let primary = detailHeroImageURL else { return [] }
-        let candidates: [String?] = [
-            searchResult.fullPosterURL,
-            searchResult.animeArtworkURL,
-            searchResult.fullBackdropURL
-        ]
+        let candidates =
+            PosterArtworkURLResolver.candidates(for: searchResult)
+            + [searchResult.fullBackdropURL].compactMap { $0 }
         var seen: Set<String> = []
-        return candidates.compactMap { $0 }.filter { value in
+        return candidates.filter { value in
             guard value != primary,
                   let url = URL(string: value),
                   ["https", "http"].contains(url.scheme?.lowercased() ?? ""),
@@ -2627,9 +2670,20 @@ struct MediaDetailContentView: View {
     }
 
     private var detailHeroImageURL: String? {
-        preloadedArtworkURL
-            ?? searchResult.fullPosterURL
-            ?? searchResult.animeArtworkURL
+        let bestPoster = PosterArtworkURLResolver.bestPosterURL(for: searchResult)
+        if usesWideDetailLayout {
+            // A landscape banner needs landscape artwork. Using a portrait
+            // poster here would crop most of its height to fill a 3:1 frame.
+            return searchResult.fullBackdropURL
+                ?? movieDetail?.fullBackdropURL
+                ?? tvShowDetail?.fullBackdropURL
+                ?? preloadedArtworkURL
+                ?? bestPoster
+                ?? movieDetail?.fullPosterURL
+                ?? tvShowDetail?.fullPosterURL
+        }
+        return preloadedArtworkURL
+            ?? bestPoster
             ?? movieDetail?.fullPosterURL
             ?? tvShowDetail?.fullPosterURL
             ?? searchResult.fullBackdropURL
@@ -2667,19 +2721,16 @@ struct MediaDetailContentView: View {
 
     @ViewBuilder
     private var legacyHeaderSection: some View {
-        VStack(alignment: .center, spacing: 8) {
-            titleArtwork
-        }
-        .frame(maxWidth: .infinity, alignment: .center)
-        .padding(.bottom, 10)
-        .padding(.horizontal, 16)
+        // The hero backdrop owns the single centered title/logo overlay.
+        // Keep this spacer for the legacy layout's original vertical rhythm.
+        Color.clear
+            .frame(height: 1)
+            .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder
     private var experimentalHeaderSection: some View {
         VStack(alignment: .center, spacing: isTvOS ? 20 : (usesWideDetailLayout ? 13 : 10)) {
-            titleArtwork
-
             if shouldShowHeroDetails, let metadata = detailMetadataLine {
                 Text(metadata)
                     .font(.system(
@@ -2782,6 +2833,33 @@ struct MediaDetailContentView: View {
             }
             if let status = tvShowDetail.status, !status.isEmpty {
                 values.append(status)
+            }
+        }
+
+        if isAnimeShow, let animeMetadata {
+            if let rating = animeMetadata.rating, rating.value > 0 {
+                values.append(rating.displayText)
+            }
+            if let season = animeMetadata.season, let year = animeMetadata.seasonYear {
+                values.append("\(season.capitalized) \(year)")
+            } else if let year = animeMetadata.seasonYear {
+                values.append(String(year))
+            }
+            if animeMetadata.isAdult == true {
+                values.append("Adult")
+            }
+            if let format = animeMetadata.format, !format.isEmpty {
+                values.append(format.replacingOccurrences(of: "_", with: " ").capitalized)
+            }
+            if let tags = animeMetadata.tags {
+                values.append(contentsOf: tags
+                    .filter { $0.isMediaSpoiler != true }
+                    .sorted { ($0.rank ?? 0) > ($1.rank ?? 0) }
+                    .prefix(3)
+                    .map(\.name))
+            }
+            if let nextEpisode = animeMetadata.nextAiringEpisode?.episode, nextEpisode > 0 {
+                values.append("Next EP \(nextEpisode)")
             }
         }
 
@@ -3739,14 +3817,15 @@ struct MediaDetailContentView: View {
     private func experimentalTrailerCard(_ trailer: TMDBVideo) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             ZStack {
-                if let thumbnailURL = trailer.thumbnailURL {
-                    KFImage(thumbnailURL)
-                        .placeholder {
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .fill(Color.white.opacity(0.08))
-                        }
-                        .resizable()
-                        .aspectRatio(16/9, contentMode: .fill)
+                if !trailer.thumbnailURLs.isEmpty {
+                    ResilientArtworkImage(
+                        urls: trailer.thumbnailURLs,
+                        decodeSize: homeImageDecodeSize(width: experimentalExtrasCardWidth, height: experimentalExtrasCardHeight),
+                        contentMode: .fill
+                    ) {
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color.white.opacity(0.08))
+                    }
                 } else {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .fill(Color.white.opacity(0.08))
@@ -5928,39 +6007,65 @@ struct MediaDetailContentView: View {
         let isMovie = searchResult.isMovie
         isLoadingExperimentalExtras = detailStills.isEmpty && detailTrailers.isEmpty
 
-        experimentalExtrasLoadTask = Task {
-            let images: TMDBImagesResponse?
-            let trailers: [TMDBVideo]
+        experimentalExtrasLoadTask = Task(priority: .userInitiated) {
+            func loadStills() async {
+                let images: TMDBImagesResponse?
+                if isMovie {
+                    images = try? await tmdbService.getMovieImages(id: tmdbId, preferredLanguage: selectedLanguage)
+                } else {
+                    images = try? await tmdbService.getTVShowImages(id: tmdbId, preferredLanguage: selectedLanguage)
+                }
 
-            if isMovie {
-                async let imagesResult: TMDBImagesResponse? = try? tmdbService.getMovieImages(id: tmdbId, preferredLanguage: selectedLanguage)
-                async let videosResult: [TMDBVideo]? = try? tmdbService.getMovieVideos(id: tmdbId)
+                let stills = (images?.backdrops ?? [])
+                    .sorted {
+                        let lhsPixels = Double(max(0, $0.width)) * Double(max(0, $0.height))
+                        let rhsPixels = Double(max(0, $1.width)) * Double(max(0, $1.height))
+                        if lhsPixels != rhsPixels { return lhsPixels > rhsPixels }
+                        let lhsVotes = $0.voteCount ?? 0
+                        let rhsVotes = $1.voteCount ?? 0
+                        if lhsVotes != rhsVotes { return lhsVotes > rhsVotes }
+                        return ($0.voteAverage ?? 0) > ($1.voteAverage ?? 0)
+                    }
 
-                images = await imagesResult
-                let loadedVideos = (await videosResult) ?? []
-                trailers = loadedVideos.filter { $0.isTrailerLike && $0.playbackURL != nil }
-            } else {
-                async let imagesResult: TMDBImagesResponse? = try? tmdbService.getTVShowImages(id: tmdbId, preferredLanguage: selectedLanguage)
-                async let videosResult: [TMDBVideo]? = try? tmdbService.getTVShowVideos(id: tmdbId)
-
-                images = await imagesResult
-                let loadedVideos = (await videosResult) ?? []
-                trailers = loadedVideos.filter { $0.isTrailerLike && $0.playbackURL != nil }
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    guard !Task.isCancelled,
+                          self.searchResult.id == tmdbId,
+                          self.searchResult.isMovie == isMovie else { return }
+                    self.detailStills = stills
+                    self.refreshDetailContentLayout(reason: "experimental-stills")
+                }
             }
 
-            let stills = (images?.backdrops ?? [])
-                .sorted {
-                    let lhsVotes = $0.voteCount ?? 0
-                    let rhsVotes = $1.voteCount ?? 0
-                    if lhsVotes != rhsVotes { return lhsVotes > rhsVotes }
-                    return ($0.voteAverage ?? 0) > ($1.voteAverage ?? 0)
+            func loadTrailers() async {
+                let videos: [TMDBVideo]?
+                if isMovie {
+                    videos = try? await tmdbService.getMovieVideos(id: tmdbId)
+                } else {
+                    videos = try? await tmdbService.getTVShowVideos(id: tmdbId)
                 }
+                let trailers = (videos ?? []).filter { $0.isTrailerLike && $0.playbackURL != nil }
+
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    guard !Task.isCancelled,
+                          self.searchResult.id == tmdbId,
+                          self.searchResult.isMovie == isMovie else { return }
+                    self.detailTrailers = trailers
+                    self.refreshDetailContentLayout(reason: "experimental-trailers")
+                }
+            }
+
+            async let stillsLoad: Void = loadStills()
+            async let trailersLoad: Void = loadTrailers()
+            await stillsLoad
+            await trailersLoad
 
             guard !Task.isCancelled else { return }
             await MainActor.run {
-                guard !Task.isCancelled, self.searchResult.id == tmdbId else { return }
-                self.detailStills = stills
-                self.detailTrailers = trailers
+                guard !Task.isCancelled,
+                      self.searchResult.id == tmdbId,
+                      self.searchResult.isMovie == isMovie else { return }
                 self.isLoadingExperimentalExtras = false
                 self.experimentalExtrasLoadTask = nil
                 self.refreshDetailContentLayout(reason: "experimental-extras")
@@ -6670,6 +6775,7 @@ struct MediaDetailContentView: View {
         )
 
         self.tvShowDetail = detailWithAniSeasons
+        self.animeMetadata = animeData
         if let rating = metadata.rating {
             self.animeRating = rating
         }
@@ -7073,6 +7179,7 @@ struct MediaDetailContentView: View {
                 self.optionalPresentationCacheWritable = true
                 self.isAnimeShow = cached.isAnimeShow
                 self.animeRating = cached.animeRating
+                self.animeMetadata = nil
                 self.anilistEpisodes = cached.anilistEpisodes
                 self.animeSeasonTitles = cached.animeSeasonTitles
                 self.animeSeasonRomajiTitles = cached.animeSeasonRomajiTitles
@@ -7147,6 +7254,7 @@ struct MediaDetailContentView: View {
         seasonDetail = nil
         selectedEpisodeForSearch = nil
         animeRating = nil
+        animeMetadata = nil
         animeSeasonRomajiTitles = [:]
         animeSeasonAniListIds = [:]
         animeSeasonKitsuIds = [:]
@@ -7193,6 +7301,7 @@ struct MediaDetailContentView: View {
 #endif
                         self.castMembers = []
                         self.animeRating = nil
+                        self.animeMetadata = nil
                         self.animeSpecialEntries = []
                         self.isLoadingAnimeSpecials = false
                         self.selectedSpecialEpisodeContext = nil
@@ -7471,6 +7580,7 @@ struct MediaDetailContentView: View {
                             )
 
                             self.tvShowDetail = detailWithAniSeasons
+                            self.animeMetadata = animeData
 
                             var seasonTitles: [Int: String] = [:]
                             var seasonRomajiTitles: [Int: String] = [:]

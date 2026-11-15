@@ -1909,18 +1909,26 @@ class TMDBService: ObservableObject {
         }
     }
 
-    func getMovieVideos(id: Int) async throws -> [TMDBVideo] {
-        let cacheKey = "movieVideos_\(id)_\(currentLanguage)"
+    private func loadVideos(endpoint: String, cacheKey: String) async throws -> [TMDBVideo] {
         if let cached: [TMDBVideo] = detailCache.get(key: cacheKey) {
             return cached
         }
 
-        let urlString = "\(baseURL)/movie/\(id)/videos?api_key=\(apiKey)&language=\(currentLanguage)"
-        guard let url = URL(string: urlString) else { throw TMDBError.invalidURL }
-        do {
+        func fetch(language: String) async throws -> [TMDBVideo] {
+            guard var components = URLComponents(string: "\(baseURL)\(endpoint)") else {
+                throw TMDBError.invalidURL
+            }
+            components.queryItems = [
+                URLQueryItem(name: "api_key", value: apiKey),
+                URLQueryItem(name: "language", value: language)
+            ]
+            guard let url = components.url else { throw TMDBError.invalidURL }
             let (data, _) = try await throttledData(from: url)
-            let response = try JSONDecoder().decode(TMDBVideosResponse.self, from: data)
-            let sorted = response.results.sorted { lhs, rhs in
+            return try JSONDecoder().decode(TMDBVideosResponse.self, from: data).results
+        }
+
+        func sortVideos(_ videos: [TMDBVideo]) -> [TMDBVideo] {
+            videos.sorted { lhs, rhs in
                 if (lhs.official ?? false) != (rhs.official ?? false) {
                     return (lhs.official ?? false) && !(rhs.official ?? false)
                 }
@@ -1929,38 +1937,67 @@ class TMDBService: ObservableObject {
                 }
                 return (lhs.publishedAt ?? "") > (rhs.publishedAt ?? "")
             }
+        }
+
+        do {
+            try Task.checkCancellation()
+            let primary: [TMDBVideo]
+            do {
+                primary = try await fetch(language: currentLanguage)
+            } catch {
+                if Task.isCancelled { throw CancellationError() }
+                guard currentLanguage.caseInsensitiveCompare("en-US") != .orderedSame else { throw error }
+                // A localized endpoint can fail independently of the English
+                // video catalogue. Keep the trailer section useful in that case.
+                let fallback = try await fetch(language: "en-US")
+                let sortedFallback = sortVideos(fallback)
+                try Task.checkCancellation()
+                detailCache.set(key: cacheKey, value: sortedFallback)
+                return sortedFallback
+            }
+
+            try Task.checkCancellation()
+            var combined = primary
+            // TMDB video records are localized. If the selected UI language has
+            // no playable trailer, fall back to the original English trailer
+            // rather than presenting an empty section.
+            if currentLanguage.caseInsensitiveCompare("en-US") != .orderedSame,
+               !primary.contains(where: { $0.isTrailerLike && $0.playbackURL != nil }) {
+                let fallback = (try? await fetch(language: "en-US")) ?? []
+                try Task.checkCancellation()
+                var seen = Set(primary.map { "\($0.site.lowercased()):\($0.key)" })
+                for video in fallback {
+                    let identity = "\(video.site.lowercased()):\(video.key)"
+                    if seen.insert(identity).inserted {
+                        combined.append(video)
+                    }
+                }
+            }
+
+            let sorted = sortVideos(combined)
+            try Task.checkCancellation()
             detailCache.set(key: cacheKey, value: sorted)
             return sorted
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
+            if Task.isCancelled { throw CancellationError() }
             throw TMDBError.networkError(error)
         }
     }
 
-    func getTVShowVideos(id: Int) async throws -> [TMDBVideo] {
-        let cacheKey = "tvVideos_\(id)_\(currentLanguage)"
-        if let cached: [TMDBVideo] = detailCache.get(key: cacheKey) {
-            return cached
-        }
+    func getMovieVideos(id: Int) async throws -> [TMDBVideo] {
+        try await loadVideos(
+            endpoint: "/movie/\(id)/videos",
+            cacheKey: "movieVideos_\(id)_\(currentLanguage)"
+        )
+    }
 
-        let urlString = "\(baseURL)/tv/\(id)/videos?api_key=\(apiKey)&language=\(currentLanguage)"
-        guard let url = URL(string: urlString) else { throw TMDBError.invalidURL }
-        do {
-            let (data, _) = try await throttledData(from: url)
-            let response = try JSONDecoder().decode(TMDBVideosResponse.self, from: data)
-            let sorted = response.results.sorted { lhs, rhs in
-                if (lhs.official ?? false) != (rhs.official ?? false) {
-                    return (lhs.official ?? false) && !(rhs.official ?? false)
-                }
-                if lhs.type.lowercased() != rhs.type.lowercased() {
-                    return lhs.type.lowercased() == "trailer"
-                }
-                return (lhs.publishedAt ?? "") > (rhs.publishedAt ?? "")
-            }
-            detailCache.set(key: cacheKey, value: sorted)
-            return sorted
-        } catch {
-            throw TMDBError.networkError(error)
-        }
+    func getTVShowVideos(id: Int) async throws -> [TMDBVideo] {
+        try await loadVideos(
+            endpoint: "/tv/\(id)/videos",
+            cacheKey: "tvVideos_\(id)_\(currentLanguage)"
+        )
     }
 
     /// TVMaze is a secondary poster source for TV series when TMDB has no usable poster.

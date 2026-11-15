@@ -214,7 +214,7 @@ struct StorageView: View {
     @AppStorage(DownloadAllFillerPolicy.enabledKey) private var downloadSkipFillerEnabled = false
 #endif
 #if os(iOS) && !targetEnvironment(macCatalyst)
-    @AppStorage(BackgroundDownloadSettings.enabledKey, store: .standard) private var backgroundDownloadsEnabled = false
+    @AppStorage(BackgroundDownloadSettings.enabledKey, store: .standard) private var backgroundDownloadsEnabled = true
 #endif
 
     @StateObject private var accentColorManager = AccentColorManager.shared
@@ -277,7 +277,7 @@ struct StorageView: View {
 #if os(iOS) && !targetEnvironment(macCatalyst)
                 if #available(iOS 26.0, *), PlatformCapabilities.current.supportsHLSBackgroundDownloads {
                     GlassDivider()
-                    GlassDetailRow(icon: "arrow.down.circle", iconColor: .blue, title: "Background Downloads", subtitle: "Direct video files use iOS background transfers. This option enables extended background processing for HLS streams on supported iOS versions; iOS may still pause a transfer.") {
+                    GlassDetailRow(icon: "arrow.down.circle", iconColor: .blue, title: "Background Downloads", subtitle: "Direct HTTP video files and HLS downloads use background transfers. On iOS 26+, Eclipse requests Apple's ongoing system progress UI with live updates; iOS may still interrupt work under system pressure.") {
                         Toggle("Background Downloads", isOn: Binding(
                             get: { backgroundDownloadsEnabled },
                             set: { value in
