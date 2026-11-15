@@ -553,7 +553,7 @@ struct DownloadsSettingsView: View {
                     }
                     .labelsHidden()
                     .accessibilityLabel("Concurrent Downloads")
-                    .accessibilityIdentifier("settings.storage.concurrentDownloads")
+                    .accessibilityIdentifier("settings.downloads.concurrentDownloads")
                     .accessibilityValue(String(DownloadConcurrencySettings.sanitized(concurrentVideoDownloads)))
                     .pickerStyle(.menu)
                 }
@@ -571,7 +571,7 @@ struct DownloadsSettingsView: View {
                     }
                     .labelsHidden()
                     .accessibilityLabel("Concurrent HLS Downloads")
-                    .accessibilityIdentifier("settings.storage.concurrentHLSDownloads")
+                    .accessibilityIdentifier("settings.downloads.concurrentHLSDownloads")
                     .accessibilityValue(String(DownloadConcurrencySettings.sanitized(concurrentHLSDownloads, defaultValue: 1)))
                     .pickerStyle(.menu)
                 }
@@ -589,7 +589,7 @@ struct DownloadsSettingsView: View {
                         ))
                         .labelsHidden()
                         .tint(accent)
-                        .accessibilityIdentifier("settings.storage.backgroundDownloads")
+                        .accessibilityIdentifier("settings.downloads.backgroundDownloads")
                     }
                 }
 #endif
@@ -602,7 +602,7 @@ struct DownloadsSettingsView: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
-                    .accessibilityIdentifier("settings.storage.downloadLibraryPosterSize")
+                    .accessibilityIdentifier("settings.downloads.downloadLibraryPosterSize")
                 }
                 GlassDivider()
                 GlassDetailRow(icon: "forward.end", iconColor: .orange, title: "Skip Filler in Download All", subtitle: "Skip only episodes explicitly marked as filler. Mixed, unknown, and unavailable classifications are included. Individual downloads stay available.") {
