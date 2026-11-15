@@ -2554,6 +2554,7 @@ final class DownloadManager: NSObject, ObservableObject {
         resumeOrphanedHLSDownloads()
         processQueue()
 #if os(iOS) && !targetEnvironment(macCatalyst)
+        attachLiveActivitiesToActiveHLSDownloads()
         attachLiveActivitiesToActiveDirectDownloads()
 #endif
     }
@@ -2636,6 +2637,24 @@ final class DownloadManager: NSObject, ObservableObject {
         return HLSForegroundIntent(ownerID: ProfileManager.shared.activeProfileID, scopeGeneration: ServiceStoreScope.generation)
     }
 
+    private func attachLiveActivitiesToActiveHLSDownloads() {
+        guard hlsBackgroundDownloadsEnabled, hlsApplicationIsActive,
+              let intent = captureHLSForegroundIntent() else { return }
+        for (id, downloader) in activeHLSDownloaders {
+            guard let attemptID = activeHLSAttemptIDs[id],
+                  let item = downloads.first(where: { $0.id == id }),
+                  item.status == .downloading,
+                  item.hasVerifiedHLSCheckpoint || item.hlsResumeManifestSHA256 != nil else { continue }
+            beginHLSBackgroundAttempt(
+                id: id,
+                attemptID: attemptID,
+                intent: intent,
+                protectedAttemptID: protectedProviderAttempts[id]?.attemptID,
+                downloader: downloader
+            )
+        }
+    }
+
     private func attachLiveActivitiesToActiveDirectDownloads() {
         guard hlsBackgroundDownloadsEnabled, hlsApplicationIsActive else { return }
         for (id, task) in activeTasks {
@@ -2692,8 +2711,9 @@ final class DownloadManager: NSObject, ObservableObject {
                 guard let self, let attempt,
                       self.directBackgroundAttempts[id] === attempt,
                       !attempt.granted else { return }
-                // Keep the transfer record: URLSession still owns the HTTP(S)
-                // download even when the continued-processing UI is unavailable.
+                // Release the rejected slot so a later foreground transition can
+                // retry the progress activity without restarting the URLSession task.
+                self.directBackgroundAttempts.removeValue(forKey: id)
                 Logger.shared.log("Direct continued-processing UI unavailable; retaining OS-managed URLSession transfer", type: "Download")
             }
         )
