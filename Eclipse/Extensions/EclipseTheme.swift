@@ -10,6 +10,7 @@ enum AtmosphereStyle: String, CaseIterable, Identifiable {
     case solid
 
     static let selectableCases: [AtmosphereStyle] = [.gradient, .multiGradient, .solid]
+    static var allCases: [AtmosphereStyle] { selectableCases }
 
     static func sanitized(_ rawValue: String?, fallback: AtmosphereStyle = .gradient) -> AtmosphereStyle {
         guard let rawValue, let style = AtmosphereStyle(rawValue: rawValue) else { return fallback }
