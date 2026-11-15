@@ -592,11 +592,11 @@ struct MediaDetailContentView: View {
 
     private var usesWideDetailLayout: Bool {
 #if os(macOS)
-        (detailViewportSize == .zero ? EclipseViewport.bounds : detailViewportSize).width >= 1000
+        (detailViewportSize == .zero ? EclipseViewport.bounds.size : detailViewportSize).width >= 1000
 #else
         // Use the wide composition on iPad and whenever an iPhone is rotated
         // into landscape. GeometryReader updates this size on rotation.
-        let viewport = detailViewportSize == .zero ? EclipseViewport.bounds : detailViewportSize
+        let viewport = detailViewportSize == .zero ? EclipseViewport.bounds.size : detailViewportSize
         return isIPad || viewport.width > viewport.height
 #endif
     }
@@ -2943,7 +2943,7 @@ struct MediaDetailContentView: View {
 
         let certification = searchResult.isMovie
             ? movieDetail?.releaseDates?.preferredCertification
-            : tvShowDetail?.contentRatings?.preferredEuropeanCertification
+            : tvShowDetail?.contentRatings?.preferredCertification
         return certification?.displayValue
     }
 
