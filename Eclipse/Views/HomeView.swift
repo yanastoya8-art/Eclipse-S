@@ -3133,24 +3133,35 @@ struct ExperimentalMediaCard: View {
     }
 
     private var mediaImage: some View {
-        KFImage(URL(string: imageURL))
-            .setProcessor(DownsamplingImageProcessor(size: homeImageDecodeSize(width: cardSize.width, height: cardSize.height)))
-            .placeholder {
-                FallbackImageView(
-                    isMovie: result.isMovie,
-                    size: cardSize
+        ZStack {
+            KFImage(URL(string: imageURL))
+                .setProcessor(DownsamplingImageProcessor(size: homeImageDecodeSize(width: cardSize.width, height: cardSize.height)))
+                .placeholder {
+                    FallbackImageView(
+                        isMovie: result.isMovie,
+                        size: cardSize
+                    )
+                }
+                .resizable()
+                .aspectRatio(imageAspectRatio, contentMode: .fill)
+                .frame(width: cardSize.width, height: cardSize.height)
+
+            if resolvedStyle == .poster {
+                CenteredPosterTitleOverlay(
+                    title: result.displayTitle,
+                    logoURL: result.animeLogoURL,
+                    fontSize: usesWideHomeLayout ? 20 : 15
                 )
             }
-            .resizable()
-            .aspectRatio(imageAspectRatio, contentMode: .fill)
-            .frame(width: cardSize.width, height: cardSize.height)
-            .clipShape(RoundedRectangle(cornerRadius: metrics.cardRadius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: metrics.cardRadius, style: .continuous)
-                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
-            )
-            .shadow(color: .black.opacity(0.28), radius: 14, x: 0, y: 8)
-            .heroSource(id: heroID, namespace: heroNamespace)
+        }
+        .frame(width: cardSize.width, height: cardSize.height)
+        .clipShape(RoundedRectangle(cornerRadius: metrics.cardRadius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: metrics.cardRadius, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.28), radius: 14, x: 0, y: 8)
+        .heroSource(id: heroID, namespace: heroNamespace)
     }
 }
 
@@ -3232,27 +3243,34 @@ struct MediaCard: View {
 
     private var posterCard: some View {
         VStack(alignment: .leading, spacing: 6) {
-            KFImage(URL(string: result.fullPosterURL ?? ""))
-                .setProcessor(DownsamplingImageProcessor(size: homeImageDecodeSize(width: posterWidth, height: posterHeight)))
-                .placeholder {
-                    FallbackImageView(
-                        isMovie: result.isMovie,
-                        size: CGSize(width: posterWidth, height: posterHeight)
-                    )
-                }
-                .resizable()
-                .aspectRatio(2/3, contentMode: .fill)
-                .tvos({ view in
-                    view
-                        .frame(width: posterWidth, height: posterHeight)
-                        .clipShape(RoundedRectangle(cornerRadius: metrics.cardRadius, style: .continuous))
-                }, else: { view in
-                    view
-                        .frame(width: posterWidth, height: posterHeight)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                        .shadow(color: .black.opacity(0.25), radius: posterShadowRadius, x: 0, y: 4)
-                })
-                .heroSource(id: heroID, namespace: heroNamespace)
+            ZStack {
+                KFImage(URL(string: result.fullPosterURL ?? ""))
+                    .setProcessor(DownsamplingImageProcessor(size: homeImageDecodeSize(width: posterWidth, height: posterHeight)))
+                    .placeholder {
+                        FallbackImageView(
+                            isMovie: result.isMovie,
+                            size: CGSize(width: posterWidth, height: posterHeight)
+                        )
+                    }
+                    .resizable()
+                    .aspectRatio(2/3, contentMode: .fill)
+                    .frame(width: posterWidth, height: posterHeight)
+
+                CenteredPosterTitleOverlay(
+                    title: result.displayTitle,
+                    logoURL: result.animeLogoURL,
+                    fontSize: isTvOS ? 24 : 15
+                )
+            }
+            .frame(width: posterWidth, height: posterHeight)
+            .tvos({ view in
+                view.clipShape(RoundedRectangle(cornerRadius: metrics.cardRadius, style: .continuous))
+            }, else: { view in
+                view
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .shadow(color: .black.opacity(0.25), radius: posterShadowRadius, x: 0, y: 4)
+            })
+            .heroSource(id: heroID, namespace: heroNamespace)
 
             VStack(alignment: .leading, spacing: isTvOS ? 10 : 3) {
                 Text(result.displayTitle)
