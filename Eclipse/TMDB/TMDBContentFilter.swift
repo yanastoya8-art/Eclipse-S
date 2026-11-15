@@ -9,12 +9,12 @@ import Combine
 import Foundation
 
 enum MyDubListLanguage: String, CaseIterable, Identifiable, Sendable {
-    // Keep every language picker in sync with the two supported choices.
-    static var allCases: [MyDubListLanguage] { [.english, .spanish] }
-
     case english, spanish, german, french, italian, chinese, portuguese, korean
     case tagalog, arabic, polish, hindi, hungarian, hebrew, swedish, norwegian
     case dutch, thai, indonesian, russian, danish, finnish, turkish, catalan, vietnamese
+
+    // Keep every language picker in sync with the two supported choices.
+    static var allCases: [MyDubListLanguage] { [.english, .spanish] }
 
     var id: String { rawValue }
 
