@@ -2296,7 +2296,7 @@ struct MediaDetailContentView: View {
                         decodeSize: CGSize(width: max(bannerWidth * 0.56, 1), height: max(bannerHeight * 0.32, 1)),
                         contentMode: .fit
                     ) {
-                        iPadImmersiveBannerTitle
+                        Color.clear
                     }
                     .frame(maxWidth: bannerWidth * 0.62, maxHeight: bannerHeight * 0.34)
                 } else {
