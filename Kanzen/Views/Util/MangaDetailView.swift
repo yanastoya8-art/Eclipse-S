@@ -480,7 +480,7 @@ struct MangaDetailView: View {
                 .scaledToFill()
                 .frame(width: viewportWidth, height: stretchedHeight)
                 .clipped()
-                .blur(radius: max(readerDetailHeroBlurRadius, 12))
+                .blur(radius: readerDetailHeroBlurRadius)
                 .overlay(Color.black.opacity(experimental ? 0.30 : 0.42))
                 .accessibilityHidden(true)
 
