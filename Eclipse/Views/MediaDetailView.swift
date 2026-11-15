@@ -1920,6 +1920,11 @@ struct MediaDetailContentView: View {
                     macDetailRatings
                 }
 
+                if shouldShowHeroActions {
+                    macDetailActions
+                        .padding(.top, 4)
+                }
+
                 if shouldShowHeroOverview, let overview = currentOverviewText {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(overview)
@@ -1940,11 +1945,6 @@ struct MediaDetailContentView: View {
                             .foregroundStyle(.white.opacity(0.72))
                         }
                     }
-                }
-
-                if shouldShowHeroActions {
-                    macDetailActions
-                        .padding(.top, 4)
                 }
             }
             .frame(maxWidth: 660, alignment: .leading)
@@ -2756,16 +2756,16 @@ struct MediaDetailContentView: View {
 #endif
             }
 
-            if shouldShowHeroOverview {
-                experimentalHeroSynopsisSection
-                    .padding(.top, isTvOS ? 12 : (usesWideDetailLayout ? 2 : 0))
-            }
-
-            // Keep primary actions below the synopsis so they sit lower in the
-            // poster's title-safe area instead of competing with the artwork.
+            // Keep the synopsis below the primary action buttons in both
+            // portrait and wide detail layouts.
             if shouldShowHeroActions {
                 experimentalPlayAndBookmarkSection
                     .padding(.top, isTvOS ? 16 : (usesWideDetailLayout ? 6 : 2))
+            }
+
+            if shouldShowHeroOverview {
+                experimentalHeroSynopsisSection
+                    .padding(.top, isTvOS ? 12 : (usesWideDetailLayout ? 2 : 0))
             }
 
             if shouldShowHeroDetails {
