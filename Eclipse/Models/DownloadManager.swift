@@ -712,6 +712,24 @@ struct DirectDownloadCheckpoint: Codable, Equatable {
     }
 }
 
+enum DownloadSourceLinkPolicy {
+    /// Accept only direct web URLs. The same rule covers MP4, HLS, DASH,
+    /// MKV and extension-less provider streams without rewriting signed URLs.
+    static func copyableURL(_ rawValue: String) -> URL? {
+        let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty, value.utf8.count <= 16_384,
+              let components = URLComponents(string: value),
+              let scheme = components.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              let host = components.host, !host.isEmpty,
+              components.user == nil, components.password == nil,
+              let url = components.url else {
+            return nil
+        }
+        return url
+    }
+}
+
 enum DirectDownloadResumePolicy {
     static let chunkBytes: Int64 = 64 * 1024 * 1024
     static let maximumResumeDataBytes = 1024 * 1024
