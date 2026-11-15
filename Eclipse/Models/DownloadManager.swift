@@ -7948,7 +7948,7 @@ final class DownloadManager: NSObject, ObservableObject {
         downloads[index].hlsResumeSegmentIndex = nil
         downloads[index].hlsResumeByteCount = nil
         downloads[index].hlsResumeManifestSHA256 = nil
-        downloads[index].hlsDurableCheckpoint = nil
+        downloads[index].hlsDurableCheckpoint = BackgroundDownloadSettings.isEnabled() ? true : nil
         downloads[index].hlsVariantURL = nil
         downloads[index].hlsTotalSegments = nil
         downloads[index].progress = 0
