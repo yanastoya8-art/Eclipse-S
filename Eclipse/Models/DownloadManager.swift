@@ -2646,8 +2646,8 @@ final class DownloadManager: NSObject, ObservableObject {
     }
 
     /// Direct HTTP(S) media uses URLSession's OS-managed background transfer.
-    /// A continued-processing task keeps the progress Live Activity visible and
-    /// gives Eclipse runtime to report progress while the app is backgrounded.
+    /// A continued-processing task keeps Apple's system progress UI updated
+    /// and gives Eclipse runtime to report progress while the app is backgrounded.
     private func beginDirectBackgroundAttempt(id: String, item: DownloadItem, task: URLSessionDownloadTask) {
         guard Thread.isMainThread else {
             DispatchQueue.main.async { [weak self] in
