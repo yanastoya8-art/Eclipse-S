@@ -492,7 +492,7 @@ private struct HomeHeroSelectionView: View {
         List {
             Section {
                 HStack(spacing: 10) {
-                    TextField("Search movies and TV shows", text: $searchText)
+                    TextField("Search movies, TV shows, and anime", text: $searchText)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .onSubmit { search() }
@@ -602,7 +602,8 @@ private struct HomeHeroSelectionView: View {
         let isAnime = title.isTVShow && (
             title.isAnimeHint == true
                 || (title.genreIds?.contains(16) == true
-                    && title.originCountry?.contains(where: { $0.uppercased() == "JP" }) == true)
+                    && (title.originalLanguage?.lowercased() == "ja"
+                        || title.originCountry?.contains(where: { $0.uppercased() == "JP" }) == true))
         )
         let kind = title.isMovie ? "Movie" : (isAnime ? "Anime" : "TV Show")
         let year = title.displayDate.isEmpty ? nil : String(title.displayDate.prefix(4))
@@ -625,7 +626,8 @@ private struct HomeHeroSelectionView: View {
                     return result.isMovie
                         || result.isAnimeHint == true
                         || (result.genreIds?.contains(16) == true
-                            && result.originCountry?.contains(where: { $0.uppercased() == "JP" }) == true)
+                            && (result.originalLanguage?.lowercased() == "ja"
+                                || result.originCountry?.contains(where: { $0.uppercased() == "JP" }) == true))
                 }
             } catch {
                 guard !Task.isCancelled else { return }
