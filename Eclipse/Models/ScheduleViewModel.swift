@@ -751,6 +751,10 @@ final class ScheduleViewModel: ObservableObject {
             guard !AnimeSpecialFormatPolicy.shouldExclude(format: entry.format, enabled: hideAnimeSpecials) else {
                 return false
             }
+            // With no dub-language filter selected, preserve the existing
+            // schedule behavior while still applying the independent
+            // specials/OVAs preference above.
+            guard !selectedLanguages.isEmpty else { return true }
             // DubOnly entries are already verified English-dub timetable rows;
             // do not require a second, unrelated MyDubList lookup to retain them.
             if entry.provider == .dubOnly { return true }
