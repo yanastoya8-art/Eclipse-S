@@ -1439,6 +1439,15 @@ struct TMDBVideo: Codable, Identifiable {
         guard site.lowercased() == "youtube" else { return nil }
         return URL(string: "https://img.youtube.com/vi/\(key)/hqdefault.jpg")
     }
+
+    var thumbnailURLs: [String] {
+        guard site.lowercased() == "youtube" else { return [] }
+        return [
+            "https://img.youtube.com/vi/\(key)/maxresdefault.jpg",
+            "https://img.youtube.com/vi/\(key)/sddefault.jpg",
+            "https://img.youtube.com/vi/\(key)/hqdefault.jpg"
+        ]
+    }
 }
 
 struct TMDBCreditsResponse: Codable {
