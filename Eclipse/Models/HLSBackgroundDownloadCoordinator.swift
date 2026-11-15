@@ -5,7 +5,9 @@ enum BackgroundDownloadSettings {
     static let enabledKey = "hlsBackgroundDownloadsEnabled"
 
     static func isEnabled(defaults: UserDefaults = .standard) -> Bool {
-        defaults.bool(forKey: enabledKey)
+        // Background continuation is enabled by default for user-initiated downloads.
+        // Preserve an explicit opt-out saved by an existing installation.
+        defaults.object(forKey: enabledKey) as? Bool ?? true
     }
 }
 
