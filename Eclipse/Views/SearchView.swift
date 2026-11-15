@@ -421,6 +421,11 @@ struct SearchView: View {
         } message: {
             Text(randomErrorMessage ?? "Please try again.")
         }
+        .onChangeComp(of: searchFilter) { _, newFilter in
+            if newFilter == .anime && !searchText.isEmpty {
+                performSearch(force: true)
+            }
+        }
         .onChangeComp(of: selectedLanguage) { _, _ in
             if !searchText.isEmpty && !searchResults.isEmpty {
                 performSearch(force: true)
@@ -843,7 +848,18 @@ struct SearchView: View {
 
         Task {
             do {
-                let results = try await tmdbService.searchMulti(query: query)
+                var results = try await tmdbService.searchMulti(query: query)
+                let shouldSearchTVEndpoint = results.isEmpty
+                    || (searchFilter == .anime && !results.contains(where: isAnimeResult))
+                if shouldSearchTVEndpoint {
+                    if let tvResults = try? await tmdbService.searchTVShows(query: query) {
+                        var seen = Set(results.map(\.stableIdentity))
+                        let supplemental = tvResults
+                            .map(\.asSearchResult)
+                            .filter { seen.insert($0.stableIdentity).inserted }
+                        results.append(contentsOf: supplemental)
+                    }
+                }
                 let identityResolvedResults = await resolveSearchAnimeIdentities(results)
                 if !MyDubListDubFilter.shared.selectedLanguages.isEmpty,
                    !MyDubListDubFilter.shared.prepareCachedSnapshot() {
