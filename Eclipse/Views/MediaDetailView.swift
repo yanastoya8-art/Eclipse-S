@@ -2284,7 +2284,7 @@ struct MediaDetailContentView: View {
                     }
                     .frame(maxWidth: bannerWidth * 0.62, maxHeight: bannerHeight * 0.34)
                 } else {
-                    iPadImmersiveBannerTitle
+                    Color.clear
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
@@ -2294,17 +2294,6 @@ struct MediaDetailContentView: View {
         .clipped()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(searchResult.displayTitle)
-    }
-
-    private var iPadImmersiveBannerTitle: some View {
-        Text(searchResult.displayTitle)
-            .font(.system(size: min(max(detailViewportHeight * 0.095, 30), 58), weight: .heavy, design: .rounded))
-            .foregroundStyle(.white)
-            .multilineTextAlignment(.center)
-            .lineLimit(3)
-            .minimumScaleFactor(0.72)
-            .shadow(color: .black.opacity(0.88), radius: 10, x: 0, y: 4)
-            .fixedSize(horizontal: false, vertical: true)
     }
 
     @ViewBuilder
@@ -2564,21 +2553,11 @@ struct MediaDetailContentView: View {
                     height: min(max(headerHeight * 0.22, 72), 150)
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                .offset(y: -headerHeight * 0.015)
+                // Keep title artwork in the upper-middle of the poster and
+                // never substitute a second, plain-text title over the image.
+                .offset(y: -headerHeight * 0.10)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
-            } else {
-                Text(searchResult.displayTitle)
-                    .font(.system(size: min(max(headerHeight * 0.075, 25), 48), weight: .heavy, design: .rounded))
-                    .foregroundStyle(.white)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(3)
-                    .minimumScaleFactor(0.72)
-                    .shadow(color: .black.opacity(0.85), radius: 9, x: 0, y: 4)
-                    .padding(.horizontal, 22)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
             }
         }
     }
