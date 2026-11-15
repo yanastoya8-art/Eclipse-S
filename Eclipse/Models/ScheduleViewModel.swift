@@ -2294,15 +2294,28 @@ private actor JustWatchScheduleService {
     private var movieIDCache: [String: String] = [:]
     private var movieDateCache: [String: CachedMovieDates] = [:]
 
+    private static func effectiveScheduleLanguageCodes(_ selectedLanguages: Set<String>) -> Set<String>? {
+        let languageFilterEnabled = !selectedLanguages.isEmpty
+            || UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
+        guard languageFilterEnabled else { return nil }
+
+        let configuredCodes = Set(selectedLanguages.flatMap { raw in
+            MyDubListLanguage(rawValue: raw)?.episodeMetadataLanguageCodes.map { $0.lowercased() } ?? []
+        })
+        // The global content-language switch means English or Spanish native
+        // audio / dubbed availability even when the separate language picker
+        // has no explicit selections. Never interpret an enabled filter as
+        // "show every language".
+        return configuredCodes.isEmpty ? ["en", "es"] : configuredCodes
+    }
+
     func filterMovies(
         entries: [ScheduleEntry],
         selectedLanguages: Set<String>
     ) async -> [ScheduleEntry] {
-        guard !selectedLanguages.isEmpty else { return entries }
-        let selectedCodes = Set(selectedLanguages.flatMap { raw in
-            MyDubListLanguage(rawValue: raw)?.episodeMetadataLanguageCodes.map { $0.lowercased() } ?? []
-        })
-        guard !selectedCodes.isEmpty else { return entries }
+        guard let selectedCodes = Self.effectiveScheduleLanguageCodes(selectedLanguages) else {
+            return entries
+        }
         var filtered: [ScheduleEntry] = []
         for entry in entries {
             let nativeDate = Self.language(entry.originalLanguage, matches: selectedCodes) ? entry.airingAt : nil
@@ -2422,11 +2435,9 @@ private actor JustWatchScheduleService {
         entries: [ScheduleEntry],
         selectedLanguages: Set<String>
     ) async -> [ScheduleEntry] {
-        guard !selectedLanguages.isEmpty else { return entries }
-        let selectedCodes = Set(selectedLanguages.flatMap { raw in
-            MyDubListLanguage(rawValue: raw)?.episodeMetadataLanguageCodes.map { $0.lowercased() } ?? []
-        })
-        guard !selectedCodes.isEmpty else { return entries }
+        guard let selectedCodes = Self.effectiveScheduleLanguageCodes(selectedLanguages) else {
+            return entries
+        }
 
         let groups = Dictionary(grouping: entries, by: { entry in
             "\(entry.tmdbId.map(String.init) ?? "title")|\(entry.title.lowercased())|\(entry.releaseYear.map(String.init) ?? "0")"
