@@ -22,6 +22,8 @@
 	<string>$(ECLIPSE_MPVKIT_SOURCE_REVISION)</string>
 	<key>AnimeScheduleAPIToken</key>
 	<string>$(ANIMESCHEDULE_API_TOKEN)</string>
+	<key>DubsOnlyAPIKey</key>
+	<string>$(DUBSONLY_API_KEY)</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
