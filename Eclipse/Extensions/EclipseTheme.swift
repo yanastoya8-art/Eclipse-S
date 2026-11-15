@@ -3,9 +3,24 @@ import SwiftUI
 enum AtmosphereStyle: String, CaseIterable, Identifiable {
     case gradient
     case multiGradient
+    // Kept for migrating older profiles; Aurora and Ember are palette choices,
+    // not background rendering modes.
     case aurora
     case ember
     case solid
+
+    static let selectableCases: [AtmosphereStyle] = [.gradient, .multiGradient, .solid]
+    static var allCases: [AtmosphereStyle] { selectableCases }
+
+    static func sanitized(_ rawValue: String?, fallback: AtmosphereStyle = .gradient) -> AtmosphereStyle {
+        guard let rawValue, let style = AtmosphereStyle(rawValue: rawValue) else { return fallback }
+        switch style {
+        case .aurora, .ember:
+            return .multiGradient
+        case .gradient, .multiGradient, .solid:
+            return style
+        }
+    }
 
     var id: String { rawValue }
 
@@ -236,9 +251,9 @@ class EclipseTheme: ObservableObject {
 #if !os(tvOS)
         self.readerSettingsGradientColor = Self.loadColor(key: "readerThemeGradientColor") ?? Self.loadColor(key: "eclipseThemeGradientColor") ?? Self.gradientPresets[0].color
 #endif
-        self.atmosphereStyle = AtmosphereStyle(rawValue: styleRaw) ?? .gradient
+        self.atmosphereStyle = AtmosphereStyle.sanitized(styleRaw)
 #if !os(tvOS)
-        self.readerAtmosphereStyle = AtmosphereStyle(rawValue: readerStyleRaw) ?? .gradient
+        self.readerAtmosphereStyle = AtmosphereStyle.sanitized(readerStyleRaw)
 #endif
         self.atmosphereSolidColorSource = AtmosphereSolidColorSource(rawValue: sourceRaw) ?? .dominant
 #if !os(tvOS)
@@ -315,9 +330,9 @@ class EclipseTheme: ObservableObject {
             ?? Self.loadColor(key: "eclipseThemeGradientColor")
             ?? Self.gradientPresets[0].color
 #endif
-        atmosphereStyle = AtmosphereStyle(rawValue: styleRaw) ?? .gradient
+        atmosphereStyle = AtmosphereStyle.sanitized(styleRaw)
 #if !os(tvOS)
-        readerAtmosphereStyle = AtmosphereStyle(rawValue: readerStyleRaw) ?? .gradient
+        readerAtmosphereStyle = AtmosphereStyle.sanitized(readerStyleRaw)
 #endif
         atmosphereSolidColorSource = AtmosphereSolidColorSource(rawValue: sourceRaw) ?? .dominant
 #if !os(tvOS)
@@ -373,7 +388,7 @@ class EclipseTheme: ObservableObject {
     func reloadMediaAppearanceFromDefaults() {
         let defaults = ProfileSettingsStore.active
         let styleRaw = defaults.string(forKey: "atmosphereStyle") ?? Self.defaultAtmosphereStyle.rawValue
-        atmosphereStyle = AtmosphereStyle(rawValue: styleRaw) ?? Self.defaultAtmosphereStyle
+        atmosphereStyle = AtmosphereStyle.sanitized(styleRaw, fallback: Self.defaultAtmosphereStyle)
 
         let paletteRaw = defaults.string(forKey: AppearanceConfig.paletteKey) ?? AtmospherePaletteID.defaultValue.rawValue
         appearancePaletteRaw = paletteRaw

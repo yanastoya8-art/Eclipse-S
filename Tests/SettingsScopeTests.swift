@@ -8,6 +8,16 @@ final class SettingsScopeTests: XCTestCase {
         XCTAssertTrue(MediaDetailAgeRatingSettings.defaultEnabled)
     }
 
+    func testBackgroundStylePickerContainsOnlyThreeRenderingModes() {
+        XCTAssertEqual(AtmosphereStyle.selectableCases, [.gradient, .multiGradient, .solid])
+        XCTAssertEqual(AtmosphereStyle.allCases, [.gradient, .multiGradient, .solid])
+        XCTAssertEqual(AtmosphereStyle.sanitized("aurora"), .multiGradient)
+        XCTAssertEqual(AtmosphereStyle.sanitized("ember"), .multiGradient)
+        XCTAssertEqual(AtmosphereStyle.sanitized("gradient"), .gradient)
+        XCTAssertEqual(AtmosphereStyle.sanitized("multiGradient"), .multiGradient)
+        XCTAssertEqual(AtmosphereStyle.sanitized("solid"), .solid)
+    }
+
 
     func testPlaybackAndLibraryPreferencesKeepTheirDeclaredScopeAndTransportBounds() {
         let booleanKeys = ["autoplayNextEpisodeEnabled", "rememberPlaybackSelectionEnabled",
