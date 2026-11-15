@@ -5,7 +5,9 @@ enum BackgroundDownloadSettings {
     static let enabledKey = "hlsBackgroundDownloadsEnabled"
 
     static func isEnabled(defaults: UserDefaults = .standard) -> Bool {
-        defaults.bool(forKey: enabledKey)
+        // Background continuation is enabled by default for user-initiated downloads.
+        // Preserve an explicit opt-out saved by an existing installation.
+        defaults.object(forKey: enabledKey) as? Bool ?? true
     }
 }
 
@@ -34,6 +36,7 @@ final class HLSBackgroundDownloadCoordinator: HLSBackgroundDownloadScheduling {
 
     private final class Request {
         let token = UUID()
+        let title: String
         var attemptID: UUID?
         var onGranted: (() -> Bool)?
         var onExpiration: (() -> Void)?
@@ -43,11 +46,14 @@ final class HLSBackgroundDownloadCoordinator: HLSBackgroundDownloadScheduling {
 
         init(
             attemptID: UUID,
+            title: String,
             onGranted: @escaping () -> Bool,
             onExpiration: @escaping () -> Void,
             onRejected: @escaping () -> Void
         ) {
             self.attemptID = attemptID
+            let normalizedTitle = title.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+            self.title = String(normalizedTitle.prefix(64))
             self.onGranted = onGranted
             self.onExpiration = onExpiration
             self.onRejected = onRejected
@@ -104,10 +110,12 @@ final class HLSBackgroundDownloadCoordinator: HLSBackgroundDownloadScheduling {
             onRejected()
             return
         }
-        let request = Request(attemptID: attemptID, onGranted: onGranted, onExpiration: onExpiration, onRejected: onRejected)
+        let normalizedTitle = title.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        let safeTitle = String(normalizedTitle.prefix(64))
+        let request = Request(attemptID: attemptID, title: safeTitle.isEmpty ? "Downloading video" : safeTitle, onGranted: onGranted, onExpiration: onExpiration, onRejected: onRejected)
         slot.request = request
         log("requested", request: request, slot: slot)
-        let taskRequest = BGContinuedProcessingTaskRequest(identifier: slot.identifier, title: "Downloading video", subtitle: "Preparing download")
+        let taskRequest = BGContinuedProcessingTaskRequest(identifier: slot.identifier, title: request.title, subtitle: "Preparing download")
         taskRequest.strategy = .fail
         let token = request.token
         DispatchQueue.global(qos: .utility).async { [weak self, weak slot] in
@@ -138,7 +146,7 @@ final class HLSBackgroundDownloadCoordinator: HLSBackgroundDownloadScheduling {
         task.progress.totalUnitCount = boundedTotal
         task.progress.completedUnitCount = min(max(0, completed), boundedTotal)
         let displaySubtitle = subtitle.contains("://") ? "Downloading video" : String(subtitle.prefix(120))
-        task.updateTitle("Downloading video", subtitle: displaySubtitle)
+        task.updateTitle(request.title, subtitle: displaySubtitle)
     }
 
     func finish(attemptID: UUID, success: Bool) {
@@ -152,6 +160,7 @@ final class HLSBackgroundDownloadCoordinator: HLSBackgroundDownloadScheduling {
             task.expirationHandler = nil
             task.setTaskCompleted(success: success && !request.expired)
         } else {
+            slot.request = nil
             BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: slot.identifier)
         }
     }
@@ -172,6 +181,7 @@ final class HLSBackgroundDownloadCoordinator: HLSBackgroundDownloadScheduling {
             slot.request = nil
             onRejected?()
         } else if request.attemptID == nil {
+            slot.request = nil
             BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: slot.identifier)
         }
     }
