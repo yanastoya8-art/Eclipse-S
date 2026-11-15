@@ -763,7 +763,18 @@ struct SearchView: View {
                         .filter { $0.mediaType?.lowercased() != "movie" }
                         .first { $0.anilistId != nil }
                         ?? mappings.first { $0.anilistId != nil }
-                    guard let anilistID = mapping?.anilistId, anilistID > 0 else {
+                    let identity: AnimeMediaIdentitySeed?
+                    if let anilistID = mapping?.anilistId, anilistID > 0 {
+                        identity = AnimeMediaIdentitySeed(
+                            anilistId: anilistID,
+                            malId: mapping?.malId,
+                            kitsuId: mapping?.kitsuId,
+                            format: mapping?.mediaType
+                        )
+                    } else {
+                        identity = await AniListService.shared.searchAnimeIdentity(title: result.displayTitle)
+                    }
+                    guard let identity = identity?.sanitizedForPersistence else {
                         return (index, result)
                     }
                     let enriched = TMDBSearchResult(
@@ -784,12 +795,7 @@ struct SearchView: View {
                         originCountry: result.originCountry,
                         voteCount: result.voteCount,
                         isAnimeHint: true,
-                        animeIdentitySeed: AnimeMediaIdentitySeed(
-                            anilistId: anilistID,
-                            malId: mapping?.malId,
-                            kitsuId: mapping?.kitsuId,
-                            format: mapping?.mediaType
-                        ),
+                        animeIdentitySeed: identity,
                         animeArtworkURL: result.animeArtworkURL,
                         animeLogoURL: result.animeLogoURL,
                         tvMazePosterURL: result.tvMazePosterURL,
