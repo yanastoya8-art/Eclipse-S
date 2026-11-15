@@ -179,6 +179,7 @@ struct ScheduleEntry: Identifiable, Sendable {
     let nativeTitle: String?
     let format: String?
     let overview: String?
+    let metadataTags: [String]
     var hasKnownAiringTime: Bool
     var isStreamingRelease: Bool
     let tmdbId: Int?
@@ -217,6 +218,7 @@ struct ScheduleEntry: Identifiable, Sendable {
         nativeTitle = animeEntry.nativeTitle
         format = animeEntry.format
         overview = nil
+        metadataTags = animeEntry.tags ?? []
         hasKnownAiringTime = animeEntry.hasKnownAiringTime
         isStreamingRelease = false
         tmdbId = nil
@@ -245,6 +247,7 @@ struct ScheduleEntry: Identifiable, Sendable {
         nativeTitle = nil
         format = nil
         overview = westernEpisode.show.summary
+        metadataTags = []
         hasKnownAiringTime = airing.hasKnownAiringTime
         isStreamingRelease = westernEpisode.show.webChannel != nil
         tmdbId = nil
@@ -275,6 +278,7 @@ struct ScheduleEntry: Identifiable, Sendable {
         nativeTitle = nil
         format = nil
         overview = tmdbDetail?.overview
+        metadataTags = []
         hasKnownAiringTime = true
         isStreamingRelease = false
         tmdbId = traktItem.show.ids.tmdb
@@ -303,6 +307,7 @@ struct ScheduleEntry: Identifiable, Sendable {
         nativeTitle = nil
         format = "MOVIE"
         overview = nil
+        metadataTags = []
         hasKnownAiringTime = false
         isStreamingRelease = false
         tmdbId = movie.ids.tmdb
@@ -329,6 +334,7 @@ struct ScheduleEntry: Identifiable, Sendable {
         nativeTitle = nil
         format = "MOVIE"
         overview = movie.overview
+        metadataTags = []
         hasKnownAiringTime = false
         isStreamingRelease = false
         tmdbId = movie.id
