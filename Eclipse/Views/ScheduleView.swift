@@ -48,7 +48,8 @@ struct ScheduleView: View {
                     entry.englishTitle,
                     entry.romajiTitle,
                     entry.nativeTitle,
-                    entry.format
+                    entry.format,
+                    entry.metadataTags.joined(separator: " ")
                 ]
                 .compactMap { $0 }
                 .joined(separator: " ")
