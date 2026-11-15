@@ -1357,6 +1357,7 @@ private struct BrowseMediaView: View {
     @State private var unfilteredResults: [TMDBSearchResult] = []
     @State private var filterRefreshTask: Task<Void, Never>?
     @State private var filterRefreshGeneration = 0
+    @State private var filterRefreshPending = false
     @State private var currentPage = 1
     @State private var hasMorePages = true
     @State private var isLoading = false
@@ -1583,6 +1584,9 @@ private struct BrowseMediaView: View {
         .onAppear {
             if results.isEmpty && !isLoading {
                 reloadResults()
+            } else if filterRefreshPending && !isLoading {
+                filterRefreshPending = false
+                reapplyCurrentFiltersToRetainedResults()
             }
         }
         .onDisappear {
@@ -2040,6 +2044,7 @@ private struct BrowseMediaView: View {
         filterRefreshGeneration += 1
         filterRefreshTask?.cancel()
         filterRefreshTask = nil
+        filterRefreshPending = false
         currentPage = 1
         hasMorePages = true
         unfilteredResults = []
@@ -2060,6 +2065,10 @@ private struct BrowseMediaView: View {
 
     private func reapplyCurrentFiltersToRetainedResults() {
         guard !unfilteredResults.isEmpty else { return }
+        guard !isLoading else {
+            filterRefreshPending = true
+            return
+        }
 
         filterRefreshGeneration += 1
         let generation = filterRefreshGeneration
@@ -2181,6 +2190,11 @@ private struct BrowseMediaView: View {
                     currentPage = page
                     hasMorePages = pageResult.hasMore
                     isLoading = false
+
+                    if filterRefreshPending {
+                        filterRefreshPending = false
+                        reapplyCurrentFiltersToRetainedResults()
+                    }
 
                     if hasMorePages && results.count < 12 && page < 8 {
                         loadNextPage()
