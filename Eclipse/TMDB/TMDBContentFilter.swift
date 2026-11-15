@@ -1125,6 +1125,7 @@ class TMDBContentFilter: ObservableObject {
         animeEligibilityLock.lock()
         animeAgeRatingsByID[id] = rating
         animeAgeLoadingIDs.remove(id)
+        animeAgeRetryAfterByID.removeValue(forKey: id)
         animeAgeCheckedIDs.insert(id)
         animeEligibilityLock.unlock()
     }
