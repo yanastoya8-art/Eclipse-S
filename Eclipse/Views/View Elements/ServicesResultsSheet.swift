@@ -22,7 +22,9 @@ private func copyProviderDownloadURL(_ rawURL: String, headers: [String: String]
     guard let sourceURL = URL(string: rawURL),
           let scheme = sourceURL.scheme?.lowercased(),
           scheme == "http" || scheme == "https",
-          !["m3u8", "mpd"].contains(sourceURL.pathExtension.lowercased()) else { return }
+          sourceURL.host != nil,
+          sourceURL.user == nil,
+          sourceURL.password == nil else { return }
 
     // A headerless source is already a usable external download URL. Do not
     // replace it with a temporary LAN proxy address that stops working when
@@ -2497,12 +2499,10 @@ struct ModulesSearchResultsSheet: View {
                 } label: {
                     Label("Copy Stream URL", systemImage: "doc.on.doc")
                 }
-                if !["m3u8", "mpd"].contains(URL(string: url)?.pathExtension.lowercased() ?? "") {
-                    Button {
-                        copyProviderDownloadURL(url)
-                    } label: {
-                        Label("Copy Download URL", systemImage: "arrow.down.doc")
-                    }
+                Button {
+                    copyProviderDownloadURL(url)
+                } label: {
+                    Label("Copy Download URL", systemImage: "arrow.down.doc")
                 }
             }
         }
@@ -8023,12 +8023,10 @@ struct ModulesSearchResultsSheet: View {
             } label: {
                 Label("Copy Stream URL", systemImage: "doc.on.doc")
             }
-            if !["m3u8", "mpd"].contains(URL(string: stream.option.url)?.pathExtension.lowercased() ?? "") {
-                Button {
-                    copyProviderDownloadURL(stream.option.url, headers: stream.option.headers)
-                } label: {
-                    Label("Copy Download URL", systemImage: "arrow.down.doc")
-                }
+            Button {
+                copyProviderDownloadURL(stream.option.url, headers: stream.option.headers)
+            } label: {
+                Label("Copy Download URL", systemImage: "arrow.down.doc")
             }
         }
 #endif
@@ -8390,12 +8388,10 @@ struct ModulesSearchResultsSheet: View {
             } label: {
                 Label("Copy Stream URL", systemImage: "doc.on.doc")
             }
-            if !["m3u8", "mpd"].contains(URL(string: stream.option.url)?.pathExtension.lowercased() ?? "") {
-                Button {
-                    copyProviderDownloadURL(stream.option.url, headers: stream.option.headers)
-                } label: {
-                    Label("Copy Download URL", systemImage: "arrow.down.doc")
-                }
+            Button {
+                copyProviderDownloadURL(stream.option.url, headers: stream.option.headers)
+            } label: {
+                Label("Copy Download URL", systemImage: "arrow.down.doc")
             }
         }
 #endif
