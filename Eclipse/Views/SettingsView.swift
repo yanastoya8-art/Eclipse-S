@@ -658,6 +658,13 @@ struct SettingsView: View {
 
                 GlassSection(header: "Data") {
                     VStack(spacing: 0) {
+                        NavigationLink(destination: settingsSearchableContent(DownloadsSettingsView())) {
+                            GlassSettingsRow(icon: "arrow.down.circle.fill", iconColor: .blue, title: "Downloads")
+                        }
+                        .buttonStyle(.plain)
+
+                        GlassDivider()
+
                         NavigationLink(destination: settingsSearchableContent(StorageView())) {
                             GlassSettingsRow(icon: "internaldrive", iconColor: .gray, title: "Storage")
                         }
