@@ -1333,7 +1333,7 @@ class TMDBContentFilter: ObservableObject {
             && calendar.startOfDay(for: releaseDate) > calendar.startOfDay(for: Date())
     }
 
-    private static func isUnofficialCreatorContent(title: String, overview: String?) -> Bool {
+    static func isUnofficialCreatorContent(title: String, overview: String?) -> Bool {
         let text = normalizedCatalogText([title, overview ?? ""].joined(separator: " "))
         let indicators = [
             "fan made", "fanmade", "fan film", "fan films", "fan fiction", "fanfiction",
