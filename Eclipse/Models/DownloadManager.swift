@@ -2649,7 +2649,7 @@ final class DownloadManager: NSObject, ObservableObject {
         directBackgroundAttempts[id] = attempt
         scheduler.request(
             attemptID: attempt.attemptID,
-            title: item.displayTitle,
+            title: "Downloading \(item.displayTitle)",
             onGranted: { [weak self, weak attempt] in
                 guard let self, let attempt,
                       self.directBackgroundAttempts[id] === attempt,
