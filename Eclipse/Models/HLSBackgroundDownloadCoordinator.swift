@@ -34,6 +34,7 @@ final class HLSBackgroundDownloadCoordinator: HLSBackgroundDownloadScheduling {
 
     private final class Request {
         let token = UUID()
+        let title: String
         var attemptID: UUID?
         var onGranted: (() -> Bool)?
         var onExpiration: (() -> Void)?
@@ -43,11 +44,13 @@ final class HLSBackgroundDownloadCoordinator: HLSBackgroundDownloadScheduling {
 
         init(
             attemptID: UUID,
+            title: String,
             onGranted: @escaping () -> Bool,
             onExpiration: @escaping () -> Void,
             onRejected: @escaping () -> Void
         ) {
             self.attemptID = attemptID
+            self.title = String(title.trimmingCharacters(in: .whitespacesAndNewlines).prefix(72))
             self.onGranted = onGranted
             self.onExpiration = onExpiration
             self.onRejected = onRejected
@@ -104,10 +107,11 @@ final class HLSBackgroundDownloadCoordinator: HLSBackgroundDownloadScheduling {
             onRejected()
             return
         }
-        let request = Request(attemptID: attemptID, onGranted: onGranted, onExpiration: onExpiration, onRejected: onRejected)
+        let safeTitle = String(title.trimmingCharacters(in: .whitespacesAndNewlines).prefix(72))
+        let request = Request(attemptID: attemptID, title: safeTitle.isEmpty ? "Downloading video" : safeTitle, onGranted: onGranted, onExpiration: onExpiration, onRejected: onRejected)
         slot.request = request
         log("requested", request: request, slot: slot)
-        let taskRequest = BGContinuedProcessingTaskRequest(identifier: slot.identifier, title: "Downloading video", subtitle: "Preparing download")
+        let taskRequest = BGContinuedProcessingTaskRequest(identifier: slot.identifier, title: request.title, subtitle: "Preparing download")
         taskRequest.strategy = .fail
         let token = request.token
         DispatchQueue.global(qos: .utility).async { [weak self, weak slot] in
@@ -138,7 +142,7 @@ final class HLSBackgroundDownloadCoordinator: HLSBackgroundDownloadScheduling {
         task.progress.totalUnitCount = boundedTotal
         task.progress.completedUnitCount = min(max(0, completed), boundedTotal)
         let displaySubtitle = subtitle.contains("://") ? "Downloading video" : String(subtitle.prefix(120))
-        task.updateTitle("Downloading video", subtitle: displaySubtitle)
+        task.updateTitle(request.title, subtitle: displaySubtitle)
     }
 
     func finish(attemptID: UUID, success: Bool) {
