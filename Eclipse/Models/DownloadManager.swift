@@ -2684,15 +2684,30 @@ final class DownloadManager: NSObject, ObservableObject {
         guard let attempt = directBackgroundAttempts[id],
               attempt.granted, !attempt.revoked,
               let item = downloads.first(where: { $0.id == id }) else { return }
-        let total = item.totalBytes > 0 ? item.totalBytes : 1_000
-        let completed = item.totalBytes > 0
-            ? min(max(item.downloadedBytes, 0), total)
-            : Int64(Double(total) * min(max(progress ?? item.progress, 0), 1))
+        let total: Int64
+        let completed: Int64
+        let subtitle: String
+        if item.totalBytes > 0 {
+            total = item.totalBytes
+            completed = min(max(item.downloadedBytes, 0), total)
+            subtitle = item.formattedSize
+        } else {
+            // Unknown Content-Length: use a monotonic byte-based progress
+            // estimate and show the exact transferred byte count in the subtitle.
+            let downloaded = max(item.downloadedBytes, 0)
+            total = max(downloaded + 1_000_000_000, 1_000_000_000)
+            completed = downloaded > 0
+                ? downloaded
+                : Int64(Double(total) * min(max(progress ?? item.progress, 0), 1))
+            subtitle = downloaded > 0
+                ? "\(DownloadByteCountFormatter.string(fromByteCount: downloaded)) downloaded"
+                : stage
+        }
         hlsBackgroundScheduler?.updateProgress(
             attemptID: attempt.attemptID,
             completed: completed,
             total: total,
-            subtitle: item.totalBytes > 0 ? item.formattedSize : stage
+            subtitle: subtitle
         )
     }
 
