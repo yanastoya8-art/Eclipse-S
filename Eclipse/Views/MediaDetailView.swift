@@ -3812,14 +3812,15 @@ struct MediaDetailContentView: View {
     private func experimentalTrailerCard(_ trailer: TMDBVideo) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             ZStack {
-                if let thumbnailURL = trailer.thumbnailURL {
-                    KFImage(thumbnailURL)
-                        .placeholder {
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .fill(Color.white.opacity(0.08))
-                        }
-                        .resizable()
-                        .aspectRatio(16/9, contentMode: .fill)
+                if !trailer.thumbnailURLs.isEmpty {
+                    ResilientArtworkImage(
+                        urls: trailer.thumbnailURLs,
+                        decodeSize: homeImageDecodeSize(width: experimentalExtrasCardWidth, height: experimentalExtrasCardHeight),
+                        contentMode: .fill
+                    ) {
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color.white.opacity(0.08))
+                    }
                 } else {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .fill(Color.white.opacity(0.08))
