@@ -3852,7 +3852,7 @@ struct MyDubListDubsSettingsView: View {
 
                 GlassSection(header: "Available Dub Languages") {
                     VStack(spacing: 0) {
-                        ForEach(Array(MyDubListLanguage.allCases.enumerated()), id: \.element.id) { index, language in
+                        ForEach(Array(MyDubListLanguage.allCases.filter { MyDubListDubFilter.supportedLanguages.contains($0.rawValue) }.enumerated()), id: \.element.id) { index, language in
                             GlassSelectionRow(
                                 title: language.displayName,
                                 subtitle: language.rawValue.capitalized,
@@ -3861,7 +3861,7 @@ struct MyDubListDubsSettingsView: View {
                             ) {
                                 toggle(language)
                             }
-                            if index < MyDubListLanguage.allCases.count - 1 {
+                            if index < MyDubListDubFilter.supportedLanguages.count - 1 {
                                 GlassDivider(leadingInset: 16)
                             }
                         }
