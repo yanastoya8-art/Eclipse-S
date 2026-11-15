@@ -1396,6 +1396,19 @@ struct HomeView: View {
             heroGradientOverlay
                 .allowsHitTesting(false)
 
+            if let hero = homeViewModel.heroContent {
+                CenteredPosterTitleOverlay(
+                    title: hero.displayTitle,
+                    logoURL: hero.animeLogoURL ?? heroLogoURL,
+                    fontSize: usesWideHomeLayout ? 34 : 24
+                )
+                .frame(maxWidth: usesWideHomeLayout ? 760 : 520)
+                .frame(height: min(max(heroHeight * 0.24, 112), 190))
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                .padding(.horizontal, 20)
+                .accessibilityLabel(hero.displayTitle)
+            }
+
             heroContentInfo
                 .id("hero-content-\(heroIdentity)")
                 .transition(.opacity)
@@ -1487,11 +1500,6 @@ struct HomeView: View {
     @ViewBuilder
     private func experimentalHeroContent(_ hero: TMDBSearchResult) -> some View {
         VStack(alignment: .center, spacing: isTvOS ? 20 : (usesWideHomeLayout ? 13 : 10)) {
-            if experimentalHeroShouldShowTitle(hero) {
-                heroTitleArtwork(hero)
-                    .padding(.horizontal, isTvOS ? 60 : (usesWideHomeLayout ? 90 : 24))
-            }
-
             Text(experimentalMetadataLine(hero))
                 .font(.system(size: isTvOS ? 29 : (usesWideHomeLayout ? 20 : 17), weight: .medium))
                 .foregroundColor(.white.opacity(0.92))
@@ -1567,8 +1575,6 @@ struct HomeView: View {
                     .applyLiquidGlassBackground(cornerRadius: 12)
                 }
             }
-
-            heroTitleArtwork(hero)
 
             if let overview = hero.overview, !overview.isEmpty {
                 Text(String(overview.prefix(100)) + (overview.count > 100 ? "..." : ""))
@@ -1687,12 +1693,6 @@ struct HomeView: View {
         return [date, kind].compactMap { $0 }.joined(separator: " \u{00B7} ")
     }
 
-    private func experimentalHeroShouldShowTitle(_ hero: TMDBSearchResult) -> Bool {
-        // The selected poster is the title artwork. Render a text title only
-        // when no poster is available, rather than waiting for a separate logo request.
-        hero.fullPosterURL == nil
-    }
-
     private func heroOverview(_ hero: TMDBSearchResult) -> String? {
         guard let rawOverview = hero.overview?.trimmingCharacters(in: .whitespacesAndNewlines),
               !rawOverview.isEmpty else { return nil }
@@ -1764,7 +1764,7 @@ struct HomeView: View {
 
     private func heroImageURL(for hero: TMDBSearchResult) -> String? {
         // Keep one poster asset as the source of truth for Home and Detail.
-        return hero.fullPosterURL ?? hero.animeArtworkURL ?? hero.fullBackdropURL
+        return PosterArtworkURLResolver.bestPosterURL(for: hero) ?? hero.fullBackdropURL
     }
 
     private func heroImageFallbackURLs(for hero: TMDBSearchResult) -> [String] {
@@ -1772,42 +1772,9 @@ struct HomeView: View {
         let tmdbPoster = hero.posterPath.flatMap {
             TMDBImageRequestPolicy.urlString(for: $0, kind: .poster)
         }
-        return [tmdbPoster, hero.animeArtworkURL, hero.fullBackdropURL]
-            .compactMap { $0 }
+        return PosterArtworkURLResolver.candidates(for: hero)
             .filter { $0 != primary }
-    }
-
-    @ViewBuilder
-    private func heroTitleArtwork(_ hero: TMDBSearchResult) -> some View {
-        if let logoURL = hero.animeLogoURL ?? heroLogoURL, !logoURL.isEmpty {
-            ResilientArtworkImage(
-                urls: [logoURL],
-                decodeSize: heroLogoDecodeSize,
-                contentMode: .fit
-            ) {
-                heroTitleText(hero)
-            }
-            .frame(width: heroLogoMaxWidth, height: heroLogoMaxHeight)
-            .frame(maxWidth: .infinity, alignment: .center)
-            .accessibilityLabel(hero.displayTitle)
-        } else {
-            heroTitleText(hero)
-        }
-    }
-
-    @ViewBuilder
-    private func heroTitleText(_ hero: TMDBSearchResult) -> some View {
-        Text(hero.displayTitle)
-            .font(
-                ExperimentalFeatureState.isEnabledAtLaunch
-                    ? .system(size: isTvOS ? 76 : (usesWideHomeLayout ? 52 : 40), weight: .heavy)
-                    : .system(size: isTvOS ? 40 : 25)
-            )
-            .fontWeight(.bold)
-            .shadow(color: .black.opacity(0.6), radius: 8, x: 0, y: 4)
-            .foregroundColor(.white)
-            .lineLimit(2)
-            .multilineTextAlignment(.center)
+            + [tmdbPoster, hero.fullBackdropURL].compactMap { $0 }.filter { $0 != primary }
     }
 
     @ViewBuilder
@@ -3102,7 +3069,7 @@ struct ExperimentalMediaCard: View {
         case .landscape, .automatic:
             return result.fullBackdropURL ?? result.fullPosterURL ?? ""
         case .poster:
-            return result.fullPosterURL ?? result.fullBackdropURL ?? ""
+            return PosterArtworkURLResolver.bestPosterURL(for: result) ?? result.fullBackdropURL ?? ""
         }
     }
 
@@ -3114,11 +3081,13 @@ struct ExperimentalMediaCard: View {
                 mediaImage
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(result.displayTitle)
-                        .font(.system(size: resolvedStyle == .poster ? (usesWideHomeLayout ? 19 : 17) : (usesWideHomeLayout ? 21 : 20), weight: .medium))
-                        .foregroundColor(.white)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.82)
+                    if resolvedStyle != .poster {
+                        Text(result.displayTitle)
+                            .font(.system(size: usesWideHomeLayout ? 21 : 20, weight: .medium))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.82)
+                    }
 
                     HomeCardSubtitle(result: result)
                         .font(.system(size: usesWideHomeLayout ? 16 : 15, weight: .regular))
@@ -3133,24 +3102,46 @@ struct ExperimentalMediaCard: View {
     }
 
     private var mediaImage: some View {
-        KFImage(URL(string: imageURL))
-            .setProcessor(DownsamplingImageProcessor(size: homeImageDecodeSize(width: cardSize.width, height: cardSize.height)))
-            .placeholder {
-                FallbackImageView(
-                    isMovie: result.isMovie,
-                    size: cardSize
+        ZStack {
+            if resolvedStyle == .poster {
+                ResilientArtworkImage(
+                    urls: PosterArtworkURLResolver.candidates(for: result),
+                    decodeSize: homeImageDecodeSize(width: cardSize.width, height: cardSize.height),
+                    contentMode: .fill
+                ) {
+                    FallbackImageView(isMovie: result.isMovie, size: cardSize)
+                }
+                .frame(width: cardSize.width, height: cardSize.height)
+            } else {
+                KFImage(URL(string: imageURL))
+                    .setProcessor(DownsamplingImageProcessor(size: homeImageDecodeSize(width: cardSize.width, height: cardSize.height)))
+                    .placeholder {
+                        FallbackImageView(
+                            isMovie: result.isMovie,
+                            size: cardSize
+                        )
+                    }
+                    .resizable()
+                    .aspectRatio(imageAspectRatio, contentMode: .fill)
+                    .frame(width: cardSize.width, height: cardSize.height)
+            }
+
+            if resolvedStyle == .poster {
+                CenteredPosterTitleOverlay(
+                    title: result.displayTitle,
+                    logoURL: result.animeLogoURL,
+                    fontSize: usesWideHomeLayout ? 20 : 15
                 )
             }
-            .resizable()
-            .aspectRatio(imageAspectRatio, contentMode: .fill)
-            .frame(width: cardSize.width, height: cardSize.height)
-            .clipShape(RoundedRectangle(cornerRadius: metrics.cardRadius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: metrics.cardRadius, style: .continuous)
-                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
-            )
-            .shadow(color: .black.opacity(0.28), radius: 14, x: 0, y: 8)
-            .heroSource(id: heroID, namespace: heroNamespace)
+        }
+        .frame(width: cardSize.width, height: cardSize.height)
+        .clipShape(RoundedRectangle(cornerRadius: metrics.cardRadius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: metrics.cardRadius, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.28), radius: 14, x: 0, y: 8)
+        .heroSource(id: heroID, namespace: heroNamespace)
     }
 }
 
@@ -3232,44 +3223,36 @@ struct MediaCard: View {
 
     private var posterCard: some View {
         VStack(alignment: .leading, spacing: 6) {
-            KFImage(URL(string: result.fullPosterURL ?? ""))
-                .setProcessor(DownsamplingImageProcessor(size: homeImageDecodeSize(width: posterWidth, height: posterHeight)))
-                .placeholder {
+            ZStack {
+                ResilientArtworkImage(
+                    urls: PosterArtworkURLResolver.candidates(for: result),
+                    decodeSize: homeImageDecodeSize(width: posterWidth, height: posterHeight),
+                    contentMode: .fill
+                ) {
                     FallbackImageView(
                         isMovie: result.isMovie,
                         size: CGSize(width: posterWidth, height: posterHeight)
                     )
                 }
-                .resizable()
-                .aspectRatio(2/3, contentMode: .fill)
-                .tvos({ view in
-                    view
-                        .frame(width: posterWidth, height: posterHeight)
-                        .clipShape(RoundedRectangle(cornerRadius: metrics.cardRadius, style: .continuous))
-                }, else: { view in
-                    view
-                        .frame(width: posterWidth, height: posterHeight)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                        .shadow(color: .black.opacity(0.25), radius: posterShadowRadius, x: 0, y: 4)
-                })
-                .heroSource(id: heroID, namespace: heroNamespace)
+                .frame(width: posterWidth, height: posterHeight)
+
+                CenteredPosterTitleOverlay(
+                    title: result.displayTitle,
+                    logoURL: result.animeLogoURL,
+                    fontSize: isTvOS ? 24 : 15
+                )
+            }
+            .frame(width: posterWidth, height: posterHeight)
+            .tvos({ view in
+                view.clipShape(RoundedRectangle(cornerRadius: metrics.cardRadius, style: .continuous))
+            }, else: { view in
+                view
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .shadow(color: .black.opacity(0.25), radius: posterShadowRadius, x: 0, y: 4)
+            })
+            .heroSource(id: heroID, namespace: heroNamespace)
 
             VStack(alignment: .leading, spacing: isTvOS ? 10 : 3) {
-                Text(result.displayTitle)
-                    .tvos({ view in
-                        view
-                            .foregroundColor(.white.opacity(0.88))
-                            .font(.system(size: 27, weight: .semibold))
-                    }, else: { view in
-                        view
-                            .foregroundColor(.white)
-                            .fontWeight(.medium)
-                            .font(.caption)
-                    })
-                    .lineLimit(1)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity, alignment: .center)
-
                 HStack(alignment: .center, spacing: isTvOS ? 18 : 8) {
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Image(systemName: "star.fill")
