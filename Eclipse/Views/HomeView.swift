@@ -1764,7 +1764,7 @@ struct HomeView: View {
 
     private func heroImageURL(for hero: TMDBSearchResult) -> String? {
         // Keep one poster asset as the source of truth for Home and Detail.
-        return hero.fullPosterURL ?? hero.animeArtworkURL ?? hero.fullBackdropURL
+        return PosterArtworkURLResolver.bestPosterURL(for: hero) ?? hero.fullBackdropURL
     }
 
     private func heroImageFallbackURLs(for hero: TMDBSearchResult) -> [String] {
@@ -3102,7 +3102,7 @@ struct ExperimentalMediaCard: View {
         case .landscape, .automatic:
             return result.fullBackdropURL ?? result.fullPosterURL ?? ""
         case .poster:
-            return result.fullPosterURL ?? result.fullBackdropURL ?? ""
+            return PosterArtworkURLResolver.bestPosterURL(for: result) ?? result.fullBackdropURL ?? ""
         }
     }
 
@@ -3244,7 +3244,7 @@ struct MediaCard: View {
     private var posterCard: some View {
         VStack(alignment: .leading, spacing: 6) {
             ZStack {
-                KFImage(URL(string: result.fullPosterURL ?? ""))
+                KFImage(URL(string: PosterArtworkURLResolver.bestPosterURL(for: result) ?? ""))
                     .setProcessor(DownsamplingImageProcessor(size: homeImageDecodeSize(width: posterWidth, height: posterHeight)))
                     .placeholder {
                         FallbackImageView(
