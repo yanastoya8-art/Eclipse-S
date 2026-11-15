@@ -199,6 +199,16 @@ jobs:
             printf '%s\n' 'MAL_REDIRECT_URI = luna:/$()/mal-callback'
           } > Build.local.xcconfig
 
+      - name: Cache Swift package repositories and binary artifacts
+        uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4
+        with:
+          path: |
+            ${{ runner.temp }}/SourcePackages/repositories
+            ${{ runner.temp }}/SourcePackages/artifacts
+          key: swiftpm-${{ runner.os }}-${{ hashFiles('**/Package.resolved') }}-${{ hashFiles('Eclipse.xcodeproj/project.pbxproj') }}
+          restore-keys: |
+            swiftpm-${{ runner.os }}-
+
       - name: Resolve Swift packages
         env:
           MPVKIT_SOURCE_REVISION: fee7aa27869ed4775ff2984de4438484d902e67b
