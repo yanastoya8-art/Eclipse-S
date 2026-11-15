@@ -1008,6 +1008,14 @@ final class HomeViewModel: ObservableObject {
     }
 
     private func heroCandidates(for catalogId: String) -> [TMDBSearchResult] {
+        if catalogId == "anime" {
+            let animeCatalogIDs = ["trendingAnime", "popularAnime", "topRatedAnime", "airingAnime", "bestAnime"]
+            var seen = Set<String>()
+            return animeCatalogIDs
+                .flatMap { catalogResults[$0] ?? [] }
+                .filter { seen.insert($0.stableIdentity).inserted }
+        }
+
         if let items = catalogResults[catalogId], !items.isEmpty {
             return items
         }
