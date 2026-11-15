@@ -366,6 +366,35 @@ final class NormalPlayer: UIViewController, AVPlayerViewControllerDelegate, AVPi
 
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
+
+        // A full-screen player can receive a disappearance callback while UIKit
+        // is reconfiguring its presentation during a size/orientation transition.
+        // Do not treat that as a user closing playback: the view may be attached
+        // again as soon as the transition completes.
+        let isExplicitlyClosing = isBeingDismissed
+            || navigationController?.isBeingDismissed == true
+            || presentingViewController?.isBeingDismissed == true
+            || isMovingFromParent
+        guard isExplicitlyClosing else {
+            let transition = transitionCoordinator
+            let restorePlayerCoverage = { [weak self] in
+                guard let self,
+                      !self.isBeingDismissed,
+                      self.viewIfLoaded?.window != nil else { return }
+                self.hasViewDisappeared = false
+                self.postPlayerInterfaceCoverage(covered: true)
+                self.applyPlaybackLockState(capturingOrientationIfNeeded: false)
+            }
+            if let transition, transition.isAnimated {
+                transition.animate(alongsideTransition: nil) { _ in
+                    DispatchQueue.main.async(execute: restorePlayerCoverage)
+                }
+            } else {
+                DispatchQueue.main.async(execute: restorePlayerCoverage)
+            }
+            return
+        }
+
         postPlayerInterfaceCoverage(covered: false)
 #if os(iOS)
         if let scene = view.window?.windowScene ?? playerInterfaceWindowScene {
@@ -373,7 +402,6 @@ final class NormalPlayer: UIViewController, AVPlayerViewControllerDelegate, AVPi
         }
         hasViewDisappeared = true
         if isPictureInPictureActiveOrStarting {
-
             return
         }
 #endif
