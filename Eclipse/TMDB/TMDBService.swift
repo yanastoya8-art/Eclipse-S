@@ -1928,7 +1928,9 @@ class TMDBService: ObservableObject {
         }
 
         do {
+            try Task.checkCancellation()
             let primary = try await fetch(language: currentLanguage)
+            try Task.checkCancellation()
             var combined = primary
             // TMDB video records are localized. If the selected UI language has
             // no playable trailer, fall back to the original English trailer
@@ -1936,6 +1938,7 @@ class TMDBService: ObservableObject {
             if currentLanguage.caseInsensitiveCompare("en-US") != .orderedSame,
                !primary.contains(where: { $0.isTrailerLike && $0.playbackURL != nil }) {
                 let fallback = (try? await fetch(language: "en-US")) ?? []
+                try Task.checkCancellation()
                 var seen = Set(primary.map { "\($0.site.lowercased()):\($0.key)" })
                 for video in fallback {
                     let identity = "\(video.site.lowercased()):\(video.key)"
@@ -1954,9 +1957,13 @@ class TMDBService: ObservableObject {
                 }
                 return (lhs.publishedAt ?? "") > (rhs.publishedAt ?? "")
             }
+            try Task.checkCancellation()
             detailCache.set(key: cacheKey, value: sorted)
             return sorted
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
+            if Task.isCancelled { throw CancellationError() }
             throw TMDBError.networkError(error)
         }
     }
