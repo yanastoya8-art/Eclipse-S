@@ -5,11 +5,11 @@ import XCTest
 
 @MainActor
 final class HLSBackgroundDownloadTests: XCTestCase {
-    func testBackgroundSettingDefaultsOffInIsolatedDefaults() throws {
+    func testBackgroundSettingDefaultsOnInIsolatedDefaults() throws {
         let name = "HLSBackgroundDownloadTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
-        XCTAssertFalse(HLSBackgroundDownloadSettings.isEnabled(defaults: defaults))
+        XCTAssertTrue(HLSBackgroundDownloadSettings.isEnabled(defaults: defaults))
         defaults.set(true, forKey: HLSBackgroundDownloadSettings.enabledKey)
         XCTAssertTrue(HLSBackgroundDownloadSettings.isEnabled(defaults: defaults))
         defaults.set(false, forKey: HLSBackgroundDownloadSettings.enabledKey)
