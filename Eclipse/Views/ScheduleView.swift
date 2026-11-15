@@ -54,7 +54,7 @@ struct ScheduleView: View {
                 .joined(separator: " ")
                 return !TMDBContentFilter.isUnofficialCreatorContent(
                     title: searchableTitle,
-                    overview: nil
+                    overview: entry.overview
                 )
             }
         } else {
