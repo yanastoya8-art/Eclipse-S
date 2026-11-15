@@ -8,6 +8,103 @@
 import SwiftUI
 import Kingfisher
 
+enum PosterArtworkURLResolver {
+    static func originalTMDBPosterURL(for result: TMDBSearchResult) -> String? {
+        guard let path = result.posterPath else { return nil }
+        if ImageDataSaverSettings.isEnabled() {
+            return TMDBImageRequestPolicy.urlString(for: path, kind: .poster)
+        }
+        return TMDBImageRequestPolicy.originalURLString(for: path)
+    }
+
+    /// Prefer provider artwork at its source resolution. TMDB's original-size
+    /// path avoids smaller w342/w500 derivatives used by many catalog APIs.
+    static func candidates(for result: TMDBSearchResult) -> [String] {
+        var candidates: [String] = []
+
+        // Use specialist art first where it is most useful, then TMDB's
+        // original-size asset before smaller catalogue derivatives.
+        if result.isMovie, let fanart = result.fanartTVPosterURL, !fanart.isEmpty {
+            candidates.append(fanart)
+        }
+        if let anime = result.animeArtworkURL,
+           !anime.isEmpty,
+           anime.localizedCaseInsensitiveContains("taizen.moe") {
+            candidates.append(anime)
+        }
+        if let original = originalTMDBPosterURL(for: result) {
+            candidates.append(original)
+        }
+        if let fanart = result.fanartTVPosterURL, !fanart.isEmpty {
+            candidates.append(fanart)
+        }
+        if let tvMaze = result.tvMazePosterURL, !tvMaze.isEmpty {
+            candidates.append(tvMaze)
+        }
+        if let anime = result.animeArtworkURL, !anime.isEmpty {
+            candidates.append(anime)
+        }
+        if let full = result.fullPosterURL, !full.isEmpty {
+            candidates.append(full)
+        }
+
+        var seen = Set<String>()
+        return candidates.filter { seen.insert($0).inserted }
+    }
+
+    static func bestPosterURL(for result: TMDBSearchResult) -> String? {
+        candidates(for: result).first
+    }
+}
+
+struct CenteredPosterTitleOverlay: View {
+    let title: String
+    let logoURL: String?
+    var fontSize: CGFloat = 16
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0),
+                    .init(color: .black.opacity(0.58), location: 0.5),
+                    .init(color: .clear, location: 1)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            if let logoURL, !logoURL.isEmpty {
+                ResilientArtworkImage(
+                    urls: [logoURL],
+                    decodeSize: CGSize(width: 900, height: 260),
+                    contentMode: .fit
+                ) {
+                    titleText
+                }
+                .frame(maxWidth: 900, maxHeight: 260)
+                .padding(.horizontal, 8)
+            } else {
+                titleText
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .allowsHitTesting(false)
+    }
+
+    private var titleText: some View {
+        Text(title)
+            .font(.system(size: fontSize, weight: .heavy, design: .rounded))
+            .foregroundStyle(.white)
+            .multilineTextAlignment(.center)
+            .lineLimit(3)
+            .minimumScaleFactor(0.72)
+            .shadow(color: .black.opacity(0.85), radius: 7, x: 0, y: 3)
+            .padding(.horizontal, 10)
+    }
+}
+
 struct SearchResultCard: View {
     let result: TMDBSearchResult
     @Environment(\.heroNamespace) private var heroNamespace
@@ -22,14 +119,7 @@ struct SearchResultCard: View {
                     .clipShape(RoundedRectangle(cornerRadius: 16))
                     .shadow(color: .black.opacity(0.25), radius: 8, x: 0, y: 4)
                     .heroSource(id: heroID, namespace: heroNamespace)
-
-                Text(result.displayTitle)
-                    .font(isTvOS ? .system(size: 28) : .caption)
-                    .fontWeight(isTvOS ? .semibold : .medium)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .frame(height: isTvOS ? 76 : 34)
-                    .foregroundColor(.primary)
+                    .accessibilityLabel(result.displayTitle)
             }
             .frame(maxWidth: .infinity)
         }
@@ -56,15 +146,29 @@ struct SearchResultCard: View {
         }
     }
 
+    private var posterDecodeWidth: CGFloat {
+        isTvOS ? 640 : (isIPad ? 480 : 320)
+    }
+
     private var posterImage: some View {
-        KFImage(URL(string: result.fullPosterURL ?? ""))
-            .placeholder {
+        ZStack {
+            ResilientArtworkImage(
+                urls: PosterArtworkURLResolver.candidates(for: result),
+                decodeSize: CGSize(width: posterDecodeWidth, height: posterDecodeWidth * 1.5),
+                contentMode: .fill
+            ) {
                 FallbackImageView(
                     isMovie: result.isMovie,
-                    size: isTvOS ? CGSize(width: 260, height: 390) : CGSize(width: 120, height: 180)
+                    size: CGSize(width: posterDecodeWidth, height: posterDecodeWidth * 1.5)
                 )
             }
-            .resizable()
-            .aspectRatio(2/3, contentMode: .fill)
+
+            CenteredPosterTitleOverlay(
+                title: result.displayTitle,
+                logoURL: result.animeLogoURL,
+                fontSize: isTvOS ? 25 : (isIPad ? 18 : 14)
+            )
+        }
+        .aspectRatio(2/3, contentMode: .fill)
     }
 }
