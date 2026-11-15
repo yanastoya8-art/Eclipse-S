@@ -3890,6 +3890,7 @@ final class DownloadManager: NSObject, ObservableObject {
 
 #if os(iOS) && !targetEnvironment(macCatalyst)
             revokeHLSBackgroundAttempt(id: id)
+            finishDirectBackgroundAttempt(id: id, success: false)
 #endif
             invalidateSourceRefresh(id: id)
             nuvioDispatchValidationPendingIDs.remove(id)
@@ -4002,6 +4003,9 @@ final class DownloadManager: NSObject, ObservableObject {
             #if os(macOS)
             guard self.permitsMacStorageMutation() else { return }
             #endif
+#if os(iOS) && !targetEnvironment(macCatalyst)
+            finishDirectBackgroundAttempt(id: id, success: false)
+#endif
             if let task = activeTasks[id] {
                 task.cancel()
                 activeTasks.removeValue(forKey: id)
@@ -4034,6 +4038,7 @@ final class DownloadManager: NSObject, ObservableObject {
             #endif
 #if os(iOS) && !targetEnvironment(macCatalyst)
             self.revokeHLSBackgroundAttempt(id: id)
+            self.finishDirectBackgroundAttempt(id: id, success: false)
 #endif
             self.invalidateSourceRefresh(id: id)
             self.mediaSourceRecoveryAttempts.removeValue(forKey: id)
@@ -9010,6 +9015,9 @@ final class DownloadManager: NSObject, ObservableObject {
     private func markFailed(id: String, error: String) {
         performOnMain { [weak self] in
             guard let self else { return }
+#if os(iOS) && !targetEnvironment(macCatalyst)
+            finishDirectBackgroundAttempt(id: id, success: false)
+#endif
             if let task = activeTasks.removeValue(forKey: id) {
                 invalidatedDirectTaskIdentifiers.insert(task.taskIdentifier)
                 task.cancel()
@@ -10252,12 +10260,15 @@ extension DownloadManager: URLSessionDownloadDelegate {
         DispatchQueue.main.async {
 
             if self.invalidatedDirectTaskIdentifiers.remove(task.taskIdentifier) != nil {
+                self.finishDirectBackgroundAttempt(id: downloadId, taskIdentifier: task.taskIdentifier, success: false)
                 return
             }
             guard self.claimDirectDownloadTaskIfCurrent(downloadTask, downloadID: downloadId) else {
+                self.finishDirectBackgroundAttempt(id: downloadId, taskIdentifier: task.taskIdentifier, success: false)
                 return
             }
             if let error = error as NSError? {
+                self.finishDirectBackgroundAttempt(id: downloadId, taskIdentifier: task.taskIdentifier, success: false)
                 let resumeData = error.userInfo[NSURLSessionDownloadTaskResumeData] as? Data
                 if let resumeData { self.storeResumeData(resumeData, id: downloadId) }
                 self.activeTasks.removeValue(forKey: downloadId)
@@ -10287,6 +10298,8 @@ extension DownloadManager: URLSessionDownloadDelegate {
                     error: self.boundedDownloadFailureMessage(error)
                 )
                 self.invalidatedDirectTaskIdentifiers.remove(task.taskIdentifier)
+            } else {
+                self.finishDirectBackgroundAttempt(id: downloadId, taskIdentifier: task.taskIdentifier, success: true)
             }
         }
     }
