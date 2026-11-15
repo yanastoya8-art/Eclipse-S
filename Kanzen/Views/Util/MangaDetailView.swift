@@ -383,8 +383,9 @@ struct MangaDetailView: View {
                 color: experimental ? readerBleedColor : nil,
                 heroHeight: heroHeight,
                 tail: heroHeight * 0.62,
-                strength: theme.scopedBleedStrength(isReaderMode: true),
-                startOffset: experimental ? heroHeight * 0.58 : 0
+                // Match the Watch hero's full-height bleed timing and strength.
+                strength: theme.scopedBleedStrength(),
+                startOffset: 0
             )
         }
         .coordinateSpace(name: "mangaDetailScroll")
