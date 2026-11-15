@@ -2085,13 +2085,21 @@ struct HomeView: View {
             }
         case "upcomingMovies":
             return { page in
-                await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
+                await loadFilteredSectionPage(
+                    catalogId: catalog.id,
+                    page: page,
+                    allowUpcomingContent: true
+                ) {
                     try await tmdbService.getUpcomingMovies(page: page).map(\.asSearchResult)
                 }
             }
         case "upcomingTV":
             return { page in
-                await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
+                await loadFilteredSectionPage(
+                    catalogId: catalog.id,
+                    page: page,
+                    allowUpcomingContent: true
+                ) {
                     try await tmdbService.getUpcomingTVShows(page: page).map(\.asSearchResult)
                 }
             }
