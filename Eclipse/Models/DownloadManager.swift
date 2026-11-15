@@ -6706,7 +6706,15 @@ final class DownloadManager: NSObject, ObservableObject {
 #endif
                     if let hlsError = error as? HLSError {
                         switch hlsError {
-                        case .resumePlaylistChanged, .resumeCheckpointMissing, .unsupportedLayout:
+                        case .resumePlaylistChanged, .resumeCheckpointMissing:
+                            self.restartHLSFromBeginning(
+                                id: item.id,
+                                partialURL: destURL
+                                    .deletingLastPathComponent()
+                                    .appendingPathComponent(".\\(destURL.lastPathComponent).partial"),
+                                reason: hlsError.localizedDescription
+                            )
+                        case .unsupportedLayout:
                             self.markFailed(id: item.id, error: hlsError.localizedDescription)
                         case .cancelled:
                             self.handleCancelledHLSDownload(id: item.id)
@@ -7924,6 +7932,37 @@ final class DownloadManager: NSObject, ObservableObject {
         }
 #endif
         subtitleTask.resume()
+    }
+
+    /// A resumed live/rolling playlist may legitimately have changed since the
+    /// checkpoint was written. Discard only the unverified partial and retry
+    /// from segment zero instead of leaving the item permanently failed/paused.
+    private func restartHLSFromBeginning(id: String, partialURL: URL, reason: String) {
+        guard let index = downloads.firstIndex(where: { $0.id == id }),
+              downloads[index].status != .completed else {
+            processQueue()
+            return
+        }
+
+        try? fileManager.removeItem(at: partialURL)
+        downloads[index].hlsResumeSegmentIndex = nil
+        downloads[index].hlsResumeByteCount = nil
+        downloads[index].hlsResumeManifestSHA256 = nil
+        downloads[index].hlsDurableCheckpoint = nil
+        downloads[index].hlsVariantURL = nil
+        downloads[index].hlsTotalSegments = nil
+        downloads[index].progress = 0
+        downloads[index].downloadedBytes = 0
+        downloads[index].totalBytes = 0
+        downloads[index].status = .queued
+        downloads[index].error = "The stream changed while resuming. Restarting this download from the beginning."
+        lastHLSCheckpointSave.removeValue(forKey: id)
+        saveDownloads()
+        Logger.shared.log(
+            "HLS resume checkpoint rejected; restarting from segment zero id=\\(id) reason=\\(reason)",
+            type: "Download"
+        )
+        processQueue()
     }
 
     private func handleCancelledHLSDownload(id: String) {
