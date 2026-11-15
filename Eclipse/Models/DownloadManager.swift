@@ -1807,7 +1807,7 @@ final class DownloadManager: NSObject, ObservableObject {
 
     private final class DirectBackgroundAttempt {
         let attemptID: UUID
-        let taskIdentifier: Int
+        var taskIdentifier: Int
         let intent: HLSForegroundIntent
         let dateAdded: Date
         var granted = false
@@ -2674,7 +2674,7 @@ final class DownloadManager: NSObject, ObservableObject {
                       !attempt.revoked,
                       self.hlsBackgroundDownloadsEnabled,
                       self.hlsIntentIsCurrent(intent),
-                      self.activeTasks[id] === task,
+                      self.activeTasks[id]?.taskIdentifier == attempt.taskIdentifier,
                       let current = self.downloads.first(where: { $0.id == id }),
                       current.dateAdded == attempt.dateAdded,
                       current.status == .downloading else { return false }
@@ -8998,6 +8998,13 @@ final class DownloadManager: NSObject, ObservableObject {
         let task = backgroundSession.downloadTask(with: request)
         task.taskDescription = id
         activeTasks[id] = task
+#if os(iOS) && !targetEnvironment(macCatalyst)
+        if let backgroundAttempt = directBackgroundAttempts[id] {
+            backgroundAttempt.taskIdentifier = task.taskIdentifier
+        } else if hlsApplicationIsActive, let item = downloads.first(where: { $0.id == id }) {
+            beginDirectBackgroundAttempt(id: id, item: item, task: task)
+        }
+#endif
         registerNuvioMainTask(task, id: id, attemptID: attemptID)
         task.resume()
     }
