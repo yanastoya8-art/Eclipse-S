@@ -31,7 +31,7 @@ enum MediaDetailAlternatePosterSettings {
 
 enum MediaDetailAgeRatingSettings {
     static let enabledKey = "mediaDetailAgeRatingEnabled"
-    static let defaultEnabled = false
+    static let defaultEnabled = true
 
     static func isEnabled(defaults: UserDefaults = ProfileSettingsStore.active) -> Bool {
         defaults.object(forKey: enabledKey) == nil ? defaultEnabled : defaults.bool(forKey: enabledKey)

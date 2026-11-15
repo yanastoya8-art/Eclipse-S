@@ -281,12 +281,12 @@ struct AlternativeUIView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Background Style")
+                    Text("Background Atmosphere")
                         .font(.subheadline)
                         .fontWeight(.medium)
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
-                            ForEach(AtmosphereStyle.selectableCases) { style in
+                            ForEach(AtmosphereStyle.allCases) { style in
                                 let selected = backgroundStyleBinding.wrappedValue == style
                                 Button {
                                     backgroundStyleBinding.wrappedValue = style
@@ -542,7 +542,7 @@ struct AlternativeUIView: View {
             .id(AppearanceSettingsSearchTarget.showUnairedEpisodes.anchorID)
             toggleRow(
                 title: "Show Age Rating",
-                description: "Display the available content age rating on movie and series detail pages.",
+                description: "Display the available content age rating on movie, series and anime detail pages.",
                 isOn: $mediaDetailAgeRatingEnabled
             )
             .id(AppearanceSettingsSearchTarget.ageRating.anchorID)

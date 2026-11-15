@@ -2946,12 +2946,30 @@ struct MediaDetailContentView: View {
         return certification?.displayValue
     }
 
-    private func loadAnimeAgeCertificationIfNeeded() async {
+    @MainActor
+    private func loadAnimeAgeCertificationIfNeeded(preferredAniListID: Int? = nil) async {
         animeAgeCertification = nil
-        guard let anilistID = exactAnimeNavigationSeedAniListId, anilistID > 0 else {
-            animeAgeCertification = nil
+        guard usesAnimeSpecificAgeRating else { return }
+
+        let seededID = [
+            preferredAniListID,
+            exactAnimeNavigationSeedAniListId,
+            searchResult.animeIdentitySeed?.anilistId
+        ].compactMap { $0 }.first(where: { $0 > 0 })
+
+        let anilistID: Int
+        if let seededID {
+            anilistID = seededID
+        } else if let resolved = await AniListService.shared.searchAnimeIdentity(
+            title: searchResult.displayTitle
+        )?.anilistId, resolved > 0 {
+            // Exact, unambiguous title fallback also covers anime opened from
+            // Home before the catalog has attached an AniList identity.
+            anilistID = resolved
+        } else {
             return
         }
+
         do {
             let rating = try await TaizenAnimeAgeRatingService.shared.rating(anilistID: anilistID)
             guard !Task.isCancelled else { return }
@@ -7508,6 +7526,11 @@ struct MediaDetailContentView: View {
                         self.romajiTitle = romaji
 #endif
                         self.isAnimeShow = detectedAsAnime
+                        if detectedAsAnime {
+                            Task { @MainActor in
+                                await self.loadAnimeAgeCertificationIfNeeded(preferredAniListID: animeData?.id)
+                            }
+                        }
                         self.animeRating = resolvedAnimeRating
                         self.animeSpecialEntries = resolvedAnimeSpecials
                         self.isLoadingAnimeSpecials = shouldLoadAnimeSpecialsAfterReveal

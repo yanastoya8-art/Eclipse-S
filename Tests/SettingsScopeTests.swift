@@ -4,6 +4,10 @@ import XCTest
 #if os(iOS)
 
 final class SettingsScopeTests: XCTestCase {
+    func testDetailAgeRatingIsEnabledByDefault() {
+        XCTAssertTrue(MediaDetailAgeRatingSettings.defaultEnabled)
+    }
+
     func testBackgroundStylePickerContainsOnlyThreeRenderingModes() {
         XCTAssertEqual(AtmosphereStyle.selectableCases, [.gradient, .multiGradient, .solid])
         XCTAssertEqual(AtmosphereStyle.allCases, [.gradient, .multiGradient, .solid])
