@@ -80,12 +80,12 @@ struct CenteredPosterTitleOverlay: View {
                     decodeSize: CGSize(width: 900, height: 260),
                     contentMode: .fit
                 ) {
-                    titleText
+                    Color.clear
                 }
                 .frame(maxWidth: 900, maxHeight: 260)
                 .padding(.horizontal, 8)
             } else {
-                titleText
+                Color.clear
             }
         }
         .accessibilityElement(children: .ignore)
