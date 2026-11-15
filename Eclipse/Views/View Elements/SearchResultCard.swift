@@ -16,8 +16,8 @@ enum PosterArtworkURLResolver {
         if let tvMaze = result.tvMazePosterURL, !tvMaze.isEmpty { return tvMaze }
         if let anime = result.animeArtworkURL,
            !anime.isEmpty,
-           anime.localizedCaseInsensitiveContains("taizen.moe")
-            || anime.localizedCaseInsensitiveContains("fanart.tv") {
+           (anime.localizedCaseInsensitiveContains("taizen.moe")
+                || anime.localizedCaseInsensitiveContains("fanart.tv")) {
             return anime
         }
         if let path = result.posterPath,
