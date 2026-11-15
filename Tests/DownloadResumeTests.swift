@@ -39,6 +39,26 @@ final class DownloadResumeTests: XCTestCase {
         XCTAssertTrue(StreamLanguageFilter.shouldHide(languageHints: hints, metadata: metadata, defaults: defaults))
     }
 
+    func testDownloadSourceLinkPolicySupportsDirectStreamingFormats() {
+        let urls = [
+            "https://cdn.example/video.mp4?token=abc",
+            "https://cdn.example/master.m3u8?token=abc",
+            "https://cdn.example/manifest.mpd",
+            "https://cdn.example/video.mkv",
+            "https://cdn.example/provider-stream?id=42"
+        ]
+        for value in urls {
+            XCTAssertEqual(DownloadSourceLinkPolicy.copyableURL(value)?.absoluteString, value)
+        }
+    }
+
+    func testDownloadSourceLinkPolicyRejectsUnsafeOrInvalidLinks() {
+        for value in ["", "not a URL", "file:///private/video.mp4", "javascript:alert(1)",
+                      "https://user:password@cdn.example/video.mp4", "https:///missing-host.mp4"] {
+            XCTAssertNil(DownloadSourceLinkPolicy.copyableURL(value), "Unexpectedly accepted: \\(value)")
+        }
+    }
+
     func testDownloadConcurrencyDefaultsAndBoundedHLSLimit() throws {
         let name = "DownloadConcurrencyTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
