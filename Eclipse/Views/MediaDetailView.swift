@@ -493,6 +493,7 @@ struct MediaDetailContentView: View {
     @State private var traktComments: [TraktCommentReview] = []
     @State private var traktRating: TraktMediaRating?
     @State private var animeAgeCertification: MaturityRating?
+    @State private var animeAgeRatingRequestID = UUID()
     @State private var isLoadingTraktComments = false
     @State private var hasLoadedContent = false
     @State private var detailViewportSize: CGSize = .zero
@@ -2948,9 +2949,15 @@ struct MediaDetailContentView: View {
 
     @MainActor
     private func loadAnimeAgeCertificationIfNeeded(preferredAniListID: Int? = nil) async {
+        let requestID = UUID()
+        animeAgeRatingRequestID = requestID
         animeAgeCertification = nil
         guard usesAnimeSpecificAgeRating else { return }
 
+        // A detail view can be reused while its media or language changes.
+        // Never let an older metadata request publish into the new detail.
+        let requestIdentity = searchResult.stableIdentity
+        let requestLanguage = selectedLanguage
         let seededID = [
             preferredAniListID,
             exactAnimeNavigationSeedAniListId,
@@ -2960,22 +2967,32 @@ struct MediaDetailContentView: View {
         let anilistID: Int
         if let seededID {
             anilistID = seededID
-        } else if let resolved = await AniListService.shared.searchAnimeIdentity(
-            title: searchResult.displayTitle
-        )?.anilistId, resolved > 0 {
+        } else {
+            let resolvedID = await AniListService.shared.searchAnimeIdentity(
+                title: searchResult.displayTitle
+            )?.anilistId
+            guard !Task.isCancelled,
+                  animeAgeRatingRequestID == requestID,
+                  searchResult.stableIdentity == requestIdentity,
+                  selectedLanguage == requestLanguage else { return }
+            guard let resolvedID, resolvedID > 0 else { return }
             // Exact, unambiguous title fallback also covers anime opened from
             // Home before the catalog has attached an AniList identity.
-            anilistID = resolved
-        } else {
-            return
+            anilistID = resolvedID
         }
 
         do {
             let rating = try await TaizenAnimeAgeRatingService.shared.rating(anilistID: anilistID)
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled,
+                  animeAgeRatingRequestID == requestID,
+                  searchResult.stableIdentity == requestIdentity,
+                  selectedLanguage == requestLanguage else { return }
             animeAgeCertification = rating
         } catch {
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled,
+                  animeAgeRatingRequestID == requestID,
+                  searchResult.stableIdentity == requestIdentity,
+                  selectedLanguage == requestLanguage else { return }
             Logger.shared.log(
                 "Anime age-rating metadata unavailable for AniList \(anilistID): \(error.localizedDescription)",
                 type: "Anime"

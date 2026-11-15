@@ -87,6 +87,41 @@ final class DownloadResumeTests: XCTestCase {
         )
     }
 
+    func testLatePauseCallbackCannotOverwriteReplacementOrCancelledDownload() {
+        // The callback must still belong to the pending task and no replacement
+        // task may have been admitted before its resume data is persisted.
+        XCTAssertTrue(DirectDownloadResumePolicy.mayStoreResumeData(
+            pendingTaskIdentifier: 41,
+            callbackTaskIdentifier: 41,
+            hasActiveTask: false,
+            status: .paused
+        ))
+        XCTAssertTrue(DirectDownloadResumePolicy.mayStoreResumeData(
+            pendingTaskIdentifier: 41,
+            callbackTaskIdentifier: 41,
+            hasActiveTask: false,
+            status: .queued
+        ))
+        XCTAssertFalse(DirectDownloadResumePolicy.mayStoreResumeData(
+            pendingTaskIdentifier: 42,
+            callbackTaskIdentifier: 41,
+            hasActiveTask: false,
+            status: .paused
+        ))
+        XCTAssertFalse(DirectDownloadResumePolicy.mayStoreResumeData(
+            pendingTaskIdentifier: 41,
+            callbackTaskIdentifier: 41,
+            hasActiveTask: true,
+            status: .downloading
+        ))
+        XCTAssertFalse(DirectDownloadResumePolicy.mayStoreResumeData(
+            pendingTaskIdentifier: nil,
+            callbackTaskIdentifier: 41,
+            hasActiveTask: false,
+            status: .completed
+        ))
+    }
+
     func testDownloadSourceLinkPolicySupportsDirectStreamingFormats() {
         let urls = [
             "https://cdn.example/video.mp4?token=abc",
