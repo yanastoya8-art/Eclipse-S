@@ -5471,9 +5471,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         let secondaryDataHash = defaults.data(forKey: MPVPlayerSkinSettings.customSecondaryColorKey)?.hashValue ?? 0
         let animationsEnabled = MPVPlayerSkinSettings.animationsEnabled(defaults: defaults)
         let tintControlsOnly = selectedSkin != .defaultSkin && MPVPlayerSkinSettings.tintControlsOnly(defaults: defaults)
-        let liquidGlassEnabled = isMPVRenderer && MPVPlayerSkinSettings.liquidGlassControlsEnabled(defaults: defaults)
+        // Liquid Glass player controls were removed from the settings UI.
+        // Ignore any legacy saved preference and keep the standard control design.
+        let liquidGlassEnabled = false
         let animationStyle = MPVPlayerSkinSettings.animationStyle(for: selectedSkin, defaults: defaults)
-        let signature = "\(selectedSkin.rawValue)|\(primaryDataHash)|\(secondaryDataHash)|\(animationsEnabled)|\(tintControlsOnly)|\(liquidGlassEnabled)|\(animationStyle.rawValue)"
+        let signature = "\(selectedSkin.rawValue)|\(primaryDataHash)|\(secondaryDataHash)|\(animationsEnabled)|\(tintControlsOnly)|\(animationStyle.rawValue)"
         guard force || signature != activePlayerSkinSignature else { return }
 
         activePlayerSkinSignature = signature
