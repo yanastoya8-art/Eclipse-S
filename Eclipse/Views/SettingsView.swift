@@ -5410,7 +5410,7 @@ private struct LanguageFiltersSettingsView: View {
             } footer: {
                 Text("Select one or more languages. Anime catalogs require a verified dub in at least one selected language. The Western TV schedule keeps original air dates when the original audio matches your selection; otherwise, it uses only verified JustWatch episode release dates. JustWatch episode release dates are checked automatically when the app build includes the configured API key. Without a key or a matching release date, non-native entries are hidden.")
             }
-        }
+
             Section {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Dub data is refreshed from MyDubList when the selected languages change. Season episode counts are cross-checked with Taizen and anidub.")
