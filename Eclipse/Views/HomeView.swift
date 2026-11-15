@@ -1772,9 +1772,9 @@ struct HomeView: View {
         let tmdbPoster = hero.posterPath.flatMap {
             TMDBImageRequestPolicy.urlString(for: $0, kind: .poster)
         }
-        return [tmdbPoster, hero.animeArtworkURL, hero.fullBackdropURL]
-            .compactMap { $0 }
+        return PosterArtworkURLResolver.candidates(for: hero)
             .filter { $0 != primary }
+            + [tmdbPoster, hero.fullBackdropURL].compactMap { $0 }.filter { $0 != primary }
     }
 
     @ViewBuilder
@@ -3136,17 +3136,28 @@ struct ExperimentalMediaCard: View {
 
     private var mediaImage: some View {
         ZStack {
-            KFImage(URL(string: imageURL))
-                .setProcessor(DownsamplingImageProcessor(size: homeImageDecodeSize(width: cardSize.width, height: cardSize.height)))
-                .placeholder {
-                    FallbackImageView(
-                        isMovie: result.isMovie,
-                        size: cardSize
-                    )
+            if resolvedStyle == .poster {
+                ResilientArtworkImage(
+                    urls: PosterArtworkURLResolver.candidates(for: result),
+                    decodeSize: homeImageDecodeSize(width: cardSize.width, height: cardSize.height),
+                    contentMode: .fill
+                ) {
+                    FallbackImageView(isMovie: result.isMovie, size: cardSize)
                 }
-                .resizable()
-                .aspectRatio(imageAspectRatio, contentMode: .fill)
                 .frame(width: cardSize.width, height: cardSize.height)
+            } else {
+                KFImage(URL(string: imageURL))
+                    .setProcessor(DownsamplingImageProcessor(size: homeImageDecodeSize(width: cardSize.width, height: cardSize.height)))
+                    .placeholder {
+                        FallbackImageView(
+                            isMovie: result.isMovie,
+                            size: cardSize
+                        )
+                    }
+                    .resizable()
+                    .aspectRatio(imageAspectRatio, contentMode: .fill)
+                    .frame(width: cardSize.width, height: cardSize.height)
+            }
 
             if resolvedStyle == .poster {
                 CenteredPosterTitleOverlay(
@@ -3246,17 +3257,17 @@ struct MediaCard: View {
     private var posterCard: some View {
         VStack(alignment: .leading, spacing: 6) {
             ZStack {
-                KFImage(URL(string: PosterArtworkURLResolver.bestPosterURL(for: result) ?? ""))
-                    .setProcessor(DownsamplingImageProcessor(size: homeImageDecodeSize(width: posterWidth, height: posterHeight)))
-                    .placeholder {
-                        FallbackImageView(
-                            isMovie: result.isMovie,
-                            size: CGSize(width: posterWidth, height: posterHeight)
-                        )
-                    }
-                    .resizable()
-                    .aspectRatio(2/3, contentMode: .fill)
-                    .frame(width: posterWidth, height: posterHeight)
+                ResilientArtworkImage(
+                    urls: PosterArtworkURLResolver.candidates(for: result),
+                    decodeSize: homeImageDecodeSize(width: posterWidth, height: posterHeight),
+                    contentMode: .fill
+                ) {
+                    FallbackImageView(
+                        isMovie: result.isMovie,
+                        size: CGSize(width: posterWidth, height: posterHeight)
+                    )
+                }
+                .frame(width: posterWidth, height: posterHeight)
 
                 CenteredPosterTitleOverlay(
                     title: result.displayTitle,
