@@ -6621,4 +6621,13 @@ final class AnimeOpenEndedActualInventoryTests: XCTestCase {
         .init(id: id, name: "Actual source row", overview: nil, stillPath: nil, episodeNumber: number,
             seasonNumber: season, airDate: date, runtime: 24, voteAverage: 0, voteCount: 0)
     }
+    func testAnimeSpecialAndOVAFormatPolicyIsSharedAndConservative() {
+        XCTAssertTrue(AnimeSpecialFormatPolicy.shouldExclude(format: "SPECIAL", enabled: true))
+        XCTAssertTrue(AnimeSpecialFormatPolicy.shouldExclude(format: " ova ", enabled: true))
+        XCTAssertFalse(AnimeSpecialFormatPolicy.shouldExclude(format: "TV", enabled: true))
+        XCTAssertFalse(AnimeSpecialFormatPolicy.shouldExclude(format: nil, enabled: true))
+        XCTAssertFalse(AnimeSpecialFormatPolicy.shouldExclude(format: "OVA", enabled: false))
+        XCTAssertFalse(AnimeSpecialFormatPolicy.shouldExclude(format: "special episode", enabled: true))
+    }
+
 }

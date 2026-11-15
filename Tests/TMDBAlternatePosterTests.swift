@@ -74,6 +74,18 @@ final class TMDBAlternatePosterTests: XCTestCase {
         XCTAssertEqual(result.fullPosterURL, fanartURL)
     }
 
+    func testStandardTMDBArtworkUsesNativeResolutionUnlessDataSaverIsEnabled() {
+        let source = "https://image.tmdb.org/t/p/w500/poster.jpg"
+        XCTAssertEqual(
+            TMDBImageRequestPolicy.urlString(for: source, kind: .poster, dataSaverEnabled: false),
+            "https://image.tmdb.org/t/p/original/poster.jpg"
+        )
+        XCTAssertEqual(
+            TMDBImageRequestPolicy.urlString(for: source, kind: .poster, dataSaverEnabled: true),
+            "https://image.tmdb.org/t/p/w342/poster.jpg"
+        )
+    }
+
     func testRejectsUntrustedFanartTVPosterHost() {
         let result = TMDBSearchResult(
             id: 550,

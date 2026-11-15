@@ -866,12 +866,11 @@ class TMDBContentFilter: ObservableObject {
         _ result: TMDBSearchResult,
         defaults: UserDefaults = .standard
     ) -> Bool {
-        guard defaults.bool(forKey: "catalogHideAnimeSpecialsAndOVAs"),
-              Self.isAnimeResult(result),
-              let format = result.animeIdentitySeed?.format?.uppercased() else {
-            return false
-        }
-        return format == "SPECIAL" || format == "OVA"
+        guard Self.isAnimeResult(result) else { return false }
+        return AnimeSpecialFormatPolicy.shouldExclude(
+            format: result.animeIdentitySeed?.format,
+            enabled: defaults.bool(forKey: "catalogHideAnimeSpecialsAndOVAs")
+        )
     }
 
     private func shouldIncludeCatalogResult(_ result: TMDBSearchResult) -> Bool {

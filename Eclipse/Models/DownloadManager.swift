@@ -2705,7 +2705,19 @@ final class DownloadManager: NSObject, ObservableObject {
                 guard let self, let attempt,
                       self.directBackgroundAttempts[id] === attempt else { return }
                 attempt.revoked = true
-                self.pauseDownload(id: id)
+                // The continued-processing task is only the visible progress
+                // activity. The actual transfer belongs to URLSession's
+                // OS-managed background session and must not be cancelled when
+                // iOS expires that auxiliary activity.
+                self.finishDirectBackgroundAttempt(
+                    id: id,
+                    taskIdentifier: attempt.taskIdentifier,
+                    success: false
+                )
+                Logger.shared.log(
+                    "Direct progress activity expired; retaining OS-managed URLSession transfer",
+                    type: "Download"
+                )
             },
             onRejected: { [weak self, weak attempt] in
                 guard let self, let attempt,

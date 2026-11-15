@@ -42,15 +42,10 @@ enum TMDBImageRequestPolicy {
             }
         }
 
-        var standardSize: String {
-            switch self {
-            case .poster: return "w500"
-            case .backdrop: return "w1280"
-            case .still: return "w500"
-            case .artwork: return "w780"
-            case .profile: return "w342"
-            }
-        }
+        // In normal mode request the provider's native rendition. The
+        // previous fixed widths silently downscaled poster art before it
+        // reached the image pipeline; data-saver mode still uses reduced sizes.
+        var standardSize: String { "original" }
     }
 
     static func originalURLString(for path: String) -> String {
@@ -91,7 +86,7 @@ enum TMDBImageRequestPolicy {
             return original
         }
         let size = String(parts[3])
-        if size != "original" {
+        if targetSize != "original", size != "original" {
             guard size.hasPrefix("w"), let width = Int(size.dropFirst()),
                   let targetWidth = Int(targetSize.dropFirst()),
                   width > targetWidth else { return original }
@@ -220,6 +215,17 @@ struct AnimeMediaIdentitySeed: Codable, Equatable, Sendable {
         )
     }
 
+}
+
+/// Shared format policy for anime catalogue and schedule surfaces. Unknown
+/// formats remain visible rather than being guessed to be specials or OVAs.
+enum AnimeSpecialFormatPolicy {
+    static func shouldExclude(format: String?, enabled: Bool) -> Bool {
+        guard enabled,
+              let format else { return false }
+        let normalized = format.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        return normalized == "SPECIAL" || normalized == "OVA"
+    }
 }
 
 struct TMDBSearchResult: Codable, Identifiable, Sendable {
