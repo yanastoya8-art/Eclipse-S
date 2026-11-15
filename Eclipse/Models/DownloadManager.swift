@@ -2807,6 +2807,9 @@ final class DownloadManager: NSObject, ObservableObject {
 
     private func revokeAllHLSBackgroundAttempts() {
         hlsForegroundIntents.removeAll()
+        for id in Array(directBackgroundAttempts.keys) {
+            finishDirectBackgroundAttempt(id: id, success: false)
+        }
         for operation in hlsBackgroundSubtitles.values { operation.task.cancel() }
         hlsBackgroundSubtitles.removeAll()
         for (id, attempt) in hlsBackgroundAttempts {
@@ -10289,15 +10292,21 @@ extension DownloadManager: URLSessionDownloadDelegate {
         DispatchQueue.main.async {
 
             if self.invalidatedDirectTaskIdentifiers.remove(task.taskIdentifier) != nil {
+#if os(iOS) && !targetEnvironment(macCatalyst)
                 self.finishDirectBackgroundAttempt(id: downloadId, taskIdentifier: task.taskIdentifier, success: false)
+#endif
                 return
             }
             guard self.claimDirectDownloadTaskIfCurrent(downloadTask, downloadID: downloadId) else {
+#if os(iOS) && !targetEnvironment(macCatalyst)
                 self.finishDirectBackgroundAttempt(id: downloadId, taskIdentifier: task.taskIdentifier, success: false)
+#endif
                 return
             }
             if let error = error as NSError? {
+#if os(iOS) && !targetEnvironment(macCatalyst)
                 self.finishDirectBackgroundAttempt(id: downloadId, taskIdentifier: task.taskIdentifier, success: false)
+#endif
                 let resumeData = error.userInfo[NSURLSessionDownloadTaskResumeData] as? Data
                 if let resumeData { self.storeResumeData(resumeData, id: downloadId) }
                 self.activeTasks.removeValue(forKey: downloadId)
@@ -10328,7 +10337,9 @@ extension DownloadManager: URLSessionDownloadDelegate {
                 )
                 self.invalidatedDirectTaskIdentifiers.remove(task.taskIdentifier)
             } else {
+#if os(iOS) && !targetEnvironment(macCatalyst)
                 self.finishDirectBackgroundAttempt(id: downloadId, taskIdentifier: task.taskIdentifier, success: true)
+#endif
             }
         }
     }
