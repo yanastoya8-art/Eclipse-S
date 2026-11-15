@@ -2637,6 +2637,12 @@ final class DownloadManager: NSObject, ObservableObject {
     /// A continued-processing task keeps the progress Live Activity visible and
     /// gives Eclipse runtime to report progress while the app is backgrounded.
     private func beginDirectBackgroundAttempt(id: String, item: DownloadItem, task: URLSessionDownloadTask) {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in
+                self?.beginDirectBackgroundAttempt(id: id, item: item, task: task)
+            }
+            return
+        }
         guard let intent = captureHLSForegroundIntent(),
               let scheduler = hlsBackgroundScheduler,
               directBackgroundAttempts[id] == nil else { return }
@@ -2719,6 +2725,12 @@ final class DownloadManager: NSObject, ObservableObject {
     }
 
     private func finishDirectBackgroundAttempt(id: String, taskIdentifier: Int? = nil, success: Bool) {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in
+                self?.finishDirectBackgroundAttempt(id: id, taskIdentifier: taskIdentifier, success: success)
+            }
+            return
+        }
         guard let attempt = directBackgroundAttempts[id],
               taskIdentifier == nil || attempt.taskIdentifier == taskIdentifier else { return }
         directBackgroundAttempts.removeValue(forKey: id)
