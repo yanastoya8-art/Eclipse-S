@@ -2378,9 +2378,9 @@ private struct BrowseMediaView: View {
         })
         let originalAudioFilterEnabled = UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
 
-        let candidates = results.enumerated().filter { _, result in
+        let candidates = results.enumerated().compactMap { index, result -> (Int, TMDBSearchResult, Bool)? in
             let hasTaizenPoster = result.animeArtworkURL?.contains("taizen.moe") == true
-            if hasTaizenPoster, result.animeLogoURL != nil { return false }
+            if hasTaizenPoster, result.animeLogoURL != nil { return nil }
 
             let originalLanguage = result.originalLanguage?.lowercased() ?? ""
             let baseLanguage = originalLanguage.split(separator: "-").first.map(String.init) ?? originalLanguage
@@ -2395,7 +2395,10 @@ private struct BrowseMediaView: View {
                         || result.originCountry?.contains(where: { ["JP", "CN", "KR", "TW"].contains($0) }) == true))
             // Taizen's fanart.tv poster is preferred for anime even when TMDB
             // already supplied an image. AniList remains the fallback.
-            return needsDubIdentity || needsAudioIdentity || likelyAnime || result.fullPosterURL == nil
+            guard needsDubIdentity || needsAudioIdentity || likelyAnime || result.fullPosterURL == nil else {
+                return nil
+            }
+            return (index, result, likelyAnime)
         }
         guard !candidates.isEmpty else { return results }
 
@@ -2411,17 +2414,32 @@ private struct BrowseMediaView: View {
             // dub-filtered pages do not serialize behind a handful of slow lookups.
             let concurrencyLimit = 8
             for _ in 0..<min(concurrencyLimit, candidates.count) {
-                guard let (index, result) = iterator.next() else { continue }
+                guard let (index, result, likelyAnime) = iterator.next() else { continue }
                 group.addTask {
                     let mappings = await AniMapMappingService.shared.mappings(forTMDBShowId: result.id)
                     let mapping = mappings
                         .filter { $0.mediaType?.lowercased() != "movie" }
                         .first { $0.anilistId != nil }
                         ?? mappings.first { $0.anilistId != nil }
-                    guard let anilistID = result.animeIdentitySeed?.anilistId ?? mapping?.anilistId,
-                          anilistID > 0 else {
+                    let identity: AnimeMediaIdentitySeed?
+                    if let existing = result.animeIdentitySeed?.sanitizedForPersistence {
+                        identity = existing
+                    } else if let anilistID = mapping?.anilistId, anilistID > 0 {
+                        identity = AnimeMediaIdentitySeed(
+                            anilistId: anilistID,
+                            malId: mapping?.malId,
+                            kitsuId: mapping?.kitsuId,
+                            format: mapping?.mediaType
+                        )
+                    } else if likelyAnime {
+                        identity = await AniListService.shared.searchAnimeIdentity(title: result.displayTitle)
+                    } else {
+                        identity = nil
+                    }
+                    guard let identity = identity?.sanitizedForPersistence else {
                         return (index, result)
                     }
+                    let anilistID = identity.anilistId
 
                     let artworkURL: String?
                     if let existingArtwork = result.animeArtworkURL {
@@ -2452,12 +2470,7 @@ private struct BrowseMediaView: View {
                         originCountry: result.originCountry,
                         voteCount: result.voteCount,
                         isAnimeHint: true,
-                        animeIdentitySeed: result.animeIdentitySeed ?? AnimeMediaIdentitySeed(
-                            anilistId: anilistID,
-                            malId: mapping?.malId,
-                            kitsuId: mapping?.kitsuId,
-                            format: mapping?.mediaType
-                        ),
+                        animeIdentitySeed: identity,
                         animeArtworkURL: artworkURL,
                         animeLogoURL: result.animeLogoURL,
                         tvMazePosterURL: result.tvMazePosterURL
@@ -2469,17 +2482,32 @@ private struct BrowseMediaView: View {
             var resolvedByIndex: [Int: TMDBSearchResult] = [:]
             while let (index, result) = await group.next() {
                 resolvedByIndex[index] = result
-                if let (nextIndex, nextResult) = iterator.next() {
+                if let (nextIndex, nextResult, nextLikelyAnime) = iterator.next() {
                     group.addTask {
                         let mappings = await AniMapMappingService.shared.mappings(forTMDBShowId: nextResult.id)
                         let mapping = mappings
                             .filter { $0.mediaType?.lowercased() != "movie" }
                             .first { $0.anilistId != nil }
                             ?? mappings.first { $0.anilistId != nil }
-                        guard let anilistID = nextResult.animeIdentitySeed?.anilistId ?? mapping?.anilistId,
-                              anilistID > 0 else {
+                        let identity: AnimeMediaIdentitySeed?
+                        if let existing = nextResult.animeIdentitySeed?.sanitizedForPersistence {
+                            identity = existing
+                        } else if let anilistID = mapping?.anilistId, anilistID > 0 {
+                            identity = AnimeMediaIdentitySeed(
+                                anilistId: anilistID,
+                                malId: mapping?.malId,
+                                kitsuId: mapping?.kitsuId,
+                                format: mapping?.mediaType
+                            )
+                        } else if nextLikelyAnime {
+                            identity = await AniListService.shared.searchAnimeIdentity(title: nextResult.displayTitle)
+                        } else {
+                            identity = nil
+                        }
+                        guard let identity = identity?.sanitizedForPersistence else {
                             return (nextIndex, nextResult)
                         }
+                        let anilistID = identity.anilistId
                         let artworkURL: String?
                         if let existingArtwork = nextResult.animeArtworkURL {
                             artworkURL = existingArtwork
@@ -2501,12 +2529,7 @@ private struct BrowseMediaView: View {
                             genreIds: nextResult.genreIds, originalLanguage: nextResult.originalLanguage,
                             originCountry: nextResult.originCountry, voteCount: nextResult.voteCount,
                             isAnimeHint: true,
-                            animeIdentitySeed: AnimeMediaIdentitySeed(
-                                anilistId: anilistID,
-                                malId: nextResult.animeIdentitySeed?.malId ?? mapping?.malId,
-                                kitsuId: nextResult.animeIdentitySeed?.kitsuId ?? mapping?.kitsuId,
-                                format: nextResult.animeIdentitySeed?.format ?? mapping?.mediaType
-                            ),
+                            animeIdentitySeed: identity,
                             animeArtworkURL: artworkURL,
                             animeLogoURL: nextResult.animeLogoURL,
                             tvMazePosterURL: nextResult.tvMazePosterURL,
