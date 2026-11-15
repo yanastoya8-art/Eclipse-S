@@ -2058,7 +2058,8 @@ struct HomeView: View {
         DiscoverDetailView(
             title: title,
             initialItems: initialItems,
-            loadMore: sectionLoadMoreHandler(for: catalog)
+            loadMore: sectionLoadMoreHandler(for: catalog),
+            allowsUpcomingContent: catalog.id == "upcomingMovies" || catalog.id == "upcomingTV"
         )
     }
 
@@ -2140,10 +2141,14 @@ struct HomeView: View {
     private func loadFilteredSectionPage(
         catalogId: String,
         page: Int,
+        allowUpcomingContent: Bool = false,
         fetch: () async throws -> [TMDBSearchResult]
     ) async -> [TMDBSearchResult] {
         do {
-            return await contentFilter.filterSearchResultsResolvingRatings(try await fetch())
+            return await contentFilter.filterSearchResultsResolvingRatings(
+                try await fetch(),
+                allowUpcomingContent: allowUpcomingContent
+            )
         } catch {
             Logger.shared.log("HomeView: section \(catalogId) page \(page) failed: \(error.localizedDescription)", type: "TMDB")
             return []
