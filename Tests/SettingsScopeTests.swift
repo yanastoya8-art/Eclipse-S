@@ -8,6 +8,13 @@ final class SettingsScopeTests: XCTestCase {
         XCTAssertTrue(MediaDetailAgeRatingSettings.defaultEnabled)
     }
 
+    func testAuroraAndEmberAreAvailableThemePalettes() {
+        XCTAssertTrue(AtmospherePaletteID.allCases.contains(.aurora))
+        XCTAssertTrue(AtmospherePaletteID.allCases.contains(.ember))
+        XCTAssertEqual(AppearancePalettes.base(for: .aurora).displayName, "Aurora")
+        XCTAssertEqual(AppearancePalettes.base(for: .ember).displayName, "Ember")
+    }
+
     func testBackgroundStylePickerContainsOnlyThreeRenderingModes() {
         XCTAssertEqual(AtmosphereStyle.selectableCases, [.gradient, .multiGradient, .solid])
         XCTAssertEqual(AtmosphereStyle.allCases, [.gradient, .multiGradient, .solid])
