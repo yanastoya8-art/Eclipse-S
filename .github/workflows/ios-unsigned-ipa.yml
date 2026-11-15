@@ -81,15 +81,32 @@ jobs:
           MPVKIT_SOURCE_REVISION: fee7aa27869ed4775ff2984de4438484d902e67b
         run: test "$(git -C MPVKit rev-parse HEAD)" = "$MPVKIT_SOURCE_REVISION"
 
+      - name: Cache patched MPVKit iOS frameworks
+        uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4
+        with:
+          path: MPVKit/dist/release
+          key: mpvkit-ios-${{ runner.os }}-fee7aa27869ed4775ff2984de4438484d902e67b
+
       - name: Build patched MPVKit for iPhone and iPad
         run: |
           set -euo pipefail
-          brew install autoconf automake cmake libtool nasm ninja pkg-config
-          MPVKIT_BUILD_VENV="$RUNNER_TEMP/mpvkit-build-venv"
-          python3 -m venv "$MPVKIT_BUILD_VENV"
-          "$MPVKIT_BUILD_VENV/bin/python" -m pip install --disable-pip-version-check meson==1.4.2
-          export PATH="$MPVKIT_BUILD_VENV/bin:$PATH"
-          make -C MPVKit build enable-gpl version=0.41.0 platform=ios
+          REQUIRED_FRAMEWORKS=(Libmpv Libavcodec Libavdevice Libavfilter Libavformat Libavutil Libswresample Libswscale)
+          CACHE_VALID=true
+          test -f MPVKit/dist/release/Package.swift || CACHE_VALID=false
+          for framework in "${REQUIRED_FRAMEWORKS[@]}"; do
+            test -f "MPVKit/dist/release/xcframework/${framework}.xcframework/Info.plist" || CACHE_VALID=false
+          done
+
+          if [ "$CACHE_VALID" = true ]; then
+            echo "Using cached, revision-pinned MPVKit iOS frameworks."
+          else
+            brew install autoconf automake cmake libtool nasm ninja pkg-config
+            MPVKIT_BUILD_VENV="$RUNNER_TEMP/mpvkit-build-venv"
+            python3 -m venv "$MPVKIT_BUILD_VENV"
+            "$MPVKIT_BUILD_VENV/bin/python" -m pip install --disable-pip-version-check meson==1.4.2
+            export PATH="$MPVKIT_BUILD_VENV/bin:$PATH"
+            make -C MPVKit build enable-gpl version=0.41.0 platform=ios
+          fi
           test -f MPVKit/dist/release/Package.swift
 
       - name: Set up Xcode
