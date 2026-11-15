@@ -13351,11 +13351,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         guard isViewLoaded else { return }
         let headers = playbackLaunchContext?.headers ?? initialHeaders ?? [:]
         let candidates = [URL(string: playbackLaunchContext?.streamURL ?? ""), initialURL].compactMap { $0 }
-        castButton.isHidden = !isMPVRenderer
+        castButton.isHidden = candidates.isEmpty
         castButton.isEnabled = !candidates.isEmpty
         castButton.accessibilityHint = candidates.isEmpty
             ? "No stream URL is available to cast."
-            : "Automatically use LG webOS for MKV, local files, and streams requiring provider headers; use Chromecast for other streams."
+            : "Use LG webOS for Nuvio, Mangayomi, MKV, local files, and authenticated streams; use Chromecast for other supported streams."
         let castTint = activePlayerSkinAppearance.primary
         castButton.tintColor = castButton.isEnabled ? castTint : castTint.withAlphaComponent(0.35)
     }
@@ -13370,7 +13370,15 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         let requiresHeaderProxy = headers.keys.contains { key in
             !["user-agent", "accept", "accept-language", "connection", "range"].contains(key.lowercased())
         }
-        if url.isFileURL || url.pathExtension.lowercased() == "mkv" || requiresHeaderProxy {
+        let providerRequiresLGRoute = playbackLaunchContext?.sourceKind == .nuvio
+            || playbackLaunchContext?.usesMangayomiSource == true
+        if providerRequiresLGRoute
+            || url.isFileURL
+            || url.pathExtension.lowercased() == "mkv"
+            || requiresHeaderProxy {
+            // Nuvio and Mangayomi streams frequently depend on provider-specific
+            // request headers or short-lived URLs. Route them through the TV
+            // receiver that supports authenticated HTTP playback.
             prepareLGWebOSCastForCurrentStream()
         } else {
             guard let castableURL = candidates.first(where: {
