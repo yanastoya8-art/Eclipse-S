@@ -14,7 +14,7 @@ enum PosterArtworkURLResolver {
               path.hasPrefix("/"),
               !path.hasPrefix("//"),
               !path.contains(".."),
-              let url = URL(string: "https://image.tmdb.org/t/p/original\\(path)") else { return nil }
+              let url = URL(string: "https://image.tmdb.org/t/p/original\(path)") else { return nil }
         return url.absoluteString
     }
 
