@@ -113,7 +113,7 @@ final class HomeViewModel: ObservableObject {
         // age/runtime/audio metadata once per unique media identity instead of once
         // per shelf occurrence whenever a filter changes.
         var seenIdentities = Set<String>()
-        let allResults = (catalogSnapshot.values.lazy.flatMap { $0 } + widgetSnapshot.values.lazy.flatMap { $0 })
+        let allResults = (Array(catalogSnapshot.values.joined()) + Array(widgetSnapshot.values.joined()))
             .filter { seenIdentities.insert($0.stableIdentity).inserted }
         await contentFilter.prepareMaturityRatings(for: allResults)
 
