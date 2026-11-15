@@ -90,6 +90,9 @@ struct DiscoverDetailView: View {
             if items.isEmpty {
                 items = initialItems
                 initialPageItemCount = initialItems.count
+                if initialItems.isEmpty {
+                    loadNextPage()
+                }
             }
         }
         .onChangeComp(of: initialItems.map(\.stableIdentity)) { _, _ in
@@ -104,6 +107,9 @@ struct DiscoverDetailView: View {
             items = initialItems + existingTail.filter { !firstPageIDs.contains($0.stableIdentity) }
             initialPageItemCount = initialItems.count
             hasMorePages = true
+            if filteredItems.isEmpty {
+                loadNextPage()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: TMDBContentFilter.catalogFiltersDidChangeNotification)) { _ in
             let snapshot = items
@@ -353,19 +359,30 @@ struct DiscoverDetailView: View {
     private func loadNextPage() {
         guard let loadMore = loadMore, !isLoadingMore, hasMorePages else { return }
         isLoadingMore = true
-        currentPage += 1
-        Task {
-            let newItems = await loadMore(currentPage)
-            await MainActor.run {
-                if newItems.isEmpty {
-                    hasMorePages = false
+        Task { @MainActor in
+            // A page can be non-empty at the provider but empty after strict
+            // language/age/production filters. Scan a few subsequent pages
+            // before declaring the catalog empty, rather than waiting for a
+            // card that does not exist to trigger pagination.
+            var consecutiveEmptyPages = 0
+            let maximumEmptyPagesToScan = 4
+            while consecutiveEmptyPages < maximumEmptyPagesToScan {
+                currentPage += 1
+                let newItems = await loadMore(currentPage)
+                let existingIds = Set(items.map { $0.stableIdentity })
+                let unique = newItems.filter { !existingIds.contains($0.stableIdentity) }
+                if unique.isEmpty {
+                    consecutiveEmptyPages += 1
                 } else {
-                    let existingIds = Set(items.map { $0.stableIdentity })
-                    let unique = newItems.filter { !existingIds.contains($0.stableIdentity) }
                     items.append(contentsOf: unique)
+                    consecutiveEmptyPages = 0
+                    break
                 }
-                isLoadingMore = false
             }
+            if consecutiveEmptyPages >= maximumEmptyPagesToScan {
+                hasMorePages = false
+            }
+            isLoadingMore = false
         }
     }
 }
