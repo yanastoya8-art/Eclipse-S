@@ -700,3 +700,362 @@ enum AnimeScheduleFallback {
         return try await mal()
     }
 }
+
+
+// MARK: - Verified Spanish-dub release research
+
+enum SpanishDubAIProvider: String, CaseIterable, Identifiable {
+    case gemini
+    case perplexity
+    case openAI
+
+    var id: String { rawValue }
+    var displayName: String {
+        switch self {
+        case .gemini: return "Google Gemini"
+        case .perplexity: return "Perplexity"
+        case .openAI: return "OpenAI"
+        }
+    }
+}
+
+/// API credentials are device-local and never written to UserDefaults or bundled in the app.
+enum SpanishDubAIKeyStore {
+    private static let service = "app.eclipse.spanish-dub-ai"
+
+    static func load(_ provider: SpanishDubAIProvider) -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: provider.rawValue,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var result: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let data = result as? Data,
+              let value = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty else { return nil }
+        return value
+    }
+
+    static func save(_ value: String, for provider: SpanishDubAIProvider) throws {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: provider.rawValue
+        ]
+        guard !trimmed.isEmpty else {
+            let status = SecItemDelete(query as CFDictionary)
+            guard status == errSecSuccess || status == errSecItemNotFound else {
+                throw NSError(domain: NSOSStatusErrorDomain, code: Int(status))
+            }
+            return
+        }
+        let attributes: [String: Any] = [
+            kSecValueData as String: Data(trimmed.utf8),
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        ]
+        let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        if status == errSecItemNotFound {
+            var insert = query
+            attributes.forEach { insert[$0.key] = $0.value }
+            let addStatus = SecItemAdd(insert as CFDictionary, nil)
+            guard addStatus == errSecSuccess else {
+                throw NSError(domain: NSOSStatusErrorDomain, code: Int(addStatus))
+            }
+        } else if status != errSecSuccess {
+            throw NSError(domain: NSOSStatusErrorDomain, code: Int(status))
+        }
+    }
+}
+
+actor SpanishDubAIResearchService {
+    static let shared = SpanishDubAIResearchService()
+
+    private struct ResearchCandidate: Codable {
+        let episode: Int
+        let date: String
+        let region: String
+        let status: String
+        let sources: [String]
+    }
+
+    private struct CachedDate: Codable {
+        let fetchedAt: Date
+        let date: Date
+        let sourceURL: String
+        let provider: SpanishDubAIProvider
+    }
+
+    private var cache: [String: CachedDate] = [:]
+    private var didLoadCache = false
+    private let cacheKey = "spanishDubAIResearchCacheV1"
+    private let cacheLifetime: TimeInterval = 7 * 24 * 60 * 60
+    private let maximumCandidatesPerRefresh = 20
+
+    /// Providers are deliberately sequential. A later provider only sees episodes
+    /// that the earlier provider could not verify.
+    func research(entries: [AniListAiringScheduleEntry]) async -> [AniListAiringScheduleEntry] {
+        loadCache()
+        let now = Date()
+        let candidates = Array(entries.filter { $0.episode > 0 && $0.episode <= 100_000 }
+            .sorted { $0.airingAt < $1.airingAt }
+            .prefix(maximumCandidatesPerRefresh))
+        guard !candidates.isEmpty else { return [] }
+
+        var resolved: [Int: CachedDate] = [:]
+        for entry in candidates {
+            let key = Self.cacheKey(for: entry)
+            if let cached = cache[key],
+               now.timeIntervalSince(cached.fetchedAt) >= 0,
+               now.timeIntervalSince(cached.fetchedAt) < cacheLifetime {
+                resolved[entry.episode] = cached
+            }
+        }
+
+        for provider in SpanishDubAIProvider.allCases {
+            let apiKey = SpanishDubAIKeyStore.load(provider) ?? ""
+            guard !apiKey.isEmpty else { continue }
+            let unresolved = candidates.filter { resolved[ $0.episode ] == nil }
+            guard !unresolved.isEmpty else { break }
+            do {
+                let results = try await request(provider: provider, apiKey: apiKey, entries: unresolved)
+                for (entry, result) in zip(unresolved, results) {
+                    guard let result,
+                          result.status.lowercased() == "confirmed",
+                          result.region.lowercased().contains("spanish"),
+                          let date = Self.parseDate(result.date),
+                          date >= Calendar(identifier: .gregorian).startOfDay(for: now),
+                          date <= now.addingTimeInterval(180 * 86400),
+                          let source = result.sources.first(where: { Self.isUsableSource($0) }) else {
+                        continue
+                    }
+                    let record = CachedDate(fetchedAt: now, date: date, sourceURL: source, provider: provider)
+                    let key = Self.cacheKey(for: entry)
+                    cache[key] = record
+                    resolved[entry.episode] = record
+                }
+                persistCache()
+            } catch {
+                // Quota, authentication, network, malformed output and provider
+                // outages all advance to the next configured provider.
+                continue
+            }
+        }
+
+        let byEpisode = Dictionary(grouping: candidates, by: \.episode)
+        return resolved.compactMap { episode, record in
+            guard let original = byEpisode[episode]?.first else { return nil }
+            return AniListAiringScheduleEntry(
+                id: original.id,
+                mediaId: original.mediaId,
+                title: original.title,
+                airingAt: record.date,
+                episode: original.episode,
+                coverImage: original.coverImage,
+                englishTitle: original.englishTitle,
+                romajiTitle: original.romajiTitle,
+                nativeTitle: original.nativeTitle,
+                format: original.format,
+                hasKnownAiringTime: true,
+                scheduleProvider: .aiSpanishDub,
+                malID: original.malID,
+                airingTimeWithdrawn: false,
+                tags: original.tags,
+                releaseYear: original.releaseYear,
+                runtimeMinutes: original.runtimeMinutes,
+                sourceURL: record.sourceURL
+            )
+        }.sorted { $0.airingAt < $1.airingAt }
+    }
+
+    private func request(
+        provider: SpanishDubAIProvider,
+        apiKey: String,
+        entries: [AniListAiringScheduleEntry]
+    ) async throws -> [ResearchCandidate?] {
+        let grouped = Dictionary(grouping: entries, by: { $0.mediaId })
+        let titles = grouped.values.compactMap(\.first).prefix(12).map { entry in
+            let title = [entry.englishTitle, entry.title, entry.romajiTitle]
+                .compactMap { $0 }.first(where: { !$0.isEmpty }) ?? entry.title
+            let episodes = grouped[entry.mediaId, default: []].map(\.episode).sorted()
+            return "\(title) (AniList ID \(entry.mediaId)): episodes \(episodes.map(String.init).joined(separator: ", "))"
+        }.joined(separator: "\n")
+        let prompt = """
+        Research upcoming Spanish-language anime dub release dates using live web search.
+        Only return dates explicitly announced by an official distributor/platform or a reputable anime-news publication.
+        Spanish includes Latin American Spanish and Castilian Spanish. Do not confuse Spanish with Portuguese.
+        Do not use Japanese broadcast dates, English dub dates, fan predictions, or AI estimates.
+        Only research the exact anime and episode numbers in this list:
+        \(titles)
+
+        Return ONLY valid JSON in this shape:
+        {"results":[{"mediaId":123,"episode":1,"date":"YYYY-MM-DD","region":"Latin American Spanish or Castilian Spanish","status":"confirmed","sources":["https://..."]}]}
+        Include only confirmed future dates. Every result must have at least one source URL that directly supports the Spanish dub episode/date. Omit anything uncertain.
+        """
+        let (url, body, authHeader, authValue) = try Self.requestParts(provider: provider, apiKey: apiKey, prompt: prompt)
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 35
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(authValue, forHTTPHeaderField: authHeader)
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw AnimeScheduleError.invalidResponse }
+        guard (200..<300).contains(http.statusCode), data.count <= 2 * 1024 * 1024,
+              let payload = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw AnimeScheduleError.http((response as? HTTPURLResponse)?.statusCode ?? 0)
+        }
+
+        let text: String
+        var citations = Set<String>()
+        switch provider {
+        case .gemini:
+            guard let candidates = payload["candidates"] as? [[String: Any]],
+                  let content = candidates.first?["content"] as? [String: Any],
+                  let parts = content["parts"] as? [[String: Any]] else { throw AnimeScheduleError.invalidResponse }
+            text = parts.compactMap { $0["text"] as? String }.joined(separator: "\n")
+            if let metadata = candidates.first?["groundingMetadata"] as? [String: Any],
+               let chunks = metadata["groundingChunks"] as? [[String: Any]] {
+                for chunk in chunks {
+                    if let web = chunk["web"] as? [String: Any], let uri = web["uri"] as? String {
+                        citations.insert(uri)
+                    }
+                }
+            }
+        case .perplexity:
+            guard let choices = payload["choices"] as? [[String: Any]],
+                  let message = choices.first?["message"] as? [String: Any],
+                  let content = message["content"] as? String else { throw AnimeScheduleError.invalidResponse }
+            text = content
+            for url in payload["citations"] as? [String] ?? [] { citations.insert(url) }
+        case .openAI:
+            guard let output = payload["output"] as? [[String: Any]] else { throw AnimeScheduleError.invalidResponse }
+            var chunks: [String] = []
+            for item in output where item["type"] as? String == "message" {
+                for content in item["content"] as? [[String: Any]] ?? [] {
+                    if let value = content["text"] as? String { chunks.append(value) }
+                    for annotation in content["annotations"] as? [[String: Any]] ?? [] {
+                        if let url = annotation["url"] as? String { citations.insert(url) }
+                    }
+                }
+            }
+            text = chunks.joined(separator: "\n")
+        }
+
+        guard let jsonStart = text.firstIndex(of: "{"),
+              let jsonEnd = text.lastIndex(of: "}"),
+              jsonStart <= jsonEnd,
+              let jsonData = String(text[jsonStart...jsonEnd]).data(using: .utf8),
+              let decoded = try? JSONDecoder().decode(ResearchEnvelope.self, from: jsonData) else {
+            throw AnimeScheduleError.invalidResponse
+        }
+        let byEpisode = Dictionary(grouping: decoded.results, by: \.episode)
+        return entries.map { entry in
+            guard let result = byEpisode[entry.episode]?.first,
+                  result.mediaId == entry.mediaId else { return nil }
+            let groundedSources = result.sources.filter { citations.contains($0) && Self.isUsableSource($0) }
+            guard !groundedSources.isEmpty else { return nil }
+            return ResearchCandidate(
+                episode: result.episode,
+                date: result.date,
+                region: result.region,
+                status: result.status,
+                sources: groundedSources
+            )
+        }
+    }
+
+    private struct ResearchEnvelope: Decodable {
+        struct Result: Decodable {
+            let mediaId: Int
+            let episode: Int
+            let date: String
+            let region: String
+            let status: String
+            let sources: [String]
+        }
+        let results: [Result]
+    }
+
+    private static func requestParts(
+        provider: SpanishDubAIProvider,
+        apiKey: String,
+        prompt: String
+    ) throws -> (URL, [String: Any], String, String) {
+        switch provider {
+        case .gemini:
+            guard var components = URLComponents(string: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent") else {
+                throw AnimeScheduleError.invalidResponse
+            }
+            components.queryItems = [URLQueryItem(name: "key", value: apiKey)]
+            guard let url = components.url else { throw AnimeScheduleError.invalidResponse }
+            return (url, [
+                "contents": [["parts": [["text": prompt]]]],
+                "tools": [["google_search": [:]]],
+                "generationConfig": ["temperature": 0.1, "responseMimeType": "application/json"]
+            ], "Accept", "application/json")
+        case .perplexity:
+            guard let url = URL(string: "https://api.perplexity.ai/chat/completions") else {
+                throw AnimeScheduleError.invalidResponse
+            }
+            return (url, [
+                "model": "sonar-pro",
+                "temperature": 0.1,
+                "messages": [["role": "user", "content": prompt]]
+            ], "Authorization", "Bearer " + apiKey)
+        case .openAI:
+            guard let url = URL(string: "https://api.openai.com/v1/responses") else {
+                throw AnimeScheduleError.invalidResponse
+            }
+            return (url, [
+                "model": "gpt-6-astra",
+                "tools": [["type": "web_search"]],
+                "input": prompt
+            ], "Authorization", "Bearer " + apiKey)
+        }
+    }
+
+    private static func cacheKey(for entry: AniListAiringScheduleEntry) -> String {
+        "\(entry.mediaId):\(entry.episode)"
+    }
+
+    private static func parseDate(_ raw: String) -> Date? {
+        guard raw.count == 10 else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: raw)
+    }
+
+    private static func isUsableSource(_ raw: String) -> Bool {
+        guard raw.utf8.count <= 2048, let url = URL(string: raw),
+              url.scheme?.lowercased() == "https",
+              let host = url.host?.lowercased(), !host.isEmpty,
+              url.user == nil, url.password == nil else { return false }
+        let blocked = ["google.com", "bing.com", "perplexity.ai", "openai.com", "gemini.google.com"]
+        return !blocked.contains(where: { host == $0 || host.hasSuffix("." + $0) })
+    }
+
+    private func loadCache() {
+        guard !didLoadCache else { return }
+        didLoadCache = true
+        guard let data = UserDefaults.standard.data(forKey: cacheKey),
+              let decoded = try? JSONDecoder().decode([String: CachedDate].self, from: data),
+              decoded.count <= 500 else { return }
+        cache = decoded
+    }
+
+    private func persistCache() {
+        let now = Date()
+        cache = cache.filter { now.timeIntervalSince($0.value.fetchedAt) >= 0 && now.timeIntervalSince($0.value.fetchedAt) < cacheLifetime }
+        if let data = try? JSONEncoder().encode(cache) {
+            UserDefaults.standard.set(data, forKey: cacheKey)
+        }
+    }
+}
