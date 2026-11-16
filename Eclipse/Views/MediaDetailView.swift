@@ -1159,6 +1159,16 @@ struct MediaDetailContentView: View {
         .task(id: exactAnimeNavigationSeedAniListId) {
             await loadAnimeAgeCertificationIfNeeded()
         }
+        .onChangeComp(of: isAnimeShow) { _, isAnime in
+            guard isAnime else {
+                animeAgeRatingRequestID = UUID()
+                animeAgeCertification = nil
+                return
+            }
+            Task { @MainActor in
+                await loadAnimeAgeCertificationIfNeeded(preferredAniListID: animeMetadata?.id)
+            }
+        }
         .onChangeComp(of: geometry.size) { _, newSize in
             detailViewportSize = newSize
         }
@@ -7152,10 +7162,15 @@ struct MediaDetailContentView: View {
             async let creditsResult: TMDBCreditsResponse? = try? loadOptionalPresentationCredits(id: id, isMovie: isMovie)
             async let titleImagesResult: TMDBImagesResponse? = try? loadOptionalTitleArtworkImages(id: id, isMovie: isMovie, language: "en")
             async let fanartLogoResult: String? = FanartTVLogoService.shared.logoURL(imdbID: isMovie ? movieDetail?.imdbId : nil)
+            async let preloadedLogoResult: String? = SearchResultTitleLogoCache.shared.logoURL(
+                mediaType: isMovie ? "movie" : "tv",
+                id: id
+            )
             let romaji = await romajiResult
             let credits = await creditsResult
             let titleImages = await titleImagesResult
             let fanartLogoURL = await fanartLogoResult
+            let preloadedLogoURL = await preloadedLogoResult
             let rankedLogos = (titleImages?.logos ?? []).sorted { lhs, rhs in
                 func languageRank(_ value: String?) -> Int {
                     switch value?.lowercased() {
@@ -7180,7 +7195,7 @@ struct MediaDetailContentView: View {
                 : nil
             let selectedTMDBLogo = rankedLogos.first(where: { $0.iso6391?.lowercased() == "en" || $0.iso6391 == nil || $0.iso6391 == "" })?.fullURL
                 ?? rankedLogos.first?.fullURL
-            let resolvedLogoURL = providerLogo.flatMap { $0.isEmpty ? nil : $0 } ?? fanartLogoURL ?? selectedTMDBLogo
+            let resolvedLogoURL = providerLogo.flatMap { $0.isEmpty ? nil : $0 } ?? fanartLogoURL ?? preloadedLogoURL ?? selectedTMDBLogo
 
             guard !Task.isCancelled, isDetailVisible, optionalPresentationGeneration == generation,
                   searchResult.stableIdentity == identity, selectedLanguage == language else { return }
