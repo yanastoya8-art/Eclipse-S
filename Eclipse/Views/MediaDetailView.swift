@@ -3063,7 +3063,15 @@ struct MediaDetailContentView: View {
         }
 
         do {
-            let rating = try await TaizenAnimeAgeRatingService.shared.rating(anilistID: anilistID)
+            var rating = try? await TaizenAnimeAgeRatingService.shared.rating(anilistID: anilistID)
+            // Taizen coverage is incomplete. Use the linked MAL entry as a
+            // second authoritative classification source when configured.
+            if rating == nil || rating == .unknown,
+               MALMetadataService.shared.isConfigured,
+               let malID = ratingMALID, malID > 0 {
+                rating = await MALMetadataService.shared.fetchMaturityRating(malID: malID)
+                    .map { AnimeMetadataRating(ageBand: $0.rawValue, source: .taizen) }
+            }
             guard !Task.isCancelled,
                   animeAgeRatingRequestID == requestID,
                   searchResult.stableIdentity == requestIdentity,
@@ -7136,33 +7144,54 @@ struct MediaDetailContentView: View {
                 if optionalPresentationGeneration == generation { optionalPresentationTask = nil }
             }
 
-            // Load the title logo after first paint so artwork enrichment never
-            // delays the detail page. Prefer English TMDB logos; Japanese-only
-            // logos are intentionally rejected in favour of an English text title.
+            // Enrich artwork after first paint. Always request English TMDB image
+            // assets regardless of the UI language: TMDB otherwise omits English
+            // logos for some non-English catalogue locales.
             async let romajiResult = tmdbService.getRomajiTitle(for: isMovie ? "movie" : "tv", id: id)
             async let creditsResult: TMDBCreditsResponse? = try? loadOptionalPresentationCredits(id: id, isMovie: isMovie)
-            async let titleImagesResult: TMDBImagesResponse? = try? loadOptionalTitleArtworkImages(id: id, isMovie: isMovie, language: language)
+            async let titleImagesResult: TMDBImagesResponse? = try? loadOptionalTitleArtworkImages(id: id, isMovie: isMovie, language: "en")
             let romaji = await romajiResult
             let credits = await creditsResult
             let titleImages = await titleImagesResult
-            let englishLogoURL = (titleImages?.logos ?? [])
-                .filter { $0.iso6391?.lowercased() == "en" }
-                .sorted {
-                    if ($0.voteCount ?? 0) != ($1.voteCount ?? 0) {
-                        return ($0.voteCount ?? 0) > ($1.voteCount ?? 0)
+            let rankedLogos = (titleImages?.logos ?? []).sorted { lhs, rhs in
+                func languageRank(_ value: String?) -> Int {
+                    switch value?.lowercased() {
+                    case "en": return 0
+                    case nil, "": return 1
+                    default: return 2
                     }
-                    return ($0.voteAverage ?? 0) > ($1.voteAverage ?? 0)
                 }
-                .first?.fullURL
+                let leftRank = languageRank(lhs.iso6391)
+                let rightRank = languageRank(rhs.iso6391)
+                if leftRank != rightRank { return leftRank < rightRank }
+                if (lhs.voteCount ?? 0) != (rhs.voteCount ?? 0) {
+                    return (lhs.voteCount ?? 0) > (rhs.voteCount ?? 0)
+                }
+                return (lhs.voteAverage ?? 0) > (rhs.voteAverage ?? 0)
+            }
+            // Anime metadata providers can return a direct transparent logo.
+            // Prefer that source, then TMDB English/neutral artwork. For other
+            // titles, retain a non-English TMDB logo only as a final fallback.
+            let providerLogo = isAnimeShow
+                ? searchResult.animeLogoURL?.trimmingCharacters(in: .whitespacesAndNewlines)
+                : nil
+            let selectedTMDBLogo = rankedLogos.first(where: { $0.iso6391?.lowercased() == "en" || $0.iso6391 == nil || $0.iso6391 == "" })?.fullURL
+                ?? rankedLogos.first?.fullURL
+            let resolvedLogoURL = providerLogo.flatMap { $0.isEmpty ? nil : $0 } ?? selectedTMDBLogo
 
             guard !Task.isCancelled, isDetailVisible, optionalPresentationGeneration == generation,
                   searchResult.stableIdentity == identity, selectedLanguage == language else { return }
             romajiTitle = romaji
-            logoURL = englishLogoURL
+            logoURL = resolvedLogoURL
             if let credits { castMembers = credits.cast }
             titleArtworkLookupComplete = true
-            // A failed credits request must not be cached as a completed enrichment pass.
-            optionalPresentationIsComplete = credits != nil && titleImages != nil
+            if let resolvedLogoURL, let url = URL(string: resolvedLogoURL) {
+                KingfisherManager.shared.retrieveImage(with: url, options: [.backgroundDecode]) { _ in }
+            }
+            // A missing logo is not a successful lookup: keep the enrichment
+            // retryable so transient provider/API failures do not become a
+            // permanent cached "no logo" result.
+            optionalPresentationIsComplete = credits != nil && titleImages != nil && (resolvedLogoURL != nil || !isAnimeShow)
             cacheOptionalPresentation(key: cacheKey)
 
             let elapsedMs = Int(((ProcessInfo.processInfo.systemUptime - startedAt) * 1_000).rounded())
