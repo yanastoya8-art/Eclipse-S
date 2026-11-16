@@ -64,15 +64,9 @@ struct CenteredPosterTitleOverlay: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                stops: [
-                    .init(color: .clear, location: 0),
-                    .init(color: .black.opacity(0.58), location: 0.5),
-                    .init(color: .clear, location: 1)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
+            // Keep the source poster at its original brightness. A dark gradient
+            // here was unintentionally tinting every browsing/search poster,
+            // even when no title artwork was available.
 
             if let logoURL, !logoURL.isEmpty {
                 ResilientArtworkImage(
@@ -85,7 +79,7 @@ struct CenteredPosterTitleOverlay: View {
                 .frame(maxWidth: 900, maxHeight: 260)
                 .padding(.horizontal, 8)
             } else {
-                Color.clear
+                titleText
             }
         }
         .accessibilityElement(children: .ignore)
