@@ -2840,9 +2840,24 @@ private struct BrowseMediaView: View {
         mediaType: BrowseMediaType
     ) async -> [Int: MaturityRating] {
         guard mediaType.isAnime else { return [:] }
-        let identifiers = Array(Set(results.compactMap { $0.animeIdentitySeed?.anilistId }))
+        let identities = results.compactMap(\.animeIdentitySeed)
+        let identifiers = Array(Set(identities.map(\.anilistId)))
         guard !identifiers.isEmpty, !Task.isCancelled else { return [:] }
-        return (try? await TaizenAnimeAgeRatingService.shared.ratings(anilistIDs: identifiers)) ?? [:]
+        var ratings = (try? await TaizenAnimeAgeRatingService.shared.ratings(anilistIDs: identifiers)) ?? [:]
+        guard MALMetadataService.shared.isConfigured, !Task.isCancelled else { return ratings }
+
+        let missing = identities.filter { identity in
+            identity.malId != nil
+                && (ratings[identity.anilistId] == nil || ratings[identity.anilistId] == .unknown)
+        }
+        for identity in missing {
+            guard !Task.isCancelled, let malID = identity.malId, malID > 0 else { continue }
+            if let fallback = await MALMetadataService.shared.fetchMaturityRating(malID: malID),
+               fallback != .unknown {
+                ratings[identity.anilistId] = fallback
+            }
+        }
+        return ratings
     }
 
     private func animeLanguage(for countries: [String]) -> String? {
