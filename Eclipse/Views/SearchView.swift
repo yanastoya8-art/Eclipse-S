@@ -2791,7 +2791,7 @@ private struct BrowseMediaView: View {
                 // The Anime Browse discover query is already constrained to
                 // animation genre 16. Do not discard entries just because TMDB
                 // omitted country/language metadata.
-                guard result.genreIds?.contains(16) == true else { return nil }
+                if let genres = result.genreIds, !genres.contains(16) { return nil }
                 return result.withAnimeHint(true)
             }
         }
