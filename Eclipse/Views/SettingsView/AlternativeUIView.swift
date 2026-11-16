@@ -21,6 +21,7 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
     case switchModeAnimation
     case animatedBackground
     case animationQuality
+    case animationColor
     case animationFrameRate
     case appPerformanceOverlay
     case hideSplashScreen
@@ -45,7 +46,7 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
             return "theme"
         case .interface, .globalAppearance, .accentColor:
             return "interface"
-        case .switchModeAnimation, .animatedBackground, .animationQuality, .animationFrameRate, .appPerformanceOverlay, .hideSplashScreen:
+        case .switchModeAnimation, .animatedBackground, .animationQuality, .animationColor, .animationFrameRate, .appPerformanceOverlay, .hideSplashScreen:
             return "motion"
         case .alternativeSeasonMenu, .horizontalEpisodeList, .showUnairedEpisodes, .titleLogoPosition, .tmdbTitleArt, .dataSaver, .ageRating, .similarTitles:
             return "details"
@@ -491,7 +492,7 @@ struct AlternativeUIView: View {
                     }
                 }
                 .pickerStyle(.menu)
-                .id("appearance-settings-search-animation-color")
+                .id(AppearanceSettingsSearchTarget.animationColor.anchorID)
             }
 
             settingRow(
@@ -1077,6 +1078,7 @@ struct AlternativeUIView: View {
         homeAnimatedBackgroundEnabled = HomeAnimatedBackgroundSettings.defaultEnabled
         homeAnimatedBackgroundQuality = HomeAnimatedBackgroundQuality.defaultValue.rawValue
         homeAnimatedBackgroundFrameRate = HomeAnimatedBackgroundFrameRate.defaultValue.rawValue
+        homeAnimatedBackgroundParticleColor = HomeAnimatedBackgroundParticleColor.defaultValue.rawValue
         appPerformanceOverlayEnabled = AppPerformanceOverlaySettings.defaultEnabled
 #if !os(tvOS)
         modeSwitchAnimationEnabled = ModeSwitchAnimationSettings.defaultEnabled
