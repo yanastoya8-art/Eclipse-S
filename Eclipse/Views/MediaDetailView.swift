@@ -2649,7 +2649,7 @@ struct MediaDetailContentView: View {
                         ResilientArtworkImage(
                             urls: [logoURL],
                             decodeSize: CGSize(
-                                width: max(EclipseViewport.bounds.width * EclipseViewport.scale * 0.9, 1),
+                                width: max(detailViewportWidth * EclipseViewport.scale * 0.9, 1),
                                 height: max(headerHeight * EclipseViewport.scale * 0.3, 1)
                             ),
                             contentMode: .fit
