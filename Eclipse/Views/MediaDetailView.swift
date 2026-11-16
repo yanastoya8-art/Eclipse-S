@@ -2312,7 +2312,7 @@ struct MediaDetailContentView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             .padding(.horizontal, 28)
-            .offset(y: bannerHeight * (titleLogoVerticalPosition - 0.5))
+            .offset(y: bannerHeight * CGFloat(titleLogoVerticalPosition - 0.5))
         }
         .frame(width: bannerWidth, height: bannerHeight)
         .clipped()
@@ -2580,7 +2580,7 @@ struct MediaDetailContentView: View {
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 // The position is user-adjustable in Appearance → Detail Pages.
-                .offset(y: headerHeight * (titleLogoVerticalPosition - 0.5))
+                .offset(y: headerHeight * CGFloat(titleLogoVerticalPosition - 0.5))
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
             } else {
@@ -2592,7 +2592,7 @@ struct MediaDetailContentView: View {
                     .shadow(color: .black.opacity(0.85), radius: 7, x: 0, y: 3)
                     .padding(.horizontal, 24)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                    .offset(y: headerHeight * (titleLogoVerticalPosition - 0.5))
+                    .offset(y: headerHeight * CGFloat(titleLogoVerticalPosition - 0.5))
                     .allowsHitTesting(false)
             }
         }
@@ -7102,7 +7102,7 @@ struct MediaDetailContentView: View {
             if let credits { castMembers = credits.cast }
             titleArtworkLookupComplete = true
             // A failed credits request must not be cached as a completed enrichment pass.
-            optionalPresentationIsComplete = credits != nil
+            optionalPresentationIsComplete = credits != nil && englishLogoURL != nil
             cacheOptionalPresentation(key: cacheKey)
 
             let elapsedMs = Int(((ProcessInfo.processInfo.systemUptime - startedAt) * 1_000).rounded())
