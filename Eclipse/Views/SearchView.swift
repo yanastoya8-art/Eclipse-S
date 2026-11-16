@@ -2245,7 +2245,7 @@ private struct BrowseMediaView: View {
                         Task {
                             let enriched = await resolveAnimeBrowseIdentities(pageResult.results)
                             guard queryGeneration == browseQueryGeneration,
-                                  mediaType == browseMediaType else { return }
+                                  mediaType == browseMediaType.tmdbValue else { return }
                             var enrichedByID: [Int: TMDBSearchResult] = [:]
                             for result in enriched { enrichedByID[result.id] = result }
                             unfilteredResults = unfilteredResults.map { enrichedByID[$0.id] ?? $0 }
