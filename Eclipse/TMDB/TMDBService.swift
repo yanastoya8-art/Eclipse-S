@@ -3243,8 +3243,59 @@ actor FanartTVLogoService {
         let movielogo: [Logo]?
     }
 
+    private struct TVResponse: Decodable {
+        let hdtvlogo: [Logo]?
+        let clearlogo: [Logo]?
+    }
+
     private var cache: [String: String] = [:]
     private var attempted = Set<String>()
+
+    func logoURL(imdbID: String?, tvdbID: Int?) async -> String? {
+        if let imdbID, let movieLogo = await logoURL(imdbID: imdbID) { return movieLogo }
+        guard let tvdbID, tvdbID > 0 else { return nil }
+        let cacheKey = "tvdb:\(tvdbID)"
+        if attempted.contains(cacheKey) { return cache[cacheKey] }
+        guard let key = Bundle.main.object(forInfoDictionaryKey: "FanartTVAPIKey") as? String,
+              !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              let url = URL(string: "https://webservice.fanart.tv/v3/tv/\(tvdbID)") else { return nil }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 12
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        components?.queryItems = [URLQueryItem(name: "api_key", value: key)]
+        guard let requestURL = components?.url else { return nil }
+        request.url = requestURL
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse,
+                  http.statusCode == 200,
+                  http.url?.host?.lowercased() == "webservice.fanart.tv",
+                  data.count <= 2 * 1_024 * 1_024 else { return nil }
+            let payload = try JSONDecoder().decode(TVResponse.self, from: data)
+            let logos = (payload.hdtvlogo ?? []) + (payload.clearlogo ?? [])
+            let best = logos.sorted { lhs, rhs in
+                func rank(_ language: String?) -> Int {
+                    switch language?.lowercased() {
+                    case "en": return 0
+                    case nil, "", "00": return 1
+                    default: return 2
+                    }
+                }
+                if rank(lhs.lang) != rank(rhs.lang) { return rank(lhs.lang) < rank(rhs.lang) }
+                return (Int(lhs.likes ?? "") ?? 0) > (Int(rhs.likes ?? "") ?? 0)
+            }.first?.url
+            if let best, let imageURL = URL(string: best),
+               imageURL.scheme?.lowercased() == "https",
+               imageURL.host?.lowercased() == "assets.fanart.tv" {
+                cache[cacheKey] = best
+            }
+            attempted.insert(cacheKey)
+            return cache[cacheKey]
+        } catch {
+            return nil
+        }
+    }
 
     func logoURL(imdbID: String?) async -> String? {
         guard let imdbID, imdbID.range(of: #"^tt[0-9]{7,12}$"#, options: .regularExpression) != nil,
