@@ -48,7 +48,7 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Validate immutable MPVKit revision
         env:
-          MPVKIT_SOURCE_REVISION: fee7aa27869ed4775ff2984de4438484d902e67b
+          MPVKIT_SOURCE_REVISION: b951a22fc5ddbf708057ace059e3742dae685e4d
         run: |
           set -euo pipefail
 
@@ -60,11 +60,11 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           repository: yanastoya8-art/MPVKit-S
-          ref: fee7aa27869ed4775ff2984de4438484d902e67b
+          ref: b951a22fc5ddbf708057ace059e3742dae685e4d
           path: MPVKit
       - name: Verify immutable MPVKit checkout
         env:
-          MPVKIT_SOURCE_REVISION: fee7aa27869ed4775ff2984de4438484d902e67b
+          MPVKIT_SOURCE_REVISION: b951a22fc5ddbf708057ace059e3742dae685e4d
         run: test "$(git -C MPVKit rev-parse HEAD)" = "$MPVKIT_SOURCE_REVISION"
 
       - name: Set up Xcode
@@ -97,7 +97,7 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: MPVKit/dist/release
-          key: mpvkit-ios-${{ runner.os }}-${{ runner.arch }}-${{ steps.apple-sdk.outputs.cache-key }}-fee7aa27869ed4775ff2984de4438484d902e67b-${{ hashFiles('MPVKit/Makefile', 'MPVKit/Sources/BuildScripts/**/*.swift', 'MPVKit/Sources/BuildScripts/patch/**/*.patch') }}
+          key: mpvkit-ios-${{ runner.os }}-${{ runner.arch }}-${{ steps.apple-sdk.outputs.cache-key }}-b951a22fc5ddbf708057ace059e3742dae685e4d-${{ hashFiles('MPVKit/Makefile', 'MPVKit/Sources/BuildScripts/**/*.swift', 'MPVKit/Sources/BuildScripts/patch/**/*.patch') }}
 
       - name: Build patched MPVKit for iPhone and iPad
         run: |
@@ -283,7 +283,7 @@ jobs:
 
       - name: Resolve Swift packages
         env:
-          MPVKIT_SOURCE_REVISION: fee7aa27869ed4775ff2984de4438484d902e67b
+          MPVKIT_SOURCE_REVISION: b951a22fc5ddbf708057ace059e3742dae685e4d
         run: |
           set -euo pipefail
 
