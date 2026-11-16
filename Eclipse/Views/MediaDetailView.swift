@@ -7161,7 +7161,10 @@ struct MediaDetailContentView: View {
             async let romajiResult = tmdbService.getRomajiTitle(for: isMovie ? "movie" : "tv", id: id)
             async let creditsResult: TMDBCreditsResponse? = try? loadOptionalPresentationCredits(id: id, isMovie: isMovie)
             async let titleImagesResult: TMDBImagesResponse? = try? loadOptionalTitleArtworkImages(id: id, isMovie: isMovie, language: "en")
-            async let fanartLogoResult: String? = FanartTVLogoService.shared.logoURL(imdbID: isMovie ? movieDetail?.imdbId : tvShowDetail?.externalIds?.imdbId)
+            async let fanartLogoResult: String? = FanartTVLogoService.shared.logoURL(
+                imdbID: isMovie ? movieDetail?.imdbId : nil,
+                tvdbID: isMovie ? nil : tvShowDetail?.externalIds?.tvdbId
+            )
             async let preloadedLogoResult: String? = SearchResultTitleLogoCache.shared.logoURL(
                 mediaType: isMovie ? "movie" : "tv",
                 id: id
