@@ -87,6 +87,8 @@ struct AlternativeUIView: View {
     @AppStorage(LandscapeMediaDetailAppearanceSettings.logoWeightKey) private var landscapeTitleLogoWeight = LandscapeMediaDetailAppearanceSettings.defaultLogoWeight
     @AppStorage(LandscapeMediaDetailAppearanceSettings.actionsOffsetKey) private var landscapeHeroActionsOffset = LandscapeMediaDetailAppearanceSettings.defaultOffset
     @AppStorage(LandscapeMediaDetailAppearanceSettings.synopsisOffsetKey) private var landscapeHeroSynopsisOffset = LandscapeMediaDetailAppearanceSettings.defaultOffset
+    @AppStorage("mediaDetailPortraitHeroBleedIntensity") private var portraitHeroBleedIntensity = 1.0
+    @AppStorage("mediaDetailLandscapeHeroBleedIntensity") private var landscapeHeroBleedIntensity = 1.0
     @AppStorage(ImageDataSaverSettings.enabledKey, store: .standard) private var imageDataSaverEnabled = false
     @AppStorage(MediaDetailAgeRatingSettings.enabledKey) private var mediaDetailAgeRatingEnabled = MediaDetailAgeRatingSettings.defaultEnabled
     @AppStorage(MediaDetailSimilarTitlesSettings.enabledKey) private var mediaDetailSimilarTitlesEnabled = MediaDetailSimilarTitlesSettings.defaultEnabled
@@ -660,6 +662,13 @@ struct AlternativeUIView: View {
                 step: MediaDetailHeroContentPositionSettings.step
             )
             .id(AppearanceSettingsSearchTarget.heroSynopsisPosition.anchorID)
+            sliderRow(
+                title: "Portrait Hero Color Bleed Intensity",
+                description: "Set how strongly the detail-page hero color extends down the page in portrait mode.",
+                value: $portraitHeroBleedIntensity,
+                range: 0...2,
+                step: 0.05
+            )
 
             Divider()
             Text("Landscape Detail Page").font(.subheadline.weight(.semibold))
@@ -673,6 +682,13 @@ struct AlternativeUIView: View {
                 .id(AppearanceSettingsSearchTarget.landscapeHeroActionPosition.anchorID)
             sliderRow(title: "Landscape Synopsis Vertical Position", description: "Move the synopsis independently in landscape detail pages.", value: $landscapeHeroSynopsisOffset, range: LandscapeMediaDetailAppearanceSettings.offsetRange, step: LandscapeMediaDetailAppearanceSettings.offsetStep)
                 .id(AppearanceSettingsSearchTarget.landscapeHeroSynopsisPosition.anchorID)
+            sliderRow(
+                title: "Landscape Hero Color Bleed Intensity",
+                description: "Set how strongly the detail-page hero color extends down the page in landscape mode.",
+                value: $landscapeHeroBleedIntensity,
+                range: 0...2,
+                step: 0.05
+            )
         } header: {
             Text("Detail Pages")
         }
