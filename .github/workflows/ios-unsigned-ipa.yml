@@ -88,7 +88,14 @@ jobs:
             echo "$sdk SDK: $sdk_path"
           done
 
-          xcode_version="$(xcodebuild -version | awk '/^Xcode / { print $2; exit }')"
+          # Capture all xcodebuild output before parsing; avoid closing its stdout pipe early.
+          xcode_version_output="$(xcodebuild -version)"
+          IFS= read -r xcode_version <<< "$xcode_version_output"
+          xcode_version="${xcode_version#Xcode }"
+          if [[ -z "$xcode_version" ]]; then
+            echo "::error::Unable to determine the selected Xcode version."
+            exit 1
+          fi
           device_sdk="$(xcrun --sdk iphoneos --show-sdk-version)"
           simulator_sdk="$(xcrun --sdk iphonesimulator --show-sdk-version)"
           echo "cache-key=xcode-${xcode_version}-ios-${device_sdk}-sim-${simulator_sdk}" >> "$GITHUB_OUTPUT"
