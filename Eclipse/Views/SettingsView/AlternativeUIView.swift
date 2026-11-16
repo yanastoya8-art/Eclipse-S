@@ -93,6 +93,7 @@ struct AlternativeUIView: View {
     @AppStorage(HomeAnimatedBackgroundQuality.storageKey) private var homeAnimatedBackgroundQuality = HomeAnimatedBackgroundQuality.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundFrameRate.storageKey) private var homeAnimatedBackgroundFrameRate = HomeAnimatedBackgroundFrameRate.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundParticleColor.storageKey) private var homeAnimatedBackgroundParticleColor = HomeAnimatedBackgroundParticleColor.defaultValue.rawValue
+    @AppStorage(HomeAnimatedBackgroundParticleColor.customColorDataKey) private var customAnimationParticleColorData = Data()
     @AppStorage(AppPerformanceOverlaySettings.enabledKey) private var appPerformanceOverlayEnabled = AppPerformanceOverlaySettings.defaultEnabled
 #if !os(tvOS)
     @AppStorage(ModeSwitchAnimationSettings.enabledKey) private var modeSwitchAnimationEnabled = ModeSwitchAnimationSettings.defaultEnabled
@@ -510,6 +511,16 @@ struct AlternativeUIView: View {
                 .accessibilityValue(HomeAnimatedBackgroundParticleColor.resolved(homeAnimatedBackgroundParticleColor).displayName)
                 .id(AppearanceSettingsSearchTarget.animationColor.anchorID)
             }
+            if HomeAnimatedBackgroundParticleColor.resolved(homeAnimatedBackgroundParticleColor) == .custom {
+                settingRow(
+                    title: "Custom Animation Color",
+                    description: "Choose the exact color used by the animated background particles."
+                ) {
+                    ColorPicker("Custom Animation Color", selection: customAnimationParticleColorBinding)
+                        .labelsHidden()
+                        .accessibilityIdentifier("settings.appearance.customAnimationColor")
+                }
+            }
 
             settingRow(
                 title: "Animation Frame Rate",
@@ -545,6 +556,29 @@ struct AlternativeUIView: View {
         } header: {
             Text("App Experience")
         }
+    }
+
+    private var customAnimationParticleColorBinding: Binding<Color> {
+        Binding(
+            get: {
+                guard let archived = try? PortableColorArchive.color(from: customAnimationParticleColorData) else { return .purple }
+#if os(macOS)
+                return Color(nsColor: archived)
+#else
+                return Color(uiColor: archived)
+#endif
+            },
+            set: { color in
+#if os(macOS)
+                let archived = NSColor(color)
+#else
+                let archived = UIColor(color)
+#endif
+                if let data = try? PortableColorArchive.data(for: archived, requiringSecureCoding: false) {
+                    customAnimationParticleColorData = data
+                }
+            }
+        )
     }
 
     private var detailPagesSection: some View {
