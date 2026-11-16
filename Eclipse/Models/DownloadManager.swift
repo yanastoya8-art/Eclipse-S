@@ -6518,9 +6518,17 @@ final class DownloadManager: NSObject, ObservableObject {
         Task { [weak self] in
             let outcome: DispatchValidationOutcome
             let scheme = url.scheme?.lowercased()
+            // URL fragments are client-side identifiers and are not sent in
+            // HTTP requests. Comparing the original URL to its fragment-free
+            // form rejected otherwise valid Nuvio/Mangayomi links whenever a
+            // provider appended a fragment. Validate the normalized HTTP URL
+            // instead, while leaving the persisted source identity untouched.
+            let normalizedDispatchURL = URL(string: comparisonURLString)
+            let hasSafeAuthority = url.user == nil && url.password == nil
             outcome = (scheme == "http" || scheme == "https")
                 && url.host?.isEmpty == false
-                && url.absoluteString == comparisonURLString
+                && hasSafeAuthority
+                && normalizedDispatchURL?.host?.lowercased() == url.host?.lowercased()
                 ? .approved
                 : .rejected
 
