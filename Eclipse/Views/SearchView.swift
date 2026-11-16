@@ -1103,7 +1103,10 @@ private enum BrowseAnimeClassifier {
             return originalLanguages.contains(language) ? .anime : .nonAnime
         }
 
-        return .unknownAnimation
+        // TMDB often omits originCountry/originalLanguage in discover
+        // responses. Since this route already requests animation genre 16,
+        // keep metadata-incomplete titles visible instead of emptying Anime Browse.
+        return .anime
     }
 }
 
@@ -2785,7 +2788,10 @@ private struct BrowseMediaView: View {
             case .tv:
                 return BrowseAnimeClassifier.shouldIncludeInTV(result) ? result : nil
             case .anime:
-                guard BrowseAnimeClassifier.isAnime(result) else { return nil }
+                // The Anime Browse discover query is already constrained to
+                // animation genre 16. Do not discard entries just because TMDB
+                // omitted country/language metadata.
+                guard result.genreIds?.contains(16) == true else { return nil }
                 return result.withAnimeHint(true)
             }
         }
@@ -2795,20 +2801,28 @@ private struct BrowseMediaView: View {
         }
         guard !Task.isCancelled else { return [] }
 
+        // Resolve missing anime identities before age filtering. Otherwise
+        // AniList/Taizen cannot supply the rating for TMDB discover rows with
+        // incomplete metadata and those titles are incorrectly treated as unrated.
+        let ratingCandidates = mediaType.isAnime
+            ? await resolveAnimeBrowseIdentities(typeFiltered)
+            : typeFiltered
+        guard !Task.isCancelled else { return [] }
+
         // Resolve both sources concurrently: anime age classifications come
         // from Taizen/MAL, while TMDB supplies national movie/TV certifications.
         async let tmdbRatingResolution: Void = TMDBMaturityRatingStore.shared.resolve(
-            typeFiltered.map { (isMovie: $0.isMovie, id: $0.id) }
+            ratingCandidates.map { (isMovie: $0.isMovie, id: $0.id) }
         )
         async let animeRatingResolution = resolveBrowseAnimeAgeRatings(
-            typeFiltered,
+            ratingCandidates,
             mediaType: mediaType
         )
         await tmdbRatingResolution
         let animeRatingsByID = await animeRatingResolution
         guard !Task.isCancelled else { return [] }
 
-        return typeFiltered.filter { result in
+        return ratingCandidates.filter { result in
             let hasExplicitContent = result.adult == true
                 || (mediaType.isAnime && TMDBContentFilter.hasExplicitAnimeMetadata(result))
             let tmdbRating = TMDBMaturityRatingStore.shared.rating(isMovie: result.isMovie, id: result.id)
