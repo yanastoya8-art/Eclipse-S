@@ -30,6 +30,29 @@ enum MangaHomeSectionKind: String, Codable {
     }
 }
 
+enum ReaderHomeCatalogVisibilitySettings {
+    static let showPopularKey = "readerHomeShowPopularCatalog"
+    static let showLatestKey = "readerHomeShowLatestUpdatesCatalog"
+    static let defaultShowPopular = true
+    static let defaultShowLatest = true
+
+    static func showsPopular(defaults: UserDefaults = ProfileSettingsStore.active) -> Bool {
+        defaults.object(forKey: showPopularKey) == nil ? defaultShowPopular : defaults.bool(forKey: showPopularKey)
+    }
+
+    static func showsLatest(defaults: UserDefaults = ProfileSettingsStore.active) -> Bool {
+        defaults.object(forKey: showLatestKey) == nil ? defaultShowLatest : defaults.bool(forKey: showLatestKey)
+    }
+
+    static func allows(_ kind: MangaHomeSectionKind, defaults: UserDefaults = ProfileSettingsStore.active) -> Bool {
+        switch kind {
+        case .popular: return showsPopular(defaults: defaults)
+        case .latestUpdates: return showsLatest(defaults: defaults)
+        default: return true
+        }
+    }
+}
+
 struct MangaHomeItem: Identifiable, Equatable {
     let id: String
     let title: String
@@ -487,32 +510,31 @@ final class MangaHomeViewModel: ObservableObject {
         // Each provider already serializes its own operations, so starting
         // these concurrently adds no latency benefit and complicates Sendable
         // isolation. Fail each synthesized section independently instead.
-        let popularResult = await capture { try await provider.popular(page: 1) }
-        let latestResult: Result<ReaderExtensionPagedResult, Error>? = supportsLatest
-            ? await capture { try await provider.latest(page: 1) }
-            : nil
-
         var sections: [MangaHomeSection] = []
         var failures: [Error] = []
-        switch popularResult {
-        case .success(let popular):
-            let items = popular.items.prefix(Self.maxRetainedItemsPerSection).map {
-                MangaHomeItem(sourceID: sourceID, item: $0, idSuffix: "popular")
+
+        if ReaderHomeCatalogVisibilitySettings.showsPopular() {
+            switch await capture({ try await provider.popular(page: 1) }) {
+            case .success(let popular):
+                let items = popular.items.prefix(Self.maxRetainedItemsPerSection).map {
+                    MangaHomeItem(sourceID: sourceID, item: $0, idSuffix: "popular")
+                }
+                if !items.isEmpty {
+                    sections.append(.section(
+                        title: "Popular",
+                        id: "readerExtension:\(sourceID.rawValue):popular",
+                        kind: .popular,
+                        items: items,
+                        readerExtensionQuery: .popular
+                    ))
+                }
+            case .failure(let error):
+                failures.append(error)
             }
-            if !items.isEmpty {
-                sections.append(.section(
-                    title: "Popular",
-                    id: "readerExtension:\(sourceID.rawValue):popular",
-                    kind: .popular,
-                    items: items,
-                    readerExtensionQuery: .popular
-                ))
-            }
-        case .failure(let error):
-            failures.append(error)
         }
-        if let latestResult {
-            switch latestResult {
+
+        if supportsLatest && ReaderHomeCatalogVisibilitySettings.showsLatest() {
+            switch await capture({ try await provider.latest(page: 1) }) {
             case .success(let latest):
                 let items = latest.items.prefix(Self.maxRetainedItemsPerSection).map {
                     MangaHomeItem(sourceID: sourceID, item: $0, idSuffix: "latest")
@@ -727,6 +749,7 @@ final class MangaHomeViewModel: ObservableObject {
 
                 var sections = rawSections
                     .compactMap { MangaHomeSection(dict: $0, module: module) }
+                    .filter { ReaderHomeCatalogVisibilitySettings.allows($0.kind) }
                     .prefix(Self.maxSections)
                     .map { $0 }
 
