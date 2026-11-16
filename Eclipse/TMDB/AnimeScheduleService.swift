@@ -496,9 +496,15 @@ enum AnimeScheduleLanguageNoticePolicy {
         guard selectedLanguages.contains(MyDubListLanguage.spanish.rawValue) else {
             return providerNotice
         }
-        let clarification = "The anime calendar currently shows confirmed English-dub release dates only. Spanish-dub release dates are not available from this schedule provider."
+        let clarification = "No confirmed Spanish-dub episode dates are available from the connected schedule sources for this period. Spanish releases are included only when JustWatch returns a verified streaming date; Japanese broadcast dates are never substituted for Spanish dub dates."
         guard let providerNotice,
               !providerNotice.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return clarification
+        }
+        let normalized = providerNotice.lowercased()
+        if normalized.contains("temporarily unavailable")
+            || normalized.contains("providers are unavailable")
+            || normalized.contains("no available") {
             return clarification
         }
         return "\(providerNotice) \(clarification)"
