@@ -5397,19 +5397,6 @@ private struct LanguageFiltersSettingsView: View {
             }
 
             Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Anime Dub Filter")
-                        .font(.headline)
-                    Text("Choose English, Spanish (Castellano o Latino), or both. Anime catalogs require a verified dub in at least one selected language. Episode lists are limited to the sequential episodes covered by the selected language's verified dub count for that exact season. Multiple languages use OR logic.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    Text(selectedDubLanguages.isEmpty ? "Dub filtering is disabled." : "\(selectedDubLanguages.count) dub language(s) selected.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Section {
                 ForEach(MyDubListLanguage.allCases.filter { MyDubListDubFilter.supportedLanguages.contains($0.rawValue) }) { language in
                     Toggle(language.displayName, isOn: Binding(
                         get: { selectedDubLanguages.contains(language.rawValue) },
@@ -5434,9 +5421,6 @@ private struct LanguageFiltersSettingsView: View {
 
             Section {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Dub data is refreshed from MyDubList when the selected languages change. Season episode counts are cross-checked with Taizen and anidub.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
                     Text("anidub can distinguish Spanish (Latino, es-419) and Spanish (Castellano, es-ES) when regional evidence is available. Both are treated as the single Spanish selection.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
