@@ -2622,6 +2622,12 @@ struct MediaDetailContentView: View {
                 .accessibilityHidden(true)
             }
         }
+        // Landscape detail content is inset by the device's horizontal safe
+        // areas. The hero artwork should not inherit those insets: extend only
+        // this backdrop layer to the physical screen edges. Foreground controls
+        // and the portrait composition keep their existing safe-area layout.
+        .frame(maxWidth: .infinity)
+        .ignoresSafeArea(.container, edges: usesLandscapeDetailComposition ? .horizontal : [])
     }
 
     @ViewBuilder
