@@ -1969,7 +1969,7 @@ private struct BrowseMediaView: View {
             if hasMorePages && currentPage < 8 {
                 Color.clear
                     .frame(height: 1)
-                    .id("browse-search-pagination-\\(currentPage)-\\(results.count)")
+                    .id("browse-search-pagination-\(currentPage)-\(results.count)")
                     .onAppear { loadNextPage() }
             }
 
@@ -2259,7 +2259,7 @@ private struct BrowseMediaView: View {
                         Task {
                             let enriched = await resolveAnimeBrowseIdentities(pageResult.results)
                             guard queryGeneration == browseQueryGeneration,
-                                  mediaType == browseMediaType else { return }
+                                  mediaType == browseMediaType.tmdbValue else { return }
                             var enrichedByID: [Int: TMDBSearchResult] = [:]
                             for result in enriched { enrichedByID[result.id] = result }
                             unfilteredResults = unfilteredResults.map { enrichedByID[$0.id] ?? $0 }
