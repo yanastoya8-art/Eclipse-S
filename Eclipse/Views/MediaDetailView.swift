@@ -672,7 +672,7 @@ struct MediaDetailContentView: View {
         // Keep the colour bleed visible in landscape, but scale its tail to
         // the shorter viewport instead of forcing a 680pt minimum extension.
         if usesLandscapeDetailComposition {
-            return min(max(detailViewportHeight * 0.72, 300), 520)
+            return min(max(detailViewportHeight * 0.84, 340), 600)
         }
         return min(max(detailViewportHeight * 0.78, 680), 900)
     }
@@ -681,7 +681,7 @@ struct MediaDetailContentView: View {
         let configuredStrength = theme.scopedBleedStrength()
         guard usesWideDetailLayout, configuredStrength > 0.001 else { return configuredStrength }
         return usesLandscapeDetailComposition
-            ? min(max(configuredStrength * 1.28, 1.0), 1.45)
+            ? min(max(configuredStrength * 1.48, 1.12), 1.65)
             : min(max(configuredStrength * 1.18, 0.92), 1.25)
     }
 
