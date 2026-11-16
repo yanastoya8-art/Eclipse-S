@@ -818,9 +818,11 @@ actor SpanishDubAIResearchService {
             }
         }
 
+        var didAttemptProvider = false
         for provider in SpanishDubAIProvider.allCases {
             let apiKey = SpanishDubAIKeyStore.load(provider) ?? ""
             guard !apiKey.isEmpty else { continue }
+            didAttemptProvider = true
             let unresolved = candidates.filter { entry in
                 let key = Self.cacheKey(for: entry)
                 if resolved[key] != nil { return false }
@@ -853,11 +855,13 @@ actor SpanishDubAIResearchService {
             }
         }
 
-        for entry in candidates {
-            let key = Self.cacheKey(for: entry)
-            if resolved[key] == nil { negativeChecks[key] = now }
+        if didAttemptProvider {
+            for entry in candidates {
+                let key = Self.cacheKey(for: entry)
+                if resolved[key] == nil { negativeChecks[key] = now }
+            }
+            persistCache()
         }
-        persistCache()
         let byEpisode = Dictionary(grouping: candidates, by: { Self.cacheKey(for: $0) })
         return resolved.compactMap { key, record in
             guard let original = byEpisode[key]?.first else { return nil }
@@ -882,6 +886,11 @@ actor SpanishDubAIResearchService {
                 sourceURL: record.sourceURL
             )
         }.sorted { $0.airingAt < $1.airingAt }
+    }
+
+    func clearNegativeCache() {
+        negativeChecks.removeAll()
+        persistCache()
     }
 
     private func request(
