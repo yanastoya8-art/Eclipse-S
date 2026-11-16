@@ -469,6 +469,32 @@ struct MediaDetailContentView: View {
     private var heroActionsVerticalOffset = MediaDetailHeroContentPositionSettings.defaultOffset
     @AppStorage(MediaDetailHeroContentPositionSettings.synopsisOffsetKey)
     private var heroSynopsisVerticalOffset = MediaDetailHeroContentPositionSettings.defaultOffset
+    @AppStorage(LandscapeMediaDetailAppearanceSettings.logoPositionKey)
+    private var landscapeTitleLogoVerticalPosition = LandscapeMediaDetailAppearanceSettings.defaultLogoPosition
+    @AppStorage(LandscapeMediaDetailAppearanceSettings.logoSizeKey)
+    private var landscapeTitleLogoSize = LandscapeMediaDetailAppearanceSettings.defaultLogoSize
+    @AppStorage(LandscapeMediaDetailAppearanceSettings.logoWeightKey)
+    private var landscapeTitleLogoWeight = LandscapeMediaDetailAppearanceSettings.defaultLogoWeight
+    @AppStorage(LandscapeMediaDetailAppearanceSettings.actionsOffsetKey)
+    private var landscapeHeroActionsVerticalOffset = LandscapeMediaDetailAppearanceSettings.defaultOffset
+    @AppStorage(LandscapeMediaDetailAppearanceSettings.synopsisOffsetKey)
+    private var landscapeHeroSynopsisVerticalOffset = LandscapeMediaDetailAppearanceSettings.defaultOffset
+
+    private var activeTitleLogoPosition: Double {
+        usesLandscapeDetailComposition ? landscapeTitleLogoVerticalPosition : titleLogoVerticalPosition
+    }
+    private var activeTitleLogoSize: Double {
+        usesLandscapeDetailComposition ? landscapeTitleLogoSize : detailTitleLogoSize
+    }
+    private var activeTitleLogoWeight: Double {
+        usesLandscapeDetailComposition ? landscapeTitleLogoWeight : detailTitleLogoWeight
+    }
+    private var activeHeroActionsOffset: Double {
+        usesLandscapeDetailComposition ? landscapeHeroActionsVerticalOffset : heroActionsVerticalOffset
+    }
+    private var activeHeroSynopsisOffset: Double {
+        usesLandscapeDetailComposition ? landscapeHeroSynopsisVerticalOffset : heroSynopsisVerticalOffset
+    }
     @State private var alternatePosterURL: String?
     @State private var tvMazePosterURL: String?
     @State private var isAnimeShow = false
@@ -2331,7 +2357,7 @@ struct MediaDetailContentView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             .padding(.horizontal, 28)
-            .offset(y: bannerHeight * CGFloat(titleLogoVerticalPosition - 0.5))
+            .offset(y: bannerHeight * CGFloat(activeTitleLogoPosition - 0.5))
         }
         .frame(width: bannerWidth, height: bannerHeight)
         .clipped()
@@ -2596,11 +2622,11 @@ struct MediaDetailContentView: View {
                     Color.clear
                 }
                 .frame(
-                    width: min(EclipseViewport.bounds.width * 0.72 * CGFloat(detailTitleLogoSize), 680),
-                    height: min(max(headerHeight * 0.22 * CGFloat(detailTitleLogoSize), 72), 190)
+                    width: min(EclipseViewport.bounds.width * 0.72 * CGFloat(activeTitleLogoSize), 680),
+                    height: min(max(headerHeight * 0.22 * CGFloat(activeTitleLogoSize), 72), 190)
                 )
                 .overlay {
-                    if detailTitleLogoWeight > 0.01 {
+                    if activeTitleLogoWeight > 0.01 {
                         ResilientArtworkImage(
                             urls: [logoURL],
                             decodeSize: CGSize(
@@ -2612,12 +2638,12 @@ struct MediaDetailContentView: View {
                             Color.clear
                         }
                         .offset(x: 0.6, y: 0)
-                        .opacity(min(max(detailTitleLogoWeight, 0), 1) * 0.65)
+                        .opacity(min(max(activeTitleLogoWeight, 0), 1) * 0.65)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 // The position is user-adjustable in Appearance → Detail Pages.
-                .offset(y: headerHeight * CGFloat(titleLogoVerticalPosition - 0.5))
+                .offset(y: headerHeight * CGFloat(activeTitleLogoPosition - 0.5))
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
             }
@@ -2809,13 +2835,13 @@ struct MediaDetailContentView: View {
             if shouldShowHeroActions {
                 experimentalPlayAndBookmarkSection
                     .padding(.top, isTvOS ? 16 : (usesWideDetailLayout ? 6 : 2))
-                    .offset(y: CGFloat(heroActionsVerticalOffset))
+                    .offset(y: CGFloat(activeHeroActionsOffset))
             }
 
             if shouldShowHeroOverview {
                 experimentalHeroSynopsisSection
                     .padding(.top, isTvOS ? 12 : (usesWideDetailLayout ? 2 : 0))
-                    .offset(y: CGFloat(heroSynopsisVerticalOffset))
+                    .offset(y: CGFloat(activeHeroSynopsisOffset))
             }
 
             if shouldShowHeroDetails {
