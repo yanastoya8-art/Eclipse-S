@@ -22,6 +22,7 @@ struct EpisodeCell: View {
     var playbackContext: EpisodePlaybackContext? = nil
     var isAnimeContent: Bool = false
     var episodeClassification: AnimeEpisodeClassification = .unknown
+    var showsWatchProgress: Bool = true
 
     private var showsClassificationBadge: Bool {
         playbackContext?.unitProjection == nil && (episodeClassification == .filler || episodeClassification == .mixed)
@@ -134,7 +135,7 @@ struct EpisodeCell: View {
                     }
                 }
                 .overlay(alignment: .bottom) {
-                    if progressValue > 0 && progressValue < 0.85 {
+                    if showsWatchProgress && progressValue > 0 && progressValue < 0.85 {
                         ProgressView(value: progressValue)
                             .progressViewStyle(LinearProgressViewStyle(tint: .accentColor))
                             .frame(height: 4)
@@ -249,7 +250,7 @@ struct EpisodeCell: View {
                         .frame(width: horizontalCellWidth, height: horizontalImageHeight)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
 
-                    if progressValue > 0 && progressValue < 0.85 {
+                    if showsWatchProgress && progressValue > 0 && progressValue < 0.85 {
                         VStack {
                             Spacer()
                             ProgressView(value: progressValue)
@@ -416,7 +417,7 @@ struct EpisodeCell: View {
                         .frame(width: isTvOS ? 300 : 120 * iPadScaleSmall, height: isTvOS ? 170 : 68 * iPadScaleSmall)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
 
-                    if progressValue > 0 && progressValue < 0.85 {
+                    if showsWatchProgress && progressValue > 0 && progressValue < 0.85 {
                         VStack {
                             Spacer()
                             ProgressView(value: progressValue)
