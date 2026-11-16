@@ -1414,7 +1414,7 @@ struct HomeView: View {
             if let hero = homeViewModel.heroContent {
                 CenteredPosterTitleOverlay(
                     title: hero.displayTitle,
-                    logoURL: hero.animeLogoURL ?? heroLogoURL,
+                    logoURL: heroLogoURL,
                     fontSize: (usesWideHomeLayout ? 34 : 24) * CGFloat(homeHeroTitleLogoSize)
                 )
                 .frame(maxWidth: (usesWideHomeLayout ? 760 : 520) * CGFloat(homeHeroTitleLogoSize))
@@ -1985,11 +1985,14 @@ struct HomeView: View {
         }
 
         let identity = hero.stableIdentity
+        let isAnimeHero = hero.isAnimeHint == true || hero.animeLogoURL != nil
         guard heroArtworkIsActive,
               homeViewModel.heroContent?.stableIdentity == identity,
               selectedLanguage == language else { return }
         heroArtworkIdentity = identity
-        heroLogoURL = prefetchedHeroLogoURLs[identity] ?? hero.animeLogoURL
+        // Anime provider logo URLs do not carry a reliable language tag.
+        // Do not display a Japanese/native-script logo in an English UI.
+        heroLogoURL = isAnimeHero ? nil : prefetchedHeroLogoURLs[identity]
         heroLogoLookupComplete = heroLogoURL != nil
         heroAlternatePosterURL = nil
 
@@ -1997,21 +2000,19 @@ struct HomeView: View {
         // implementation only used AniList's optional logo URL, so movie and
         // TV heroes never received the TMDB transparent title artwork.
         async let logoLookup: String? = { () async -> String? in
-            if let cached = prefetchedHeroLogoURLs[identity] { return cached }
-            if let supplied = hero.animeLogoURL { return supplied }
+            if !isAnimeHero, let cached = prefetchedHeroLogoURLs[identity] { return cached }
             do {
-                let images = hero.isMovie
-                    ? try await tmdbService.getMovieImages(id: hero.id, preferredLanguage: language)
-                    : try await tmdbService.getTVShowImages(id: hero.id, preferredLanguage: language)
-                return (images.logos ?? [])
-                    .filter { $0.iso6391?.lowercased() == "en" }
-                    .sorted {
-                        if ($0.voteCount ?? 0) != ($1.voteCount ?? 0) {
-                            return ($0.voteCount ?? 0) > ($1.voteCount ?? 0)
-                        }
-                        return ($0.voteAverage ?? 0) > ($1.voteAverage ?? 0)
+                let images = try await (hero.isMovie
+                    ? tmdbService.getMovieImages(id: hero.id, preferredLanguage: "en")
+                    : tmdbService.getTVShowImages(id: hero.id, preferredLanguage: "en"))
+                let rankedLogos = (images.logos ?? []).sorted {
+                    if ($0.voteCount ?? 0) != ($1.voteCount ?? 0) {
+                        return ($0.voteCount ?? 0) > ($1.voteCount ?? 0)
                     }
-                    .first?.fullURL
+                    return ($0.voteAverage ?? 0) > ($1.voteAverage ?? 0)
+                }
+                return rankedLogos.first(where: { $0.iso6391?.lowercased() == "en" })?.fullURL
+                    ?? rankedLogos.first(where: { $0.iso6391 == nil || $0.iso6391 == "" })?.fullURL
             } catch {
                 Logger.shared.log("Home hero title-logo lookup failed: id=\(hero.id) error=\(error.localizedDescription)", type: "TMDB")
                 return nil
