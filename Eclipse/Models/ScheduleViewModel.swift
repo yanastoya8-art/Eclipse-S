@@ -528,17 +528,23 @@ final class ScheduleViewModel: ObservableObject {
             let hideUnofficialContent = UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent")
             let entries = loadResult.entries.filter { entry in
                 guard hideUnofficialContent else { return true }
-                let searchableTitle = [
+                // Anime schedule providers include production/category tags.
+                // Include them (and the episode's format/overview) in the same
+                // policy used by Home and Browse; title-only checks miss fan
+                // productions whose title does not identify their origin.
+                let searchableMetadata = [
                     entry.title,
                     entry.englishTitle,
                     entry.romajiTitle,
-                    entry.nativeTitle
+                    entry.nativeTitle,
+                    entry.format
                 ]
                 .compactMap { $0 }
                 .joined(separator: " ")
+                    + " " + entry.metadataTags.joined(separator: " ")
                 return !TMDBContentFilter.isUnofficialCreatorContent(
-                    title: searchableTitle,
-                    overview: nil
+                    title: searchableMetadata,
+                    overview: entry.overview
                 )
             }
             let didPublish = await MainActor.run { () -> Bool in
