@@ -1948,23 +1948,37 @@ private struct BrowseMediaView: View {
     }
 
     private var resultsGrid: some View {
-        LazyVGrid(columns: gridColumns, spacing: isIPad ? 24 : 16) {
-            ForEach(results, id: \.stableIdentity) { result in
-                SearchResultCard(result: result)
-                    .onAppear {
-                        if result.stableIdentity == results.last?.stableIdentity {
-                            loadNextPage()
+        LazyVStack(spacing: 0) {
+            LazyVGrid(columns: gridColumns, spacing: isIPad ? 24 : 16) {
+                ForEach(results, id: \.stableIdentity) { result in
+                    SearchResultCard(result: result)
+                        .onAppear {
+                            if result.stableIdentity == results.last?.stableIdentity {
+                                loadNextPage()
+                            }
                         }
-                    }
+                }
             }
-        }
-        .padding(.top, 4)
-        .overlay(alignment: .bottom) {
+
+            // A trailing lazy sentinel is more reliable than relying only on
+            // the final card's onAppear. SwiftUI can keep that card alive when
+            // a page is appended, leaving Browse stuck until the user scrolls
+            // away and back. The page-based identity re-arms the sentinel after
+            // each successful append. Keep the automatic scan bounded; the
+            // final card remains a manual fallback for later pages.
+            if hasMorePages && currentPage < 8 {
+                Color.clear
+                    .frame(height: 1)
+                    .id("browse-search-pagination-\\(currentPage)-\\(results.count)")
+                    .onAppear { loadNextPage() }
+            }
+
             if isLoading {
                 EclipseLoadingIndicator()
                     .padding(.vertical, 18)
             }
         }
+        .padding(.top, 4)
     }
 
     private func filterChip(title: String, value: String, systemImage: String) -> some View {
