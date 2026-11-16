@@ -1011,6 +1011,12 @@ struct MediaDetailContentView: View {
         detailViewportHeight * 0.8
 #else
         let portraitPosterHeight = EclipseViewport.bounds.width * 1.5
+        // Landscape has a much shorter vertical viewport. Scale the hero to
+        // that viewport instead of retaining the tall iPad/portrait banner,
+        // which otherwise pushes actions and synopsis far below the fold.
+        if usesLandscapeDetailComposition {
+            return min(max(detailViewportHeight * 0.88, 320), 520)
+        }
         if ExperimentalFeatureState.isEnabledAtLaunch {
             let measuredHeight = designMetrics.detailHeroHeight(
                 screenHeight: detailViewportHeight,
@@ -2517,9 +2523,11 @@ struct MediaDetailContentView: View {
                     // Portrait posters are shown at their natural 2:3 presentation ratio.
                     // Reserve their full display height before placing metadata/actions.
                     Spacer(minLength: 0)
-                        .frame(height: usesWideDetailLayout
-                            ? headerHeight * 0.78
-                            : min(EclipseViewport.bounds.width * 1.5, headerHeight - 40))
+                        .frame(height: usesLandscapeDetailComposition
+                            ? min(max(headerHeight * 0.64, 210), 340)
+                            : (usesWideDetailLayout
+                                ? headerHeight * 0.78
+                                : min(EclipseViewport.bounds.width * 1.5, headerHeight - 40)))
                     headerSection
                         .frame(maxWidth: .infinity, alignment: usesLandscapeDetailComposition ? .center : (usesWideDetailLayout ? .trailing : .center))
                         .padding(.horizontal, usesWideDetailLayout ? 48 : 0)
