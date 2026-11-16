@@ -2568,25 +2568,29 @@ private struct BrowseMediaView: View {
             for _ in 0..<min(concurrencyLimit, candidates.count) {
                 guard let (index, result, likelyAnime) = iterator.next() else { continue }
                 group.addTask {
-                    let mappings = await AniMapMappingService.shared.mappings(forTMDBShowId: result.id)
-                    let mapping = mappings
-                        .filter { $0.mediaType?.lowercased() != "movie" }
-                        .first { $0.anilistId != nil }
-                        ?? mappings.first { $0.anilistId != nil }
                     let identity: AnimeMediaIdentitySeed?
                     if let existing = result.animeIdentitySeed?.sanitizedForPersistence {
+                        // A previously resolved identity already satisfies the
+                        // strict dub filter. Do not issue another mapping request.
                         identity = existing
-                    } else if let anilistID = mapping?.anilistId, anilistID > 0 {
-                        identity = AnimeMediaIdentitySeed(
-                            anilistId: anilistID,
-                            malId: mapping?.malId,
-                            kitsuId: mapping?.kitsuId,
-                            format: mapping?.mediaType
-                        )
-                    } else if likelyAnime {
-                        identity = await AniListService.shared.searchAnimeIdentity(title: result.displayTitle)
                     } else {
-                        identity = nil
+                        let mappings = await AniMapMappingService.shared.mappings(forTMDBShowId: result.id)
+                        let mapping = mappings
+                            .filter { $0.mediaType?.lowercased() != "movie" }
+                            .first { $0.anilistId != nil }
+                            ?? mappings.first { $0.anilistId != nil }
+                        if let anilistID = mapping?.anilistId, anilistID > 0 {
+                            identity = AnimeMediaIdentitySeed(
+                                anilistId: anilistID,
+                                malId: mapping?.malId,
+                                kitsuId: mapping?.kitsuId,
+                                format: mapping?.mediaType
+                            )
+                        } else if likelyAnime {
+                            identity = await AniListService.shared.searchAnimeIdentity(title: result.displayTitle)
+                        } else {
+                            identity = nil
+                        }
                     }
                     guard let identity = identity?.sanitizedForPersistence else {
                         return (index, result)
@@ -2636,25 +2640,29 @@ private struct BrowseMediaView: View {
                 resolvedByIndex[index] = result
                 if let (nextIndex, nextResult, nextLikelyAnime) = iterator.next() {
                     group.addTask {
-                        let mappings = await AniMapMappingService.shared.mappings(forTMDBShowId: nextResult.id)
-                        let mapping = mappings
-                            .filter { $0.mediaType?.lowercased() != "movie" }
-                            .first { $0.anilistId != nil }
-                            ?? mappings.first { $0.anilistId != nil }
                         let identity: AnimeMediaIdentitySeed?
                         if let existing = nextResult.animeIdentitySeed?.sanitizedForPersistence {
+                            // Reuse a resolved identity rather than repeating a
+                            // TMDB-to-AniList mapping lookup for the same title.
                             identity = existing
-                        } else if let anilistID = mapping?.anilistId, anilistID > 0 {
-                            identity = AnimeMediaIdentitySeed(
-                                anilistId: anilistID,
-                                malId: mapping?.malId,
-                                kitsuId: mapping?.kitsuId,
-                                format: mapping?.mediaType
-                            )
-                        } else if nextLikelyAnime {
-                            identity = await AniListService.shared.searchAnimeIdentity(title: nextResult.displayTitle)
                         } else {
-                            identity = nil
+                            let mappings = await AniMapMappingService.shared.mappings(forTMDBShowId: nextResult.id)
+                            let mapping = mappings
+                                .filter { $0.mediaType?.lowercased() != "movie" }
+                                .first { $0.anilistId != nil }
+                                ?? mappings.first { $0.anilistId != nil }
+                            if let anilistID = mapping?.anilistId, anilistID > 0 {
+                                identity = AnimeMediaIdentitySeed(
+                                    anilistId: anilistID,
+                                    malId: mapping?.malId,
+                                    kitsuId: mapping?.kitsuId,
+                                    format: mapping?.mediaType
+                                )
+                            } else if nextLikelyAnime {
+                                identity = await AniListService.shared.searchAnimeIdentity(title: nextResult.displayTitle)
+                            } else {
+                                identity = nil
+                            }
                         }
                         guard let identity = identity?.sanitizedForPersistence else {
                             return (nextIndex, nextResult)
