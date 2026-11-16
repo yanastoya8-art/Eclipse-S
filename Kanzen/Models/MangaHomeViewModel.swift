@@ -676,6 +676,9 @@ final class MangaHomeViewModel: ObservableObject {
                 loadStates[source.id] = .loaded
             } else if !catalogs.isEmpty {
                 loadStates[source.id] = .loading
+            } else if !ReaderHomeCatalogVisibilitySettings.showsPopular(),
+                      !ReaderHomeCatalogVisibilitySettings.showsLatest() {
+                loadStates[source.id] = .loaded
             } else if let failure = failures.first {
                 loadStates[source.id] = .failed(failure.localizedDescription)
             } else {
