@@ -124,7 +124,7 @@ struct CenteredPosterTitleOverlay: View {
     }
 }
 
-private actor SearchResultTitleLogoCache {
+actor SearchResultTitleLogoCache {
     static let shared = SearchResultTitleLogoCache()
 
     private struct LookupResult {
@@ -135,6 +135,39 @@ private actor SearchResultTitleLogoCache {
     private var resolved: [String: String] = [:]
     private var attempted = Set<String>()
     private var pending: [String: Task<LookupResult, Never>] = [:]
+
+    func prefetch(results: [TMDBSearchResult], limit: Int = 48) async {
+        var seen = Set<String>()
+        let candidates = Array(results.filter { seen.insert($0.stableIdentity).inserted }.prefix(max(0, limit)))
+        await withTaskGroup(of: Void.self) { group in
+            var iterator = candidates.makeIterator()
+            for _ in 0..<min(4, candidates.count) {
+                guard let result = iterator.next() else { continue }
+                group.addTask { await Self.shared.prefetchOne(result) }
+            }
+            while await group.next() != nil {
+                if let result = iterator.next() {
+                    group.addTask { await Self.shared.prefetchOne(result) }
+                }
+            }
+        }
+    }
+
+    private func prefetchOne(_ result: TMDBSearchResult) async {
+        let candidate: String?
+        if (result.animeIdentitySeed != nil || result.isAnimeHint == true),
+           let supplied = result.animeLogoURL,
+           !supplied.isEmpty {
+            candidate = supplied
+        } else {
+            candidate = await logoURL(
+                mediaType: result.isMovie ? "movie" : "tv",
+                id: result.id
+            )
+        }
+        guard let candidate, let url = URL(string: candidate), url.scheme == "https" else { return }
+        KingfisherManager.shared.retrieveImage(with: url, options: [.backgroundDecode]) { _ in }
+    }
 
     func logoURL(mediaType: String, id: Int) async -> String? {
         guard id > 0, mediaType == "movie" || mediaType == "tv" else { return nil }
