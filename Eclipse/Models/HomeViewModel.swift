@@ -137,6 +137,12 @@ final class HomeViewModel: ObservableObject {
 
         catalogResults = catalogSnapshot.mapValues { contentFilter.filterSearchResults($0) }
         widgetData = widgetSnapshot.mapValues { contentFilter.filterSearchResults($0) }
+        let renderableCount = catalogResults.values.filter { !$0.isEmpty }.count
+            + widgetData.values.filter { !$0.isEmpty }.count
+        hasRenderableStartupContent = renderableCount > 0
+        if renderableCount > 0 {
+            errorMessage = nil
+        }
         applyHeroBannerSelection()
     }
 
@@ -482,10 +488,18 @@ final class HomeViewModel: ObservableObject {
 
                 let finalLoadedCount = self.catalogResults.values.filter { !$0.isEmpty }.count
                     + self.widgetData.values.filter { !$0.isEmpty }.count
+                let rawLoadedCount = rawTMDBLoadedCatalogs.values.filter { !$0.isEmpty }.count
+                    + loadedStremioCatalogs.values.filter { !$0.isEmpty }.count
+                    + loadedTraktCatalogs.values.filter { !$0.isEmpty }.count
+                    + self.unfilteredWidgetData.values.filter { !$0.isEmpty }.count
                 self.applyHeroBannerSelection()
                 self.isLoading = false
                 let permitsEmptyResults = enabledCatalogSnapshot.allSatisfy { $0.source == .local }
-                self.hasLoadedContent = finalLoadedCount > 0 || permitsEmptyResults
+                // Audio-language eligibility is resolved asynchronously by
+                // JustWatch. Treat fetched raw catalogs as loaded even when the
+                // first synchronous filter pass hides every non-native title;
+                // the metadata completion notification will reapply filters.
+                self.hasLoadedContent = rawLoadedCount > 0 || permitsEmptyResults
                 if self.hasLoadedContent && self.pendingCatalogFilterRefresh {
                     self.pendingCatalogFilterRefresh = false
                     Task { @MainActor [weak self] in
