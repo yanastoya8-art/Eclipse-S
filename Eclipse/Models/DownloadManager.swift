@@ -10311,8 +10311,25 @@ extension DownloadManager: URLSessionDownloadDelegate {
                 case .notProtected, .invalid:
                     expectedProviderKind = nil
                 }
-                guard let expectedProviderKind,
-                      [.stremio, .nuvio, .service].contains(expectedProviderKind),
+                guard let expectedProviderKind else {
+                    // A non-protected direct source may also hide an HLS
+                    // manifest behind an extensionless URL. Its original
+                    // request headers remain valid for the segment downloader.
+                    guard Self.protectedAuthorityState(for: item) == .notProtected else {
+                        self.markFailed(
+                            id: downloadId,
+                            error: "The provider returned an HLS playlist, but its protected download route expired. Resume the download to try again."
+                        )
+                        return
+                    }
+                    self.activeTasks.removeValue(forKey: downloadId)
+                    if let partialURL = self.directPartialURL(id: downloadId) {
+                        try? self.fileManager.removeItem(at: partialURL)
+                    }
+                    self.startHLSDownload(item, headersOverride: item.headers)
+                    return
+                }
+                guard [.stremio, .nuvio, .service].contains(expectedProviderKind),
                       let attempt = self.protectedProviderAttempts[downloadId],
                       attempt.providerKind == expectedProviderKind,
                       attempt.attemptID == protectedNuvioAttemptID else {
