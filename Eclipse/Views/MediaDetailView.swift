@@ -7245,10 +7245,13 @@ struct MediaDetailContentView: View {
                 self.seasonDetail = cached.seasonDetail
                 self.synopsis = cached.synopsis
                 self.romajiTitle = cached.romajiTitle
-                self.logoURL = cached.logoURL
+                // Older cache entries may contain a Japanese logo selected by
+                // the previous fallback. Resolve an English-only TMDB logo
+                // instead of reusing that unqualified cached artwork.
+                self.logoURL = nil
                 self.alternatePosterURL = cached.alternatePosterURL
-                self.optionalPresentationIsComplete = cached.optionalPresentationIsComplete
-                self.titleArtworkLookupComplete = cached.logoURL != nil || cached.optionalPresentationIsComplete
+                self.optionalPresentationIsComplete = false
+                self.titleArtworkLookupComplete = false
                 self.alternatePosterWasResolved = cached.alternatePosterWasResolved
                 self.optionalPresentationCacheWritable = true
                 self.isAnimeShow = cached.isAnimeShow
