@@ -899,7 +899,7 @@ actor SpanishDubAIResearchService {
         entries: [AniListAiringScheduleEntry]
     ) async throws -> [ResearchCandidate?] {
         let grouped = Dictionary(grouping: entries, by: { $0.mediaId })
-        let titles = grouped.values.compactMap(\.first).prefix(12).map { entry in
+        let titles = grouped.values.compactMap(\.first).map { entry in
             let title = [entry.englishTitle, entry.title, entry.romajiTitle]
                 .compactMap { $0 }.first(where: { !$0.isEmpty }) ?? entry.title
             let episodes = grouped[entry.mediaId, default: []].map(\.episode).sorted()
