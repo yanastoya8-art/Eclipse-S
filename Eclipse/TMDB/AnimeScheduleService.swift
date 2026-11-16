@@ -792,6 +792,7 @@ actor SpanishDubAIResearchService {
     }
 
     private var cache: [String: CachedDate] = [:]
+    private var negativeChecks: [String: Date] = [:]
     private var didLoadCache = false
     private let cacheKey = "spanishDubAIResearchCacheV1"
     private let cacheLifetime: TimeInterval = 7 * 24 * 60 * 60
@@ -820,7 +821,12 @@ actor SpanishDubAIResearchService {
         for provider in SpanishDubAIProvider.allCases {
             let apiKey = SpanishDubAIKeyStore.load(provider) ?? ""
             guard !apiKey.isEmpty else { continue }
-            let unresolved = candidates.filter { resolved[Self.cacheKey(for: $0)] == nil }
+            let unresolved = candidates.filter { entry in
+                let key = Self.cacheKey(for: entry)
+                if resolved[key] != nil { return false }
+                if let checkedAt = negativeChecks[key], now.timeIntervalSince(checkedAt) >= 0, now.timeIntervalSince(checkedAt) < 21_600 { return false }
+                return true
+            }
             guard !unresolved.isEmpty else { break }
             do {
                 let results = try await request(provider: provider, apiKey: apiKey, entries: unresolved)
@@ -847,6 +853,11 @@ actor SpanishDubAIResearchService {
             }
         }
 
+        for entry in candidates {
+            let key = Self.cacheKey(for: entry)
+            if resolved[key] == nil { negativeChecks[key] = now }
+        }
+        persistCache()
         let byEpisode = Dictionary(grouping: candidates, by: { Self.cacheKey(for: $0) })
         return resolved.compactMap { key, record in
             guard let original = byEpisode[key]?.first else { return nil }
