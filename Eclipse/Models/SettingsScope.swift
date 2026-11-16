@@ -142,6 +142,7 @@ enum EclipseSettingsRegistry {
         "homeAnimatedBackgroundEnabled",
         "homeAnimatedBackgroundQuality",
         "homeAnimatedBackgroundFrameRate",
+        "homeAnimatedBackgroundParticleColor",
         "mpvPlayerSkinTintControlsOnly",
         "experimentalMediaDesignPreset",
         "experimentalHomeCardShape",
@@ -226,6 +227,8 @@ enum EclipseSettingsRegistry {
         "readerAccentColor",
         "readerSelectedAppearance",
 
+        "readerHomeShowPopularCatalog",
+        "readerHomeShowLatestUpdatesCatalog",
         "readerNovelReadingMode",
         "readerFontSize",
         "readerFontFamily",
