@@ -459,6 +459,8 @@ struct MediaDetailContentView: View {
     @State private var trackerPlaybackPresentationGeneration = UUID()
     @State private var romajiTitle: String?
     @State private var logoURL: String?
+    @AppStorage(MediaDetailTitleLogoPositionSettings.verticalPositionKey)
+    private var titleLogoVerticalPosition = MediaDetailTitleLogoPositionSettings.defaultVerticalPosition
     @State private var alternatePosterURL: String?
     @State private var tvMazePosterURL: String?
     @State private var isAnimeShow = false
@@ -2288,11 +2290,10 @@ struct MediaDetailContentView: View {
                 endPoint: .trailing
             )
 
-            let centeredTitleLogoURL = searchResult.animeLogoURL ?? logoURL
             Group {
-                if let centeredTitleLogoURL, !centeredTitleLogoURL.isEmpty {
+                if let logoURL, !logoURL.isEmpty {
                     ResilientArtworkImage(
-                        urls: [centeredTitleLogoURL],
+                        urls: [logoURL],
                         decodeSize: CGSize(width: max(bannerWidth * 0.56, 1), height: max(bannerHeight * 0.32, 1)),
                         contentMode: .fit
                     ) {
@@ -2300,11 +2301,18 @@ struct MediaDetailContentView: View {
                     }
                     .frame(maxWidth: bannerWidth * 0.62, maxHeight: bannerHeight * 0.34)
                 } else {
-                    Color.clear
+                    Text(searchResult.displayTitle)
+                        .font(.system(size: 30, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(3)
+                        .shadow(color: .black.opacity(0.85), radius: 7, x: 0, y: 3)
+                        .padding(.horizontal, 28)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             .padding(.horizontal, 28)
+            .offset(y: bannerHeight * CGFloat(titleLogoVerticalPosition - 0.5))
         }
         .frame(width: bannerWidth, height: bannerHeight)
         .clipped()
@@ -2502,7 +2510,7 @@ struct MediaDetailContentView: View {
                     // Reserve their full display height before placing metadata/actions.
                     Spacer(minLength: 0)
                         .frame(height: usesWideDetailLayout
-                            ? headerHeight * 0.70
+                            ? headerHeight * 0.78
                             : min(EclipseViewport.bounds.width * 1.5, headerHeight - 40))
                     headerSection
                         .frame(maxWidth: .infinity, alignment: usesLandscapeDetailComposition ? .center : (usesWideDetailLayout ? .trailing : .center))
@@ -2530,7 +2538,10 @@ struct MediaDetailContentView: View {
                 },
                 placeholderColor: shouldAnalyzeAlternatePoster ? .clear : Color.gray.opacity(0.3),
                 fallbackImageURLs: detailHeroFallbackImageURLs,
-                preservesArtworkComposition: true
+                // Portrait covers keep their native composition; wide
+                // layouts fill the banner so a portrait fallback does not
+                // leave empty bands around the artwork.
+                preservesArtworkComposition: !usesWideDetailLayout
             )
 #if DEBUG
             if ProcessInfo.processInfo.environment["ECLIPSE_UI_POSTER_AUDIT"] == "1" {
@@ -2552,10 +2563,9 @@ struct MediaDetailContentView: View {
 
             // Transparent title marks are most legible when centered over the
             // poster artwork rather than positioned above or below it.
-            let centeredTitleLogoURL = searchResult.animeLogoURL ?? logoURL
-            if let centeredTitleLogoURL, !centeredTitleLogoURL.isEmpty {
+            if let logoURL, !logoURL.isEmpty {
                 ResilientArtworkImage(
-                    urls: [centeredTitleLogoURL],
+                    urls: [logoURL],
                     decodeSize: CGSize(
                         width: max(EclipseViewport.bounds.width * EclipseViewport.scale * 0.72, 1),
                         height: max(headerHeight * EclipseViewport.scale * 0.22, 1)
@@ -2569,11 +2579,21 @@ struct MediaDetailContentView: View {
                     height: min(max(headerHeight * 0.22, 72), 150)
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                // Keep title artwork in the upper-middle of the poster and
-                // never substitute a second, plain-text title over the image.
-                .offset(y: -headerHeight * 0.10)
+                // The position is user-adjustable in Appearance → Detail Pages.
+                .offset(y: headerHeight * CGFloat(titleLogoVerticalPosition - 0.5))
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
+            } else {
+                Text(searchResult.displayTitle)
+                    .font(.system(size: 30, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(3)
+                    .shadow(color: .black.opacity(0.85), radius: 7, x: 0, y: 3)
+                    .padding(.horizontal, 24)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                    .offset(y: headerHeight * CGFloat(titleLogoVerticalPosition - 0.5))
+                    .allowsHitTesting(false)
             }
         }
     }
@@ -2667,13 +2687,14 @@ struct MediaDetailContentView: View {
     private var detailHeroImageURL: String? {
         let bestPoster = PosterArtworkURLResolver.bestPosterURL(for: searchResult)
         if usesWideDetailLayout {
-            // A landscape banner needs landscape artwork. Using a portrait
-            // poster here would crop most of its height to fill a 3:1 frame.
-            return searchResult.fullBackdropURL
+            // Reuse the artwork already loaded for the selected card first.
+            // Wide hero rendering fills the banner, so a poster fallback is
+            // immediately useful instead of waiting for a separate backdrop.
+            return preloadedArtworkURL
+                ?? bestPoster
+                ?? searchResult.fullBackdropURL
                 ?? movieDetail?.fullBackdropURL
                 ?? tvShowDetail?.fullBackdropURL
-                ?? preloadedArtworkURL
-                ?? bestPoster
                 ?? movieDetail?.fullPosterURL
                 ?? tvShowDetail?.fullPosterURL
         }
@@ -2774,8 +2795,8 @@ struct MediaDetailContentView: View {
                 : (usesWideDetailLayout ? 520 : .infinity),
             alignment: .center
         )
-        .padding(.top, usesWideDetailLayout ? 24 : 0)
-        .padding(.bottom, isTvOS ? 60 : (usesWideDetailLayout ? 24 : 34))
+        .padding(.top, usesWideDetailLayout ? 36 : 42)
+        .padding(.bottom, isTvOS ? 60 : (usesWideDetailLayout ? 30 : 42))
         .background {
             if usesWideDetailLayout && !usesLandscapeDetailComposition {
                 RoundedRectangle(cornerRadius: 28, style: .continuous)
@@ -7055,21 +7076,33 @@ struct MediaDetailContentView: View {
                 if optionalPresentationGeneration == generation { optionalPresentationTask = nil }
             }
 
-            // Only load non-visual supporting metadata here. Poster and title
-            // artwork are already available from Home and must not trigger
-            // another images/logo/alternate-poster request.
+            // Load the title logo after first paint so artwork enrichment never
+            // delays the detail page. Prefer English TMDB logos; Japanese-only
+            // logos are intentionally rejected in favour of an English text title.
             async let romajiResult = tmdbService.getRomajiTitle(for: isMovie ? "movie" : "tv", id: id)
             async let creditsResult: TMDBCreditsResponse? = try? loadOptionalPresentationCredits(id: id, isMovie: isMovie)
+            async let titleImagesResult: TMDBImagesResponse? = try? loadOptionalTitleArtworkImages(id: id, isMovie: isMovie, language: language)
             let romaji = await romajiResult
             let credits = await creditsResult
+            let titleImages = await titleImagesResult
+            let englishLogoURL = (titleImages?.logos ?? [])
+                .filter { $0.iso6391?.lowercased() == "en" }
+                .sorted {
+                    if ($0.voteCount ?? 0) != ($1.voteCount ?? 0) {
+                        return ($0.voteCount ?? 0) > ($1.voteCount ?? 0)
+                    }
+                    return ($0.voteAverage ?? 0) > ($1.voteAverage ?? 0)
+                }
+                .first?.fullURL
 
             guard !Task.isCancelled, isDetailVisible, optionalPresentationGeneration == generation,
                   searchResult.stableIdentity == identity, selectedLanguage == language else { return }
             romajiTitle = romaji
+            logoURL = englishLogoURL
             if let credits { castMembers = credits.cast }
             titleArtworkLookupComplete = true
             // A failed credits request must not be cached as a completed enrichment pass.
-            optionalPresentationIsComplete = credits != nil
+            optionalPresentationIsComplete = credits != nil && englishLogoURL != nil
             cacheOptionalPresentation(key: cacheKey)
 
             let elapsedMs = Int(((ProcessInfo.processInfo.systemUptime - startedAt) * 1_000).rounded())
@@ -7100,6 +7133,13 @@ struct MediaDetailContentView: View {
     private func loadOptionalPresentationCredits(id: Int, isMovie: Bool) async throws -> TMDBCreditsResponse {
         if isMovie { return try await tmdbService.getMovieCredits(id: id) }
         return try await tmdbService.getTVCredits(id: id)
+    }
+
+    private func loadOptionalTitleArtworkImages(id: Int, isMovie: Bool, language: String) async throws -> TMDBImagesResponse {
+        if isMovie {
+            return try await tmdbService.getMovieImages(id: id, preferredLanguage: language)
+        }
+        return try await tmdbService.getTVShowImages(id: id, preferredLanguage: language)
     }
 
     private func loadMediaDetails() {
@@ -7205,10 +7245,13 @@ struct MediaDetailContentView: View {
                 self.seasonDetail = cached.seasonDetail
                 self.synopsis = cached.synopsis
                 self.romajiTitle = cached.romajiTitle
-                self.logoURL = cached.logoURL
+                // Older cache entries may contain a Japanese logo selected by
+                // the previous fallback. Resolve an English-only TMDB logo
+                // instead of reusing that unqualified cached artwork.
+                self.logoURL = nil
                 self.alternatePosterURL = cached.alternatePosterURL
-                self.optionalPresentationIsComplete = cached.optionalPresentationIsComplete
-                self.titleArtworkLookupComplete = cached.logoURL != nil || cached.optionalPresentationIsComplete
+                self.optionalPresentationIsComplete = false
+                self.titleArtworkLookupComplete = false
                 self.alternatePosterWasResolved = cached.alternatePosterWasResolved
                 self.optionalPresentationCacheWritable = true
                 self.isAnimeShow = cached.isAnimeShow

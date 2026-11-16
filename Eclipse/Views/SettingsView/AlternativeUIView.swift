@@ -27,6 +27,7 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
     case alternativeSeasonMenu
     case horizontalEpisodeList
     case showUnairedEpisodes
+    case titleLogoPosition
     case tmdbTitleArt
     case dataSaver
     case ageRating
@@ -46,7 +47,7 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
             return "interface"
         case .switchModeAnimation, .animatedBackground, .animationQuality, .animationFrameRate, .appPerformanceOverlay, .hideSplashScreen:
             return "motion"
-        case .alternativeSeasonMenu, .horizontalEpisodeList, .showUnairedEpisodes, .tmdbTitleArt, .dataSaver, .ageRating, .similarTitles:
+        case .alternativeSeasonMenu, .horizontalEpisodeList, .showUnairedEpisodes, .titleLogoPosition, .tmdbTitleArt, .dataSaver, .ageRating, .similarTitles:
             return "details"
         case .libraryBookmarks, .libraryCollectionLayout:
             return "library"
@@ -60,6 +61,7 @@ struct AlternativeUIView: View {
     @AppStorage(MediaDetailPlatformDefaults.seasonMenuKey) private var useSeasonMenu = MediaDetailPlatformDefaults.prefersCompactSeasonMenu
     @AppStorage(MediaDetailPlatformDefaults.horizontalEpisodeListKey) private var horizontalEpisodeList = MediaDetailPlatformDefaults.prefersHorizontalEpisodes
     @AppStorage(MediaDetailEpisodeVisibilitySettings.showUnairedEpisodesKey) private var showUnairedEpisodes = MediaDetailEpisodeVisibilitySettings.defaultShowUnairedEpisodes
+    @AppStorage(MediaDetailTitleLogoPositionSettings.verticalPositionKey) private var titleLogoVerticalPosition = MediaDetailTitleLogoPositionSettings.defaultVerticalPosition
     @AppStorage(ImageDataSaverSettings.enabledKey, store: .standard) private var imageDataSaverEnabled = false
     @AppStorage(MediaDetailAgeRatingSettings.enabledKey) private var mediaDetailAgeRatingEnabled = MediaDetailAgeRatingSettings.defaultEnabled
     @AppStorage(MediaDetailSimilarTitlesSettings.enabledKey) private var mediaDetailSimilarTitlesEnabled = MediaDetailSimilarTitlesSettings.defaultEnabled
@@ -540,6 +542,14 @@ struct AlternativeUIView: View {
                 isOn: $showUnairedEpisodes
             )
             .id(AppearanceSettingsSearchTarget.showUnairedEpisodes.anchorID)
+            sliderRow(
+                title: "Title Logo Vertical Position",
+                description: "Move English title artwork higher or lower on movie, series and anime posters.",
+                value: $titleLogoVerticalPosition,
+                range: MediaDetailTitleLogoPositionSettings.supportedRange,
+                step: MediaDetailTitleLogoPositionSettings.step
+            )
+            .id(AppearanceSettingsSearchTarget.titleLogoPosition.anchorID)
             toggleRow(
                 title: "Show Age Rating",
                 description: "Display the available content age rating on movie, series and anime detail pages.",

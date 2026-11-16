@@ -38,3 +38,9 @@ enum MediaDetailAgeRatingSettings {
     }
 }
 
+enum MediaDetailTitleLogoPositionSettings {
+    static let verticalPositionKey = "mediaDetailTitleLogoVerticalPosition"
+    static let defaultVerticalPosition = 0.40
+    static let supportedRange: ClosedRange<Double> = 0.15...0.85
+    static let step = 0.05
+}
