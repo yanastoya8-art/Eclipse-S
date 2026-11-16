@@ -479,6 +479,10 @@ struct MediaDetailContentView: View {
     private var landscapeHeroActionsVerticalOffset = LandscapeMediaDetailAppearanceSettings.defaultOffset
     @AppStorage(LandscapeMediaDetailAppearanceSettings.synopsisOffsetKey)
     private var landscapeHeroSynopsisVerticalOffset = LandscapeMediaDetailAppearanceSettings.defaultOffset
+    @AppStorage("mediaDetailPortraitHeroBleedIntensity")
+    private var portraitHeroBleedIntensity = 1.0
+    @AppStorage("mediaDetailLandscapeHeroBleedIntensity")
+    private var landscapeHeroBleedIntensity = 1.0
 
     private var activeTitleLogoPosition: Double {
         usesLandscapeDetailComposition ? landscapeTitleLogoVerticalPosition : titleLogoVerticalPosition
@@ -678,11 +682,14 @@ struct MediaDetailContentView: View {
     }
 
     private var mediaDetailHeroBleedStrength: Double {
-        let configuredStrength = theme.scopedBleedStrength()
+        let orientationIntensity = usesLandscapeDetailComposition
+            ? landscapeHeroBleedIntensity
+            : portraitHeroBleedIntensity
+        let configuredStrength = theme.scopedBleedStrength() * min(max(orientationIntensity, 0), 2)
         guard usesWideDetailLayout, configuredStrength > 0.001 else { return configuredStrength }
         return usesLandscapeDetailComposition
-            ? min(max(configuredStrength * 1.48, 1.12), 1.65)
-            : min(max(configuredStrength * 1.18, 0.92), 1.25)
+            ? min(max(configuredStrength * 1.48, 0), 2.8)
+            : min(max(configuredStrength * 1.18, 0), 2.4)
     }
 
     private var designMetrics: ExperimentalMediaDesignMetrics {
@@ -2626,7 +2633,7 @@ struct MediaDetailContentView: View {
                 ResilientArtworkImage(
                     urls: [logoURL],
                     decodeSize: CGSize(
-                        width: max(EclipseViewport.bounds.width * EclipseViewport.scale * 0.9, 1),
+                        width: max(detailViewportWidth * EclipseViewport.scale * 0.9, 1),
                         height: max(headerHeight * EclipseViewport.scale * 0.3, 1)
                     ),
                     contentMode: .fit
@@ -2634,8 +2641,8 @@ struct MediaDetailContentView: View {
                     Color.clear
                 }
                 .frame(
-                    width: min(EclipseViewport.bounds.width * 0.72 * CGFloat(activeTitleLogoSize), 680),
-                    height: min(max(headerHeight * 0.22 * CGFloat(activeTitleLogoSize), 72), 190)
+                    width: min(detailViewportWidth * 0.72 * CGFloat(activeTitleLogoSize), detailViewportWidth * 0.92),
+                    height: min(max(headerHeight * 0.26 * CGFloat(activeTitleLogoSize), 72), headerHeight * 0.55)
                 )
                 .overlay {
                     if activeTitleLogoWeight > 0.01 {
