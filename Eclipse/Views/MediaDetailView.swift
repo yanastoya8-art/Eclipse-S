@@ -2813,48 +2813,54 @@ struct MediaDetailContentView: View {
     @ViewBuilder
     private var experimentalHeaderSection: some View {
         VStack(alignment: .center, spacing: isTvOS ? 20 : (usesWideDetailLayout ? 13 : 10)) {
-            if shouldShowHeroDetails, let metadata = detailMetadataLine {
-                Text(metadata)
-                    .font(.system(
-
-                        size: isTvOS ? 29 : (usesWideDetailLayout ? 20 : (showFullMetadata ? 17 * 0.72 : 17)),
-                        weight: .semibold
-                    ))
-                    .foregroundColor(.white.opacity(0.92))
-                    .lineLimit(showFullMetadata ? nil : 1)
-                    .minimumScaleFactor(showFullMetadata ? 1 : 0.72)
-                    .fixedSize(horizontal: false, vertical: showFullMetadata)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, isTvOS ? 60 : (usesWideDetailLayout ? 36 : 20))
-                    .shadow(color: .black.opacity(0.70), radius: 8, x: 0, y: 3)
-                    .contentShape(Rectangle())
+            // Keep the genre/metadata line and action row in one positioned
+            // group. Previously only the buttons received the offset, leaving
+            // genres behind when users moved the actions slider.
+            VStack(alignment: .center, spacing: isTvOS ? 20 : (usesWideDetailLayout ? 13 : 10)) {
+                if shouldShowHeroDetails, let metadata = detailMetadataLine {
+                    Text(metadata)
+                        .font(.system(
+                            size: isTvOS ? 29 : (usesWideDetailLayout ? 20 : (showFullMetadata ? 17 * 0.72 : 17)),
+                            weight: .semibold
+                        ))
+                        .foregroundColor(.white.opacity(0.92))
+                        .lineLimit(showFullMetadata ? nil : 1)
+                        .minimumScaleFactor(showFullMetadata ? 1 : 0.72)
+                        .fixedSize(horizontal: false, vertical: showFullMetadata)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, isTvOS ? 60 : (usesWideDetailLayout ? 36 : 20))
+                        .shadow(color: .black.opacity(0.70), radius: 8, x: 0, y: 3)
+                        .contentShape(Rectangle())
 #if !os(tvOS)
-                    .onTapGesture {
-                        withAnimation(.easeInOut(duration: 0.22)) {
-                            showFullMetadata.toggle()
+                        .onTapGesture {
+                            withAnimation(.easeInOut(duration: 0.22)) {
+                                showFullMetadata.toggle()
+                            }
                         }
-                    }
-                    .accessibilityHint("Tap to expand or collapse media details")
+                        .accessibilityHint("Tap to expand or collapse media details")
 #endif
-            }
+                }
 
-            // Keep the synopsis below the primary action buttons in both
-            // portrait and wide detail layouts.
-            if shouldShowHeroActions {
-                experimentalPlayAndBookmarkSection
-                    .padding(.top, isTvOS ? 16 : (usesWideDetailLayout ? 6 : 2))
-                    .offset(y: CGFloat(activeHeroActionsOffset))
+                if shouldShowHeroActions {
+                    experimentalPlayAndBookmarkSection
+                        .padding(.top, isTvOS ? 16 : (usesWideDetailLayout ? 6 : 2))
+                }
             }
+            .offset(y: CGFloat(activeHeroActionsOffset))
 
-            if shouldShowHeroOverview {
-                experimentalHeroSynopsisSection
-                    .padding(.top, isTvOS ? 12 : (usesWideDetailLayout ? 2 : 0))
-                    .offset(y: CGFloat(activeHeroSynopsisOffset))
-            }
-
-            if shouldShowHeroDetails {
-                detailRatingChips
-                    .padding(.top, isTvOS ? 12 : (usesWideDetailLayout ? 2 : 0))
+            // Ratings share the synopsis position, so changing the synopsis
+            // offset moves both elements together in portrait and landscape.
+            if shouldShowHeroOverview || shouldShowHeroDetails {
+                VStack(alignment: .center, spacing: isTvOS ? 12 : (usesWideDetailLayout ? 8 : 6)) {
+                    if shouldShowHeroOverview {
+                        experimentalHeroSynopsisSection
+                    }
+                    if shouldShowHeroDetails {
+                        detailRatingChips
+                    }
+                }
+                .padding(.top, isTvOS ? 12 : (usesWideDetailLayout ? 2 : 0))
+                .offset(y: CGFloat(activeHeroSynopsisOffset))
             }
         }
         .frame(
