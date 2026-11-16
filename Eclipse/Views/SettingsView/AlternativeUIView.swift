@@ -492,7 +492,7 @@ struct AlternativeUIView: View {
 
             settingRow(
                 title: "Animation Color",
-                description: "Choose the color used by the animated rings, stars, circles, and ambient particles."
+                description: "Choose the particle color used by the animated rings, stars, and circles in Streaming and Reader mode."
             ) {
                 Picker("", selection: $homeAnimatedBackgroundParticleColor) {
                     ForEach(HomeAnimatedBackgroundParticleColor.allCases) { color in
@@ -500,6 +500,9 @@ struct AlternativeUIView: View {
                     }
                 }
                 .pickerStyle(.menu)
+                .accessibilityLabel("Animation Color")
+                .accessibilityIdentifier("settings.appearance.animationColor")
+                .accessibilityValue(HomeAnimatedBackgroundParticleColor.resolved(homeAnimatedBackgroundParticleColor).displayName)
                 .id(AppearanceSettingsSearchTarget.animationColor.anchorID)
             }
 
