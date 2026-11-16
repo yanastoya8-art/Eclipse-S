@@ -7203,15 +7203,19 @@ struct MediaDetailContentView: View {
                 }
                 return (lhs.voteAverage ?? 0) > (rhs.voteAverage ?? 0)
             }
-            // Anime metadata providers can return a direct transparent logo.
-            // Prefer that source, then TMDB English/neutral artwork. For other
-            // titles, retain a non-English TMDB logo only as a final fallback.
-            let providerLogo = isAnimeShow
-                ? searchResult.animeLogoURL?.trimmingCharacters(in: .whitespacesAndNewlines)
-                : nil
-            let selectedTMDBLogo = rankedLogos.first(where: { $0.iso6391?.lowercased() == "en" || $0.iso6391 == nil || $0.iso6391 == "" })?.fullURL
-                ?? rankedLogos.first?.fullURL
-            let resolvedLogoURL = providerLogo.flatMap { $0.isEmpty ? nil : $0 } ?? fanartLogoURL ?? preloadedLogoURL ?? selectedTMDBLogo
+            // Anime identity providers expose logo URLs without a reliable
+            // language tag; those URLs can be Japanese/native-script artwork.
+            // Prefer explicitly English TMDB logos, then language-neutral TMDB
+            // artwork, then Fanart.tv. Never fall back to an untagged provider
+            // logo or a cached logo of unknown language for anime.
+            let selectedTMDBLogo = rankedLogos.first(where: { $0.iso6391?.lowercased() == "en" })?.fullURL
+                ?? rankedLogos.first(where: { $0.iso6391 == nil || $0.iso6391 == "" })?.fullURL
+            let resolvedLogoURL: String?
+            if isAnimeShow {
+                resolvedLogoURL = selectedTMDBLogo ?? fanartLogoURL
+            } else {
+                resolvedLogoURL = fanartLogoURL ?? preloadedLogoURL ?? selectedTMDBLogo ?? rankedLogos.first?.fullURL
+            }
 
             guard !Task.isCancelled, isDetailVisible, optionalPresentationGeneration == generation,
                   searchResult.stableIdentity == identity, selectedLanguage == language else { return }
