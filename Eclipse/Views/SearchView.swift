@@ -1357,6 +1357,11 @@ private struct BrowseCountry: Identifiable, Hashable {
 }
 
 private struct BrowseMediaView: View {
+    // Filter-heavy anime queries may reject most of a TMDB page. Only top up
+    // the first paint with a small number of pages; later pages are fetched as
+    // the user scrolls or explicitly asks for more from an empty result state.
+    private static let maximumAutomaticFilteredPages = 3
+
     @AppStorage("mediaColumnsPortrait") private var mediaColumnsPortrait: Int = 3
     @AppStorage("mediaColumnsLandscape") private var mediaColumnsLandscape: Int = 5
 #if os(tvOS)
@@ -1942,6 +1947,21 @@ private struct BrowseMediaView: View {
             Text("No Results")
                 .font(.title3.weight(.semibold))
                 .foregroundColor(.secondary)
+
+            if hasMorePages && currentPage < 8 {
+                Text("Your filters may have excluded the first few pages.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+
+                Button {
+                    loadNextPage()
+                } label: {
+                    Label("Search More Results", systemImage: "arrow.down.circle")
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isLoading)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 80)
@@ -2249,7 +2269,9 @@ private struct BrowseMediaView: View {
                         reapplyCurrentFiltersToRetainedResults()
                     }
 
-                    if hasMorePages && results.count < 12 && page < 8 {
+                    if hasMorePages,
+                       results.count < 12,
+                       page < Self.maximumAutomaticFilteredPages {
                         loadNextPage()
                     }
 
