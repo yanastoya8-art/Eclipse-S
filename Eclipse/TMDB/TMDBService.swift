@@ -3224,3 +3224,68 @@ enum RatingTitleLookupPolicy {
         }
     }
 }
+
+
+/// Fanart.tv provides dedicated transparent movie-logo artwork. The key is
+/// injected through Build.xcconfig/Info.plist and is never persisted in app
+/// preferences or logged.
+actor FanartTVLogoService {
+    static let shared = FanartTVLogoService()
+
+    private struct Logo: Decodable {
+        let url: String
+        let lang: String?
+        let likes: String?
+    }
+
+    private struct MovieResponse: Decodable {
+        let hdmovielogo: [Logo]?
+        let movielogo: [Logo]?
+    }
+
+    private var cache: [String: String] = [:]
+    private var attempted = Set<String>()
+
+    func logoURL(imdbID: String?) async -> String? {
+        guard let imdbID, imdbID.range(of: #"^tt[0-9]{7,12}$"#, options: .regularExpression) != nil,
+              let key = Bundle.main.object(forInfoDictionaryKey: "FanartTVAPIKey") as? String,
+              !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        if attempted.contains(imdbID) { return cache[imdbID] }
+        guard var components = URLComponents(string: "https://webservice.fanart.tv/v3/movies/\(imdbID)") else { return nil }
+        components.queryItems = [URLQueryItem(name: "api_key", value: key)]
+        guard let url = components.url else { return nil }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 12
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse,
+                  http.statusCode == 200,
+                  let host = http.url?.host?.lowercased(),
+                  host == "webservice.fanart.tv",
+                  data.count <= 2 * 1_024 * 1_024 else { return nil }
+            let payload = try JSONDecoder().decode(MovieResponse.self, from: data)
+            let logos = (payload.hdmovielogo ?? []) + (payload.movielogo ?? [])
+            let best = logos.sorted { lhs, rhs in
+                func rank(_ language: String?) -> Int {
+                    switch language?.lowercased() {
+                    case "en": return 0
+                    case nil, "", "00": return 1
+                    default: return 2
+                    }
+                }
+                if rank(lhs.lang) != rank(rhs.lang) { return rank(lhs.lang) < rank(rhs.lang) }
+                return (Int(lhs.likes ?? "") ?? 0) > (Int(rhs.likes ?? "") ?? 0)
+            }.first?.url
+            if let best, let imageURL = URL(string: best),
+               imageURL.scheme?.lowercased() == "https",
+               imageURL.host?.lowercased() == "assets.fanart.tv" {
+                cache[imdbID] = best
+            }
+            attempted.insert(imdbID)
+            return cache[imdbID]
+        } catch {
+            return nil
+        }
+    }
+}
