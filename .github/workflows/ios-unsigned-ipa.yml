@@ -145,7 +145,7 @@ jobs:
               if not device or not simulator:
                   errors.append(f"{name}: requires iOS arm64 device and simulator slices")
           if errors:
-              print("\\n".join(errors), file=sys.stderr)
+              print("\n".join(errors), file=sys.stderr)
               raise SystemExit(1)
           print(f"Validated {len(required)} cached iOS XCFrameworks (device + simulator).")
           PY
