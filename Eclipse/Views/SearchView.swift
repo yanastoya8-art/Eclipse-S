@@ -2094,6 +2094,7 @@ private struct BrowseMediaView: View {
         let snapshot = unfilteredResults
         let selectedMediaType = mediaType
         let selectedAgeRating = ageRating
+        let allowsUpcomingContent = currentFilters.showsUpcomingOnly == true
         let excludedGenreIDs = excludedGenreKeys.compactMap { key in
             selectedMediaType.genres.first(where: { $0.id == key })?.tmdbGenreID
         }
@@ -2115,7 +2116,8 @@ private struct BrowseMediaView: View {
                     browseTypeFiltered,
                     excludedGenreIds: excludedGenreIDs,
                     excludedYears: yearsToExclude
-                )
+                ),
+                allowUpcomingContent: allowsUpcomingContent
             )
             guard !Task.isCancelled else { return }
             let filtered = regionGuardedResults(contentFiltered, countries: countries)
@@ -2192,7 +2194,8 @@ private struct BrowseMediaView: View {
                         browseTypeFiltered,
                         excludedGenreIds: excludedGenres.compactMap(\.tmdbGenreID),
                         excludedYears: excludedYears
-                    )
+                    ),
+                    allowUpcomingContent: upcomingOnly
                 )
                 try Task.checkCancellation()
                 let filtered = regionGuardedResults(
@@ -2342,10 +2345,18 @@ private struct BrowseMediaView: View {
     ) async throws -> BrowsePageResult {
         let selectedKeywordNames = genres.compactMap(\.keyword)
         let excludedKeywordNames = excludedGenres.compactMap(\.keyword)
-        let keywordNames = Array(Set(selectedKeywordNames + excludedKeywordNames)).sorted()
-        let keywordIDsByName = await tmdbService.keywordIDs(for: keywordNames)
+        // TMDB exposes fan-made and unofficial productions as keywords more
+        // reliably than it does in title/overview text. Exclude those at the
+        // discovery query as well as in TMDBContentFilter so Upcoming-only
+        // results cannot reintroduce tagged fan productions.
+        let unofficialKeywordNames = UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent")
+            ? ["fan film", "fan-made", "fan made", "fan fiction", "fanfiction", "unofficial"]
+            : []
+        let allKeywordNames = Array(Set(selectedKeywordNames + excludedKeywordNames + unofficialKeywordNames)).sorted()
+        let keywordIDsByName = await tmdbService.keywordIDs(for: allKeywordNames)
         let selectedKeywordIDs = selectedKeywordNames.compactMap { keywordIDsByName[$0] }
-        let excludedKeywordIDs = excludedKeywordNames.compactMap { keywordIDsByName[$0] }
+        let excludedKeywordIDs = Array(Set(excludedKeywordNames + unofficialKeywordNames))
+            .compactMap { keywordIDsByName[$0] }
         let effectiveGenreIds = Array(Set(genres.compactMap(\.tmdbGenreID) + (isAnime ? [16] : []))).sorted()
         let excludedGenreIds = Array(Set(excludedGenres.compactMap(\.tmdbGenreID))).sorted()
         let effectiveCountries = Array(Set(originCountries)).sorted()
