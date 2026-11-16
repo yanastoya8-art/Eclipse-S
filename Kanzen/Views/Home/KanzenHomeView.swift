@@ -20,6 +20,8 @@ struct KanzenHomeView: View {
     @StateObject private var customCatalogManager = KanzenCustomCatalogManager.shared
     @State private var scrollOffset: CGFloat = 0
     @State private var didReportStartupReady = false
+    @AppStorage(ReaderHomeCatalogVisibilitySettings.showPopularKey, store: ProfileSettingsStore.active) private var showPopularCatalog = ReaderHomeCatalogVisibilitySettings.defaultShowPopular
+    @AppStorage(ReaderHomeCatalogVisibilitySettings.showLatestKey, store: ProfileSettingsStore.active) private var showLatestCatalog = ReaderHomeCatalogVisibilitySettings.defaultShowLatest
     private var metrics: ExperimentalMediaDesignMetrics { .current }
 
     init(onStartupReady: @escaping () -> Void = {}) {
@@ -84,6 +86,12 @@ struct KanzenHomeView: View {
                 homeViewModel.updateSources(sources)
                 homeViewModel.loadSelectedSource(force: true)
             }
+        }
+        .onChange(of: showPopularCatalog) { _ in
+            reloadHomeAfterCatalogVisibilityChange()
+        }
+        .onChange(of: showLatestCatalog) { _ in
+            reloadHomeAfterCatalogVisibilityChange()
         }
         .onChange(of: contentFilter.isKidsProfileActive) { isKids in
             if isKids {
@@ -323,6 +331,11 @@ struct KanzenHomeView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
+    }
+
+    private func reloadHomeAfterCatalogVisibilityChange() {
+        guard !ProfileManager.shared.isKidsModeActive else { return }
+        homeViewModel.reloadForCatalogChange()
     }
 
     private func syncSourcesAndLoad() {
