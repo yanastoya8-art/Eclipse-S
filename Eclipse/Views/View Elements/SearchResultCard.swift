@@ -39,9 +39,10 @@ enum PosterArtworkURLResolver {
         if !isAnime, result.isMovie, let fanart = result.fanartTVPosterURL, !fanart.isEmpty {
             candidates.append(fanart)
         }
-        if let original = originalTMDBPosterURL(for: result) {
-            candidates.append(original)
-        }
+        // TMDB poster artwork is deliberately excluded: it frequently
+        // contains embedded title treatments. Keep only clean source artwork
+        // from Fanart.tv, TVMaze and anime cover providers. The transparent
+        // title-logo overlay is rendered separately by the card.
         if !isAnime, let fanart = result.fanartTVPosterURL, !fanart.isEmpty {
             candidates.append(fanart)
         }
@@ -50,9 +51,6 @@ enum PosterArtworkURLResolver {
         }
         if !isAnime, let anime = result.animeArtworkURL, !anime.isEmpty {
             candidates.append(anime)
-        }
-        if let full = result.fullPosterURL, !full.isEmpty {
-            candidates.append(full)
         }
 
         var seen = Set<String>()
@@ -183,15 +181,25 @@ actor SearchResultTitleLogoCache {
                 } else {
                     images = try await TMDBService.shared.getTVShowImages(id: id, preferredLanguage: "en")
                 }
-                let url = (images.logos ?? [])
-                    .filter { $0.iso6391?.lowercased() == "en" }
-                    .sorted {
-                        if ($0.voteCount ?? 0) != ($1.voteCount ?? 0) {
-                            return ($0.voteCount ?? 0) > ($1.voteCount ?? 0)
+                let ranked = (images.logos ?? []).sorted { lhs, rhs in
+                    func languageRank(_ code: String?) -> Int {
+                        switch code?.lowercased() {
+                        case "en": return 0
+                        case nil, "": return 1
+                        default: return 2
                         }
-                        return ($0.voteAverage ?? 0) > ($1.voteAverage ?? 0)
                     }
-                    .first?.fullURL
+                    let left = languageRank(lhs.iso6391)
+                    let right = languageRank(rhs.iso6391)
+                    if left != right { return left < right }
+                    if (lhs.voteCount ?? 0) != (rhs.voteCount ?? 0) {
+                        return (lhs.voteCount ?? 0) > (rhs.voteCount ?? 0)
+                    }
+                    return (lhs.voteAverage ?? 0) > (rhs.voteAverage ?? 0)
+                }
+                let url = ranked.first(where: {
+                    $0.iso6391?.lowercased() == "en" || $0.iso6391 == nil || $0.iso6391 == ""
+                })?.fullURL ?? ranked.first?.fullURL
                 return LookupResult(url: url, succeeded: true)
             } catch {
                 return LookupResult(url: nil, succeeded: false)
