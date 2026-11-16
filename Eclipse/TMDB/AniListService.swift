@@ -5571,7 +5571,10 @@ final class AniListService {
                 hasKnownAiringTime: entry.hasKnownAiringTime,
                 scheduleProvider: entry.scheduleProvider,
                 malID: entry.malID,
-                airingTimeWithdrawn: entry.airingTimeWithdrawn
+                airingTimeWithdrawn: entry.airingTimeWithdrawn,
+                tags: entry.tags,
+                releaseYear: entry.releaseYear,
+                runtimeMinutes: entry.runtimeMinutes
             )
         }
         return AnimeAiringScheduleResult(
