@@ -36,6 +36,7 @@ struct HomeLayoutView: View {
 
     @AppStorage("heroBannerCatalogId") private var heroBannerCatalogId = "trending"
     @AppStorage("heroBannerBehavior") private var heroBannerBehavior = HeroBannerBehavior.defaultValue.rawValue
+    @AppStorage(HomeHeroTitleLogoPositionSettings.verticalPositionKey) private var homeHeroTitleLogoVerticalPosition = HomeHeroTitleLogoPositionSettings.defaultVerticalPosition
 
     @StateObject private var catalogManager = CatalogManager.shared
     @StateObject private var layoutStore = HomeCatalogLayoutStore.shared
@@ -166,6 +167,16 @@ struct HomeLayoutView: View {
                 range: 0.75...1.15,
                 step: 0.05
             )
+
+            sliderRow(
+                title: "Hero Title Logo Vertical Position",
+                description: "Move the title logo up or down on the home hero banner without changing detail-page logos.",
+                value: $homeHeroTitleLogoVerticalPosition,
+                range: HomeHeroTitleLogoPositionSettings.supportedRange,
+                step: HomeHeroTitleLogoPositionSettings.step,
+                format: "%.2f"
+            )
+            .accessibilityIdentifier("settings.appearance.homeHeroTitleLogoPosition")
 
             pickerRow(
                 title: "Hero Banner",

@@ -602,6 +602,7 @@ struct HomeView: View {
     @ObservedObject private var theme = EclipseTheme.shared
     @AppStorage("heroBannerCatalogId") private var heroBannerCatalogId = "trending"
     @AppStorage("heroBannerBehavior") private var heroBannerBehavior = HeroBannerBehavior.defaultValue.rawValue
+    @AppStorage(HomeHeroTitleLogoPositionSettings.verticalPositionKey) private var homeHeroTitleLogoVerticalPosition = HomeHeroTitleLogoPositionSettings.defaultVerticalPosition
     @AppStorage(HomeAnimatedBackgroundSettings.enabledKey) private var homeAnimatedBackgroundEnabled = HomeAnimatedBackgroundSettings.defaultEnabled
     @AppStorage(ExperimentalMediaDesignPreset.storageKey) private var experimentalDesignPreset = ExperimentalMediaDesignPreset.defaultValue.rawValue
     @AppStorage(ExperimentalHeroBleedLevel.storageKey) private var experimentalHeroBleedLevel = ExperimentalHeroBleedLevel.defaultValue.rawValue
@@ -740,20 +741,22 @@ struct HomeView: View {
     }
 
     var body: some View {
+        Group {
 #if os(tvOS)
-        homeContent
+            homeContent
 #else
-        if #available(iOS 16.0, *) {
-            NavigationStack {
-                homeContent
+            if #available(iOS 16.0, *) {
+                NavigationStack {
+                    homeContent
+                }
+            } else {
+                NavigationView {
+                    homeContent
+                }
+                .providerNavigationStyle()
             }
-        } else {
-            NavigationView {
-                homeContent
-            }
-            .providerNavigationStyle()
-        }
 #endif
+        }
         .task(id: homeViewModel.hasLoadedContent) {
             guard homeViewModel.hasLoadedContent else { return }
             let catalogItems = Array(homeViewModel.catalogResults.values.joined())
@@ -1410,6 +1413,7 @@ struct HomeView: View {
                 .frame(maxWidth: usesWideHomeLayout ? 760 : 520)
                 .frame(height: min(max(heroHeight * 0.24, 112), 190))
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                .offset(y: CGFloat(homeHeroTitleLogoVerticalPosition - 0.5) * heroHeight)
                 .padding(.horizontal, 20)
                 .accessibilityLabel(hero.displayTitle)
             }
