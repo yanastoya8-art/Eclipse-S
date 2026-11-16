@@ -1,5 +1,12 @@
 import Foundation
 
+enum HomeHeroTitleLogoPositionSettings {
+    static let verticalPositionKey = "homeHeroTitleLogoVerticalPosition"
+    static let defaultVerticalPosition = 0.50
+    static let supportedRange: ClosedRange<Double> = 0.15...0.85
+    static let step = 0.05
+}
+
 enum MediaDetailTitleArtworkSettings {
     static let enabledKey = "mediaDetailTitleArtworkEnabled"
     static let defaultEnabled = true
