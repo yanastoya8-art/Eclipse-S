@@ -1380,6 +1380,7 @@ private struct BrowseMediaView: View {
     @State private var errorMessage: String?
     @State private var requestSerial = 0
     @State private var loadTask: Task<Void, Never>?
+    @State private var browseQueryGeneration = UUID()
 
     @State private var filterOwner: UUID
 
@@ -2057,6 +2058,7 @@ private struct BrowseMediaView: View {
 
     private func reloadResults() {
         requestSerial += 1
+        browseQueryGeneration = UUID()
         filterRefreshGeneration += 1
         filterRefreshTask?.cancel()
         filterRefreshTask = nil
@@ -2071,6 +2073,7 @@ private struct BrowseMediaView: View {
 
     private func cancelBrowseLoad() {
         requestSerial += 1
+        browseQueryGeneration = UUID()
         filterRefreshGeneration += 1
         loadTask?.cancel()
         loadTask = nil
@@ -2153,6 +2156,12 @@ private struct BrowseMediaView: View {
         let ageRating = self.ageRating
         let upcomingOnly = currentFilters.showsUpcomingOnly == true
         let existingRawResults = replacing ? [] : unfilteredResults
+        if replacing { browseQueryGeneration = UUID() }
+        let queryGeneration = browseQueryGeneration
+        let requiresAnimeIdentityBeforeFiltering = browseMediaType.isAnime && (
+            !MyDubListDubFilter.shared.selectedLanguages.isEmpty
+                || UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
+        )
 
         filterRefreshGeneration += 1
         filterRefreshTask?.cancel()
@@ -2176,9 +2185,16 @@ private struct BrowseMediaView: View {
                     page: page
                 )
                 try Task.checkCancellation()
-                let identityResolvedResults = browseMediaType.isAnime
-                    ? await resolveAnimeBrowseIdentities(pageResult.results)
-                    : pageResult.results
+                // Dub/audio filters require resolved provider identity before
+                // filtering. Without those filters, show the TMDB page immediately
+                // and enrich posters/logos in the background so Anime Browse is not
+                // blocked by AniList/AniMap artwork lookups.
+                let identityResolvedResults: [TMDBSearchResult]
+                if requiresAnimeIdentityBeforeFiltering {
+                    identityResolvedResults = await resolveAnimeBrowseIdentities(pageResult.results)
+                } else {
+                    identityResolvedResults = pageResult.results
+                }
                 try Task.checkCancellation()
                 let combinedRawResults = replacing
                     ? identityResolvedResults
@@ -2221,6 +2237,20 @@ private struct BrowseMediaView: View {
 
                     if hasMorePages && results.count < 12 && page < 8 {
                         loadNextPage()
+                    }
+
+                    if browseMediaType.isAnime && !requiresAnimeIdentityBeforeFiltering {
+                        // Keep the first paint fast. Poster/logo enrichment is
+                        // allowed to finish after results are already interactive.
+                        Task {
+                            let enriched = await resolveAnimeBrowseIdentities(pageResult.results)
+                            guard queryGeneration == browseQueryGeneration,
+                                  mediaType == browseMediaType else { return }
+                            var enrichedByID: [Int: TMDBSearchResult] = [:]
+                            for result in enriched { enrichedByID[result.id] = result }
+                            unfilteredResults = unfilteredResults.map { enrichedByID[$0.id] ?? $0 }
+                            results = results.map { enrichedByID[$0.id] ?? $0 }
+                        }
                     }
                 }
             } catch {
