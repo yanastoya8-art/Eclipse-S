@@ -191,7 +191,11 @@ struct KanzenHomeView: View {
             }
 
         case .unsupported:
-            unsupportedSourceView(source)
+            if !showPopularCatalog && !showLatestCatalog {
+                disabledBuiltInCatalogsView
+            } else {
+                unsupportedSourceView(source)
+            }
 
         case .browserVerificationRequired(let host):
             VStack(spacing: 12) {
@@ -250,7 +254,11 @@ struct KanzenHomeView: View {
 
         case .loaded:
             if sections.isEmpty {
-                unsupportedSourceView(source)
+                if !showPopularCatalog && !showLatestCatalog {
+                    disabledBuiltInCatalogsView
+                } else {
+                    unsupportedSourceView(source)
+                }
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 24) {
@@ -292,6 +300,27 @@ struct KanzenHomeView: View {
                 .foregroundColor(.secondary)
             NavigationLink(destination: ReaderExtensionsSettingsView()) {
                 Label("Reader Extensions", systemImage: "plus.circle")
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding()
+    }
+
+    private var disabledBuiltInCatalogsView: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "rectangle.stack.badge.minus")
+                .font(.system(size: 42))
+                .foregroundColor(.secondary)
+            Text("Reader Catalogs Disabled")
+                .font(.headline)
+                .foregroundColor(.secondary)
+            Text("Popular and Latest Updates are both disabled. Enable either catalog in Home Sources to show discovery rows.")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+            NavigationLink(destination: MangaCatalogSettingsView().environmentObject(moduleManager)) {
+                Label("Home Sources", systemImage: "slider.horizontal.3")
             }
             .buttonStyle(.borderedProminent)
         }
