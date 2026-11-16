@@ -278,7 +278,6 @@ struct KanzenHomeView: View {
                                 MangaHomeHeroBanner(item: featuredItem)
                             }
                             .buttonStyle(.plain)
-                            .padding(.horizontal, isIPad ? 24 : 16)
                         }
 
                         ForEach(sections) { section in
@@ -667,74 +666,87 @@ private struct MangaHomeFeaturedCard: View {
 private struct MangaHomeHeroBanner: View {
     let item: MangaHomeItem
 
+    private var metrics: ExperimentalMediaDesignMetrics { .current }
+
     private var bannerWidth: CGFloat {
-        min(max(EclipseViewport.bounds.width - (isIPad ? 48 : 32), 280), isIPad ? 900 : 760)
+        max(EclipseViewport.bounds.width, 320)
     }
 
     private var bannerHeight: CGFloat {
-        bannerWidth * (isIPad ? 0.40 : 0.52)
-    }
-
-    private var radius: CGFloat {
-        ExperimentalFeatureState.isEnabledAtLaunch ? ExperimentalMediaDesignMetrics.current.cardRadius : 12
+        if ExperimentalFeatureState.isEnabledAtLaunch {
+            return metrics.homeHeroHeight(
+                screenHeight: EclipseViewport.bounds.height,
+                isIPad: isIPad
+            )
+        }
+        return isIPad ? 720 : 580
     }
 
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
+        ZStack {
             ReaderScopedRemoteImage(
                 url: URL(string: item.imageURL),
                 readerExtensionSourceID: item.route?.readerExtensionSourceID,
-                maximumPixelSize: isIPad ? 1_800 : 1_200
+                maximumPixelSize: isIPad ? 2_400 : 1_800
             ) {
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                Rectangle()
                     .fill(Color.white.opacity(0.08))
-                    .overlay(
+                    .overlay {
                         Image(systemName: "book.closed")
-                            .font(.system(size: 34))
+                            .font(.system(size: 42))
                             .foregroundColor(.white.opacity(0.42))
-                    )
+                    }
             }
             .scaledToFill()
             .frame(width: bannerWidth, height: bannerHeight)
             .clipped()
 
             LinearGradient(
-                colors: [.clear, .black.opacity(0.28), .black.opacity(0.88)],
+                stops: [
+                    .init(color: .black.opacity(0.06), location: 0),
+                    .init(color: .clear, location: 0.34),
+                    .init(color: .black.opacity(0.30), location: 0.68),
+                    .init(color: .black.opacity(0.90), location: 1)
+                ],
                 startPoint: .top,
                 endPoint: .bottom
             )
 
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(spacing: 12) {
+                Spacer(minLength: bannerHeight * 0.34)
+
                 Text(item.title)
-                    .font(.system(size: isIPad ? 30 : 23, weight: .bold))
+                    .font(.system(size: isIPad ? 42 : 34, weight: .heavy))
                     .foregroundColor(.white)
+                    .multilineTextAlignment(.center)
                     .lineLimit(2)
-                    .minimumScaleFactor(0.82)
+                    .minimumScaleFactor(0.72)
+                    .shadow(color: .black.opacity(0.58), radius: 12, x: 0, y: 3)
 
                 if let subtitle = item.subtitle, !subtitle.isEmpty {
                     Text(subtitle)
-                        .font(.system(size: isIPad ? 17 : 14, weight: .medium))
-                        .foregroundColor(.white.opacity(0.76))
+                        .font(.system(size: isIPad ? 18 : 15, weight: .medium))
+                        .foregroundColor(.white.opacity(0.82))
                         .lineLimit(1)
+                        .shadow(color: .black.opacity(0.52), radius: 8, x: 0, y: 2)
                 }
 
+                Spacer(minLength: 12)
+
                 Label("Open", systemImage: "book.fill")
-                    .font(.system(size: isIPad ? 16 : 14, weight: .semibold))
+                    .font(.system(size: isIPad ? 17 : 15, weight: .semibold))
                     .foregroundColor(.black)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 9)
-                    .background(Capsule().fill(Color.white.opacity(0.94)))
-                    .padding(.top, 2)
+                    .padding(.horizontal, 22)
+                    .padding(.vertical, 12)
+                    .background(Capsule().fill(Color.white.opacity(0.96)))
+                    .padding(.bottom, isIPad ? 42 : 32)
             }
-            .padding(isIPad ? 24 : 17)
+            .padding(.horizontal, isIPad ? 56 : 24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(width: bannerWidth, height: bannerHeight)
-        .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .stroke(Color.white.opacity(0.10), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.24), radius: 16, x: 0, y: 8)
+        .contentShape(Rectangle())
+        .ignoresSafeArea(.container, edges: .horizontal)
     }
 }
 
