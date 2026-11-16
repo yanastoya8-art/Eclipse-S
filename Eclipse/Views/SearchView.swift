@@ -1076,7 +1076,11 @@ private enum BrowseAnimeClassifier {
     }
 
     static func isAnime(_ result: TMDBSearchResult) -> Bool {
-        classification(for: result) == .anime
+        // Browse already queries TV animation with anime country/language
+        // constraints. Some TMDB rows omit originCountry/originalLanguage;
+        // classify those as unknown animation rather than silently dropping
+        // every result from an otherwise valid Anime Browse page.
+        classification(for: result) != .nonAnime
     }
 
     static func shouldIncludeInTV(_ result: TMDBSearchResult) -> Bool {
@@ -1084,11 +1088,10 @@ private enum BrowseAnimeClassifier {
     }
 
     private static func classification(for result: TMDBSearchResult) -> Classification {
-        guard result.mediaType == "tv" else { return .nonAnime }
-
         if result.isAnimeHint == true {
             return .anime
         }
+        guard result.mediaType == "tv" else { return .nonAnime }
 
         guard result.genreIds?.contains(16) == true else { return .nonAnime }
 
