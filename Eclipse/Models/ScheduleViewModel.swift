@@ -226,7 +226,7 @@ struct ScheduleEntry: Identifiable, Sendable {
         airingTimeWithdrawn = animeEntry.airingTimeWithdrawn == true
         originalLanguage = nil
         releaseYear = animeEntry.releaseYear
-        runtimeMinutes = nil
+        runtimeMinutes = animeEntry.runtimeMinutes
         isMovie = false
     }
 
