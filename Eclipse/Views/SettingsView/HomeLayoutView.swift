@@ -37,6 +37,7 @@ struct HomeLayoutView: View {
     @AppStorage("heroBannerCatalogId") private var heroBannerCatalogId = "trending"
     @AppStorage("heroBannerBehavior") private var heroBannerBehavior = HeroBannerBehavior.defaultValue.rawValue
     @AppStorage(HomeHeroTitleLogoPositionSettings.verticalPositionKey) private var homeHeroTitleLogoVerticalPosition = HomeHeroTitleLogoPositionSettings.defaultVerticalPosition
+    @AppStorage("homeHeroTitleLogoSize") private var homeHeroTitleLogoSize = 1.0
 
     @StateObject private var catalogManager = CatalogManager.shared
     @StateObject private var layoutStore = HomeCatalogLayoutStore.shared
@@ -177,6 +178,15 @@ struct HomeLayoutView: View {
                 format: "%.2f"
             )
             .accessibilityIdentifier("settings.appearance.homeHeroTitleLogoPosition")
+
+            sliderRow(
+                title: "Hero Title Logo Size",
+                description: "Scale the transparent title artwork across every title in the home hero banner.",
+                value: $homeHeroTitleLogoSize,
+                range: 0.75...2.25,
+                step: 0.05
+            )
+            .accessibilityIdentifier("settings.appearance.homeHeroTitleLogoSize")
 
             pickerRow(
                 title: "Hero Banner",

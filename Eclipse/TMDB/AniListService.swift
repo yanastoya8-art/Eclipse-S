@@ -12199,6 +12199,7 @@ struct AniListAiringScheduleEntry: Identifiable, Codable, Sendable {
     var tags: [String]? = nil
     var releaseYear: Int? = nil
     var runtimeMinutes: Int? = nil
+    var sourceURL: String? = nil
 }
 
 struct AnimeAiringScheduleResult: Sendable {

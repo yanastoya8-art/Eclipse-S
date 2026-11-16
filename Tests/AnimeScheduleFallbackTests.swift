@@ -165,13 +165,22 @@ final class AnimeScheduleFallbackTests: XCTestCase {
         XCTAssertTrue(AnimeDubMetadataFallbackPolicy.shouldQueryAnidub(taizenCounts: [:]))
     }
 
-    func testSpanishSelectionExplainsEnglishOnlyAnimeScheduleDates() {
+    func testSpanishSelectionExplainsMissingSpanishEpisodeDatesWithoutSubstitutingBroadcasts() {
         let notice = AnimeScheduleLanguageNoticePolicy.notice(
             selectedLanguages: ["english", "spanish"],
             providerNotice: nil
         )
-        XCTAssertTrue(notice?.contains("English-dub release dates only") == true)
-        XCTAssertTrue(notice?.contains("Spanish-dub release dates are not available") == true)
+        XCTAssertTrue(notice?.contains("No confirmed Spanish-dub episode dates") == true)
+        XCTAssertTrue(notice?.contains("Japanese broadcast dates are never substituted") == true)
+    }
+
+    func testSpanishSelectionReplacesGenericProviderOutageWithLanguageSpecificNotice() {
+        let notice = AnimeScheduleLanguageNoticePolicy.notice(
+            selectedLanguages: ["spanish"],
+            providerNotice: "English dub timetable providers are temporarily unavailable."
+        )
+        XCTAssertTrue(notice?.contains("No confirmed Spanish-dub episode dates") == true)
+        XCTAssertFalse(notice?.contains("providers are temporarily unavailable") == true)
     }
 
     func testEnglishOnlyAnimeSchedulePreservesProviderNotice() {

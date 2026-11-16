@@ -224,7 +224,7 @@ enum AnimeScheduleAPIKeyStore {
 
         let attributes: [String: Any] = [
             kSecValueData as String: Data(trimmed.utf8),
-            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         ]
         let status = SecItemUpdate(lookup as CFDictionary, attributes as CFDictionary)
         if status == errSecItemNotFound {
@@ -496,9 +496,15 @@ enum AnimeScheduleLanguageNoticePolicy {
         guard selectedLanguages.contains(MyDubListLanguage.spanish.rawValue) else {
             return providerNotice
         }
-        let clarification = "The anime calendar currently shows confirmed English-dub release dates only. Spanish-dub release dates are not available from this schedule provider."
+        let clarification = "Spanish dub dates are included only when JustWatch provides a matching audio-language release date or sequential AI research finds a confirmed announcement from a trusted distributor or anime-news source. AI-sourced dates include a source link; Japanese broadcast dates and unverified estimates are never substituted."
         guard let providerNotice,
               !providerNotice.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return clarification
+        }
+        let normalized = providerNotice.lowercased()
+        if normalized.contains("temporarily unavailable")
+            || normalized.contains("providers are unavailable")
+            || normalized.contains("no available") {
             return clarification
         }
         return "\(providerNotice) \(clarification)"
@@ -534,7 +540,7 @@ actor TsuzukiAnimeDubScheduleService {
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .gregorian)
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.timeZone = TimeZone.current
         formatter.dateFormat = "yyyy-MM-dd"
         let start = formatter.string(from: now)
         let cacheKey = "\(start):\(days)"
@@ -692,5 +698,338 @@ enum AnimeScheduleFallback {
         do { return try await animeSchedule() }
         catch { try AnimeScheduleService.rethrowCancellation(error) }
         return try await mal()
+    }
+}
+
+
+// MARK: - Verified Spanish-dub release research
+
+enum SpanishDubAIProvider: String, CaseIterable, Identifiable, Codable {
+    case gemini
+    case openAI
+
+    var id: String { rawValue }
+    var displayName: String {
+        switch self {
+        case .gemini: return "Google Gemini"
+        case .openAI: return "OpenAI"
+        }
+    }
+}
+
+actor SpanishDubAIResearchService {
+    static let shared = SpanishDubAIResearchService()
+
+    private struct ResearchCandidate: Codable {
+        let mediaId: Int
+        let episode: Int
+        let date: String
+        let region: String
+        let status: String
+        let sources: [String]
+    }
+
+    private struct CachedDate: Codable {
+        let fetchedAt: Date
+        let date: Date
+        let sourceURL: String
+        let provider: SpanishDubAIProvider
+    }
+
+    private var cache: [String: CachedDate] = [:]
+    private var negativeChecks: [String: Date] = [:]
+    private var didLoadCache = false
+    private let cacheKey = "spanishDubAIResearchCacheV1"
+    private let cacheLifetime: TimeInterval = 12 * 60 * 60
+    private let maximumCandidatesPerRefresh = 40
+
+    /// Providers are deliberately sequential. A later provider only sees episodes
+    /// that the earlier provider could not verify.
+    func research(entries: [AniListAiringScheduleEntry]) async -> [AniListAiringScheduleEntry] {
+        loadCache()
+        let now = Date()
+        let candidates = Array(entries.filter { $0.episode > 0 && $0.episode <= 100_000 }
+            .sorted { $0.airingAt < $1.airingAt }
+            .prefix(maximumCandidatesPerRefresh))
+        guard !candidates.isEmpty else { return [] }
+
+        var resolved: [String: CachedDate] = [:]
+        for entry in candidates {
+            let key = Self.cacheKey(for: entry)
+            if let cached = cache[key],
+               now.timeIntervalSince(cached.fetchedAt) >= 0,
+               now.timeIntervalSince(cached.fetchedAt) < cacheLifetime {
+                resolved[key] = cached
+            }
+        }
+
+        var didAttemptProvider = false
+        for provider in SpanishDubAIProvider.allCases {
+            let apiKey = Self.apiKey(for: provider) ?? ""
+            guard !apiKey.isEmpty else { continue }
+            didAttemptProvider = true
+            let unresolved = candidates.filter { entry in
+                let key = Self.cacheKey(for: entry)
+                if resolved[key] != nil { return false }
+                if let checkedAt = negativeChecks[key], now.timeIntervalSince(checkedAt) >= 0, now.timeIntervalSince(checkedAt) < 21_600 { return false }
+                return true
+            }
+            guard !unresolved.isEmpty else { break }
+            do {
+                let results = try await request(provider: provider, apiKey: apiKey, entries: unresolved)
+                for (entry, result) in zip(unresolved, results) {
+                    guard let result,
+                          result.status.lowercased() == "confirmed",
+                          result.region.lowercased().contains("spanish"),
+                          let date = Self.parseDate(result.date),
+                          date >= Calendar.current.startOfDay(for: now),
+                          date <= now.addingTimeInterval(180 * 86400),
+                          let source = result.sources.first(where: { Self.isUsableSource($0) }) else {
+                        continue
+                    }
+                    let record = CachedDate(fetchedAt: now, date: date, sourceURL: source, provider: provider)
+                    let key = Self.cacheKey(for: entry)
+                    cache[key] = record
+                    resolved[key] = record
+                }
+                persistCache()
+            } catch {
+                // Quota, authentication, network, malformed output and provider
+                // outages all advance to the next configured provider.
+                continue
+            }
+        }
+
+        if didAttemptProvider {
+            for entry in candidates {
+                let key = Self.cacheKey(for: entry)
+                if resolved[key] == nil { negativeChecks[key] = now }
+            }
+            persistCache()
+        }
+        let byEpisode = Dictionary(grouping: candidates, by: { Self.cacheKey(for: $0) })
+        return resolved.compactMap { key, record in
+            guard let original = byEpisode[key]?.first else { return nil }
+            return AniListAiringScheduleEntry(
+                id: original.id,
+                mediaId: original.mediaId,
+                title: original.title,
+                airingAt: record.date,
+                episode: original.episode,
+                coverImage: original.coverImage,
+                englishTitle: original.englishTitle,
+                romajiTitle: original.romajiTitle,
+                nativeTitle: original.nativeTitle,
+                format: original.format,
+                // The announcement confirms the calendar date, not a clock time.
+                hasKnownAiringTime: false,
+                scheduleProvider: .aiSpanishDub,
+                malID: original.malID,
+                airingTimeWithdrawn: false,
+                tags: original.tags,
+                releaseYear: original.releaseYear,
+                runtimeMinutes: original.runtimeMinutes,
+                sourceURL: record.sourceURL
+            )
+        }.sorted { $0.airingAt < $1.airingAt }
+    }
+
+    func clearNegativeCache() {
+        negativeChecks.removeAll()
+        persistCache()
+    }
+
+    private func request(
+        provider: SpanishDubAIProvider,
+        apiKey: String,
+        entries: [AniListAiringScheduleEntry]
+    ) async throws -> [ResearchCandidate?] {
+        let grouped = Dictionary(grouping: entries, by: { $0.mediaId })
+        let titles = grouped.values.compactMap(\.first).map { entry in
+            let names = Array(Set([entry.englishTitle, entry.title, entry.romajiTitle, entry.nativeTitle]
+                .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }))
+            let year = entry.releaseYear.map { " · year \($0)" } ?? ""
+            let mal = entry.malID.map { " · MAL ID \($0)" } ?? ""
+            let episodes = grouped[entry.mediaId, default: []].map(\.episode).sorted()
+            return "\(names.joined(separator: " / "))\(year) (AniList ID \(entry.mediaId)\(mal)): episodes \(episodes.map(String.init).joined(separator: ", "))"
+        }.joined(separator: "\n")
+        let prompt = """
+        Research upcoming Spanish-language anime dub release dates using live web search.
+        Only return dates explicitly announced by an official distributor/platform or a reputable anime-news publication.
+        Spanish includes Latin American Spanish and Castilian Spanish. Do not confuse Spanish with Portuguese.
+        Do not use Japanese broadcast dates, English dub dates, fan predictions, or AI estimates.
+        Only research the exact anime and episode numbers in this list:
+        \(titles)
+
+        Return ONLY valid JSON in this shape:
+        {"results":[{"mediaId":123,"episode":1,"date":"YYYY-MM-DD","region":"Latin American Spanish or Castilian Spanish","status":"confirmed","sources":["https://..."]}]}
+        Include only confirmed future dates. Every result must have at least one source URL that directly supports the Spanish dub episode/date. Omit anything uncertain.
+        """
+        let (url, body, authHeader, authValue) = try Self.requestParts(provider: provider, apiKey: apiKey, prompt: prompt)
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 18
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(authValue, forHTTPHeaderField: authHeader)
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw AnimeScheduleError.invalidResponse }
+        guard (200..<300).contains(http.statusCode), data.count <= 2 * 1024 * 1024,
+              let payload = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw AnimeScheduleError.http((response as? HTTPURLResponse)?.statusCode ?? 0)
+        }
+
+        let text: String
+        var citations = Set<String>()
+        switch provider {
+        case .gemini:
+            guard let candidates = payload["candidates"] as? [[String: Any]],
+                  let content = candidates.first?["content"] as? [String: Any],
+                  let parts = content["parts"] as? [[String: Any]] else { throw AnimeScheduleError.invalidResponse }
+            text = parts.compactMap { $0["text"] as? String }.joined(separator: "\n")
+            if let metadata = candidates.first?["groundingMetadata"] as? [String: Any],
+               let chunks = metadata["groundingChunks"] as? [[String: Any]] {
+                for chunk in chunks {
+                    if let web = chunk["web"] as? [String: Any], let uri = web["uri"] as? String {
+                        citations.insert(uri)
+                    }
+                }
+            }
+        case .openAI:
+            guard let output = payload["output"] as? [[String: Any]] else { throw AnimeScheduleError.invalidResponse }
+            var chunks: [String] = []
+            for item in output where item["type"] as? String == "message" {
+                for content in item["content"] as? [[String: Any]] ?? [] {
+                    if let value = content["text"] as? String { chunks.append(value) }
+                    for annotation in content["annotations"] as? [[String: Any]] ?? [] {
+                        if let url = annotation["url"] as? String { citations.insert(url) }
+                    }
+                }
+            }
+            text = chunks.joined(separator: "\n")
+        }
+
+        guard let jsonStart = text.firstIndex(of: "{"),
+              let jsonEnd = text.lastIndex(of: "}"),
+              jsonStart <= jsonEnd,
+              let jsonData = String(text[jsonStart...jsonEnd]).data(using: .utf8),
+              let decoded = try? JSONDecoder().decode(ResearchEnvelope.self, from: jsonData) else {
+            throw AnimeScheduleError.invalidResponse
+        }
+        let byEpisode = Dictionary(grouping: decoded.results, by: \.episode)
+        return entries.map { entry in
+            guard let result = byEpisode[entry.episode]?.first(where: { $0.mediaId == entry.mediaId }) else { return nil }
+            let groundedSources = result.sources.filter { citations.contains($0) && Self.isUsableSource($0) }
+            guard !groundedSources.isEmpty else { return nil }
+            return ResearchCandidate(
+                mediaId: result.mediaId,
+                episode: result.episode,
+                date: result.date,
+                region: result.region,
+                status: result.status,
+                sources: groundedSources
+            )
+        }
+    }
+
+    private struct ResearchEnvelope: Decodable {
+        struct Result: Decodable {
+            let mediaId: Int
+            let episode: Int
+            let date: String
+            let region: String
+            let status: String
+            let sources: [String]
+        }
+        let results: [Result]
+    }
+
+    private static func requestParts(
+        provider: SpanishDubAIProvider,
+        apiKey: String,
+        prompt: String
+    ) throws -> (URL, [String: Any], String, String) {
+        switch provider {
+        case .gemini:
+            guard let components = URLComponents(string: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent") else {
+                throw AnimeScheduleError.invalidResponse
+            }
+            guard let url = components.url else { throw AnimeScheduleError.invalidResponse }
+            return (url, [
+                "contents": [["parts": [["text": prompt]]]],
+                "tools": [["google_search": [:]]]
+            ], "x-goog-api-key", apiKey)
+        case .openAI:
+            guard let url = URL(string: "https://api.openai.com/v1/responses") else {
+                throw AnimeScheduleError.invalidResponse
+            }
+            return (url, [
+                "model": "gpt-6-astra",
+                "tools": [["type": "web_search"]],
+                "input": prompt
+            ], "Authorization", "Bearer " + apiKey)
+        }
+    }
+
+    /// Keys are supplied by GitHub Actions and injected into the generated app Info.plist.
+    /// A key embedded in an iOS app can be extracted; production deployments should use a server proxy.
+    private static func apiKey(for provider: SpanishDubAIProvider) -> String? {
+        let infoKey: String
+        switch provider {
+        case .gemini: infoKey = "GeminiAPIKey"
+        case .openAI: infoKey = "OpenAIAPIKey"
+        }
+        let value = (Bundle.main.object(forInfoDictionaryKey: infoKey) as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let value, !value.isEmpty, !value.contains("$(") else { return nil }
+        return value
+    }
+
+    private static func cacheKey(for entry: AniListAiringScheduleEntry) -> String {
+        "\(entry.mediaId):\(entry.episode)"
+    }
+
+    private static func parseDate(_ raw: String) -> Date? {
+        guard raw.count == 10 else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: raw)
+    }
+
+    private static func isUsableSource(_ raw: String) -> Bool {
+        guard raw.utf8.count <= 2048, let url = URL(string: raw),
+              url.scheme?.lowercased() == "https",
+              let host = url.host?.lowercased(), !host.isEmpty,
+              url.user == nil, url.password == nil else { return false }
+        let trusted = ["crunchyroll.com", "netflix.com", "hidive.com", "hulu.com", "disneyplus.com", "primevideo.com", "amazon.com", "aniplexusa.com", "aniplex.co.jp", "toei-animation.com", "viz.com", "selecta-vision.com", "animebox.net", "atresplayer.com", "pluto.tv", "movistarplus.es", "max.com", "animenewsnetwork.com", "animecorner.me", "comicbook.com", "ign.com", "variety.com", "deadline.com", "guianime.com", "doblaje.fandom.com", "doblaje-espana.fandom.com"]
+        return trusted.contains(where: { host == $0 || host.hasSuffix("." + $0) })
+    }
+
+    private func loadCache() {
+        guard !didLoadCache else { return }
+        didLoadCache = true
+        guard let data = UserDefaults.standard.data(forKey: cacheKey),
+              let decoded = try? JSONDecoder().decode(CacheEnvelope.self, from: data),
+              decoded.dates.count <= 500, decoded.negativeChecks.count <= 500 else { return }
+        cache = decoded.dates
+        negativeChecks = decoded.negativeChecks
+    }
+
+    private struct CacheEnvelope: Codable {
+        let dates: [String: CachedDate]
+        let negativeChecks: [String: Date]
+    }
+
+    private func persistCache() {
+        let now = Date()
+        cache = cache.filter { now.timeIntervalSince($0.value.fetchedAt) >= 0 && now.timeIntervalSince($0.value.fetchedAt) < cacheLifetime }
+        negativeChecks = negativeChecks.filter { now.timeIntervalSince($0.value) >= 0 && now.timeIntervalSince($0.value) < 21_600 }
+        if let data = try? JSONEncoder().encode(CacheEnvelope(dates: cache, negativeChecks: negativeChecks)) {
+            UserDefaults.standard.set(data, forKey: cacheKey)
+        }
     }
 }

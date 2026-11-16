@@ -79,7 +79,7 @@ enum LandscapeMediaDetailAppearanceSettings {
     static let defaultLogoPosition = 0.40
     static let logoPositionRange: ClosedRange<Double> = 0.15...0.85
     static let defaultLogoSize = 1.0
-    static let logoSizeRange: ClosedRange<Double> = 0.65...1.45
+    static let logoSizeRange: ClosedRange<Double> = 0.65...2.0
     static let defaultLogoWeight = 0.0
     static let logoWeightRange: ClosedRange<Double> = 0.0...1.0
     static let defaultOffset = 0.0

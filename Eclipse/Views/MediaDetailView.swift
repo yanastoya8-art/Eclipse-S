@@ -479,6 +479,10 @@ struct MediaDetailContentView: View {
     private var landscapeHeroActionsVerticalOffset = LandscapeMediaDetailAppearanceSettings.defaultOffset
     @AppStorage(LandscapeMediaDetailAppearanceSettings.synopsisOffsetKey)
     private var landscapeHeroSynopsisVerticalOffset = LandscapeMediaDetailAppearanceSettings.defaultOffset
+    @AppStorage("mediaDetailPortraitHeroBleedIntensity")
+    private var portraitHeroBleedIntensity = 1.0
+    @AppStorage("mediaDetailLandscapeHeroBleedIntensity")
+    private var landscapeHeroBleedIntensity = 1.0
 
     private var activeTitleLogoPosition: Double {
         usesLandscapeDetailComposition ? landscapeTitleLogoVerticalPosition : titleLogoVerticalPosition
@@ -678,11 +682,14 @@ struct MediaDetailContentView: View {
     }
 
     private var mediaDetailHeroBleedStrength: Double {
-        let configuredStrength = theme.scopedBleedStrength()
+        let orientationIntensity = usesLandscapeDetailComposition
+            ? landscapeHeroBleedIntensity
+            : portraitHeroBleedIntensity
+        let configuredStrength = theme.scopedBleedStrength() * min(max(orientationIntensity, 0), 2)
         guard usesWideDetailLayout, configuredStrength > 0.001 else { return configuredStrength }
         return usesLandscapeDetailComposition
-            ? min(max(configuredStrength * 1.48, 1.12), 1.65)
-            : min(max(configuredStrength * 1.18, 0.92), 1.25)
+            ? min(max(configuredStrength * 1.48, 0), 2.8)
+            : min(max(configuredStrength * 1.18, 0), 2.4)
     }
 
     private var designMetrics: ExperimentalMediaDesignMetrics {
@@ -2347,25 +2354,25 @@ struct MediaDetailContentView: View {
                 endPoint: .trailing
             )
 
-            Group {
-                if let logoURL, !logoURL.isEmpty {
-                    ResilientArtworkImage(
-                        urls: [logoURL],
-                        decodeSize: CGSize(width: max(bannerWidth * 0.56, 1), height: max(bannerHeight * 0.32, 1)),
-                        contentMode: .fit
-                    ) {
-                        Color.clear
-                    }
-                    .frame(maxWidth: bannerWidth * 0.62, maxHeight: bannerHeight * 0.34)
-                } else {
-                    Text(searchResult.displayTitle)
-                        .font(.system(size: 30, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.white)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(3)
-                        .shadow(color: .black.opacity(0.85), radius: 7, x: 0, y: 3)
-                        .padding(.horizontal, 28)
+            // Landscape hero logos use the same size control as the
+            // portrait composition. Do not fall back to ordinary title text:
+            // missing artwork should stay visually quiet rather than flash
+            // a second title before the transparent logo resolves.
+            if let logoURL, !logoURL.isEmpty {
+                ResilientArtworkImage(
+                    urls: [logoURL],
+                    decodeSize: CGSize(
+                        width: max(bannerWidth * 0.72 * CGFloat(activeTitleLogoSize), 1),
+                        height: max(bannerHeight * 0.48 * CGFloat(activeTitleLogoSize), 1)
+                    ),
+                    contentMode: .fit
+                ) {
+                    Color.clear
                 }
+                .frame(
+                    maxWidth: min(bannerWidth * 0.62 * CGFloat(activeTitleLogoSize), bannerWidth * 0.94),
+                    maxHeight: min(bannerHeight * 0.34 * CGFloat(activeTitleLogoSize), bannerHeight * 0.62)
+                )
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             .padding(.horizontal, 28)
@@ -2626,7 +2633,7 @@ struct MediaDetailContentView: View {
                 ResilientArtworkImage(
                     urls: [logoURL],
                     decodeSize: CGSize(
-                        width: max(EclipseViewport.bounds.width * EclipseViewport.scale * 0.9, 1),
+                        width: max(detailViewportWidth * EclipseViewport.scale * 0.9, 1),
                         height: max(headerHeight * EclipseViewport.scale * 0.3, 1)
                     ),
                     contentMode: .fit
@@ -2634,15 +2641,21 @@ struct MediaDetailContentView: View {
                     Color.clear
                 }
                 .frame(
-                    width: min(EclipseViewport.bounds.width * 0.72 * CGFloat(activeTitleLogoSize), 680),
-                    height: min(max(headerHeight * 0.22 * CGFloat(activeTitleLogoSize), 72), 190)
+                    width: min(
+                        detailViewportWidth * 0.72 * CGFloat(activeTitleLogoSize),
+                        detailViewportWidth * (usesLandscapeDetailComposition ? 1.15 : 0.92)
+                    ),
+                    height: min(
+                        max(headerHeight * 0.26 * CGFloat(activeTitleLogoSize), 72),
+                        headerHeight * (usesLandscapeDetailComposition ? 0.72 : 0.55)
+                    )
                 )
                 .overlay {
                     if activeTitleLogoWeight > 0.01 {
                         ResilientArtworkImage(
                             urls: [logoURL],
                             decodeSize: CGSize(
-                                width: max(EclipseViewport.bounds.width * EclipseViewport.scale * 0.9, 1),
+                                width: max(detailViewportWidth * EclipseViewport.scale * 0.9, 1),
                                 height: max(headerHeight * EclipseViewport.scale * 0.3, 1)
                             ),
                             contentMode: .fit
@@ -2813,48 +2826,54 @@ struct MediaDetailContentView: View {
     @ViewBuilder
     private var experimentalHeaderSection: some View {
         VStack(alignment: .center, spacing: isTvOS ? 20 : (usesWideDetailLayout ? 13 : 10)) {
-            if shouldShowHeroDetails, let metadata = detailMetadataLine {
-                Text(metadata)
-                    .font(.system(
-
-                        size: isTvOS ? 29 : (usesWideDetailLayout ? 20 : (showFullMetadata ? 17 * 0.72 : 17)),
-                        weight: .semibold
-                    ))
-                    .foregroundColor(.white.opacity(0.92))
-                    .lineLimit(showFullMetadata ? nil : 1)
-                    .minimumScaleFactor(showFullMetadata ? 1 : 0.72)
-                    .fixedSize(horizontal: false, vertical: showFullMetadata)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, isTvOS ? 60 : (usesWideDetailLayout ? 36 : 20))
-                    .shadow(color: .black.opacity(0.70), radius: 8, x: 0, y: 3)
-                    .contentShape(Rectangle())
+            // Keep the genre/metadata line and action row in one positioned
+            // group. Previously only the buttons received the offset, leaving
+            // genres behind when users moved the actions slider.
+            VStack(alignment: .center, spacing: isTvOS ? 20 : (usesWideDetailLayout ? 13 : 10)) {
+                if shouldShowHeroDetails, let metadata = detailMetadataLine {
+                    Text(metadata)
+                        .font(.system(
+                            size: isTvOS ? 29 : (usesWideDetailLayout ? 20 : (showFullMetadata ? 17 * 0.72 : 17)),
+                            weight: .semibold
+                        ))
+                        .foregroundColor(.white.opacity(0.92))
+                        .lineLimit(showFullMetadata ? nil : 1)
+                        .minimumScaleFactor(showFullMetadata ? 1 : 0.72)
+                        .fixedSize(horizontal: false, vertical: showFullMetadata)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, isTvOS ? 60 : (usesWideDetailLayout ? 36 : 20))
+                        .shadow(color: .black.opacity(0.70), radius: 8, x: 0, y: 3)
+                        .contentShape(Rectangle())
 #if !os(tvOS)
-                    .onTapGesture {
-                        withAnimation(.easeInOut(duration: 0.22)) {
-                            showFullMetadata.toggle()
+                        .onTapGesture {
+                            withAnimation(.easeInOut(duration: 0.22)) {
+                                showFullMetadata.toggle()
+                            }
                         }
-                    }
-                    .accessibilityHint("Tap to expand or collapse media details")
+                        .accessibilityHint("Tap to expand or collapse media details")
 #endif
-            }
+                }
 
-            // Keep the synopsis below the primary action buttons in both
-            // portrait and wide detail layouts.
-            if shouldShowHeroActions {
-                experimentalPlayAndBookmarkSection
-                    .padding(.top, isTvOS ? 16 : (usesWideDetailLayout ? 6 : 2))
-                    .offset(y: CGFloat(activeHeroActionsOffset))
+                if shouldShowHeroActions {
+                    experimentalPlayAndBookmarkSection
+                        .padding(.top, isTvOS ? 16 : (usesWideDetailLayout ? 6 : 2))
+                }
             }
+            .offset(y: CGFloat(activeHeroActionsOffset))
 
-            if shouldShowHeroOverview {
-                experimentalHeroSynopsisSection
-                    .padding(.top, isTvOS ? 12 : (usesWideDetailLayout ? 2 : 0))
-                    .offset(y: CGFloat(activeHeroSynopsisOffset))
-            }
-
-            if shouldShowHeroDetails {
-                detailRatingChips
-                    .padding(.top, isTvOS ? 12 : (usesWideDetailLayout ? 2 : 0))
+            // Ratings share the synopsis position, so changing the synopsis
+            // offset moves both elements together in portrait and landscape.
+            if shouldShowHeroOverview || shouldShowHeroDetails {
+                VStack(alignment: .center, spacing: isTvOS ? 12 : (usesWideDetailLayout ? 8 : 6)) {
+                    if shouldShowHeroOverview {
+                        experimentalHeroSynopsisSection
+                    }
+                    if shouldShowHeroDetails {
+                        detailRatingChips
+                    }
+                }
+                .padding(.top, isTvOS ? 12 : (usesWideDetailLayout ? 2 : 0))
+                .offset(y: CGFloat(activeHeroSynopsisOffset))
             }
         }
         .frame(
@@ -7190,15 +7209,19 @@ struct MediaDetailContentView: View {
                 }
                 return (lhs.voteAverage ?? 0) > (rhs.voteAverage ?? 0)
             }
-            // Anime metadata providers can return a direct transparent logo.
-            // Prefer that source, then TMDB English/neutral artwork. For other
-            // titles, retain a non-English TMDB logo only as a final fallback.
-            let providerLogo = isAnimeShow
-                ? searchResult.animeLogoURL?.trimmingCharacters(in: .whitespacesAndNewlines)
-                : nil
-            let selectedTMDBLogo = rankedLogos.first(where: { $0.iso6391?.lowercased() == "en" || $0.iso6391 == nil || $0.iso6391 == "" })?.fullURL
-                ?? rankedLogos.first?.fullURL
-            let resolvedLogoURL = providerLogo.flatMap { $0.isEmpty ? nil : $0 } ?? fanartLogoURL ?? preloadedLogoURL ?? selectedTMDBLogo
+            // Anime identity providers expose logo URLs without a reliable
+            // language tag; those URLs can be Japanese/native-script artwork.
+            // Prefer explicitly English TMDB logos, then language-neutral TMDB
+            // artwork, then Fanart.tv. Never fall back to an untagged provider
+            // logo or a cached logo of unknown language for anime.
+            let selectedTMDBLogo = rankedLogos.first(where: { $0.iso6391?.lowercased() == "en" })?.fullURL
+                ?? rankedLogos.first(where: { $0.iso6391 == nil || $0.iso6391 == "" })?.fullURL
+            let resolvedLogoURL: String?
+            if isAnimeShow {
+                resolvedLogoURL = selectedTMDBLogo ?? fanartLogoURL
+            } else {
+                resolvedLogoURL = fanartLogoURL ?? preloadedLogoURL ?? selectedTMDBLogo ?? rankedLogos.first?.fullURL
+            }
 
             guard !Task.isCancelled, isDetailVisible, optionalPresentationGeneration == generation,
                   searchResult.stableIdentity == identity, selectedLanguage == language else { return }

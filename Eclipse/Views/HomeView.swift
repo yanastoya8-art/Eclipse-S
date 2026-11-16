@@ -603,6 +603,7 @@ struct HomeView: View {
     @AppStorage("heroBannerCatalogId") private var heroBannerCatalogId = "trending"
     @AppStorage("heroBannerBehavior") private var heroBannerBehavior = HeroBannerBehavior.defaultValue.rawValue
     @AppStorage(HomeHeroTitleLogoPositionSettings.verticalPositionKey) private var homeHeroTitleLogoVerticalPosition = HomeHeroTitleLogoPositionSettings.defaultVerticalPosition
+    @AppStorage("homeHeroTitleLogoSize") private var homeHeroTitleLogoSize = 1.0
     @AppStorage(HomeAnimatedBackgroundSettings.enabledKey) private var homeAnimatedBackgroundEnabled = HomeAnimatedBackgroundSettings.defaultEnabled
     @AppStorage(ExperimentalMediaDesignPreset.storageKey) private var experimentalDesignPreset = ExperimentalMediaDesignPreset.defaultValue.rawValue
     @AppStorage(ExperimentalHeroBleedLevel.storageKey) private var experimentalHeroBleedLevel = ExperimentalHeroBleedLevel.defaultValue.rawValue
@@ -801,7 +802,13 @@ struct HomeView: View {
                 loadingView
             } else if enabledCatalogs.isEmpty {
                 noEnabledCatalogsView
-            } else if let errorMessage = homeViewModel.errorMessage {
+            } else if let errorMessage = homeViewModel.errorMessage,
+                      !homeViewModel.hasRenderableStartupContent,
+                      homeViewModel.catalogResults.values.allSatisfy(\.isEmpty),
+                      homeViewModel.widgetData.values.allSatisfy(\.isEmpty) {
+                // A failed optional catalog must not replace already-rendered
+                // shelves with a full-screen connection error. Home catalogs
+                // are independent; keep every successful result visible.
                 errorView(errorMessage)
             } else {
                 mainScrollView
@@ -1407,11 +1414,11 @@ struct HomeView: View {
             if let hero = homeViewModel.heroContent {
                 CenteredPosterTitleOverlay(
                     title: hero.displayTitle,
-                    logoURL: hero.animeLogoURL ?? heroLogoURL,
-                    fontSize: usesWideHomeLayout ? 34 : 24
+                    logoURL: heroLogoURL,
+                    fontSize: (usesWideHomeLayout ? 34 : 24) * CGFloat(homeHeroTitleLogoSize)
                 )
-                .frame(maxWidth: usesWideHomeLayout ? 760 : 520)
-                .frame(height: min(max(heroHeight * 0.24, 112), 190))
+                .frame(maxWidth: (usesWideHomeLayout ? 760 : 520) * CGFloat(homeHeroTitleLogoSize))
+                .frame(height: min(max(heroHeight * 0.24 * CGFloat(homeHeroTitleLogoSize), 112 * CGFloat(homeHeroTitleLogoSize)), 190 * CGFloat(homeHeroTitleLogoSize)))
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 .offset(y: CGFloat(homeHeroTitleLogoVerticalPosition - 0.5) * heroHeight)
                 .padding(.horizontal, 20)
@@ -1978,11 +1985,14 @@ struct HomeView: View {
         }
 
         let identity = hero.stableIdentity
+        let isAnimeHero = hero.isAnimeHint == true || hero.animeLogoURL != nil
         guard heroArtworkIsActive,
               homeViewModel.heroContent?.stableIdentity == identity,
               selectedLanguage == language else { return }
         heroArtworkIdentity = identity
-        heroLogoURL = prefetchedHeroLogoURLs[identity] ?? hero.animeLogoURL
+        // Anime provider logo URLs do not carry a reliable language tag.
+        // Do not display a Japanese/native-script logo in an English UI.
+        heroLogoURL = isAnimeHero ? nil : prefetchedHeroLogoURLs[identity]
         heroLogoLookupComplete = heroLogoURL != nil
         heroAlternatePosterURL = nil
 
@@ -1990,21 +2000,19 @@ struct HomeView: View {
         // implementation only used AniList's optional logo URL, so movie and
         // TV heroes never received the TMDB transparent title artwork.
         async let logoLookup: String? = { () async -> String? in
-            if let cached = prefetchedHeroLogoURLs[identity] { return cached }
-            if let supplied = hero.animeLogoURL { return supplied }
+            if !isAnimeHero, let cached = prefetchedHeroLogoURLs[identity] { return cached }
             do {
-                let images = hero.isMovie
-                    ? try await tmdbService.getMovieImages(id: hero.id, preferredLanguage: language)
-                    : try await tmdbService.getTVShowImages(id: hero.id, preferredLanguage: language)
-                return (images.logos ?? [])
-                    .filter { $0.iso6391?.lowercased() == "en" }
-                    .sorted {
-                        if ($0.voteCount ?? 0) != ($1.voteCount ?? 0) {
-                            return ($0.voteCount ?? 0) > ($1.voteCount ?? 0)
-                        }
-                        return ($0.voteAverage ?? 0) > ($1.voteAverage ?? 0)
+                let images = try await (hero.isMovie
+                    ? tmdbService.getMovieImages(id: hero.id, preferredLanguage: "en")
+                    : tmdbService.getTVShowImages(id: hero.id, preferredLanguage: "en"))
+                let rankedLogos = (images.logos ?? []).sorted {
+                    if ($0.voteCount ?? 0) != ($1.voteCount ?? 0) {
+                        return ($0.voteCount ?? 0) > ($1.voteCount ?? 0)
                     }
-                    .first?.fullURL
+                    return ($0.voteAverage ?? 0) > ($1.voteAverage ?? 0)
+                }
+                return rankedLogos.first(where: { $0.iso6391?.lowercased() == "en" })?.fullURL
+                    ?? rankedLogos.first(where: { $0.iso6391 == nil || $0.iso6391 == "" })?.fullURL
             } catch {
                 Logger.shared.log("Home hero title-logo lookup failed: id=\(hero.id) error=\(error.localizedDescription)", type: "TMDB")
                 return nil

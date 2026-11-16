@@ -205,6 +205,7 @@ struct SettingsView: View {
             .init(id: "appearance-title-art", title: "TMDB Title Art", location: "Appearance > Detail Pages", icon: "text.below.photo", color: .purple, keywords: ["logo artwork", "title logo", "media artwork"], action: .destination(.appearanceTarget(.tmdbTitleArt))),
             .init(id: "appearance-library-bookmarks", title: "Show Bookmarks", location: "Appearance > Library", icon: "bookmark", color: .purple, keywords: ["hide bookmarks", "library sections", "collections only"], action: .destination(.appearanceTarget(.libraryBookmarks))),
             .init(id: "appearance-library-layout", title: "Collection Layout", location: "Appearance > Library", icon: "rectangle.grid.1x2", color: .purple, keywords: ["library collections", "horizontal", "vertical", "grid"], action: .destination(.appearanceTarget(.libraryCollectionLayout))),
+            .init(id: "language-filters", title: "Language Filters", location: "Content Filters", icon: "globe", color: .cyan, keywords: ["Spanish dub AI research", "Gemini", "OpenAI", "repository secrets", "dub release date", "audio language"], action: .destination(.languageFilters)),
             .init(id: "schedule", title: "Schedule", location: "Basic", icon: "calendar", color: .red, keywords: ["calendar", "anime", "western", "default tab", "range", "days"], action: .destination(.schedule)),
             .init(id: "schedule-range", title: "Schedule Range", location: "Schedule", icon: "calendar.badge.clock", color: .red, keywords: ["7 days", "14 days", "21 days", "30 days", "window", "performance", "upcoming episodes"], action: .destination(.schedule)),
             .init(id: "notifications", title: "Notifications", location: "Basic", icon: "bell.badge.fill", color: .orange, keywords: ["alerts", "reminders", "episodes", "airing", "seasons", "local"], action: .destination(.notifications)),
@@ -5397,19 +5398,6 @@ private struct LanguageFiltersSettingsView: View {
             }
 
             Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Anime Dub Filter")
-                        .font(.headline)
-                    Text("Choose English, Spanish (Castellano o Latino), or both. Anime catalogs require a verified dub in at least one selected language. Episode lists are limited to the sequential episodes covered by the selected language's verified dub count for that exact season. Multiple languages use OR logic.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    Text(selectedDubLanguages.isEmpty ? "Dub filtering is disabled." : "\(selectedDubLanguages.count) dub language(s) selected.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Section {
                 ForEach(MyDubListLanguage.allCases.filter { MyDubListDubFilter.supportedLanguages.contains($0.rawValue) }) { language in
                     Toggle(language.displayName, isOn: Binding(
                         get: { selectedDubLanguages.contains(language.rawValue) },
@@ -5428,18 +5416,12 @@ private struct LanguageFiltersSettingsView: View {
                 }
             } header: {
                 Text("Anime Dub Languages")
-            } footer: {
-                Text("Select one or more languages. Anime catalogs require a verified dub in at least one selected language. The Western TV schedule keeps original air dates when the original audio matches your selection; otherwise, it uses only verified JustWatch episode release dates. JustWatch episode release dates are checked automatically when the app build includes the configured API key. Without a key or a matching release date, non-native entries are hidden.")
             }
+
+
 
             Section {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Dub data is refreshed from MyDubList when the selected languages change. Season episode counts are cross-checked with Taizen and anidub.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    Text("anidub can distinguish Spanish (Latino, es-419) and Spanish (Castellano, es-ES) when regional evidence is available. Both are treated as the single Spanish selection.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
                     Link("Powered by MyDubList", destination: URL(string: "https://mydublist.com")!)
                     Link("Taizen episode metadata & API", destination: URL(string: "https://taizen.moe/api-docs")!)
                     Link("anidub regional dub API & methodology", destination: URL(string: "https://www.anidub.moe/api-docs")!)
@@ -5447,6 +5429,7 @@ private struct LanguageFiltersSettingsView: View {
                 }
             }
         }
+
         .eclipsePageTitle("Language Filters")
         .eclipseSettingsStyle()
         .preferredColorScheme(.dark)

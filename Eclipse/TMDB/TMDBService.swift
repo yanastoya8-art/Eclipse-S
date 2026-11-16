@@ -2102,11 +2102,16 @@ class TMDBService: ObservableObject {
     func getBestLogo(from images: TMDBImagesResponse, preferredLanguage: String? = nil) -> TMDBImage? {
         guard let logos = images.logos, !logos.isEmpty else { return nil }
 
-        let langCode = (preferredLanguage ?? currentLanguage).components(separatedBy: "-").first ?? "en"
+        // Transparent title artwork should remain readable in the app's
+        // English-first presentation even when the catalogue/UI locale differs.
+        // Prefer English, then language-neutral artwork, then the requested
+        // locale, and only then other language-specific variants.
+        let langCode = (preferredLanguage ?? currentLanguage).components(separatedBy: "-").first?.lowercased() ?? "en"
         func languageRank(_ logo: TMDBImage) -> Int {
-            if logo.iso6391 == langCode { return 0 }
-            if logo.iso6391 == "en" { return 1 }
-            if logo.iso6391 == nil { return 2 }
+            let language = logo.iso6391?.lowercased()
+            if language == "en" { return 0 }
+            if language == nil || language?.isEmpty == true { return 1 }
+            if language == langCode { return 2 }
             return 3
         }
         return logos.sorted { lhs, rhs in

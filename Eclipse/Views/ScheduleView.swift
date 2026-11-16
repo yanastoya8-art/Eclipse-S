@@ -1167,6 +1167,17 @@ struct ScheduleView: View {
             }
             .disabled(loadingItemId != nil)
 
+            if let sourceURL = item.scheduleSourceURL, let url = URL(string: sourceURL) {
+                Link(destination: url) {
+                    Image(systemName: "checkmark.seal")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.green)
+                        .frame(width: 34, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel("Open verified Spanish dub release source")
+            }
+
 #if !os(tvOS)
             scheduleNotificationButton(for: item)
 #endif

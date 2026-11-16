@@ -35,6 +35,7 @@ struct SearchView: View {
     @State private var isLoadingRandom = false
     @State private var randomErrorMessage: String?
     @State private var pendingSearchTask: Task<Void, Never>?
+    @State private var activeSearchTask: Task<Void, Never>?
     @State private var lastSubmittedSearchQuery = ""
     @State private var searchRequestSerial = 0
 #if os(tvOS)
@@ -468,6 +469,8 @@ struct SearchView: View {
             tvSearchPresentationGeneration = UUID()
 #endif
             pendingSearchTask?.cancel()
+            activeSearchTask?.cancel()
+            activeSearchTask = nil
         }
     }
 
@@ -706,6 +709,8 @@ struct SearchView: View {
     private func reloadSearchResultsForProfileChange() {
         pendingSearchTask?.cancel()
         pendingSearchTask = nil
+        activeSearchTask?.cancel()
+        activeSearchTask = nil
 
         searchRequestSerial += 1
         searchResults = []
@@ -721,6 +726,9 @@ struct SearchView: View {
 
     private func scheduleSearch(for value: String) {
         pendingSearchTask?.cancel()
+        activeSearchTask?.cancel()
+        activeSearchTask = nil
+        searchRequestSerial += 1
 
         let query = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else {
@@ -735,17 +743,15 @@ struct SearchView: View {
             return
         }
 
-        // Enter the loading state before the debounce window so an empty
-        // result snapshot never flashes a false "No results found" message.
+        // Keep the previous result snapshot interactive while the next
+        // query is debounced and resolved. Clearing it on every keystroke
+        // caused the grid, category controls and navigation targets to be
+        // rebuilt repeatedly, making the browser feel frozen and untappable.
         isLoading = true
         errorMessage = nil
-        searchResults = []
-#if os(tvOS)
-        tvFocusedResultID = nil
-#endif
 
         pendingSearchTask = Task { [query] in
-            try? await Task.sleep(nanoseconds: 450_000_000)
+            try? await Task.sleep(nanoseconds: 600_000_000)
             guard !Task.isCancelled else { return }
 
             await MainActor.run {
@@ -846,13 +852,16 @@ struct SearchView: View {
         isLoading = true
         errorMessage = nil
 
-        Task {
+        activeSearchTask?.cancel()
+        activeSearchTask = Task {
             do {
                 var results = try await tmdbService.searchMulti(query: query)
+                try Task.checkCancellation()
                 let shouldSearchTVEndpoint = results.isEmpty
                     || (searchFilter == .anime && !results.contains(where: isAnimeResult))
                 if shouldSearchTVEndpoint {
                     if let tvResults = try? await tmdbService.searchTVShows(query: query) {
+                        try Task.checkCancellation()
                         var seen = Set(results.map(\.stableIdentity))
                         let supplemental = tvResults
                             .map(\.asSearchResult)
@@ -860,12 +869,24 @@ struct SearchView: View {
                         results.append(contentsOf: supplemental)
                     }
                 }
-                let identityResolvedResults = await resolveSearchAnimeIdentities(results)
-                if !MyDubListDubFilter.shared.selectedLanguages.isEmpty,
-                   !MyDubListDubFilter.shared.prepareCachedSnapshot() {
-                    _ = await MyDubListDubFilter.shared.refresh()
-                }
+                let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguages
+                let needsAnimeIdentity = searchFilter == .anime
+                    || !selectedDubLanguages.isEmpty
+                    || UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
+                // Anime identity resolution is network-backed. For broad
+                // searches, resolve only likely anime candidates already
+                // marked by TMDB's genre/origin/language metadata (the helper
+                // performs that narrowing) and skip it for non-anime filters.
+                let identityResolvedResults = needsAnimeIdentity
+                    ? await resolveSearchAnimeIdentities(results)
+                    : results
+                try Task.checkCancellation()
+                // Do not refresh the remote MyDubList index on each
+                // keystroke. A missing cache is handled by the schedule/filter
+                // refresh path; search must remain responsive and cancellable.
+                try Task.checkCancellation()
                 await contentFilter.prepareMaturityRatings(for: identityResolvedResults)
+                try Task.checkCancellation()
 
                 await MainActor.run {
                     guard serial == searchRequestSerial,
@@ -882,6 +903,7 @@ struct SearchView: View {
 #endif
                     self.searchResults = identityResolvedResults
                     self.isLoading = false
+                    self.activeSearchTask = nil
 #if os(tvOS)
                     if let restoredFocus {
                         DispatchQueue.main.async {
@@ -901,6 +923,7 @@ struct SearchView: View {
                           searchText.trimmingCharacters(in: .whitespacesAndNewlines).caseInsensitiveCompare(query) == .orderedSame else {
                         return
                     }
+                    self.activeSearchTask = nil
                     self.errorMessage = error.localizedDescription
                     self.isLoading = false
                 }
@@ -1599,6 +1622,23 @@ private struct BrowseMediaView: View {
             }
             .padding()
         }
+        .overlay(alignment: .topTrailing) {
+            if isLoading && !results.isEmpty {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Updating")
+                        .font(.caption.weight(.medium))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(.ultraThinMaterial, in: Capsule())
+                .padding(.top, 8)
+                .padding(.trailing, 12)
+                .allowsHitTesting(false)
+                .accessibilityLabel("Updating browse results")
+            }
+        }
         .navigationTitle("Browse")
 #if os(iOS)
         .navigationBarTitleDisplayMode(.large)
@@ -2105,8 +2145,11 @@ private struct BrowseMediaView: View {
         filterRefreshPending = false
         currentPage = 1
         hasMorePages = true
-        unfilteredResults = []
-        results = []
+        // Retain the last successful page while the new category/filter query
+        // loads. Clearing both arrays here made category switches flash an
+        // empty state and could make the segmented control feel unresponsive.
+        // loadPage(replacing: true) replaces the retained content atomically
+        // when the new response and filters are ready.
         errorMessage = nil
         loadPage(1, replacing: true)
     }
