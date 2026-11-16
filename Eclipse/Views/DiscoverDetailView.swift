@@ -72,6 +72,16 @@ struct DiscoverDetailView: View {
                 .padding(.horizontal, isTvOS ? 60 : (isIPad ? 28 : 16))
                 .padding(.top, heroItem != nil ? (isTvOS ? 40 : (isIPad ? 28 : 16)) : (isTvOS ? 24 : 8))
 
+                // A dedicated sentinel keeps pagination moving when the last
+                // card's onAppear is not re-fired after a page append.
+                if loadMore != nil && hasMorePages {
+                    Color.clear
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 1)
+                        .id("browse-pagination-\(items.count)-\(currentPage)")
+                        .onAppear { loadNextPage() }
+                }
+
                 if isLoadingMore {
                     EclipseLoadingIndicator()
                         .padding(.vertical, 20)
