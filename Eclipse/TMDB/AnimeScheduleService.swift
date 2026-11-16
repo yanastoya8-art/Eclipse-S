@@ -1010,7 +1010,7 @@ actor SpanishDubAIResearchService {
                 "contents": [["parts": [["text": prompt]]]],
                 "tools": [["google_search": [:]]],
                 "generationConfig": ["temperature": 0.1, "responseMimeType": "application/json"]
-            ], "Accept", "application/json")
+            ], "x-goog-api-key", apiKey)
         case .perplexity:
             guard let url = URL(string: "https://api.perplexity.ai/chat/completions") else {
                 throw AnimeScheduleError.invalidResponse
@@ -1050,23 +1050,30 @@ actor SpanishDubAIResearchService {
               url.scheme?.lowercased() == "https",
               let host = url.host?.lowercased(), !host.isEmpty,
               url.user == nil, url.password == nil else { return false }
-        let blocked = ["google.com", "bing.com", "perplexity.ai", "openai.com", "gemini.google.com"]
-        return !blocked.contains(where: { host == $0 || host.hasSuffix("." + $0) })
+        let trusted = ["crunchyroll.com", "netflix.com", "hidive.com", "hulu.com", "disneyplus.com", "primevideo.com", "amazon.com", "aniplexusa.com", "aniplex.co.jp", "toei-animation.com", "viz.com", "animenewsnetwork.com", "animecorner.me", "comicbook.com", "ign.com", "variety.com", "deadline.com", "guianime.com", "doblaje.fandom.com", "doblaje-espana.fandom.com"]
+        return trusted.contains(where: { host == $0 || host.hasSuffix("." + $0) })
     }
 
     private func loadCache() {
         guard !didLoadCache else { return }
         didLoadCache = true
         guard let data = UserDefaults.standard.data(forKey: cacheKey),
-              let decoded = try? JSONDecoder().decode([String: CachedDate].self, from: data),
-              decoded.count <= 500 else { return }
-        cache = decoded
+              let decoded = try? JSONDecoder().decode(CacheEnvelope.self, from: data),
+              decoded.dates.count <= 500, decoded.negativeChecks.count <= 500 else { return }
+        cache = decoded.dates
+        negativeChecks = decoded.negativeChecks
+    }
+
+    private struct CacheEnvelope: Codable {
+        let dates: [String: CachedDate]
+        let negativeChecks: [String: Date]
     }
 
     private func persistCache() {
         let now = Date()
         cache = cache.filter { now.timeIntervalSince($0.value.fetchedAt) >= 0 && now.timeIntervalSince($0.value.fetchedAt) < cacheLifetime }
-        if let data = try? JSONEncoder().encode(cache) {
+        negativeChecks = negativeChecks.filter { now.timeIntervalSince($0.value) >= 0 && now.timeIntervalSince($0.value) < 21_600 }
+        if let data = try? JSONEncoder().encode(CacheEnvelope(dates: cache, negativeChecks: negativeChecks)) {
             UserDefaults.standard.set(data, forKey: cacheKey)
         }
     }
