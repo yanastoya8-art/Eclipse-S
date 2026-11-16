@@ -2358,21 +2358,23 @@ struct MediaDetailContentView: View {
             // portrait composition. Do not fall back to ordinary title text:
             // missing artwork should stay visually quiet rather than flash
             // a second title before the transparent logo resolves.
-            if let logoURL, !logoURL.isEmpty {
-                ResilientArtworkImage(
-                    urls: [logoURL],
-                    decodeSize: CGSize(
-                        width: max(bannerWidth * 0.72 * CGFloat(activeTitleLogoSize), 1),
-                        height: max(bannerHeight * 0.48 * CGFloat(activeTitleLogoSize), 1)
-                    ),
-                    contentMode: .fit
-                ) {
-                    Color.clear
+            Group {
+                if let logoURL, !logoURL.isEmpty {
+                    ResilientArtworkImage(
+                        urls: [logoURL],
+                        decodeSize: CGSize(
+                            width: max(bannerWidth * 0.72 * CGFloat(activeTitleLogoSize), 1),
+                            height: max(bannerHeight * 0.48 * CGFloat(activeTitleLogoSize), 1)
+                        ),
+                        contentMode: .fit
+                    ) {
+                        Color.clear
+                    }
+                    .frame(
+                        maxWidth: min(bannerWidth * 0.62 * CGFloat(activeTitleLogoSize), bannerWidth * 0.94),
+                        maxHeight: min(bannerHeight * 0.34 * CGFloat(activeTitleLogoSize), bannerHeight * 0.62)
+                    )
                 }
-                .frame(
-                    maxWidth: min(bannerWidth * 0.62 * CGFloat(activeTitleLogoSize), bannerWidth * 0.94),
-                    maxHeight: min(bannerHeight * 0.34 * CGFloat(activeTitleLogoSize), bannerHeight * 0.62)
-                )
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             .padding(.horizontal, 28)
