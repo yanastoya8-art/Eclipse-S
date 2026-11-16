@@ -461,6 +461,10 @@ struct MediaDetailContentView: View {
     @State private var logoURL: String?
     @AppStorage(MediaDetailTitleLogoPositionSettings.verticalPositionKey)
     private var titleLogoVerticalPosition = MediaDetailTitleLogoPositionSettings.defaultVerticalPosition
+    @AppStorage(MediaDetailHeroContentPositionSettings.actionsOffsetKey)
+    private var heroActionsVerticalOffset = MediaDetailHeroContentPositionSettings.defaultOffset
+    @AppStorage(MediaDetailHeroContentPositionSettings.synopsisOffsetKey)
+    private var heroSynopsisVerticalOffset = MediaDetailHeroContentPositionSettings.defaultOffset
     @State private var alternatePosterURL: String?
     @State private var tvMazePosterURL: String?
     @State private var isAnimeShow = false
@@ -2777,11 +2781,13 @@ struct MediaDetailContentView: View {
             if shouldShowHeroActions {
                 experimentalPlayAndBookmarkSection
                     .padding(.top, isTvOS ? 16 : (usesWideDetailLayout ? 6 : 2))
+                    .offset(y: CGFloat(heroActionsVerticalOffset))
             }
 
             if shouldShowHeroOverview {
                 experimentalHeroSynopsisSection
                     .padding(.top, isTvOS ? 12 : (usesWideDetailLayout ? 2 : 0))
+                    .offset(y: CGFloat(heroSynopsisVerticalOffset))
             }
 
             if shouldShowHeroDetails {
