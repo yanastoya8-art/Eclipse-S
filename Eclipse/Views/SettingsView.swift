@@ -5372,6 +5372,11 @@ private struct AgeFiltersSettingsView: View {
 private struct LanguageFiltersSettingsView: View {
     @Binding var requireEnglishSpanishAudio: Bool
     @State private var selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguages
+    @State private var geminiAPIKey = ""
+    @State private var perplexityAPIKey = ""
+    @State private var openAIAPIKey = ""
+    @State private var aiKeySaveMessage: String?
+    @State private var aiKeySaveFailed = false
 
     private func saveDubLanguages(_ languages: Set<String>) {
         MyDubListDubFilter.shared.setSelectedLanguages(languages)
@@ -5418,6 +5423,43 @@ private struct LanguageFiltersSettingsView: View {
             }
 
             Section {
+                SecureField("Gemini API key", text: $geminiAPIKey)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .accessibilityIdentifier("settings.spanishDubAI.geminiKey")
+                SecureField("Perplexity API key", text: $perplexityAPIKey)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .accessibilityIdentifier("settings.spanishDubAI.perplexityKey")
+                SecureField("OpenAI API key", text: $openAIAPIKey)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .accessibilityIdentifier("settings.spanishDubAI.openAIKey")
+                Button("Save AI provider keys") {
+                    do {
+                        try SpanishDubAIKeyStore.save(geminiAPIKey, for: .gemini)
+                        try SpanishDubAIKeyStore.save(perplexityAPIKey, for: .perplexity)
+                        try SpanishDubAIKeyStore.save(openAIAPIKey, for: .openAI)
+                        aiKeySaveFailed = false
+                        aiKeySaveMessage = "Keys saved securely on this device."
+                    } catch {
+                        aiKeySaveFailed = true
+                        aiKeySaveMessage = "Could not save one or more keys. Please try again."
+                    }
+                }
+                .accessibilityIdentifier("settings.spanishDubAI.saveKeys")
+                if let aiKeySaveMessage {
+                    Text(aiKeySaveMessage)
+                        .font(.footnote)
+                        .foregroundColor(aiKeySaveFailed ? .red : .secondary)
+                }
+            } header: {
+                Text("Spanish Dub AI Research")
+            } footer: {
+                Text("Optional API keys. Eclipse tries Gemini first, then Perplexity, then OpenAI, one at a time. Keys are stored in this device's Keychain. Only source-cited, confirmed Spanish dub dates are accepted; unannounced dates are left unknown. Provider usage may incur charges.")
+            }
+
+            Section {
                 VStack(alignment: .leading, spacing: 10) {
                     Link("Powered by MyDubList", destination: URL(string: "https://mydublist.com")!)
                     Link("Taizen episode metadata & API", destination: URL(string: "https://taizen.moe/api-docs")!)
@@ -5425,6 +5467,11 @@ private struct LanguageFiltersSettingsView: View {
                     Link("Dataset license: CC BY 4.0", destination: URL(string: "https://creativecommons.org/licenses/by/4.0/")!)
                 }
             }
+        }
+        .onAppear {
+            geminiAPIKey = SpanishDubAIKeyStore.load(.gemini) ?? ""
+            perplexityAPIKey = SpanishDubAIKeyStore.load(.perplexity) ?? ""
+            openAIAPIKey = SpanishDubAIKeyStore.load(.openAI) ?? ""
         }
         .eclipsePageTitle("Language Filters")
         .eclipseSettingsStyle()
