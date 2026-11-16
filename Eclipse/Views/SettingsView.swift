@@ -5415,15 +5415,10 @@ private struct LanguageFiltersSettingsView: View {
                 }
             } header: {
                 Text("Anime Dub Languages")
-            } footer: {
-                Text("Select one or more languages. Anime catalogs require a verified dub in at least one selected language. The Western TV schedule keeps original air dates when the original audio matches your selection; otherwise, it uses only verified JustWatch episode release dates. JustWatch episode release dates are checked automatically when the app build includes the configured API key. Without a key or a matching release date, non-native entries are hidden.")
             }
 
             Section {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("anidub can distinguish Spanish (Latino, es-419) and Spanish (Castellano, es-ES) when regional evidence is available. Both are treated as the single Spanish selection.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
                     Link("Powered by MyDubList", destination: URL(string: "https://mydublist.com")!)
                     Link("Taizen episode metadata & API", destination: URL(string: "https://taizen.moe/api-docs")!)
                     Link("anidub regional dub API & methodology", destination: URL(string: "https://www.anidub.moe/api-docs")!)
