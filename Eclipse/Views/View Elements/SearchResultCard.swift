@@ -9,14 +9,6 @@ import SwiftUI
 import Kingfisher
 
 enum PosterArtworkURLResolver {
-    static func originalTMDBPosterURL(for result: TMDBSearchResult) -> String? {
-        guard let path = result.posterPath else { return nil }
-        if ImageDataSaverSettings.isEnabled() {
-            return TMDBImageRequestPolicy.urlString(for: path, kind: .poster)
-        }
-        return TMDBImageRequestPolicy.originalURLString(for: path)
-    }
-
     /// Prefer provider artwork at its source resolution. TMDB's original-size
     /// path avoids smaller w342/w500 derivatives used by many catalog APIs.
     static func candidates(for result: TMDBSearchResult) -> [String] {
