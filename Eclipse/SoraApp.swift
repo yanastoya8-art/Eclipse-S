@@ -401,9 +401,12 @@ struct SoraApp: App {
                         modeSwitchTransitionCoordinator.beginBurst(toReaderMode: true)
                     }
                 } else {
-                    // Do not run the expensive full-screen wavelet overlay
-                    // when returning to Watch mode.
-                    modeSwitchTransitionCoordinator.cancelBurst()
+                    // Keep the same lightweight burst for Reader → Watch.
+                    // The previous cancellation removed the animation as soon
+                    // as the mode changed, leaving only a delayed view swap.
+                    if modeSwitchTransitionCoordinator.activeBurst == nil {
+                        modeSwitchTransitionCoordinator.beginBurst(toReaderMode: false)
+                    }
                     warmSchedulesAfterStartup()
                 }
             }
@@ -520,13 +523,11 @@ struct SoraApp: App {
 
 #if !os(tvOS)
     private func modeSwitchTransition(isReaderMode: Bool) -> AnyTransition {
-        guard modeSwitchAnimationEnabled else { return .identity }
-        // The Reader-to-Watch path replaces two large view trees. Keep
-        // that return immediate instead of masking/recompositing the full
-        // screen while the video catalogs hydrate again.
-        return isReaderMode
-            ? .eclipseModeWave(origin: modeSwitchTransitionCoordinator.origin)
-            : .identity
+        // The dedicated burst overlay owns the transition in both directions.
+        // Avoid a second full-screen destination-out mask over the entire
+        // Watch/Reader view trees: that forced expensive off-screen rendering
+        // at the same time as both large interfaces were being created.
+        .identity
     }
 
 #endif
