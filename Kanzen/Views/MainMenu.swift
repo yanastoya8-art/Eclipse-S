@@ -12,7 +12,6 @@ enum KanzenRootTab: Hashable {
     case home
     case library
     case search
-    case history
     case settings
 }
 
@@ -188,12 +187,6 @@ struct KanzenMenu: View {
                     Label("Search", systemImage: "magnifyingglass")
                 }
                 .tag(KanzenRootTab.search)
-
-            KanzenHistoryView()
-                .tabItem {
-                    Label("History", systemImage: "clock")
-                }
-                .tag(KanzenRootTab.history)
 
             KanzenSettingsView()
                 .tabItem {
