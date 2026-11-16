@@ -987,7 +987,10 @@ final class ScheduleViewModel: ObservableObject {
                                     !knownEpisodes.contains("\($0.mediaId):\($0.episode)")
                                 }
                                 let researched = await SpanishDubAIResearchService.shared.research(entries: unresolved)
-                                verifiedJustWatchEntries.append(contentsOf: researched.map(ScheduleEntry.init(animeEntry:)))
+                                let scheduleWindow = ScheduleDateWindow.envelope(dayCount: dayCount)
+                                verifiedJustWatchEntries.append(contentsOf: researched
+                                    .filter { $0.airingAt >= scheduleWindow.start && $0.airingAt < scheduleWindow.end }
+                                    .map(ScheduleEntry.init(animeEntry:)))
                             }
                         }
                     }
