@@ -68,26 +68,32 @@ struct CenteredPosterTitleOverlay: View {
     let title: String
     let logoURL: String?
     var fontSize: CGFloat = 16
+    var verticalPosition: Double = MediaDetailTitleLogoPositionSettings.defaultVerticalPosition
 
     var body: some View {
-        ZStack {
-            // Keep the source poster at its original brightness. A dark gradient
-            // here was unintentionally tinting every browsing/search poster,
-            // even when no title artwork was available.
+        GeometryReader { geometry in
+            ZStack {
+                // Keep the source poster at its original brightness. A dark gradient
+                // here was unintentionally tinting every browsing/search poster,
+                // even when no title artwork was available.
 
-            if let logoURL, !logoURL.isEmpty {
-                ResilientArtworkImage(
-                    urls: [logoURL],
-                    decodeSize: CGSize(width: 900, height: 260),
-                    contentMode: .fit
-                ) {
-                    Color.clear
+                if let logoURL, !logoURL.isEmpty {
+                    ResilientArtworkImage(
+                        urls: [logoURL],
+                        decodeSize: CGSize(width: 900, height: 260),
+                        contentMode: .fit
+                    ) {
+                        Color.clear
+                    }
+                    .frame(maxWidth: min(geometry.size.width * 0.9, 900), maxHeight: min(geometry.size.height * 0.34, 260))
+                    .padding(.horizontal, 8)
+                } else {
+                    titleText
+                        .frame(maxWidth: geometry.size.width * 0.9)
                 }
-                .frame(maxWidth: 900, maxHeight: 260)
-                .padding(.horizontal, 8)
-            } else {
-                titleText
             }
+            .frame(width: geometry.size.width, height: geometry.size.height)
+            .offset(y: geometry.size.height * CGFloat(verticalPosition - 0.5))
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(title)
@@ -106,9 +112,55 @@ struct CenteredPosterTitleOverlay: View {
     }
 }
 
+private actor SearchResultTitleLogoCache {
+    static let shared = SearchResultTitleLogoCache()
+
+    private var resolved: [String: String] = [:]
+    private var attempted = Set<String>()
+    private var pending: [String: Task<String?, Never>] = [:]
+
+    func logoURL(mediaType: String, id: Int) async -> String? {
+        guard id > 0, mediaType == "movie" || mediaType == "tv" else { return nil }
+        let key = "\(mediaType):\(id):en"
+        if attempted.contains(key) { return resolved[key] }
+        if let task = pending[key] { return await task.value }
+
+        let task = Task<String?, Never> {
+            do {
+                let images: TMDBImagesResponse
+                if mediaType == "movie" {
+                    images = try await TMDBService.shared.getMovieImages(id: id, preferredLanguage: "en")
+                } else {
+                    images = try await TMDBService.shared.getTVShowImages(id: id, preferredLanguage: "en")
+                }
+                return images.logos
+                    .filter { $0.iso6391?.lowercased() == "en" }
+                    .sorted {
+                        if ($0.voteCount ?? 0) != ($1.voteCount ?? 0) {
+                            return ($0.voteCount ?? 0) > ($1.voteCount ?? 0)
+                        }
+                        return ($0.voteAverage ?? 0) > ($1.voteAverage ?? 0)
+                    }
+                    .first?.fullURL
+            } catch {
+                return nil
+            }
+        }
+        pending[key] = task
+        let value = await task.value
+        pending[key] = nil
+        attempted.insert(key)
+        if let value, !value.isEmpty { resolved[key] = value }
+        return value
+    }
+}
+
 struct SearchResultCard: View {
     let result: TMDBSearchResult
     @Environment(\.heroNamespace) private var heroNamespace
+    @AppStorage(MediaDetailTitleLogoPositionSettings.verticalPositionKey)
+    private var titleLogoVerticalPosition = MediaDetailTitleLogoPositionSettings.defaultVerticalPosition
+    @State private var resolvedTitleLogoURL: String?
     private var heroID: String { "search-\(result.stableIdentity)" }
 
     var body: some View {
@@ -130,6 +182,15 @@ struct SearchResultCard: View {
         .buttonStyle(PlainButtonStyle())
         .accessibilityIdentifier("media.search.result.\(result.stableIdentity)")
 #endif
+        .task(id: result.stableIdentity) {
+            // Resolve logos after the poster is already visible. The shared
+            // cache deduplicates Home/Browse requests and only accepts English
+            // title artwork, never a Japanese-language logo.
+            resolvedTitleLogoURL = await SearchResultTitleLogoCache.shared.logoURL(
+                mediaType: result.isMovie ? "movie" : "tv",
+                id: result.id
+            )
+        }
     }
 
     @ViewBuilder
@@ -166,8 +227,9 @@ struct SearchResultCard: View {
 
             CenteredPosterTitleOverlay(
                 title: result.displayTitle,
-                logoURL: result.animeLogoURL,
-                fontSize: isTvOS ? 25 : (isIPad ? 18 : 14)
+                logoURL: resolvedTitleLogoURL,
+                fontSize: isTvOS ? 25 : (isIPad ? 18 : 14),
+                verticalPosition: titleLogoVerticalPosition
             )
         }
         .aspectRatio(2/3, contentMode: .fill)
