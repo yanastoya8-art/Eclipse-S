@@ -5263,6 +5263,8 @@ final class AniListService {
                             episodes status seasonYear season
                             averageScore isAdult genres tags { name rank isMediaSpoiler } nextAiringEpisode { episode airingAt } coverImage { large medium }
                             format
+                            startDate { year }
+                            seasonYear
                         }
                     }
                 """
@@ -5673,7 +5675,8 @@ final class AniListService {
                     format: schedule.media.format,
                     hasKnownAiringTime: true,
                     malID: schedule.media.idMal,
-                    tags: schedule.media.tags?.map(\.name)
+                    tags: schedule.media.tags?.map(\.name),
+                    releaseYear: schedule.media.startDate?.year ?? schedule.media.seasonYear
                 )
             }
             .filter { entry in
@@ -12190,6 +12193,7 @@ struct AniListAiringScheduleEntry: Identifiable, Codable, Sendable {
     var malID: Int? = nil
     var airingTimeWithdrawn: Bool? = nil
     var tags: [String]? = nil
+    var releaseYear: Int? = nil
 }
 
 struct AnimeAiringScheduleResult: Sendable {
