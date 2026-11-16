@@ -133,7 +133,7 @@ private actor SearchResultTitleLogoCache {
                 } else {
                     images = try await TMDBService.shared.getTVShowImages(id: id, preferredLanguage: "en")
                 }
-                return images.logos
+                return (images.logos ?? [])
                     .filter { $0.iso6391?.lowercased() == "en" }
                     .sorted {
                         if ($0.voteCount ?? 0) != ($1.voteCount ?? 0) {
