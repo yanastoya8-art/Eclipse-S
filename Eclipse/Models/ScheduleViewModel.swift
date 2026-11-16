@@ -2700,7 +2700,10 @@ actor JustWatchScheduleService {
                 continue
             }
 
-            let bySeason = Dictionary(grouping: group, by: { $0.season ?? 0 })
+            // AniList airing entries do not carry a season number. JustWatch
+            // indexes ordinary single-cour anime under season 1; querying
+            // season 0 silently returned no Spanish/English episode dates.
+            let bySeason = Dictionary(grouping: group, by: { max($0.season ?? 1, 1) })
             for (season, seasonEntries) in bySeason {
                 guard let dates = try? await episodeDates(
                     showID: showID,
