@@ -506,6 +506,49 @@ struct EclipseScrollTracker: View {
     }
 }
 
+enum HomeAnimatedBackgroundParticleColor: String, CaseIterable, Identifiable {
+    case accent
+    case purple
+    case blue
+    case teal
+    case pink
+    case gold
+    case white
+
+    static let storageKey = "homeAnimatedBackgroundParticleColor"
+    static let defaultValue: HomeAnimatedBackgroundParticleColor = .accent
+
+    var id: String { rawValue }
+    var displayName: String {
+        switch self {
+        case .accent: return "Accent Color"
+        case .purple: return "Purple"
+        case .blue: return "Blue"
+        case .teal: return "Teal"
+        case .pink: return "Pink"
+        case .gold: return "Gold"
+        case .white: return "White"
+        }
+    }
+
+    func color(accent: Color) -> Color {
+        switch self {
+        case .accent: return accent
+        case .purple: return Color(red: 0.66, green: 0.42, blue: 1.0)
+        case .blue: return Color(red: 0.30, green: 0.62, blue: 1.0)
+        case .teal: return Color(red: 0.20, green: 0.86, blue: 0.78)
+        case .pink: return Color(red: 1.0, green: 0.38, blue: 0.70)
+        case .gold: return Color(red: 1.0, green: 0.72, blue: 0.28)
+        case .white: return .white
+        }
+    }
+
+    static func resolved(_ rawValue: String?) -> HomeAnimatedBackgroundParticleColor {
+        guard let rawValue, let value = Self(rawValue: rawValue) else { return defaultValue }
+        return value
+    }
+}
+
 enum HomeAnimatedBackgroundSettings {
     static let enabledKey = "homeAnimatedBackgroundEnabled"
     static let defaultEnabled = true
@@ -708,6 +751,7 @@ struct EclipseAmbientMotionBackground: View {
     let motionEnabled: Bool
     @AppStorage(HomeAnimatedBackgroundQuality.storageKey) private var qualityRawValue = HomeAnimatedBackgroundQuality.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundFrameRate.storageKey) private var frameRateRawValue = HomeAnimatedBackgroundFrameRate.defaultValue.rawValue
+    @AppStorage(HomeAnimatedBackgroundParticleColor.storageKey) private var particleColorRawValue = HomeAnimatedBackgroundParticleColor.defaultValue.rawValue
 
     private let particles: [(x: CGFloat, y: CGFloat, size: CGFloat, drift: CGFloat, opacity: Double)] = [
         (0.25, 0.24, 2.8, 15, 0.34),
@@ -723,7 +767,7 @@ struct EclipseAmbientMotionBackground: View {
     ]
 
     private var primaryColor: Color {
-        ambientColor ?? accentColor
+        HomeAnimatedBackgroundParticleColor.resolved(particleColorRawValue).color(accent: ambientColor ?? accentColor)
     }
 
     private var quality: HomeAnimatedBackgroundQuality {
