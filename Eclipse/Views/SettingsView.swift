@@ -5461,7 +5461,7 @@ private struct LanguageFiltersSettingsView: View {
             } header: {
                 Text("Spanish Dub AI Research")
             } footer: {
-                Text("Optional API keys. Eclipse tries Gemini first, then Perplexity, then OpenAI, one at a time. Keys are stored in this device's Keychain. Only source-cited, confirmed Spanish dub dates are accepted; unannounced dates are left unknown. Provider usage may incur charges.")
+                Text("Optional API keys. Eclipse tries Gemini first, then Perplexity, then OpenAI, one at a time. Keys are stored in this device's Keychain; leaving a field blank and saving removes that provider's key. Only source-cited, confirmed Spanish dub dates are accepted; unannounced dates are left unknown. Provider usage may incur charges.")
             }
 
             Section {
