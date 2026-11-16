@@ -2094,6 +2094,7 @@ private struct BrowseMediaView: View {
         let snapshot = unfilteredResults
         let selectedMediaType = mediaType
         let selectedAgeRating = ageRating
+        let allowsUpcomingContent = currentFilters.showsUpcomingOnly == true
         let excludedGenreIDs = excludedGenreKeys.compactMap { key in
             selectedMediaType.genres.first(where: { $0.id == key })?.tmdbGenreID
         }
@@ -2115,7 +2116,8 @@ private struct BrowseMediaView: View {
                     browseTypeFiltered,
                     excludedGenreIds: excludedGenreIDs,
                     excludedYears: yearsToExclude
-                )
+                ),
+                allowUpcomingContent: allowsUpcomingContent
             )
             guard !Task.isCancelled else { return }
             let filtered = regionGuardedResults(contentFiltered, countries: countries)
@@ -2192,7 +2194,8 @@ private struct BrowseMediaView: View {
                         browseTypeFiltered,
                         excludedGenreIds: excludedGenres.compactMap(\.tmdbGenreID),
                         excludedYears: excludedYears
-                    )
+                    ),
+                    allowUpcomingContent: upcomingOnly
                 )
                 try Task.checkCancellation()
                 let filtered = regionGuardedResults(
