@@ -1475,8 +1475,8 @@ struct HomeView: View {
                 .init(color: heroBlendColor.opacity(1.0), location: 1.0)
             ] : [
                 .init(color: ambientColor.opacity(0.0), location: 0.0),
-                .init(color: ambientColor.opacity(0.0), location: 0.18),
-                .init(color: atmosphereColor.opacity(0.72), location: 0.58),
+                .init(color: ambientColor.opacity(0.0), location: 0.62),
+                .init(color: atmosphereColor.opacity(0.72), location: 0.84),
                 .init(color: atmosphereColor.opacity(1), location: 1.0)
             ]),
             startPoint: .top,
