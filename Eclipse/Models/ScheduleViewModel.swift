@@ -998,7 +998,9 @@ final class ScheduleViewModel: ObservableObject {
                 var entries = result.entries.map(ScheduleEntry.init(animeEntry:)) + verifiedJustWatchEntries
                 var earliestByEpisode: [String: ScheduleEntry] = [:]
                 for entry in entries {
-                    let key = "\(entry.title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current))|\(entry.season ?? 0)|\(entry.episode)"
+                    let key = entry.source == .anime
+                        ? "anime|\(entry.sourceMediaId)|\(entry.episode)"
+                        : "\(entry.title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current))|\(entry.season ?? 0)|\(entry.episode)"
                     if let existing = earliestByEpisode[key],
                        existing.airingAt <= entry.airingAt { continue }
                     earliestByEpisode[key] = entry
