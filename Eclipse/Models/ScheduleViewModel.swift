@@ -980,13 +980,9 @@ final class ScheduleViewModel: ObservableObject {
                             // it searches episodes JustWatch could not verify and only
                             // accepts future dates backed by returned web citations.
                             if selectedDubLanguages.contains(MyDubListLanguage.spanish.rawValue) {
-                                let knownEpisodes = Set(verifiedJustWatchEntries.map {
-                                    "\($0.sourceMediaId):\($0.episode)"
-                                })
-                                let unresolved = broadcast.entries.filter {
-                                    !knownEpisodes.contains("\($0.mediaId):\($0.episode)")
-                                }
-                                let researched = await SpanishDubAIResearchService.shared.research(entries: unresolved)
+                                // Research even episodes with a JustWatch date so the
+                                // final merge can keep the earliest verified Spanish release.
+                                let researched = await SpanishDubAIResearchService.shared.research(entries: broadcast.entries)
                                 let scheduleWindow = ScheduleDateWindow.envelope(dayCount: dayCount)
                                 verifiedJustWatchEntries.append(contentsOf: researched
                                     .filter { $0.airingAt >= scheduleWindow.start && $0.airingAt < scheduleWindow.end }
