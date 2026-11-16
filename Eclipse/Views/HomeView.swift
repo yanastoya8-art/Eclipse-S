@@ -1973,15 +1973,53 @@ struct HomeView: View {
               homeViewModel.heroContent?.stableIdentity == identity,
               selectedLanguage == language else { return }
         heroArtworkIdentity = identity
-        heroLogoURL = hero.animeLogoURL
-        heroLogoLookupComplete = hero.animeLogoURL != nil
+        heroLogoURL = prefetchedHeroLogoURLs[identity] ?? hero.animeLogoURL
+        heroLogoLookupComplete = heroLogoURL != nil
         heroAlternatePosterURL = nil
 
-        // Warm the poster before navigation. The detail screen receives this
-        // exact URL and consumes the same Kingfisher cache entry.
+        // Start logo metadata and poster warming together. The previous
+        // implementation only used AniList's optional logo URL, so movie and
+        // TV heroes never received the TMDB transparent title artwork.
+        async let logoLookup: String? = {
+            if let cached = prefetchedHeroLogoURLs[identity] { return cached }
+            if let supplied = hero.animeLogoURL { return supplied }
+            do {
+                let images = hero.isMovie
+                    ? try await tmdbService.getMovieImages(id: hero.id, preferredLanguage: language)
+                    : try await tmdbService.getTVShowImages(id: hero.id, preferredLanguage: language)
+                return images.logos
+                    .filter { $0.iso6391?.lowercased() == "en" }
+                    .sorted {
+                        if ($0.voteCount ?? 0) != ($1.voteCount ?? 0) {
+                            return ($0.voteCount ?? 0) > ($1.voteCount ?? 0)
+                        }
+                        return ($0.voteAverage ?? 0) > ($1.voteAverage ?? 0)
+                    }
+                    .first?.fullURL
+            } catch {
+                Logger.shared.log("Home hero title-logo lookup failed: id=\(hero.id) error=\(error.localizedDescription)", type: "TMDB")
+                return nil
+            }
+        }()
+
         if let imageURL = heroImageURL(for: hero) {
             let processor = DownsamplingImageProcessor(size: heroImageDecodeSize)
             _ = await prefetchHeroImage(imageURL, processor: processor)
+        }
+
+        let resolvedLogo = await logoLookup
+        guard !Task.isCancelled,
+              heroArtworkIsActive,
+              heroArtworkIdentity == identity,
+              homeViewModel.heroContent?.stableIdentity == identity,
+              selectedLanguage == language else { return }
+        heroLogoURL = resolvedLogo
+        heroLogoLookupComplete = true
+        if let resolvedLogo {
+            prefetchedHeroLogoURLs[identity] = resolvedLogo
+            if let url = URL(string: resolvedLogo) {
+                KingfisherManager.shared.retrieveImage(with: url, options: [.backgroundDecode]) { _ in }
+            }
         }
     }
 
