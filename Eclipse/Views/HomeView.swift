@@ -754,6 +754,11 @@ struct HomeView: View {
             .providerNavigationStyle()
         }
 #endif
+        .task(id: homeViewModel.hasLoadedContent) {
+            guard homeViewModel.hasLoadedContent else { return }
+            let catalogItems = Array(homeViewModel.catalogResults.values.joined())
+            await SearchResultTitleLogoCache.shared.prefetch(results: catalogItems)
+        }
     }
 
     private var homeContent: some View {
