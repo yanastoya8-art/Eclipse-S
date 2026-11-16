@@ -173,6 +173,16 @@ struct SearchResultCard: View {
     @State private var resolvedTitleLogoURL: String?
     private var heroID: String { "search-\(result.stableIdentity)" }
 
+    private var isAnimeResult: Bool {
+        if result.animeIdentitySeed != nil || result.isAnimeHint == true {
+            return true
+        }
+        guard result.genreIds?.contains(16) == true else { return false }
+        let language = result.originalLanguage?.lowercased() ?? ""
+        return ["ja", "zh", "ko"].contains(where: language.hasPrefix)
+            || result.originCountry?.contains(where: { ["JP", "CN", "KR", "TW"].contains($0) }) == true
+    }
+
     var body: some View {
         NavigationLink(destination: MediaDetailView(searchResult: result)
             .heroDestination(id: heroID, namespace: heroNamespace)
@@ -193,10 +203,21 @@ struct SearchResultCard: View {
         .accessibilityIdentifier("media.search.result.\(result.stableIdentity)")
 #endif
         .task(id: result.stableIdentity) {
-            // Resolve logos after the poster is already visible. The shared
+            // Prefer the anime provider's already-resolved logo when available.
+            // This avoids an unnecessary TMDB images request for every anime
+            // card while retaining TMDB's English-logo fallback for titles
+            // without provider artwork.
+            resolvedTitleLogoURL = nil
+            if isAnimeResult,
+               let animeLogo = result.animeLogoURL?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !animeLogo.isEmpty {
+                resolvedTitleLogoURL = animeLogo
+                return
+            }
+
+            // Resolve missing logos after the poster is visible. The shared
             // cache deduplicates Home/Browse requests and only accepts English
             // title artwork, never a Japanese-language logo.
-            resolvedTitleLogoURL = nil
             resolvedTitleLogoURL = await SearchResultTitleLogoCache.shared.logoURL(
                 mediaType: result.isMovie ? "movie" : "tv",
                 id: result.id
