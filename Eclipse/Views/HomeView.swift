@@ -1980,7 +1980,7 @@ struct HomeView: View {
         // Start logo metadata and poster warming together. The previous
         // implementation only used AniList's optional logo URL, so movie and
         // TV heroes never received the TMDB transparent title artwork.
-        async let logoLookup: String? = {
+        async let logoLookup: String? = { () async -> String? in
             if let cached = prefetchedHeroLogoURLs[identity] { return cached }
             if let supplied = hero.animeLogoURL { return supplied }
             do {
