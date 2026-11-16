@@ -378,6 +378,14 @@ class TMDBService: ObservableObject {
     private let seasonRequestCoordinator = TMDBSeasonRequestCoordinator()
     @MainActor private var fastAnimeAdultKeywordIDsCache: (language: String, ids: [Int])?
     @MainActor private var fastAnimeAdultKeywordIDsTask: (language: String, id: UUID, task: Task<[Int], Never>)?
+    @MainActor private var keywordIDLookupCache: [String: KeywordIDCacheEntry] = [:]
+
+    private struct KeywordIDCacheEntry {
+        let id: Int?
+        let expiresAt: Date
+    }
+
+    private static let keywordIDLookupCacheTTL: TimeInterval = 30 * 24 * 60 * 60
 
     private struct FastAnimeAdultKeywordCacheRecord: Codable {
         let version: Int
@@ -1668,24 +1676,54 @@ class TMDBService: ObservableObject {
         let uniqueNames = Array(Set(keywordNames.filter { !$0.isEmpty })).sorted()
         guard !uniqueNames.isEmpty else { return [:] }
         let language = await MainActor.run { currentLanguage }
+        let now = Date()
 
-        return await withTaskGroup(of: (String, Int?).self) { group in
-            for keywordName in uniqueNames {
-                group.addTask { [weak self] in
-                    guard let self else { return (keywordName, nil) }
-                    let lookup = await self.fetchExactKeywordID(named: keywordName, language: language)
-                    return (keywordName, lookup.id)
+        // Browse resolves the same production/category keywords on every page.
+        // Reuse successful and not-found lookups for 30 days rather than making
+        // several extra TMDB requests before each discover request.
+        let cached = await MainActor.run { () -> (values: [String: Int], missing: Set<String>) in
+            var values: [String: Int] = [:]
+            var missing = Set<String>()
+            for name in uniqueNames {
+                let key = "\(language.lowercased())|\(Self.normalizedKeyword(name))"
+                if let entry = keywordIDLookupCache[key], entry.expiresAt > now {
+                    if let id = entry.id { values[name] = id }
+                } else {
+                    keywordIDLookupCache[key] = nil
+                    missing.insert(name)
                 }
             }
-
-            var resolved: [String: Int] = [:]
-            for await (keywordName, id) in group {
-                if let id {
-                    resolved[keywordName] = id
-                }
-            }
-            return resolved
+            return (values, missing)
         }
+
+        guard !cached.missing.isEmpty else { return cached.values }
+        let lookups = await withTaskGroup(of: (String, FastAnimeAdultKeywordLookup).self) { group in
+            for keywordName in cached.missing {
+                group.addTask { [weak self] in
+                    guard let self else {
+                        return (keywordName, FastAnimeAdultKeywordLookup(id: nil, completed: false))
+                    }
+                    return (keywordName, await self.fetchExactKeywordID(named: keywordName, language: language))
+                }
+            }
+
+            var values: [(String, FastAnimeAdultKeywordLookup)] = []
+            for await value in group { values.append(value) }
+            return values
+        }
+
+        var resolved = cached.values
+        await MainActor.run {
+            for (name, lookup) in lookups where lookup.completed {
+                let key = "\(language.lowercased())|\(Self.normalizedKeyword(name))"
+                keywordIDLookupCache[key] = KeywordIDCacheEntry(
+                    id: lookup.id,
+                    expiresAt: now.addingTimeInterval(Self.keywordIDLookupCacheTTL)
+                )
+                if let id = lookup.id { resolved[name] = id }
+            }
+        }
+        return resolved
     }
 
     func discoverMedia(
