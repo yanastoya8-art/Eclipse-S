@@ -213,8 +213,6 @@ actor SearchResultTitleLogoCache {
 struct SearchResultCard: View {
     let result: TMDBSearchResult
     @Environment(\.heroNamespace) private var heroNamespace
-    @AppStorage(MediaDetailTitleLogoPositionSettings.verticalPositionKey)
-    private var titleLogoVerticalPosition = MediaDetailTitleLogoPositionSettings.defaultVerticalPosition
     @State private var resolvedTitleLogoURL: String?
     private var heroID: String { "search-\(result.stableIdentity)" }
 
@@ -306,7 +304,7 @@ struct SearchResultCard: View {
                 title: result.displayTitle,
                 logoURL: resolvedTitleLogoURL,
                 fontSize: isTvOS ? 25 : (isIPad ? 18 : 14),
-                verticalPosition: titleLogoVerticalPosition
+                verticalPosition: MediaDetailTitleLogoPositionSettings.defaultVerticalPosition
             )
         }
         .aspectRatio(2/3, contentMode: .fill)
