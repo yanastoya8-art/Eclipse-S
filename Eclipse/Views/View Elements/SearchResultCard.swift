@@ -115,17 +115,22 @@ struct CenteredPosterTitleOverlay: View {
 private actor SearchResultTitleLogoCache {
     static let shared = SearchResultTitleLogoCache()
 
+    private struct LookupResult {
+        let url: String?
+        let succeeded: Bool
+    }
+
     private var resolved: [String: String] = [:]
     private var attempted = Set<String>()
-    private var pending: [String: Task<String?, Never>] = [:]
+    private var pending: [String: Task<LookupResult, Never>] = [:]
 
     func logoURL(mediaType: String, id: Int) async -> String? {
         guard id > 0, mediaType == "movie" || mediaType == "tv" else { return nil }
         let key = "\(mediaType):\(id):en"
         if attempted.contains(key) { return resolved[key] }
-        if let task = pending[key] { return await task.value }
+        if let task = pending[key] { return await task.value.url }
 
-        let task = Task<String?, Never> {
+        let task = Task<LookupResult, Never> {
             do {
                 let images: TMDBImagesResponse
                 if mediaType == "movie" {
@@ -133,7 +138,7 @@ private actor SearchResultTitleLogoCache {
                 } else {
                     images = try await TMDBService.shared.getTVShowImages(id: id, preferredLanguage: "en")
                 }
-                return (images.logos ?? [])
+                let url = (images.logos ?? [])
                     .filter { $0.iso6391?.lowercased() == "en" }
                     .sorted {
                         if ($0.voteCount ?? 0) != ($1.voteCount ?? 0) {
@@ -142,16 +147,21 @@ private actor SearchResultTitleLogoCache {
                         return ($0.voteAverage ?? 0) > ($1.voteAverage ?? 0)
                     }
                     .first?.fullURL
+                return LookupResult(url: url, succeeded: true)
             } catch {
-                return nil
+                return LookupResult(url: nil, succeeded: false)
             }
         }
         pending[key] = task
-        let value = await task.value
+        let lookup = await task.value
         pending[key] = nil
-        attempted.insert(key)
-        if let value, !value.isEmpty { resolved[key] = value }
-        return value
+        // Cache successful no-logo responses, but allow a failed network lookup
+        // to retry on a later appearance instead of hiding a logo permanently.
+        if lookup.succeeded {
+            attempted.insert(key)
+            if let url = lookup.url, !url.isEmpty { resolved[key] = url }
+        }
+        return lookup.url
     }
 }
 
@@ -186,6 +196,7 @@ struct SearchResultCard: View {
             // Resolve logos after the poster is already visible. The shared
             // cache deduplicates Home/Browse requests and only accepts English
             // title artwork, never a Japanese-language logo.
+            resolvedTitleLogoURL = nil
             resolvedTitleLogoURL = await SearchResultTitleLogoCache.shared.logoURL(
                 mediaType: result.isMovie ? "movie" : "tv",
                 id: result.id
