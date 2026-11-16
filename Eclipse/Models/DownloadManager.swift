@@ -975,6 +975,26 @@ struct DownloadItem: Codable, Identifiable {
         return animeDisplayTitleWithoutEpisodeSuffix
     }
 
+    /// Stable show name used for the Downloads library folder/card. Some
+    /// providers put a season suffix into the stored title; that suffix belongs
+    /// on the episode rows, not on the show-level poster card.
+    var libraryShowTitle: String {
+        guard !isMovie else { return playerTitleBase }
+        let base = playerTitleBase.trimmingCharacters(in: .whitespacesAndNewlines)
+        let patterns = [
+            #"(?i)\s*[-–—:]\s*season\s+\d{1,2}$"#,
+            #"(?i)\s+season\s+\d{1,2}$"#,
+            #"(?i)\s*[-–—:]\s*s\d{1,2}$"#
+        ]
+        for pattern in patterns {
+            if let range = base.range(of: pattern, options: .regularExpression) {
+                let cleaned = String(base[..<range.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+                if !cleaned.isEmpty { return cleaned }
+            }
+        }
+        return base.isEmpty ? title : base
+    }
+
     private var animeDisplayTitleWithoutEpisodeSuffix: String {
         var base = nonEmptyTrimmed(displayTitle) ?? title
         let suffixPatterns = [
