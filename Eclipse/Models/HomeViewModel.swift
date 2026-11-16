@@ -285,7 +285,7 @@ final class HomeViewModel: ObservableObject {
                 catalogs: enabledCatalogSnapshot
             )
             guard !Task.isCancelled else { return }
-            let tmdbLoadedCatalogs = rawTMDBLoadedCatalogs
+            var tmdbLoadedCatalogs = rawTMDBLoadedCatalogs
                 .map { catalogID, results in
                     let isExplicitUpcomingCatalog = catalogID == "upcomingMovies" || catalogID == "upcomingTV"
                     return (
@@ -298,6 +298,17 @@ final class HomeViewModel: ObservableObject {
                 }
                 .reduce(into: [String: [TMDBSearchResult]]()) { $0[$1.0] = $1.1 }
                 .merging(kidsLoadedCatalogs) { _, kids in kids }
+
+            // "Best" shelves share the corresponding top-rated data source,
+            // but retain their own catalog IDs because Home renders each
+            // selected catalog by its ID. Without these aliases the requests
+            // succeed yet the selected ranked shelves remain blank.
+            if enabledCatalogIds.contains("bestTVShows") {
+                tmdbLoadedCatalogs["bestTVShows"] = tmdbLoadedCatalogs["topRatedTVShows"] ?? []
+            }
+            if enabledCatalogIds.contains("bestMovies") {
+                tmdbLoadedCatalogs["bestMovies"] = tmdbLoadedCatalogs["topRatedMovies"] ?? []
+            }
             let tmdbLoadedCatalogCount = tmdbLoadedCatalogs.values.filter { !$0.isEmpty }.count
 
             if tmdbLoadedCatalogCount > 0 {
@@ -336,12 +347,15 @@ final class HomeViewModel: ObservableObject {
             let topRatedAnime = animeCatalogs[.topRated] ?? []
             let airingAnime = animeCatalogs[.airing] ?? []
 
-            let animeLoadedCatalogs: [String: [TMDBSearchResult]] = [
+            var animeLoadedCatalogs: [String: [TMDBSearchResult]] = [
                 "trendingAnime": trendingAnime,
                 "popularAnime": popularAnime,
                 "topRatedAnime": topRatedAnime,
                 "airingAnime": airingAnime
             ]
+            if enabledCatalogIds.contains("bestAnime") {
+                animeLoadedCatalogs["bestAnime"] = topRatedAnime
+            }
             let loadedCatalogs = tmdbLoadedCatalogs.merging(animeLoadedCatalogs) { _, anime in anime }
             let loadedCatalogCount = loadedCatalogs.values.filter { !$0.isEmpty }.count
 
