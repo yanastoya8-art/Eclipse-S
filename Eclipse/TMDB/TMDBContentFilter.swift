@@ -1512,9 +1512,13 @@ class TMDBContentFilter: ObservableObject {
         let text = normalizedCatalogText([title, overview ?? ""].joined(separator: " "))
         let indicators = [
             "fan made", "fanmade", "fan film", "fan films", "fan fiction", "fanfiction",
+            "fan work", "fan works", "fan production", "fan productions", "fan project", "fan projects",
+            "fan animation", "fan animations", "fan made anime", "fanmade anime", "fan made series",
+            "fan made movie", "fan made film", "unofficial production", "unofficial creator",
             "unofficial series", "unofficial film", "unofficial movie", "youtube original",
             "youtube series", "youtuber", "youtubers", "made for youtube", "creator made",
-            "creator made series", "independent web series"
+            "creator made series", "independent web series", "independent web animation",
+            "independent animation", "independent anime"
         ]
         return indicators.contains { indicator in
             text.range(of: " " + normalizedCatalogText(indicator) + " ") != nil

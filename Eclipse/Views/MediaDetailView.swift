@@ -2795,7 +2795,7 @@ struct MediaDetailContentView: View {
                 : (usesWideDetailLayout ? 520 : .infinity),
             alignment: .center
         )
-        .padding(.top, usesWideDetailLayout ? 36 : 42)
+        .padding(.top, usesWideDetailLayout ? 52 : 64)
         .padding(.bottom, isTvOS ? 60 : (usesWideDetailLayout ? 30 : 42))
         .background {
             if usesWideDetailLayout && !usesLandscapeDetailComposition {
