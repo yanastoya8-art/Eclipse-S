@@ -977,7 +977,7 @@ final class ScheduleViewModel: ObservableObject {
                                 .map { $0.markedAsVerifiedJustWatchDub() }
 
                             // AI research is a sequential fallback for Spanish only:
-                            // it searches episodes JustWatch could not verify and only
+                            // it compares all upcoming AniList episodes against JustWatch and only
                             // accepts future dates backed by returned web citations.
                             if selectedDubLanguages.contains(MyDubListLanguage.spanish.rawValue) {
                                 // Research even episodes with a JustWatch date so the
