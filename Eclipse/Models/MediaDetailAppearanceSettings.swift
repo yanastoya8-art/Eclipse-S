@@ -62,3 +62,20 @@ enum MediaDetailHeroContentPositionSettings {
     static let supportedRange: ClosedRange<Double> = -100...100
     static let step = 5.0
 }
+
+enum LandscapeMediaDetailAppearanceSettings {
+    static let logoPositionKey = "mediaDetailLandscapeTitleLogoVerticalPosition"
+    static let logoSizeKey = "mediaDetailLandscapeTitleLogoSize"
+    static let logoWeightKey = "mediaDetailLandscapeTitleLogoWeight"
+    static let actionsOffsetKey = "mediaDetailLandscapeHeroActionsOffset"
+    static let synopsisOffsetKey = "mediaDetailLandscapeHeroSynopsisOffset"
+    static let defaultLogoPosition = 0.40
+    static let logoPositionRange: ClosedRange<Double> = 0.15...0.85
+    static let defaultLogoSize = 1.0
+    static let logoSizeRange: ClosedRange<Double> = 0.65...1.45
+    static let defaultLogoWeight = 0.0
+    static let logoWeightRange: ClosedRange<Double> = 0.0...1.0
+    static let defaultOffset = 0.0
+    static let offsetRange: ClosedRange<Double> = -100...100
+    static let offsetStep = 5.0
+}

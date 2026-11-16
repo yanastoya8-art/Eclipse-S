@@ -9,14 +9,6 @@ import SwiftUI
 import Kingfisher
 
 enum PosterArtworkURLResolver {
-    static func originalTMDBPosterURL(for result: TMDBSearchResult) -> String? {
-        guard let path = result.posterPath else { return nil }
-        if ImageDataSaverSettings.isEnabled() {
-            return TMDBImageRequestPolicy.urlString(for: path, kind: .poster)
-        }
-        return TMDBImageRequestPolicy.originalURLString(for: path)
-    }
-
     /// Prefer provider artwork at its source resolution. TMDB's original-size
     /// path avoids smaller w342/w500 derivatives used by many catalog APIs.
     static func candidates(for result: TMDBSearchResult) -> [String] {
@@ -39,9 +31,10 @@ enum PosterArtworkURLResolver {
         if !isAnime, result.isMovie, let fanart = result.fanartTVPosterURL, !fanart.isEmpty {
             candidates.append(fanart)
         }
-        if let original = originalTMDBPosterURL(for: result) {
-            candidates.append(original)
-        }
+        // TMDB poster artwork is deliberately excluded: it frequently
+        // contains embedded title treatments. Keep only clean source artwork
+        // from Fanart.tv, TVMaze and anime cover providers. The transparent
+        // title-logo overlay is rendered separately by the card.
         if !isAnime, let fanart = result.fanartTVPosterURL, !fanart.isEmpty {
             candidates.append(fanart)
         }
@@ -50,9 +43,6 @@ enum PosterArtworkURLResolver {
         }
         if !isAnime, let anime = result.animeArtworkURL, !anime.isEmpty {
             candidates.append(anime)
-        }
-        if let full = result.fullPosterURL, !full.isEmpty {
-            candidates.append(full)
         }
 
         var seen = Set<String>()
@@ -70,10 +60,8 @@ struct CenteredPosterTitleOverlay: View {
     var fontSize: CGFloat = 16
     var verticalPosition: Double = MediaDetailTitleLogoPositionSettings.defaultVerticalPosition
 
-    @AppStorage(MediaDetailTitleLogoAppearanceSettings.sizeKey)
-    private var logoSize = MediaDetailTitleLogoAppearanceSettings.defaultSize
-    @AppStorage(MediaDetailTitleLogoAppearanceSettings.weightKey)
-    private var logoWeight = MediaDetailTitleLogoAppearanceSettings.defaultWeight
+    private let logoSize = MediaDetailTitleLogoAppearanceSettings.defaultSize
+    private let logoWeight = MediaDetailTitleLogoAppearanceSettings.defaultWeight
 
     var body: some View {
         GeometryReader { geometry in
@@ -126,7 +114,7 @@ struct CenteredPosterTitleOverlay: View {
     }
 }
 
-private actor SearchResultTitleLogoCache {
+actor SearchResultTitleLogoCache {
     static let shared = SearchResultTitleLogoCache()
 
     private struct LookupResult {
@@ -137,6 +125,39 @@ private actor SearchResultTitleLogoCache {
     private var resolved: [String: String] = [:]
     private var attempted = Set<String>()
     private var pending: [String: Task<LookupResult, Never>] = [:]
+
+    func prefetch(results: [TMDBSearchResult], limit: Int = 48) async {
+        var seen = Set<String>()
+        let candidates = Array(results.filter { seen.insert($0.stableIdentity).inserted }.prefix(max(0, limit)))
+        await withTaskGroup(of: Void.self) { group in
+            var iterator = candidates.makeIterator()
+            for _ in 0..<min(4, candidates.count) {
+                guard let result = iterator.next() else { continue }
+                group.addTask { await Self.shared.prefetchOne(result) }
+            }
+            while await group.next() != nil {
+                if let result = iterator.next() {
+                    group.addTask { await Self.shared.prefetchOne(result) }
+                }
+            }
+        }
+    }
+
+    private func prefetchOne(_ result: TMDBSearchResult) async {
+        let candidate: String?
+        if (result.animeIdentitySeed != nil || result.isAnimeHint == true),
+           let supplied = result.animeLogoURL,
+           !supplied.isEmpty {
+            candidate = supplied
+        } else {
+            candidate = await logoURL(
+                mediaType: result.isMovie ? "movie" : "tv",
+                id: result.id
+            )
+        }
+        guard let candidate, let url = URL(string: candidate), url.scheme == "https" else { return }
+        KingfisherManager.shared.retrieveImage(with: url, options: [.backgroundDecode]) { _ in }
+    }
 
     func logoURL(mediaType: String, id: Int) async -> String? {
         guard id > 0, mediaType == "movie" || mediaType == "tv" else { return nil }
@@ -152,15 +173,25 @@ private actor SearchResultTitleLogoCache {
                 } else {
                     images = try await TMDBService.shared.getTVShowImages(id: id, preferredLanguage: "en")
                 }
-                let url = (images.logos ?? [])
-                    .filter { $0.iso6391?.lowercased() == "en" }
-                    .sorted {
-                        if ($0.voteCount ?? 0) != ($1.voteCount ?? 0) {
-                            return ($0.voteCount ?? 0) > ($1.voteCount ?? 0)
+                let ranked = (images.logos ?? []).sorted { lhs, rhs in
+                    func languageRank(_ code: String?) -> Int {
+                        switch code?.lowercased() {
+                        case "en": return 0
+                        case nil, "": return 1
+                        default: return 2
                         }
-                        return ($0.voteAverage ?? 0) > ($1.voteAverage ?? 0)
                     }
-                    .first?.fullURL
+                    let left = languageRank(lhs.iso6391)
+                    let right = languageRank(rhs.iso6391)
+                    if left != right { return left < right }
+                    if (lhs.voteCount ?? 0) != (rhs.voteCount ?? 0) {
+                        return (lhs.voteCount ?? 0) > (rhs.voteCount ?? 0)
+                    }
+                    return (lhs.voteAverage ?? 0) > (rhs.voteAverage ?? 0)
+                }
+                let url = ranked.first(where: {
+                    $0.iso6391?.lowercased() == "en" || $0.iso6391 == nil || $0.iso6391 == ""
+                })?.fullURL ?? ranked.first?.fullURL
                 return LookupResult(url: url, succeeded: true)
             } catch {
                 return LookupResult(url: nil, succeeded: false)
@@ -182,8 +213,6 @@ private actor SearchResultTitleLogoCache {
 struct SearchResultCard: View {
     let result: TMDBSearchResult
     @Environment(\.heroNamespace) private var heroNamespace
-    @AppStorage(MediaDetailTitleLogoPositionSettings.verticalPositionKey)
-    private var titleLogoVerticalPosition = MediaDetailTitleLogoPositionSettings.defaultVerticalPosition
     @State private var resolvedTitleLogoURL: String?
     private var heroID: String { "search-\(result.stableIdentity)" }
 
@@ -275,7 +304,7 @@ struct SearchResultCard: View {
                 title: result.displayTitle,
                 logoURL: resolvedTitleLogoURL,
                 fontSize: isTvOS ? 25 : (isIPad ? 18 : 14),
-                verticalPosition: titleLogoVerticalPosition
+                verticalPosition: MediaDetailTitleLogoPositionSettings.defaultVerticalPosition
             )
         }
         .aspectRatio(2/3, contentMode: .fill)

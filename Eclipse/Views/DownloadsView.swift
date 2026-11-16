@@ -663,7 +663,7 @@ struct DownloadsView: View {
             if showMap[identity] == nil {
                 showMap[identity] = ShowGroup(
                     id: identity,
-                    title: item.title,
+                    title: item.libraryShowTitle,
                     posterURL: item.posterURL,
                     isMovie: item.isMovie,
                     seasons: []
@@ -741,12 +741,6 @@ struct DownloadsView: View {
                                             .foregroundColor(.white)
                                             .lineLimit(2)
 
-                                        let allEpisodes = show.seasons.flatMap(\.episodes)
-                                        let completedCount = allEpisodes.filter { $0.status == .completed }.count
-                                        let activeCount = allEpisodes.count - completedCount
-                                        Text("\(completedCount) downloaded • \(activeCount) downloading")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
                                     }
 
                                     Spacer()

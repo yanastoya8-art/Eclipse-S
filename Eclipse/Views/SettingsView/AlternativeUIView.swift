@@ -7,6 +7,11 @@
 //
 
 import SwiftUI
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
 
 enum AppearanceSettingsSearchTarget: String, Hashable {
     case palette
@@ -71,6 +76,11 @@ struct AlternativeUIView: View {
     @AppStorage(MediaDetailTitleLogoAppearanceSettings.weightKey) private var titleLogoWeight = MediaDetailTitleLogoAppearanceSettings.defaultWeight
     @AppStorage(MediaDetailHeroContentPositionSettings.actionsOffsetKey) private var heroActionsOffset = MediaDetailHeroContentPositionSettings.defaultOffset
     @AppStorage(MediaDetailHeroContentPositionSettings.synopsisOffsetKey) private var heroSynopsisOffset = MediaDetailHeroContentPositionSettings.defaultOffset
+    @AppStorage(LandscapeMediaDetailAppearanceSettings.logoPositionKey) private var landscapeTitleLogoPosition = LandscapeMediaDetailAppearanceSettings.defaultLogoPosition
+    @AppStorage(LandscapeMediaDetailAppearanceSettings.logoSizeKey) private var landscapeTitleLogoSize = LandscapeMediaDetailAppearanceSettings.defaultLogoSize
+    @AppStorage(LandscapeMediaDetailAppearanceSettings.logoWeightKey) private var landscapeTitleLogoWeight = LandscapeMediaDetailAppearanceSettings.defaultLogoWeight
+    @AppStorage(LandscapeMediaDetailAppearanceSettings.actionsOffsetKey) private var landscapeHeroActionsOffset = LandscapeMediaDetailAppearanceSettings.defaultOffset
+    @AppStorage(LandscapeMediaDetailAppearanceSettings.synopsisOffsetKey) private var landscapeHeroSynopsisOffset = LandscapeMediaDetailAppearanceSettings.defaultOffset
     @AppStorage(ImageDataSaverSettings.enabledKey, store: .standard) private var imageDataSaverEnabled = false
     @AppStorage(MediaDetailAgeRatingSettings.enabledKey) private var mediaDetailAgeRatingEnabled = MediaDetailAgeRatingSettings.defaultEnabled
     @AppStorage(MediaDetailSimilarTitlesSettings.enabledKey) private var mediaDetailSimilarTitlesEnabled = MediaDetailSimilarTitlesSettings.defaultEnabled
@@ -88,6 +98,7 @@ struct AlternativeUIView: View {
     @AppStorage(HomeAnimatedBackgroundQuality.storageKey) private var homeAnimatedBackgroundQuality = HomeAnimatedBackgroundQuality.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundFrameRate.storageKey) private var homeAnimatedBackgroundFrameRate = HomeAnimatedBackgroundFrameRate.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundParticleColor.storageKey) private var homeAnimatedBackgroundParticleColor = HomeAnimatedBackgroundParticleColor.defaultValue.rawValue
+    @AppStorage(HomeAnimatedBackgroundParticleColor.customColorDataKey) private var customAnimationParticleColorData = Data()
     @AppStorage(AppPerformanceOverlaySettings.enabledKey) private var appPerformanceOverlayEnabled = AppPerformanceOverlaySettings.defaultEnabled
 #if !os(tvOS)
     @AppStorage(ModeSwitchAnimationSettings.enabledKey) private var modeSwitchAnimationEnabled = ModeSwitchAnimationSettings.defaultEnabled
@@ -505,6 +516,16 @@ struct AlternativeUIView: View {
                 .accessibilityValue(HomeAnimatedBackgroundParticleColor.resolved(homeAnimatedBackgroundParticleColor).displayName)
                 .id(AppearanceSettingsSearchTarget.animationColor.anchorID)
             }
+            if HomeAnimatedBackgroundParticleColor.resolved(homeAnimatedBackgroundParticleColor) == .custom {
+                settingRow(
+                    title: "Custom Animation Color",
+                    description: "Choose the exact color used by the animated background particles."
+                ) {
+                    ColorPicker("Custom Animation Color", selection: customAnimationParticleColorBinding)
+                        .labelsHidden()
+                        .accessibilityIdentifier("settings.appearance.customAnimationColor")
+                }
+            }
 
             settingRow(
                 title: "Animation Frame Rate",
@@ -542,6 +563,29 @@ struct AlternativeUIView: View {
         }
     }
 
+    private var customAnimationParticleColorBinding: Binding<Color> {
+        Binding(
+            get: {
+                guard let archived = try? PortableColorArchive.color(from: customAnimationParticleColorData) else { return .purple }
+#if os(macOS)
+                return Color(nsColor: archived)
+#else
+                return Color(uiColor: archived)
+#endif
+            },
+            set: { color in
+#if os(macOS)
+                let archived = NSColor(color)
+#else
+                let archived = UIColor(color)
+#endif
+                if let data = try? PortableColorArchive.data(for: archived, requiringSecureCoding: false) {
+                    customAnimationParticleColorData = data
+                }
+            }
+        )
+    }
+
     private var detailPagesSection: some View {
         Section {
             toggleRow(
@@ -568,9 +612,10 @@ struct AlternativeUIView: View {
                 isOn: $showUnairedEpisodes
             )
             .id(AppearanceSettingsSearchTarget.showUnairedEpisodes.anchorID)
+            Text("Portrait Detail Page").font(.subheadline.weight(.semibold))
             sliderRow(
                 title: "Title Logo Vertical Position",
-                description: "Move English title artwork higher or lower on movie, series and anime posters.",
+                description: "Adjust the title logo position only in portrait detail pages.",
                 value: $titleLogoVerticalPosition,
                 range: MediaDetailTitleLogoPositionSettings.supportedRange,
                 step: MediaDetailTitleLogoPositionSettings.step
@@ -578,7 +623,7 @@ struct AlternativeUIView: View {
             .id(AppearanceSettingsSearchTarget.titleLogoPosition.anchorID)
             sliderRow(
                 title: "Title Logo Size",
-                description: "Make transparent title logos larger or smaller on posters and hero banners.",
+                description: "Adjust title logo size only in portrait detail pages.",
                 value: $titleLogoSize,
                 range: MediaDetailTitleLogoAppearanceSettings.sizeRange,
                 step: 0.05
@@ -586,7 +631,7 @@ struct AlternativeUIView: View {
             .id(AppearanceSettingsSearchTarget.titleLogoSize.anchorID)
             sliderRow(
                 title: "Title Logo Weight",
-                description: "Slightly thicken thin logo strokes while keeping the original transparent artwork.",
+                description: "Adjust title logo weight only in portrait detail pages.",
                 value: $titleLogoWeight,
                 range: MediaDetailTitleLogoAppearanceSettings.weightRange,
                 step: 0.05
@@ -594,7 +639,7 @@ struct AlternativeUIView: View {
             .id(AppearanceSettingsSearchTarget.titleLogoWeight.anchorID)
             sliderRow(
                 title: "Action Buttons Vertical Position",
-                description: "Move the detail page action buttons higher or lower.",
+                description: "Adjust action button position only in portrait detail pages.",
                 value: $heroActionsOffset,
                 range: MediaDetailHeroContentPositionSettings.supportedRange,
                 step: MediaDetailHeroContentPositionSettings.step
@@ -602,18 +647,20 @@ struct AlternativeUIView: View {
             .id(AppearanceSettingsSearchTarget.heroActionPosition.anchorID)
             sliderRow(
                 title: "Synopsis Vertical Position",
-                description: "Move the detail page synopsis independently of the action buttons.",
+                description: "Adjust synopsis position only in portrait detail pages.",
                 value: $heroSynopsisOffset,
                 range: MediaDetailHeroContentPositionSettings.supportedRange,
                 step: MediaDetailHeroContentPositionSettings.step
             )
             .id(AppearanceSettingsSearchTarget.heroSynopsisPosition.anchorID)
-            toggleRow(
-                title: "Show Age Rating",
-                description: "Display the available content age rating on movie, series and anime detail pages.",
-                isOn: $mediaDetailAgeRatingEnabled
-            )
-            .id(AppearanceSettingsSearchTarget.ageRating.anchorID)
+
+            Divider()
+            Text("Landscape Detail Page").font(.subheadline.weight(.semibold))
+            sliderRow(title: "Landscape Title Logo Vertical Position", description: "Move the title logo independently in landscape detail pages.", value: $landscapeTitleLogoPosition, range: LandscapeMediaDetailAppearanceSettings.logoPositionRange, step: 0.05)
+            sliderRow(title: "Landscape Title Logo Size", description: "Change title logo size only in landscape detail pages.", value: $landscapeTitleLogoSize, range: LandscapeMediaDetailAppearanceSettings.logoSizeRange, step: 0.05)
+            sliderRow(title: "Landscape Title Logo Weight", description: "Change title logo weight only in landscape detail pages.", value: $landscapeTitleLogoWeight, range: LandscapeMediaDetailAppearanceSettings.logoWeightRange, step: 0.05)
+            sliderRow(title: "Landscape Action Buttons Vertical Position", description: "Move action buttons independently in landscape detail pages.", value: $landscapeHeroActionsOffset, range: LandscapeMediaDetailAppearanceSettings.offsetRange, step: LandscapeMediaDetailAppearanceSettings.offsetStep)
+            sliderRow(title: "Landscape Synopsis Vertical Position", description: "Move the synopsis independently in landscape detail pages.", value: $landscapeHeroSynopsisOffset, range: LandscapeMediaDetailAppearanceSettings.offsetRange, step: LandscapeMediaDetailAppearanceSettings.offsetStep)
         } header: {
             Text("Detail Pages")
         }
@@ -699,6 +746,13 @@ struct AlternativeUIView: View {
             }
             .onMove(perform: moveMediaDetailElements)
 #endif
+
+            toggleRow(
+                title: "Show Age Rating",
+                description: "Display the available content age rating in the media detail layout.",
+                isOn: $mediaDetailAgeRatingEnabled
+            )
+            .id(AppearanceSettingsSearchTarget.ageRating.anchorID)
 
             Button(action: resetMediaDetailElements) {
                 HStack {

@@ -174,6 +174,20 @@ final class HomeViewModel: ObservableObject {
                 _ = StremioAddonManager.shared
                 return (catalogManager.getEnabledCatalogs(), self.loadGeneration)
             }
+            // Every early return, including task cancellation during an awaited
+            // catalog/provider request, must release the load slot. Otherwise
+            // Home can remain stuck with an orphaned activeLoadTask and never
+            // retry on the next appearance.
+            defer {
+                Task { @MainActor [weak self] in
+                    guard let self, self.loadGeneration == generation else { return }
+                    self.activeLoadTask = nil
+                    if self.isLoading {
+                        self.isLoading = false
+                        self.hasCompletedInitialLoad = true
+                    }
+                }
+            }
 
             // An empty catalog list is a valid user configuration, not a network
             // failure. Finish the load without showing the generic Wi-Fi error.

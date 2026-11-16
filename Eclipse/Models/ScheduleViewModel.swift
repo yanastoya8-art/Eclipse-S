@@ -108,6 +108,7 @@ enum ScheduleProvider: String, Codable, Sendable {
     case animeSchedule
     case dubOnly
     case tsuzuki
+    case justWatch
     case trakt
     case traktMovie
     case tvMaze
@@ -167,7 +168,7 @@ private enum ScheduleSourceLoadError: LocalizedError {
 struct ScheduleEntry: Identifiable, Sendable {
     let id: String
     let source: ScheduleSource
-    let provider: ScheduleProvider
+    var provider: ScheduleProvider
     let sourceMediaId: Int
     let title: String
     var airingAt: Date
@@ -349,6 +350,12 @@ struct ScheduleEntry: Identifiable, Sendable {
         copy.airingAt = date
         copy.isStreamingRelease = isStreamingRelease
         if isStreamingRelease { copy.hasKnownAiringTime = false }
+        return copy
+    }
+
+    func markedAsVerifiedJustWatchDub() -> ScheduleEntry {
+        var copy = self
+        copy.provider = .justWatch
         return copy
     }
 }
@@ -811,6 +818,11 @@ final class ScheduleViewModel: ObservableObject {
             guard !selectedLanguages.isEmpty else { return true }
             // DubOnly entries are already verified English-dub timetable rows;
             // do not require a second, unrelated MyDubList lookup to retain them.
+            if entry.provider == .justWatch {
+                // JustWatch has already verified the selected audio language;
+                // do not require a second MyDubList lookup for the same title.
+                return true
+            }
             if entry.provider == .dubOnly || entry.provider == .tsuzuki {
                 // Both schedule providers return verified English-dub dates.
                 // The global audio filter explicitly accepts English alongside
@@ -832,6 +844,10 @@ final class ScheduleViewModel: ObservableObject {
             isAuthoritativeForNotifications: result.isAuthoritativeForNotifications,
             notice: result.notice
         )
+    }
+
+    private func dubOnlyUnavailable(_ result: AnimeAiringScheduleResult) -> Bool {
+        result.entries.isEmpty
     }
 
     @MainActor
@@ -896,11 +912,13 @@ final class ScheduleViewModel: ObservableObject {
                     englishSpanishAudioFilterEnabled: englishSpanishAudioFilterEnabled
                 )
                 let result: AnimeAiringScheduleResult
+                var verifiedJustWatchEntries: [ScheduleEntry] = []
+                let permitsEnglishDubSchedule = AnimeScheduleFallback.permitsEnglishDubSchedule(
+                    selectedDubLanguages: selectedDubLanguages,
+                    englishSpanishAudioFilterEnabled: englishSpanishAudioFilterEnabled
+                )
                 if requiresDubSchedule {
-                    if AnimeScheduleFallback.permitsEnglishDubSchedule(
-                        selectedDubLanguages: selectedDubLanguages,
-                        englishSpanishAudioFilterEnabled: englishSpanishAudioFilterEnabled
-                    ) {
+                    if permitsEnglishDubSchedule {
                         // Fetch both independent English-dub timetables concurrently.
                         // DubOnly may be unavailable when its free/API quota is exhausted;
                         // Tsuzuki is a no-key fallback and can also correct/supplement dates.
@@ -918,29 +936,64 @@ final class ScheduleViewModel: ObservableObject {
                         case let (nil, fallback?):
                             result = fallback
                         case (nil, nil):
-                            throw AnimeScheduleError.unavailable
+                            result = AnimeAiringScheduleResult(
+                                entries: [],
+                                isAuthoritativeForNotifications: false,
+                                notice: "English dub timetable providers are temporarily unavailable."
+                            )
                         }
                     } else {
-                        // DubOnly publishes English dates only. Never substitute
-                        // AniList's original-language broadcast dates for a
-                        // Spanish-only or other non-English dub selection.
+                        // DubOnly and Tsuzuki are English-only. Do not return an
+                        // empty Spanish calendar without trying the configured
+                        // JustWatch audio-language release lookup.
                         result = AnimeAiringScheduleResult(
                             entries: [],
                             isAuthoritativeForNotifications: false,
-                            notice: "DubOnly currently provides English-dub dates only. No matching Spanish or other selected-language timetable is available."
+                            notice: "Checking selected-language anime releases…"
                         )
+                    }
+
+                    let needsJustWatchLanguageDates = selectedDubLanguages.contains(MyDubListLanguage.spanish.rawValue)
+                        || !permitsEnglishDubSchedule
+                        || (dubOnlyUnavailable(result) && permitsEnglishDubSchedule)
+                    if needsJustWatchLanguageDates {
+                        let broadcast = try? await self.retryOnceAfterTransientCancellation(operationName: "AniList anime identity schedule for JustWatch") {
+                            try await AniListService.shared.fetchAiringScheduleResult(daysAhead: dayCount)
+                        }
+                        if let broadcast {
+                            let identityEntries = broadcast.entries.map(ScheduleEntry.init(animeEntry:))
+                            let languageMatches = await JustWatchScheduleService.shared.filter(
+                                entries: identityEntries,
+                                selectedLanguages: selectedDubLanguages
+                            )
+                            // Only verified streaming/dub dates are allowed here.
+                            // AniList's Japanese broadcast date is never a fallback
+                            // for a selected English/Spanish dub filter.
+                            verifiedJustWatchEntries = languageMatches
+                                .filter(\.isStreamingRelease)
+                                .map { $0.markedAsVerifiedJustWatchDub() }
+                        }
                     }
                 } else {
                     result = try await self.retryOnceAfterTransientCancellation(operationName: "AniList schedule") {
                         try await AniListService.shared.fetchAiringScheduleResult(daysAhead: dayCount)
                     }
                 }
-                let entries = result.entries.map(ScheduleEntry.init(animeEntry:))
+                var entries = result.entries.map(ScheduleEntry.init(animeEntry:)) + verifiedJustWatchEntries
+                var earliestByEpisode: [String: ScheduleEntry] = [:]
+                for entry in entries {
+                    let key = "\(entry.title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current))|\(entry.season ?? 0)|\(entry.episode)"
+                    if let existing = earliestByEpisode[key],
+                       existing.airingAt <= entry.airingAt { continue }
+                    earliestByEpisode[key] = entry
+                }
+                entries = earliestByEpisode.values.sorted { $0.airingAt < $1.airingAt }
                 try Task.checkCancellation()
+                let providerNotice = verifiedJustWatchEntries.isEmpty ? result.notice : nil
                 let notice = requiresDubSchedule
                     ? AnimeScheduleLanguageNoticePolicy.notice(
                         selectedLanguages: selectedDubLanguages,
-                        providerNotice: result.notice
+                        providerNotice: providerNotice
                     )
                     : result.notice
                 let loadResult = AnimeScheduleLoadResult(
@@ -2647,7 +2700,10 @@ actor JustWatchScheduleService {
                 continue
             }
 
-            let bySeason = Dictionary(grouping: group, by: { $0.season ?? 0 })
+            // AniList airing entries do not carry a season number. JustWatch
+            // indexes ordinary single-cour anime under season 1; querying
+            // season 0 silently returned no Spanish/English episode dates.
+            let bySeason = Dictionary(grouping: group, by: { max($0.season ?? 1, 1) })
             for (season, seasonEntries) in bySeason {
                 guard let dates = try? await episodeDates(
                     showID: showID,
