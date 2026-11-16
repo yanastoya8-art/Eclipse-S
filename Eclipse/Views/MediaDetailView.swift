@@ -3070,7 +3070,6 @@ struct MediaDetailContentView: View {
                MALMetadataService.shared.isConfigured,
                let malID = ratingMALID, malID > 0 {
                 rating = await MALMetadataService.shared.fetchMaturityRating(malID: malID)
-                    .map { AnimeMetadataRating(ageBand: $0.rawValue, source: .taizen) }
             }
             guard !Task.isCancelled,
                   animeAgeRatingRequestID == requestID,
