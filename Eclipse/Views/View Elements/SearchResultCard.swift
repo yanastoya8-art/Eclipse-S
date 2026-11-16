@@ -70,10 +70,8 @@ struct CenteredPosterTitleOverlay: View {
     var fontSize: CGFloat = 16
     var verticalPosition: Double = MediaDetailTitleLogoPositionSettings.defaultVerticalPosition
 
-    @AppStorage(MediaDetailTitleLogoAppearanceSettings.sizeKey)
-    private var logoSize = MediaDetailTitleLogoAppearanceSettings.defaultSize
-    @AppStorage(MediaDetailTitleLogoAppearanceSettings.weightKey)
-    private var logoWeight = MediaDetailTitleLogoAppearanceSettings.defaultWeight
+    private let logoSize = MediaDetailTitleLogoAppearanceSettings.defaultSize
+    private let logoWeight = MediaDetailTitleLogoAppearanceSettings.defaultWeight
 
     var body: some View {
         GeometryReader { geometry in
