@@ -5263,8 +5263,6 @@ final class AniListService {
                             episodes status seasonYear season
                             averageScore isAdult genres tags { name rank isMediaSpoiler } nextAiringEpisode { episode airingAt } coverImage { large medium }
                             format
-                            startDate { year }
-                            seasonYear
                         }
                     }
                 """
