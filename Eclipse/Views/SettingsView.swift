@@ -205,7 +205,7 @@ struct SettingsView: View {
             .init(id: "appearance-title-art", title: "TMDB Title Art", location: "Appearance > Detail Pages", icon: "text.below.photo", color: .purple, keywords: ["logo artwork", "title logo", "media artwork"], action: .destination(.appearanceTarget(.tmdbTitleArt))),
             .init(id: "appearance-library-bookmarks", title: "Show Bookmarks", location: "Appearance > Library", icon: "bookmark", color: .purple, keywords: ["hide bookmarks", "library sections", "collections only"], action: .destination(.appearanceTarget(.libraryBookmarks))),
             .init(id: "appearance-library-layout", title: "Collection Layout", location: "Appearance > Library", icon: "rectangle.grid.1x2", color: .purple, keywords: ["library collections", "horizontal", "vertical", "grid"], action: .destination(.appearanceTarget(.libraryCollectionLayout))),
-            .init(id: "language-filters", title: "Language Filters", location: "Content Filters", icon: "globe", color: .cyan, keywords: ["Spanish dub AI research", "Gemini", "Perplexity", "OpenAI", "API key", "dub release date", "audio language"], action: .destination(.languageFilters)),
+            .init(id: "language-filters", title: "Language Filters", location: "Content Filters", icon: "globe", color: .cyan, keywords: ["Spanish dub AI research", "Gemini", "OpenAI", "repository secrets", "dub release date", "audio language"], action: .destination(.languageFilters)),
             .init(id: "schedule", title: "Schedule", location: "Basic", icon: "calendar", color: .red, keywords: ["calendar", "anime", "western", "default tab", "range", "days"], action: .destination(.schedule)),
             .init(id: "schedule-range", title: "Schedule Range", location: "Schedule", icon: "calendar.badge.clock", color: .red, keywords: ["7 days", "14 days", "21 days", "30 days", "window", "performance", "upcoming episodes"], action: .destination(.schedule)),
             .init(id: "notifications", title: "Notifications", location: "Basic", icon: "bell.badge.fill", color: .orange, keywords: ["alerts", "reminders", "episodes", "airing", "seasons", "local"], action: .destination(.notifications)),
@@ -5373,11 +5373,6 @@ private struct AgeFiltersSettingsView: View {
 private struct LanguageFiltersSettingsView: View {
     @Binding var requireEnglishSpanishAudio: Bool
     @State private var selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguages
-    @State private var geminiAPIKey = ""
-    @State private var perplexityAPIKey = ""
-    @State private var openAIAPIKey = ""
-    @State private var aiKeySaveMessage: String?
-    @State private var aiKeySaveFailed = false
 
     private func saveDubLanguages(_ languages: Set<String>) {
         MyDubListDubFilter.shared.setSelectedLanguages(languages)
@@ -5423,46 +5418,7 @@ private struct LanguageFiltersSettingsView: View {
                 Text("Anime Dub Languages")
             }
 
-            Section {
-                SecureField("Gemini API key", text: $geminiAPIKey)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .accessibilityIdentifier("settings.spanishDubAI.geminiKey")
-                SecureField("Perplexity API key", text: $perplexityAPIKey)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .accessibilityIdentifier("settings.spanishDubAI.perplexityKey")
-                SecureField("OpenAI API key", text: $openAIAPIKey)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .accessibilityIdentifier("settings.spanishDubAI.openAIKey")
-                Button("Save AI provider keys") {
-                    do {
-                        try SpanishDubAIKeyStore.save(geminiAPIKey, for: .gemini)
-                        try SpanishDubAIKeyStore.save(perplexityAPIKey, for: .perplexity)
-                        try SpanishDubAIKeyStore.save(openAIAPIKey, for: .openAI)
-                        aiKeySaveFailed = false
-                        aiKeySaveMessage = "Keys saved securely on this device."
-                        Task {
-                            await SpanishDubAIResearchService.shared.clearNegativeCache()
-                            NotificationCenter.default.post(name: Notification.Name("scheduleContentFiltersDidChange"), object: nil)
-                        }
-                    } catch {
-                        aiKeySaveFailed = true
-                        aiKeySaveMessage = "Could not save one or more keys. Please try again."
-                    }
-                }
-                .accessibilityIdentifier("settings.spanishDubAI.saveKeys")
-                if let aiKeySaveMessage {
-                    Text(aiKeySaveMessage)
-                        .font(.footnote)
-                        .foregroundColor(aiKeySaveFailed ? .red : .secondary)
-                }
-            } header: {
-                Text("Spanish Dub AI Research")
-            } footer: {
-                Text("Optional API keys. Eclipse tries Gemini first, then Perplexity, then OpenAI, one at a time. Keys are stored in this device's Keychain; leaving a field blank and saving removes that provider's key. Only source-cited, confirmed Spanish dub dates are accepted; unannounced dates are left unknown. Provider usage may incur charges.")
-            }
+
 
             Section {
                 VStack(alignment: .leading, spacing: 10) {
@@ -5473,11 +5429,7 @@ private struct LanguageFiltersSettingsView: View {
                 }
             }
         }
-        .onAppear {
-            geminiAPIKey = SpanishDubAIKeyStore.load(.gemini) ?? ""
-            perplexityAPIKey = SpanishDubAIKeyStore.load(.perplexity) ?? ""
-            openAIAPIKey = SpanishDubAIKeyStore.load(.openAI) ?? ""
-        }
+
         .eclipsePageTitle("Language Filters")
         .eclipseSettingsStyle()
         .preferredColorScheme(.dark)
