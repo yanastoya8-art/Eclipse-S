@@ -975,10 +975,11 @@ final class ScheduleViewModel: ObservableObject {
                 }
                 entries = earliestByEpisode.values.sorted { $0.airingAt < $1.airingAt }
                 try Task.checkCancellation()
+                let providerNotice = verifiedJustWatchEntries.isEmpty ? result.notice : nil
                 let notice = requiresDubSchedule
                     ? AnimeScheduleLanguageNoticePolicy.notice(
                         selectedLanguages: selectedDubLanguages,
-                        providerNotice: result.notice
+                        providerNotice: providerNotice
                     )
                     : result.notice
                 let loadResult = AnimeScheduleLoadResult(
