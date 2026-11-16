@@ -104,7 +104,7 @@ final class TMDBAlternatePosterTests: XCTestCase {
             fanartTVPosterURL: "https://evil.example/fake.jpg"
         )
 
-        XCTAssertEqual(result.fullPosterURL, "https://image.tmdb.org/t/p/w500/tmdb-poster.jpg")
+        XCTAssertEqual(result.fullPosterURL, "https://image.tmdb.org/t/p/original/tmdb-poster.jpg")
     }
 
     func testRejectsDownvotedLanguageNeutralPoster() {
