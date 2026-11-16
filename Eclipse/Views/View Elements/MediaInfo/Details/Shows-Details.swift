@@ -1191,7 +1191,8 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
                 onDownload: episodeDownloadAction(for: episode, playbackContext: playbackContext),
                 playbackContext: playbackContext,
                 isAnimeContent: isAnime,
-                episodeClassification: classification(for: episode)
+                episodeClassification: classification(for: episode),
+                showsWatchProgress: false
             )
             .accessibilityIdentifier("mediaDetail.episode.s\(episode.seasonNumber).e\(episode.episodeNumber)")
         } else {
