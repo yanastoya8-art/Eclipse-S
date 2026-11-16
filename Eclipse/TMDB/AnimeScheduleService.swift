@@ -704,7 +704,7 @@ enum AnimeScheduleFallback {
 
 // MARK: - Verified Spanish-dub release research
 
-enum SpanishDubAIProvider: String, CaseIterable, Identifiable {
+enum SpanishDubAIProvider: String, CaseIterable, Identifiable, Codable {
     case gemini
     case perplexity
     case openAI
@@ -1001,22 +1001,21 @@ actor SpanishDubAIResearchService {
     ) throws -> (URL, [String: Any], String, String) {
         switch provider {
         case .gemini:
-            guard var components = URLComponents(string: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent") else {
+            guard var components = URLComponents(string: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent") else {
                 throw AnimeScheduleError.invalidResponse
             }
-            components.queryItems = [URLQueryItem(name: "key", value: apiKey)]
             guard let url = components.url else { throw AnimeScheduleError.invalidResponse }
             return (url, [
                 "contents": [["parts": [["text": prompt]]]],
                 "tools": [["google_search": [:]]],
-                "generationConfig": ["temperature": 0.1, "responseMimeType": "application/json"]
+                "generationConfig": ["temperature": 0.1]
             ], "x-goog-api-key", apiKey)
         case .perplexity:
             guard let url = URL(string: "https://api.perplexity.ai/chat/completions") else {
                 throw AnimeScheduleError.invalidResponse
             }
             return (url, [
-                "model": "sonar-pro",
+                "model": "sonar",
                 "temperature": 0.1,
                 "messages": [["role": "user", "content": prompt]]
             ], "Authorization", "Bearer " + apiKey)
