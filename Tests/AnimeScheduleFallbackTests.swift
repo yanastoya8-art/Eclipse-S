@@ -43,6 +43,34 @@ private final class AnimeScheduleURLProtocol: URLProtocol {
 }
 
 final class AnimeScheduleFallbackTests: XCTestCase {
+    func testAniListScheduleEntryCarriesReleaseYearAndRuntimeIntoScheduleFilters() {
+        let entry = AniListAiringScheduleEntry(
+            id: 42,
+            mediaId: 1234,
+            title: "Example Anime",
+            airingAt: Date(timeIntervalSince1970: 1_800_000_000),
+            episode: 3,
+            coverImage: nil,
+            englishTitle: "Example Anime",
+            romajiTitle: "Example Anime",
+            nativeTitle: nil,
+            format: "TV",
+            hasKnownAiringTime: true,
+            scheduleProvider: .aniList,
+            malID: 5678,
+            airingTimeWithdrawn: false,
+            tags: ["Action"],
+            releaseYear: 1993,
+            runtimeMinutes: 19
+        )
+
+        let scheduleEntry = ScheduleEntry(animeEntry: entry)
+
+        XCTAssertEqual(scheduleEntry.releaseYear, 1993)
+        XCTAssertEqual(scheduleEntry.runtimeMinutes, 19)
+        XCTAssertEqual(scheduleEntry.metadataTags, ["Action"])
+    }
+
     func testDubLanguagePickerOnlyExposesEnglishAndSpanish() {
         XCTAssertEqual(
             Set(MyDubListLanguage.allCases.map(\.rawValue)),
