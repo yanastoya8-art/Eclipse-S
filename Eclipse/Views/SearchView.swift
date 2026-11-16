@@ -2629,7 +2629,8 @@ private struct BrowseMediaView: View {
                         animeIdentitySeed: identity,
                         animeArtworkURL: artworkURL,
                         animeLogoURL: result.animeLogoURL,
-                        tvMazePosterURL: result.tvMazePosterURL
+                        tvMazePosterURL: result.tvMazePosterURL,
+                        fanartTVPosterURL: result.fanartTVPosterURL
                     )
                     return (index, enriched)
                 }
