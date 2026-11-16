@@ -834,6 +834,10 @@ final class ScheduleViewModel: ObservableObject {
         )
     }
 
+    private func dubOnlyUnavailable(_ result: AnimeAiringScheduleResult) -> Bool {
+        result.entries.isEmpty
+    }
+
     @MainActor
     private func currentAnimeSchedulePolicyKey() -> String {
         let languages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement.sorted().joined(separator: ",")
