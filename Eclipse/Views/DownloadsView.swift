@@ -663,7 +663,7 @@ struct DownloadsView: View {
             if showMap[identity] == nil {
                 showMap[identity] = ShowGroup(
                     id: identity,
-                    title: item.title,
+                    title: item.libraryShowTitle,
                     posterURL: item.posterURL,
                     isMovie: item.isMovie,
                     seasons: []
