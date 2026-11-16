@@ -741,20 +741,22 @@ struct HomeView: View {
     }
 
     var body: some View {
+        Group {
 #if os(tvOS)
-        homeContent
+            homeContent
 #else
-        if #available(iOS 16.0, *) {
-            NavigationStack {
-                homeContent
+            if #available(iOS 16.0, *) {
+                NavigationStack {
+                    homeContent
+                }
+            } else {
+                NavigationView {
+                    homeContent
+                }
+                .providerNavigationStyle()
             }
-        } else {
-            NavigationView {
-                homeContent
-            }
-            .providerNavigationStyle()
-        }
 #endif
+        }
         .task(id: homeViewModel.hasLoadedContent) {
             guard homeViewModel.hasLoadedContent else { return }
             let catalogItems = Array(homeViewModel.catalogResults.values.joined())
