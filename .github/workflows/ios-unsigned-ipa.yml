@@ -88,7 +88,414 @@ jobs:
             echo "$sdk SDK: $sdk_path"
           done
 
-          xcode_version="$(xcodebuild -version | awk '/^Xcode / { print $2; exit }')"
+          # Capture the complete output before parsing it. Piping xcodebuild directly
+          # to awk/head closes stdout early and can crash xcodebuild with EPIPE.
+          xcode_version_output="$(xcodebuild -version)"
+          xcode_version="${xcode_version_output#Xcode }"
+          xcode_version="${xcode_version%%
+          device_sdk="$(xcrun --sdk iphoneos --show-sdk-version)"
+          simulator_sdk="$(xcrun --sdk iphonesimulator --show-sdk-version)"
+          echo "cache-key=xcode-${xcode_version}-ios-${device_sdk}-sim-${simulator_sdk}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache patched MPVKit iOS frameworks
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: MPVKit/dist/release
+          key: mpvkit-ios-${{ runner.os }}-${{ runner.arch }}-${{ steps.apple-sdk.outputs.cache-key }}-b951a22fc5ddbf708057ace059e3742dae685e4d-${{ hashFiles('MPVKit/Makefile', 'MPVKit/Sources/BuildScripts/**/*.swift', 'MPVKit/Sources/BuildScripts/patch/**/*.patch') }}
+
+      - name: Build patched MPVKit for iPhone and iPad
+        run: |
+          set -euo pipefail
+          REQUIRED_FRAMEWORKS=(Libmpv Libavcodec Libavdevice Libavfilter Libavformat Libavutil Libswresample Libswscale)
+          CACHE_VALID=true
+          if [[ ! -f MPVKit/dist/release/Package.swift ]]; then CACHE_VALID=false; fi
+          if [[ ! -d MPVKit/dist/release/xcframework ]]; then CACHE_VALID=false; fi
+
+          if [[ "$CACHE_VALID" == true ]]; then
+            if python3 - MPVKit/dist/release/xcframework "${REQUIRED_FRAMEWORKS[@]}" <<'PY'
+          import plistlib
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          required = sys.argv[2:]
+          errors = []
+          for name in required:
+              bundle = root / f"{name}.xcframework"
+              info = bundle / "Info.plist"
+              if bundle.is_symlink() or not bundle.is_dir() or info.is_symlink() or not info.is_file():
+                  errors.append(f"{name}: missing or invalid XCFramework bundle")
+                  continue
+              try:
+                  libraries = plistlib.loads(info.read_bytes())["AvailableLibraries"]
+              except Exception as error:
+                  errors.append(f"{name}: unreadable Info.plist ({error})")
+                  continue
+              device = False
+              simulator = False
+              for library in libraries:
+                  identifier = library.get("LibraryIdentifier", "")
+                  library_path = library.get("LibraryPath", "")
+                  binary = bundle / identifier / library_path
+                  if not identifier or not library_path or not binary.exists():
+                      errors.append(f"{name}: missing framework payload for {identifier or 'unknown slice'}")
+                      continue
+                  architectures = library.get("SupportedArchitectures", [])
+                  if library.get("SupportedPlatform") == "ios" and "arm64" in architectures:
+                      if library.get("SupportedPlatformVariant") is None:
+                          device = True
+                      elif library.get("SupportedPlatformVariant") == "simulator":
+                          simulator = True
+              if not device or not simulator:
+                  errors.append(f"{name}: requires iOS arm64 device and simulator slices")
+          if errors:
+              print("\n".join(errors), file=sys.stderr)
+              raise SystemExit(1)
+          print(f"Validated {len(required)} cached iOS XCFrameworks (device + simulator).")
+          PY
+            then
+              :
+            else
+              CACHE_VALID=false
+            fi
+          fi
+
+          if [[ "$CACHE_VALID" == true ]]; then
+            echo "Using cached MPVKit frameworks for the selected Xcode SDKs."
+          else
+            echo "::notice::MPVKit cache is missing or invalid; rebuilding the pinned source."
+            rm -rf MPVKit/dist/release
+            brew install autoconf automake cmake libtool nasm ninja pkg-config
+            MPVKIT_BUILD_VENV="$RUNNER_TEMP/mpvkit-build-venv"
+            python3 -m venv "$MPVKIT_BUILD_VENV"
+            "$MPVKIT_BUILD_VENV/bin/python" -m pip install --disable-pip-version-check meson==1.4.2
+            export PATH="$MPVKIT_BUILD_VENV/bin:$PATH"
+            MPVKIT_BUILD_SUCCEEDED=false
+            for attempt in 1 2 3; do
+              if make -C MPVKit build enable-gpl version=0.41.0 platform=ios; then
+                MPVKIT_BUILD_SUCCEEDED=true
+                break
+              fi
+
+              echo "::warning::MPVKit build attempt $attempt failed."
+              rm -rf MPVKit/dist/openssl-3.3.5 MPVKit/dist/openssl-3.3.5.log
+              if [[ "$attempt" -lt 3 ]]; then sleep "$((attempt * 10))"; fi
+            done
+            if [[ "$MPVKIT_BUILD_SUCCEEDED" != true ]]; then
+              echo "::error::MPVKit did not build successfully after three attempts. See the first compiler/configure error above."
+              exit 1
+            fi
+          fi
+          test -f MPVKit/dist/release/Package.swift
+
+      - name: Resolve unsigned build settings
+        env:
+          INPUT_APP_NAME: ${{ inputs.app_name }}
+          INPUT_BUNDLE_IDENTIFIER: ${{ inputs.bundle_identifier }}
+          INPUT_RELEASE_VERSION: ${{ inputs.release_version }}
+          VARIABLE_APP_NAME: ${{ vars.IOS_APP_NAME }}
+          VARIABLE_BUNDLE_IDENTIFIER: ${{ vars.IOS_BUNDLE_IDENTIFIER }}
+          VARIABLE_DEVELOPMENT_TEAM: ${{ vars.IOS_DEVELOPMENT_TEAM }}
+        run: |
+          set -euo pipefail
+
+          APP_NAME="${INPUT_APP_NAME:-${VARIABLE_APP_NAME:-Eclipse}}"
+          BUNDLE_IDENTIFIER="${INPUT_BUNDLE_IDENTIFIER:-${VARIABLE_BUNDLE_IDENTIFIER:-app.Eclipse.Soupy}}"
+          DEVELOPMENT_TEAM="${VARIABLE_DEVELOPMENT_TEAM:-ANMK3Y568U}"
+          RELEASE_VERSION="${INPUT_RELEASE_VERSION:-}"
+
+          if ! [[ "$BUNDLE_IDENTIFIER" =~ ^[A-Za-z0-9][A-Za-z0-9-]*(\.[A-Za-z0-9][A-Za-z0-9-]*)+$ ]]; then
+            echo "::error::Bundle identifier '$BUNDLE_IDENTIFIER' does not look valid. Example: com.yourname.eclipse"
+            exit 1
+          fi
+
+          if [ -n "$RELEASE_VERSION" ] && ! [[ "$RELEASE_VERSION" =~ ^v?[0-9]+([.][0-9]+){0,3}([.-][A-Za-z0-9]+)*$ ]]; then
+            echo "::error::Release version '$RELEASE_VERSION' does not look valid. Example: 2.0.0 or v2.0.0"
+            exit 1
+          fi
+
+          {
+            echo "APP_NAME=$APP_NAME"
+            echo "BUNDLE_IDENTIFIER=$BUNDLE_IDENTIFIER"
+            echo "DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM"
+            echo "RELEASE_VERSION=$RELEASE_VERSION"
+          } >> "$GITHUB_ENV"
+
+      - name: Create local build config
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          FANART_TV_API_KEY: ${{ secrets.FANART_TV_API_KEY }}
+          JUSTWATCH_API_KEY: ${{ secrets.JUSTWATCH_API_KEY }}
+          ANIMESCHEDULE_API_TOKEN: ${{ secrets.ANIMESCHEDULE_API_TOKEN }}
+          DUBSONLY_API_KEY: ${{ secrets.DUBSONLY_API_KEY }}
+          ANILIST_CLIENT_ID: ${{ secrets.ANILIST_CLIENT_ID }}
+          ANILIST_CLIENT_SECRET: ${{ secrets.ANILIST_CLIENT_SECRET }}
+          TRAKT_CLIENT_ID: ${{ secrets.TRAKT_CLIENT_ID }}
+          TRAKT_CLIENT_SECRET: ${{ secrets.TRAKT_CLIENT_SECRET }}
+          MAL_CLIENT_ID: ${{ secrets.MAL_CLIENT_ID }}
+          MAL_CLIENT_SECRET: ${{ secrets.MAL_CLIENT_SECRET }}
+          SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${TMDB_API_KEY:-}" ]; then
+            echo "::error::TMDB_API_KEY is required. Add it under Repository Settings > Secrets and variables > Actions, then rerun the IPA workflow. Refusing to package an app that cannot load TMDB catalogs."
+            exit 1
+          fi
+
+          for name in FANART_TV_API_KEY JUSTWATCH_API_KEY ANIMESCHEDULE_API_TOKEN DUBSONLY_API_KEY ANILIST_CLIENT_ID ANILIST_CLIENT_SECRET TRAKT_CLIENT_ID TRAKT_CLIENT_SECRET MAL_CLIENT_ID MAL_CLIENT_SECRET SIMKL_CLIENT_ID; do
+            if [ -z "${!name:-}" ]; then
+              echo "::warning::$name is not configured in GitHub Actions secrets; related optional features may be unavailable"
+            fi
+          done
+
+          {
+            printf 'APP_NAME = %s\n' "$APP_NAME"
+            printf 'BUNDLE_IDENTIFIER = %s\n' "$BUNDLE_IDENTIFIER"
+            printf 'DEVELOPMENT_TEAM = %s\n' "$DEVELOPMENT_TEAM"
+            if [ -n "${RELEASE_VERSION:-}" ]; then
+              printf 'ECLIPSE_RELEASE_VERSION = %s\n' "$RELEASE_VERSION"
+            fi
+            printf '%s\n' 'CODE_SIGN_ENTITLEMENTS ='
+            printf '%s\n' 'ICLOUD_CONTAINER_ID ='
+            printf 'TMDB_API_KEY = %s\n' "${TMDB_API_KEY:-}"
+            printf 'FANART_TV_API_KEY = %s\n' "${FANART_TV_API_KEY:-}"
+            printf 'JUSTWATCH_API_KEY = %s\n' "${JUSTWATCH_API_KEY:-}"
+            printf 'ANIMESCHEDULE_API_TOKEN = %s\n' "${ANIMESCHEDULE_API_TOKEN:-}"
+            printf 'DUBSONLY_API_KEY = %s\n' "${DUBSONLY_API_KEY:-}"
+            printf 'ANILIST_CLIENT_ID = %s\n' "${ANILIST_CLIENT_ID:-}"
+            printf 'ANILIST_CLIENT_SECRET = %s\n' "${ANILIST_CLIENT_SECRET:-}"
+            printf '%s\n' 'ANILIST_REDIRECT_URI = luna:/$()/anilist-callback'
+            printf 'TRAKT_CLIENT_ID = %s\n' "${TRAKT_CLIENT_ID:-}"
+            printf 'TRAKT_CLIENT_SECRET = %s\n' "${TRAKT_CLIENT_SECRET:-}"
+            printf '%s\n' 'TRAKT_REDIRECT_URI = luna:/$()/trakt-callback'
+            printf 'MAL_CLIENT_ID = %s\n' "${MAL_CLIENT_ID:-}"
+            printf 'MAL_CLIENT_SECRET = %s\n' "${MAL_CLIENT_SECRET:-}"
+            printf 'SIMKL_CLIENT_ID = %s\n' "${SIMKL_CLIENT_ID:-}"
+            printf '%s\n' 'MAL_REDIRECT_URI = luna:/$()/mal-callback'
+          } > Build.local.xcconfig
+
+      - name: Cache Swift package repositories and binary artifacts
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ${{ runner.temp }}/SourcePackages/repositories
+            ${{ runner.temp }}/SourcePackages/artifacts
+          key: swiftpm-${{ runner.os }}-${{ hashFiles('**/Package.resolved') }}-${{ hashFiles('Eclipse.xcodeproj/project.pbxproj') }}
+          restore-keys: |
+            swiftpm-${{ runner.os }}-
+
+      - name: Resolve Swift packages
+        env:
+          MPVKIT_SOURCE_REVISION: b951a22fc5ddbf708057ace059e3742dae685e4d
+        run: |
+          set -euo pipefail
+
+          SOURCE_PACKAGES_DIR="$RUNNER_TEMP/SourcePackages"
+          xcodebuild -resolvePackageDependencies \
+            -project Eclipse.xcodeproj \
+            -scheme Eclipse \
+            -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" \
+            -skipPackagePluginValidation \
+            -skipMacroValidation
+
+          # Stage rebuilt XCFrameworks inside the exact SwiftPM checkout. The
+          # MPVKit manifest rejects local artifact paths outside its package root.
+          MPVKIT_PACKAGE_CHECKOUT="$SOURCE_PACKAGES_DIR/checkouts/mpvkit-s"
+          export MPVKIT_PACKAGE_CHECKOUT
+          test -f "$MPVKIT_PACKAGE_CHECKOUT/Package.swift"
+          test "$(git -C "$MPVKIT_PACKAGE_CHECKOUT" rev-parse HEAD)" = "$MPVKIT_SOURCE_REVISION"
+          mkdir -p "$MPVKIT_PACKAGE_CHECKOUT/dist/release"
+          rsync -a --delete MPVKit/dist/release/ "$MPVKIT_PACKAGE_CHECKOUT/dist/release/"
+          # This job rebuilds libmpv and FFmpeg locally, but not MoltenVK or
+          # Libplacebo XCFramework bundles. Keep those on their checksum-pinned
+          # upstream binary artifacts rather than requiring nonexistent local files.
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          manifest = Path(os.environ["MPVKIT_PACKAGE_CHECKOUT"]) / "Package.swift"
+          # SwiftPM git checkouts are read-only; make this CI-only manifest copy writable.
+          manifest.chmod(0o644)
+          source = manifest.read_text()
+          old = '"Libmpv", "MoltenVK", "Libplacebo", "Libavcodec"'
+          new = '"Libmpv", "Libavcodec"'
+          if source.count(old) != 1:
+              raise SystemExit("Could not safely narrow MPVKit local artifact validation")
+          manifest.write_text(source.replace(old, new, 1))
+          PY
+          MPVKIT_LOCAL_ARTIFACTS_DIR="$MPVKIT_PACKAGE_CHECKOUT/dist/release"
+          export MPVKIT_LOCAL_ARTIFACTS_DIR
+          xcodebuild -resolvePackageDependencies \
+            -project Eclipse.xcodeproj \
+            -scheme Eclipse \
+            -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" \
+            -skipPackagePluginValidation \
+            -skipMacroValidation
+
+          # Published MPVKit 0.41.1 binaries predate the Apple PiP ABI exports.
+          # The pinned MPVKit source supplies weak, safe fallback implementations and
+          # linker-visible symbol providers in its _MPVKit-GPL target. Validate that
+          # reviewed bridge source instead of incorrectly requiring the symbols inside
+          # the prebuilt Libmpv.xcframework itself.
+          BRIDGE_SOURCE="$MPVKIT_PACKAGE_CHECKOUT/Sources/_MPVKit-GPL/dummy.c"
+          BRIDGE_HEADER="$MPVKIT_PACKAGE_CHECKOUT/Sources/_MPVKit-GPL/include/dummy.h"
+          test -f "$BRIDGE_SOURCE"
+          test -f "$BRIDGE_HEADER"
+          python3 - "$BRIDGE_SOURCE" "$BRIDGE_HEADER" <<'PY'
+          import pathlib
+          import sys
+
+          source = pathlib.Path(sys.argv[1]).read_text()
+          header = pathlib.Path(sys.argv[2]).read_text()
+          symbols = [
+              "mpv_apple_pip_api_version",
+              "mpv_apple_pip_get_capabilities",
+              "mpv_apple_pip_set_callback",
+              "mpv_apple_pip_set_mode",
+              "mpv_apple_pip_submit_target",
+              "mpv_apple_pip_disable_and_drain",
+              "mpv_apple_audiounit_recovery_count",
+          ]
+          for symbol in symbols:
+              if f"MPVKIT_WEAK_FALLBACK" not in source or symbol not in source:
+                  raise SystemExit(f"Missing reviewed MPVKit weak fallback: {symbol}")
+              provider = f"mpvkit_{symbol.removeprefix('mpv_')}_symbol"
+              if provider not in source or provider not in header:
+                  raise SystemExit(f"Missing linker-visible MPVKit symbol provider: {provider}")
+          print("Reviewed MPVKit Apple PiP weak bridge validated.")
+          PY
+
+          echo "SOURCE_PACKAGES_DIR=$SOURCE_PACKAGES_DIR" >> "$GITHUB_ENV"
+          echo "MPVKIT_LOCAL_ARTIFACTS_DIR=$MPVKIT_LOCAL_ARTIFACTS_DIR" >> "$GITHUB_ENV"
+          echo "Using local MPVKit checkout: $(git -C MPVKit rev-parse HEAD)"
+
+      - name: Build unsigned archive
+        run: |
+          set -euo pipefail
+
+          ARCHIVE_PATH="$RUNNER_TEMP/$APP_NAME.xcarchive"
+          DERIVED_DATA_PATH="$RUNNER_TEMP/DerivedData"
+          MPVKIT_SOURCE_REVISION="$(git -C "$GITHUB_WORKSPACE/MPVKit" rev-parse HEAD)"
+
+          rm -rf "$ARCHIVE_PATH" "$DERIVED_DATA_PATH"
+
+          xcodebuild archive \
+            -project Eclipse.xcodeproj \
+            -scheme Eclipse \
+            -configuration Release \
+            -archivePath "$ARCHIVE_PATH" \
+            -destination "generic/platform=iOS" \
+            -sdk iphoneos \
+            -derivedDataPath "$DERIVED_DATA_PATH" \
+            -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" \
+            -disableAutomaticPackageResolution \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            AD_HOC_CODE_SIGNING_ALLOWED=NO \
+            ECLIPSE_SOURCE_REVISION="$GITHUB_SHA" \
+            ECLIPSE_MPVKIT_SOURCE_REVISION="$MPVKIT_SOURCE_REVISION" \
+            'SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) ECLIPSE_UNSIGNED_BUILD' \
+            ENABLE_USER_SCRIPT_SANDBOXING=NO
+
+          APP_PATH="$(find "$ARCHIVE_PATH/Products/Applications" -maxdepth 1 -type d -name '*.app' -print -quit)"
+
+          test -f "$APP_PATH/OpenSourceLicenses/THIRD-PARTY-NOTICES.txt"
+          test "$(/usr/libexec/PlistBuddy -c 'Print EclipseSourceRevision' "$APP_PATH/Info.plist")" = "$GITHUB_SHA"
+          test "$(/usr/libexec/PlistBuddy -c 'Print EclipseMPVKitSourceRevision' "$APP_PATH/Info.plist")" = "$MPVKIT_SOURCE_REVISION"
+
+          MANIFEST_PATH="$APP_PATH/PrivacyInfo.xcprivacy"
+          if [[ ! -f "$MANIFEST_PATH" ]]; then
+            echo "::error::PrivacyInfo.xcprivacy is missing from the iOS app bundle."
+            exit 1
+          fi
+          plutil -lint "$MANIFEST_PATH" >/dev/null
+
+          python3 - "$MANIFEST_PATH" <<'PY'
+          import plistlib
+          import sys
+
+          manifest_path = sys.argv[1]
+          with open(manifest_path, "rb") as handle:
+              manifest = plistlib.load(handle)
+
+          if manifest.get("NSPrivacyTracking") is not False:
+              raise SystemExit("error: iOS privacy manifest must declare NSPrivacyTracking=false.")
+
+          if manifest.get("NSPrivacyCollectedDataTypes") != []:
+              raise SystemExit("error: iOS privacy manifest must contain an empty NSPrivacyCollectedDataTypes array.")
+
+          required = {
+              "NSPrivacyAccessedAPICategoryUserDefaults": {"CA92.1"},
+              "NSPrivacyAccessedAPICategoryFileTimestamp": {"C617.1"},
+              "NSPrivacyAccessedAPICategoryDiskSpace": {"85F4.1", "E174.1"},
+              "NSPrivacyAccessedAPICategorySystemBootTime": {"35F9.1"},
+          }
+          declared = {
+              entry.get("NSPrivacyAccessedAPIType"): set(entry.get("NSPrivacyAccessedAPITypeReasons", []))
+              for entry in manifest.get("NSPrivacyAccessedAPITypes", [])
+              if isinstance(entry, dict)
+          }
+
+          for category, reasons in required.items():
+              missing = reasons - declared.get(category, set())
+              if missing:
+                  raise SystemExit(
+                      f"error: iOS privacy manifest is missing {category} reason(s) {', '.join(sorted(missing))}."
+                  )
+          PY
+
+          echo "iOS privacy manifest validation passed"
+
+      - name: Package unsigned IPA
+        run: |
+          set -euo pipefail
+
+          ARCHIVE_PATH="$RUNNER_TEMP/$APP_NAME.xcarchive"
+          PACKAGE_ROOT="$RUNNER_TEMP/unsigned-ipa"
+          OUTPUT_DIR="$GITHUB_WORKSPACE/build"
+          SAFE_APP_NAME="$(printf '%s' "$APP_NAME" | sed 's/[^A-Za-z0-9._+-]/-/g')"
+          IPA_PATH="$OUTPUT_DIR/$SAFE_APP_NAME-unsigned.ipa"
+
+          APP_PATH="$(find "$ARCHIVE_PATH/Products/Applications" -maxdepth 1 -type d -name '*.app' | head -n 1)"
+          if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
+            echo "::error::No .app bundle found in archive."
+            find "$ARCHIVE_PATH" -type d -name '*.app' 2>/dev/null || true
+            exit 1
+          fi
+
+          rm -rf "$PACKAGE_ROOT" "$OUTPUT_DIR"
+          mkdir -p "$PACKAGE_ROOT/Payload" "$OUTPUT_DIR"
+          cp -R "$APP_PATH" "$PACKAGE_ROOT/Payload/$APP_NAME.app"
+
+          rm -rf "$PACKAGE_ROOT/Payload/$APP_NAME.app/_CodeSignature"
+          rm -f "$PACKAGE_ROOT/Payload/$APP_NAME.app/embedded.mobileprovision"
+
+          if [ -f "$PACKAGE_ROOT/Payload/$APP_NAME.app/Eclipse" ]; then
+            strip "$PACKAGE_ROOT/Payload/$APP_NAME.app/Eclipse" 2>/dev/null || true
+          fi
+
+          (
+            cd "$PACKAGE_ROOT"
+            zip -qry "$IPA_PATH" Payload
+          )
+
+          echo "IPA_PATH=$IPA_PATH" >> "$GITHUB_ENV"
+
+      - name: Upload unsigned IPA artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: Eclipse-iOS-unsigned-${{ github.run_number }}
+          path: ${{ env.IPA_PATH }}
+          if-no-files-found: error
+          retention-days: 1
+\n'*}"
+          if [[ -z "$xcode_version" ]]; then
+            echo "::error::Unable to determine the selected Xcode version."
+            exit 1
+          fi
           device_sdk="$(xcrun --sdk iphoneos --show-sdk-version)"
           simulator_sdk="$(xcrun --sdk iphonesimulator --show-sdk-version)"
           echo "cache-key=xcode-${xcode_version}-ios-${device_sdk}-sim-${simulator_sdk}" >> "$GITHUB_OUTPUT"
