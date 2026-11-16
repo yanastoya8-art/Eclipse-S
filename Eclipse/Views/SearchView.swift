@@ -1622,6 +1622,23 @@ private struct BrowseMediaView: View {
             }
             .padding()
         }
+        .overlay(alignment: .topTrailing) {
+            if isLoading && !results.isEmpty {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Updating")
+                        .font(.caption.weight(.medium))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(.ultraThinMaterial, in: Capsule())
+                .padding(.top, 8)
+                .padding(.trailing, 12)
+                .allowsHitTesting(false)
+                .accessibilityLabel("Updating browse results")
+            }
+        }
         .navigationTitle("Browse")
 #if os(iOS)
         .navigationBarTitleDisplayMode(.large)
@@ -2128,8 +2145,11 @@ private struct BrowseMediaView: View {
         filterRefreshPending = false
         currentPage = 1
         hasMorePages = true
-        unfilteredResults = []
-        results = []
+        // Retain the last successful page while the new category/filter query
+        // loads. Clearing both arrays here made category switches flash an
+        // empty state and could make the segmented control feel unresponsive.
+        // loadPage(replacing: true) replaces the retained content atomically
+        // when the new response and filters are ready.
         errorMessage = nil
         loadPage(1, replacing: true)
     }
