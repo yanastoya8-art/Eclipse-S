@@ -801,7 +801,13 @@ struct HomeView: View {
                 loadingView
             } else if enabledCatalogs.isEmpty {
                 noEnabledCatalogsView
-            } else if let errorMessage = homeViewModel.errorMessage {
+            } else if let errorMessage = homeViewModel.errorMessage,
+                      !homeViewModel.hasRenderableStartupContent,
+                      homeViewModel.catalogResults.values.allSatisfy(\.isEmpty),
+                      homeViewModel.widgetData.values.allSatisfy(\.isEmpty) {
+                // A failed optional catalog must not replace already-rendered
+                // shelves with a full-screen connection error. Home catalogs
+                // are independent; keep every successful result visible.
                 errorView(errorMessage)
             } else {
                 mainScrollView
