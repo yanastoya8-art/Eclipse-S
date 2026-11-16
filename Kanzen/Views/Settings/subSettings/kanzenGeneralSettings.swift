@@ -170,7 +170,6 @@ struct KanzenGeneralSettingsView: View {
             .background(EclipseScrollTracker())
 
             Section(header: Text("Reader Text")) {
-            Section(header: Text("Reader Text")) {
                 HStack {
                     Text("Font Size")
                     Slider(
@@ -318,6 +317,11 @@ struct KanzenGeneralSettingsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .eclipseSettingsStyle()
         .preferredColorScheme(.dark)
+        .alert("Restart Required", isPresented: $showRestartAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Restart Eclipse to apply the interface change.")
+        }
         .onAppear {
             readerFontSize = sanitizedReaderFontSize
             readerLineSpacing = sanitizedReaderLineSpacing
@@ -325,6 +329,17 @@ struct KanzenGeneralSettingsView: View {
             readerReadThresholdPercent = sanitizedReaderReadThresholdPercent
             reloadReaderDetailElements()
         }
+    }
+
+    private var interfaceBinding: Binding<Bool> {
+        Binding(
+            get: { modernInterfaceEnabled },
+            set: { newValue in
+                ExperimentalFeatureState.setStoredValue(newValue)
+                modernInterfaceEnabled = newValue
+                showRestartAlert = true
+            }
+        )
     }
 
     private var accentColorBinding: Binding<Color> {
