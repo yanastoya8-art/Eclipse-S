@@ -1415,10 +1415,10 @@ struct HomeView: View {
                 CenteredPosterTitleOverlay(
                     title: hero.displayTitle,
                     logoURL: hero.animeLogoURL ?? heroLogoURL,
-                    fontSize: (usesWideHomeLayout ? 34 : 24) * homeHeroTitleLogoSize
+                    fontSize: (usesWideHomeLayout ? 34 : 24) * CGFloat(homeHeroTitleLogoSize)
                 )
-                .frame(maxWidth: (usesWideHomeLayout ? 760 : 520) * homeHeroTitleLogoSize)
-                .frame(height: min(max(heroHeight * 0.24 * homeHeroTitleLogoSize, 112 * homeHeroTitleLogoSize), 190 * homeHeroTitleLogoSize))
+                .frame(maxWidth: (usesWideHomeLayout ? 760 : 520) * CGFloat(homeHeroTitleLogoSize))
+                .frame(height: min(max(heroHeight * 0.24 * CGFloat(homeHeroTitleLogoSize), 112 * CGFloat(homeHeroTitleLogoSize)), 190 * CGFloat(homeHeroTitleLogoSize)))
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 .offset(y: CGFloat(homeHeroTitleLogoVerticalPosition - 0.5) * heroHeight)
                 .padding(.horizontal, 20)
