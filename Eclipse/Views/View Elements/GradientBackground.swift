@@ -514,8 +514,10 @@ enum HomeAnimatedBackgroundParticleColor: String, CaseIterable, Identifiable {
     case pink
     case gold
     case white
+    case custom
 
     static let storageKey = "homeAnimatedBackgroundParticleColor"
+    static let customColorDataKey = "homeAnimatedBackgroundCustomParticleColorData"
     static let defaultValue: HomeAnimatedBackgroundParticleColor = .accent
 
     var id: String { rawValue }
@@ -528,10 +530,11 @@ enum HomeAnimatedBackgroundParticleColor: String, CaseIterable, Identifiable {
         case .pink: return "Pink"
         case .gold: return "Gold"
         case .white: return "White"
+        case .custom: return "Custom"
         }
     }
 
-    func color(accent: Color) -> Color {
+    func color(accent: Color, custom: Color = .purple) -> Color {
         switch self {
         case .accent: return accent
         case .purple: return Color(red: 0.66, green: 0.42, blue: 1.0)
@@ -540,6 +543,7 @@ enum HomeAnimatedBackgroundParticleColor: String, CaseIterable, Identifiable {
         case .pink: return Color(red: 1.0, green: 0.38, blue: 0.70)
         case .gold: return Color(red: 1.0, green: 0.72, blue: 0.28)
         case .white: return .white
+        case .custom: return custom
         }
     }
 
@@ -752,6 +756,7 @@ struct EclipseAmbientMotionBackground: View {
     @AppStorage(HomeAnimatedBackgroundQuality.storageKey) private var qualityRawValue = HomeAnimatedBackgroundQuality.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundFrameRate.storageKey) private var frameRateRawValue = HomeAnimatedBackgroundFrameRate.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundParticleColor.storageKey) private var particleColorRawValue = HomeAnimatedBackgroundParticleColor.defaultValue.rawValue
+    @AppStorage(HomeAnimatedBackgroundParticleColor.customColorDataKey) private var customParticleColorData = Data()
 
     private let particles: [(x: CGFloat, y: CGFloat, size: CGFloat, drift: CGFloat, opacity: Double)] = [
         (0.25, 0.24, 2.8, 15, 0.34),
@@ -766,8 +771,18 @@ struct EclipseAmbientMotionBackground: View {
         (0.66, 0.34, 2.1, -10, 0.24)
     ]
 
+    private var customParticleColor: Color {
+        guard let archived = try? PortableColorArchive.color(from: customParticleColorData) else { return .purple }
+#if os(macOS)
+        return Color(nsColor: archived)
+#else
+        return Color(uiColor: archived)
+#endif
+    }
+
     private var primaryColor: Color {
-        HomeAnimatedBackgroundParticleColor.resolved(particleColorRawValue).color(accent: ambientColor ?? accentColor)
+        HomeAnimatedBackgroundParticleColor.resolved(particleColorRawValue)
+            .color(accent: ambientColor ?? accentColor, custom: customParticleColor)
     }
 
     private var quality: HomeAnimatedBackgroundQuality {
