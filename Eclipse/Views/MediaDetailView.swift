@@ -2354,25 +2354,25 @@ struct MediaDetailContentView: View {
                 endPoint: .trailing
             )
 
-            Group {
-                if let logoURL, !logoURL.isEmpty {
-                    ResilientArtworkImage(
-                        urls: [logoURL],
-                        decodeSize: CGSize(width: max(bannerWidth * 0.56, 1), height: max(bannerHeight * 0.32, 1)),
-                        contentMode: .fit
-                    ) {
-                        Color.clear
-                    }
-                    .frame(maxWidth: bannerWidth * 0.62, maxHeight: bannerHeight * 0.34)
-                } else {
-                    Text(searchResult.displayTitle)
-                        .font(.system(size: 30, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.white)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(3)
-                        .shadow(color: .black.opacity(0.85), radius: 7, x: 0, y: 3)
-                        .padding(.horizontal, 28)
+            // Landscape hero logos use the same size control as the
+            // portrait composition. Do not fall back to ordinary title text:
+            // missing artwork should stay visually quiet rather than flash
+            // a second title before the transparent logo resolves.
+            if let logoURL, !logoURL.isEmpty {
+                ResilientArtworkImage(
+                    urls: [logoURL],
+                    decodeSize: CGSize(
+                        width: max(bannerWidth * 0.72 * CGFloat(activeTitleLogoSize), 1),
+                        height: max(bannerHeight * 0.48 * CGFloat(activeTitleLogoSize), 1)
+                    ),
+                    contentMode: .fit
+                ) {
+                    Color.clear
                 }
+                .frame(
+                    maxWidth: min(bannerWidth * 0.62 * CGFloat(activeTitleLogoSize), bannerWidth * 0.94),
+                    maxHeight: min(bannerHeight * 0.34 * CGFloat(activeTitleLogoSize), bannerHeight * 0.62)
+                )
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             .padding(.horizontal, 28)
