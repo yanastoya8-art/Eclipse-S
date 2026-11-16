@@ -5636,10 +5636,11 @@ final class AniListService {
                             title { romaji english native }
                             averageScore isAdult genres tags { name rank isMediaSpoiler } nextAiringEpisode { episode airingAt } coverImage { large medium }
                             format
+                            startDate { year }
+                            seasonYear
                         }
                     }
                 }
-            }
             """
 
             let data = try await executeGraphQLQuery(query, token: nil)
