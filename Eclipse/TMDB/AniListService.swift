@@ -12511,7 +12511,7 @@ struct AniListAnime: Codable {
 
     private enum CodingKeys: String, CodingKey {
         case id, idMal, externalLinks, averageScore, isAdult, genres, tags, title
-        case episodes, status, startDate, endDate, seasonYear, season, coverImage, format, type
+        case episodes, duration, status, startDate, endDate, seasonYear, season, coverImage, format, type
         case nextAiringEpisode, relations
     }
 
