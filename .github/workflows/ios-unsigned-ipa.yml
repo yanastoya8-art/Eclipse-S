@@ -108,7 +108,7 @@ jobs:
           if [[ ! -d MPVKit/dist/release/xcframework ]]; then CACHE_VALID=false; fi
 
           if [[ "$CACHE_VALID" == true ]]; then
-            python3 - MPVKit/dist/release/xcframework "${REQUIRED_FRAMEWORKS[@]}" <<'PY'
+            if python3 - MPVKit/dist/release/xcframework "${REQUIRED_FRAMEWORKS[@]}" <<'PY'
           import plistlib
           import sys
           from pathlib import Path
@@ -149,7 +149,11 @@ jobs:
               raise SystemExit(1)
           print(f"Validated {len(required)} cached iOS XCFrameworks (device + simulator).")
           PY
-            if [[ "$?" -ne 0 ]]; then CACHE_VALID=false; fi
+            then
+              :
+            else
+              CACHE_VALID=false
+            fi
           fi
 
           if [[ "$CACHE_VALID" == true ]]; then
