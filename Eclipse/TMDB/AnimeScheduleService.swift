@@ -795,8 +795,8 @@ actor SpanishDubAIResearchService {
     private var negativeChecks: [String: Date] = [:]
     private var didLoadCache = false
     private let cacheKey = "spanishDubAIResearchCacheV1"
-    private let cacheLifetime: TimeInterval = 7 * 24 * 60 * 60
-    private let maximumCandidatesPerRefresh = 20
+    private let cacheLifetime: TimeInterval = 12 * 60 * 60
+    private let maximumCandidatesPerRefresh = 40
 
     /// Providers are deliberately sequential. A later provider only sees episodes
     /// that the earlier provider could not verify.
@@ -837,7 +837,7 @@ actor SpanishDubAIResearchService {
                           result.status.lowercased() == "confirmed",
                           result.region.lowercased().contains("spanish"),
                           let date = Self.parseDate(result.date),
-                          date >= Calendar(identifier: .gregorian).startOfDay(for: now),
+                          date >= Self.utcStartOfDay(now),
                           date <= now.addingTimeInterval(180 * 86400),
                           let source = result.sources.first(where: { Self.isUsableSource($0) }) else {
                         continue
@@ -1010,14 +1010,13 @@ actor SpanishDubAIResearchService {
     ) throws -> (URL, [String: Any], String, String) {
         switch provider {
         case .gemini:
-            guard var components = URLComponents(string: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent") else {
+            guard let components = URLComponents(string: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent") else {
                 throw AnimeScheduleError.invalidResponse
             }
             guard let url = components.url else { throw AnimeScheduleError.invalidResponse }
             return (url, [
                 "contents": [["parts": [["text": prompt]]]],
-                "tools": [["google_search": [:]]],
-                "generationConfig": ["temperature": 0.1]
+                "tools": [["google_search": [:]]]
             ], "x-goog-api-key", apiKey)
         case .perplexity:
             guard let url = URL(string: "https://api.perplexity.ai/chat/completions") else {
@@ -1042,6 +1041,12 @@ actor SpanishDubAIResearchService {
 
     private static func cacheKey(for entry: AniListAiringScheduleEntry) -> String {
         "\(entry.mediaId):\(entry.episode)"
+    }
+
+    private static func utcStartOfDay(_ date: Date) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
+        return calendar.startOfDay(for: date)
     }
 
     private static func parseDate(_ raw: String) -> Date? {
