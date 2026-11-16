@@ -108,6 +108,7 @@ enum ScheduleProvider: String, Codable, Sendable {
     case animeSchedule
     case dubOnly
     case tsuzuki
+    case justWatch
     case trakt
     case traktMovie
     case tvMaze
@@ -167,7 +168,7 @@ private enum ScheduleSourceLoadError: LocalizedError {
 struct ScheduleEntry: Identifiable, Sendable {
     let id: String
     let source: ScheduleSource
-    let provider: ScheduleProvider
+    var provider: ScheduleProvider
     let sourceMediaId: Int
     let title: String
     var airingAt: Date
@@ -349,6 +350,12 @@ struct ScheduleEntry: Identifiable, Sendable {
         copy.airingAt = date
         copy.isStreamingRelease = isStreamingRelease
         if isStreamingRelease { copy.hasKnownAiringTime = false }
+        return copy
+    }
+
+    func markedAsVerifiedJustWatchDub() -> ScheduleEntry {
+        var copy = self
+        copy.provider = .justWatch
         return copy
     }
 }
@@ -811,6 +818,11 @@ final class ScheduleViewModel: ObservableObject {
             guard !selectedLanguages.isEmpty else { return true }
             // DubOnly entries are already verified English-dub timetable rows;
             // do not require a second, unrelated MyDubList lookup to retain them.
+            if entry.provider == .justWatch {
+                // JustWatch has already verified the selected audio language;
+                // do not require a second MyDubList lookup for the same title.
+                return true
+            }
             if entry.provider == .dubOnly || entry.provider == .tsuzuki {
                 // Both schedule providers return verified English-dub dates.
                 // The global audio filter explicitly accepts English alongside
@@ -957,7 +969,9 @@ final class ScheduleViewModel: ObservableObject {
                             // Only verified streaming/dub dates are allowed here.
                             // AniList's Japanese broadcast date is never a fallback
                             // for a selected English/Spanish dub filter.
-                            verifiedJustWatchEntries = languageMatches.filter(\.isStreamingRelease)
+                            verifiedJustWatchEntries = languageMatches
+                                .filter(\.isStreamingRelease)
+                                .map { $0.markedAsVerifiedJustWatchDub() }
                         }
                     }
                 } else {
