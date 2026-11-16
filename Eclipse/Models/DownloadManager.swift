@@ -10298,11 +10298,21 @@ extension DownloadManager: URLSessionDownloadDelegate {
             // save the manifest as a completed video; hand it to the segment
             // downloader while preserving the provider's protected route.
             if let item = self.downloads.first(where: { $0.id == downloadId }),
-               let referenceKind = item.lastContentReference?.kind,
-               [.stremio, .nuvio, .service].contains(referenceKind),
                !item.isHLS,
                self.stremioResponseIsHLSPlaylist(httpResponse, body: body) {
-                guard let expectedProviderKind = item.effectiveProtectedProviderKind,
+                let expectedProviderKind: ProtectedDownloadProviderKind?
+                switch Self.protectedAuthorityState(for: item) {
+                case .authorized(let kind):
+                    expectedProviderKind = kind
+                case .legacyService:
+                    expectedProviderKind = .service
+                case .legacyStremio:
+                    expectedProviderKind = .stremio
+                case .notProtected, .invalid:
+                    expectedProviderKind = nil
+                }
+                guard let expectedProviderKind,
+                      [.stremio, .nuvio, .service].contains(expectedProviderKind),
                       let attempt = self.protectedProviderAttempts[downloadId],
                       attempt.providerKind == expectedProviderKind,
                       attempt.attemptID == protectedNuvioAttemptID else {
