@@ -1774,12 +1774,12 @@ struct HomeView: View {
 
     private func heroImageFallbackURLs(for hero: TMDBSearchResult) -> [String] {
         guard let primary = heroImageURL(for: hero) else { return [] }
-        let tmdbPoster = hero.posterPath.flatMap {
-            TMDBImageRequestPolicy.urlString(for: $0, kind: .poster)
-        }
+        // Keep TMDB poster paths out of hero fallbacks too: they can contain
+        // baked-in title text. Clean provider posters and the backdrop remain
+        // independent fallbacks.
         return PosterArtworkURLResolver.candidates(for: hero)
             .filter { $0 != primary }
-            + [tmdbPoster, hero.fullBackdropURL].compactMap { $0 }.filter { $0 != primary }
+            + [hero.fullBackdropURL].compactMap { $0 }.filter { $0 != primary }
     }
 
     @ViewBuilder
