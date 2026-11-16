@@ -27,6 +27,7 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
     case animatedBackground
     case animationQuality
     case animationColor
+    case customAnimationColor
     case animationFrameRate
     case appPerformanceOverlay
     case hideSplashScreen
@@ -38,6 +39,11 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
     case titleLogoWeight
     case heroActionPosition
     case heroSynopsisPosition
+    case landscapeTitleLogoPosition
+    case landscapeTitleLogoSize
+    case landscapeTitleLogoWeight
+    case landscapeHeroActionPosition
+    case landscapeHeroSynopsisPosition
     case tmdbTitleArt
     case dataSaver
     case ageRating
@@ -55,9 +61,9 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
             return "theme"
         case .interface, .globalAppearance, .accentColor:
             return "interface"
-        case .switchModeAnimation, .animatedBackground, .animationQuality, .animationColor, .animationFrameRate, .appPerformanceOverlay, .hideSplashScreen:
+        case .switchModeAnimation, .animatedBackground, .animationQuality, .animationColor, .customAnimationColor, .animationFrameRate, .appPerformanceOverlay, .hideSplashScreen:
             return "motion"
-        case .alternativeSeasonMenu, .horizontalEpisodeList, .showUnairedEpisodes, .titleLogoPosition, .titleLogoSize, .titleLogoWeight, .heroActionPosition, .heroSynopsisPosition, .tmdbTitleArt, .dataSaver, .ageRating, .similarTitles:
+        case .alternativeSeasonMenu, .horizontalEpisodeList, .showUnairedEpisodes, .titleLogoPosition, .titleLogoSize, .titleLogoWeight, .heroActionPosition, .heroSynopsisPosition, .landscapeTitleLogoPosition, .landscapeTitleLogoSize, .landscapeTitleLogoWeight, .landscapeHeroActionPosition, .landscapeHeroSynopsisPosition, .tmdbTitleArt, .dataSaver, .ageRating, .similarTitles:
             return "details"
         case .libraryBookmarks, .libraryCollectionLayout:
             return "library"
@@ -524,6 +530,7 @@ struct AlternativeUIView: View {
                     ColorPicker("Custom Animation Color", selection: customAnimationParticleColorBinding)
                         .labelsHidden()
                         .accessibilityIdentifier("settings.appearance.customAnimationColor")
+                        .id(AppearanceSettingsSearchTarget.customAnimationColor.anchorID)
                 }
             }
 
@@ -657,10 +664,15 @@ struct AlternativeUIView: View {
             Divider()
             Text("Landscape Detail Page").font(.subheadline.weight(.semibold))
             sliderRow(title: "Landscape Title Logo Vertical Position", description: "Move the title logo independently in landscape detail pages.", value: $landscapeTitleLogoPosition, range: LandscapeMediaDetailAppearanceSettings.logoPositionRange, step: 0.05)
+                .id(AppearanceSettingsSearchTarget.landscapeTitleLogoPosition.anchorID)
             sliderRow(title: "Landscape Title Logo Size", description: "Change title logo size only in landscape detail pages.", value: $landscapeTitleLogoSize, range: LandscapeMediaDetailAppearanceSettings.logoSizeRange, step: 0.05)
+                .id(AppearanceSettingsSearchTarget.landscapeTitleLogoSize.anchorID)
             sliderRow(title: "Landscape Title Logo Weight", description: "Change title logo weight only in landscape detail pages.", value: $landscapeTitleLogoWeight, range: LandscapeMediaDetailAppearanceSettings.logoWeightRange, step: 0.05)
+                .id(AppearanceSettingsSearchTarget.landscapeTitleLogoWeight.anchorID)
             sliderRow(title: "Landscape Action Buttons Vertical Position", description: "Move action buttons independently in landscape detail pages.", value: $landscapeHeroActionsOffset, range: LandscapeMediaDetailAppearanceSettings.offsetRange, step: LandscapeMediaDetailAppearanceSettings.offsetStep)
+                .id(AppearanceSettingsSearchTarget.landscapeHeroActionPosition.anchorID)
             sliderRow(title: "Landscape Synopsis Vertical Position", description: "Move the synopsis independently in landscape detail pages.", value: $landscapeHeroSynopsisOffset, range: LandscapeMediaDetailAppearanceSettings.offsetRange, step: LandscapeMediaDetailAppearanceSettings.offsetStep)
+                .id(AppearanceSettingsSearchTarget.landscapeHeroSynopsisPosition.anchorID)
         } header: {
             Text("Detail Pages")
         }
