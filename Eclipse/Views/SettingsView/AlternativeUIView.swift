@@ -7,6 +7,11 @@
 //
 
 import SwiftUI
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
 
 enum AppearanceSettingsSearchTarget: String, Hashable {
     case palette
