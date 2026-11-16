@@ -525,7 +525,7 @@ final class ScheduleViewModel: ObservableObject {
                 dayCount: requestedDayCount,
                 forceRefresh: forceRefresh
             )
-            let hideUnofficialContent = UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent")
+            let hideUnofficialContent = ProfileSettingsStore.active.bool(forKey: "catalogHideUnofficialContent")
             let entries = loadResult.entries.filter { entry in
                 guard hideUnofficialContent else { return true }
                 // Anime schedule providers include production/category tags.
