@@ -113,7 +113,7 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           repository: yanastoya8-art/MPVKit-S
-          ref: fee7aa27869ed4775ff2984de4438484d902e67b
+          ref: b951a22fc5ddbf708057ace059e3742dae685e4d
           path: MPVKit
 
       - name: Build patched MPVKit for iPhone and iPad
@@ -145,7 +145,7 @@ jobs:
       - name: Verify patched MPVKit source and local frameworks
         run: |
           set -euo pipefail
-          test "$(git -C MPVKit rev-parse HEAD)" = "fee7aa27869ed4775ff2984de4438484d902e67b"
+          test "$(git -C MPVKit rev-parse HEAD)" = "b951a22fc5ddbf708057ace059e3742dae685e4d"
           grep -q 'dovi_metadata' MPVKit/Sources/BuildScripts/patch/libmpv/0017-expose-decoded-dolby-vision-rpu.patch
           grep -q 'videoHasDolbyVisionRPU' MPVKit/Sources/MPVKitSampleBufferGPL/MPVGPUPlayerRenderer.swift
 
@@ -165,7 +165,7 @@ jobs:
           # then point the manifest at the package root itself.
           MPVKIT_PACKAGE_CHECKOUT="$SOURCE_PACKAGES_DIR/checkouts/mpvkit-s"
           test -f "$MPVKIT_PACKAGE_CHECKOUT/Package.swift"
-          test "$(git -C "$MPVKIT_PACKAGE_CHECKOUT" rev-parse HEAD)" = "fee7aa27869ed4775ff2984de4438484d902e67b"
+          test "$(git -C "$MPVKIT_PACKAGE_CHECKOUT" rev-parse HEAD)" = "b951a22fc5ddbf708057ace059e3742dae685e4d"
           MPVKIT_LOCAL_ARTIFACTS_DIR="$MPVKIT_PACKAGE_CHECKOUT"
           export MPVKIT_LOCAL_ARTIFACTS_DIR
           mkdir -p "$MPVKIT_LOCAL_ARTIFACTS_DIR/xcframework"
