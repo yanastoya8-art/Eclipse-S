@@ -1712,8 +1712,8 @@ class TMDBService: ObservableObject {
             return values
         }
 
-        var resolved = cached.values
-        await MainActor.run {
+        return await MainActor.run {
+            var resolved = cached.values
             for (name, lookup) in lookups where lookup.completed {
                 let key = "\(language.lowercased())|\(Self.normalizedKeyword(name))"
                 keywordIDLookupCache[key] = KeywordIDCacheEntry(
@@ -1722,8 +1722,8 @@ class TMDBService: ObservableObject {
                 )
                 if let id = lookup.id { resolved[name] = id }
             }
+            return resolved
         }
-        return resolved
     }
 
     func discoverMedia(
