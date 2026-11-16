@@ -776,6 +776,7 @@ actor SpanishDubAIResearchService {
     static let shared = SpanishDubAIResearchService()
 
     private struct ResearchCandidate: Codable {
+        let mediaId: Int
         let episode: Int
         let date: String
         let region: String
@@ -806,20 +807,20 @@ actor SpanishDubAIResearchService {
             .prefix(maximumCandidatesPerRefresh))
         guard !candidates.isEmpty else { return [] }
 
-        var resolved: [Int: CachedDate] = [:]
+        var resolved: [String: CachedDate] = [:]
         for entry in candidates {
             let key = Self.cacheKey(for: entry)
             if let cached = cache[key],
                now.timeIntervalSince(cached.fetchedAt) >= 0,
                now.timeIntervalSince(cached.fetchedAt) < cacheLifetime {
-                resolved[entry.episode] = cached
+                resolved[key] = cached
             }
         }
 
         for provider in SpanishDubAIProvider.allCases {
             let apiKey = SpanishDubAIKeyStore.load(provider) ?? ""
             guard !apiKey.isEmpty else { continue }
-            let unresolved = candidates.filter { resolved[ $0.episode ] == nil }
+            let unresolved = candidates.filter { resolved[Self.cacheKey(for: $0)] == nil }
             guard !unresolved.isEmpty else { break }
             do {
                 let results = try await request(provider: provider, apiKey: apiKey, entries: unresolved)
@@ -836,7 +837,7 @@ actor SpanishDubAIResearchService {
                     let record = CachedDate(fetchedAt: now, date: date, sourceURL: source, provider: provider)
                     let key = Self.cacheKey(for: entry)
                     cache[key] = record
-                    resolved[entry.episode] = record
+                    resolved[key] = record
                 }
                 persistCache()
             } catch {
@@ -846,9 +847,9 @@ actor SpanishDubAIResearchService {
             }
         }
 
-        let byEpisode = Dictionary(grouping: candidates, by: \.episode)
-        return resolved.compactMap { episode, record in
-            guard let original = byEpisode[episode]?.first else { return nil }
+        let byEpisode = Dictionary(grouping: candidates, by: { Self.cacheKey(for: $0) })
+        return resolved.compactMap { key, record in
+            guard let original = byEpisode[key]?.first else { return nil }
             return AniListAiringScheduleEntry(
                 id: original.id,
                 mediaId: original.mediaId,
@@ -956,11 +957,11 @@ actor SpanishDubAIResearchService {
         }
         let byEpisode = Dictionary(grouping: decoded.results, by: \.episode)
         return entries.map { entry in
-            guard let result = byEpisode[entry.episode]?.first,
-                  result.mediaId == entry.mediaId else { return nil }
+            guard let result = byEpisode[entry.episode]?.first(where: { $0.mediaId == entry.mediaId }) else { return nil }
             let groundedSources = result.sources.filter { citations.contains($0) && Self.isUsableSource($0) }
             guard !groundedSources.isEmpty else { return nil }
             return ResearchCandidate(
+                mediaId: result.mediaId,
                 episode: result.episode,
                 date: result.date,
                 region: result.region,
