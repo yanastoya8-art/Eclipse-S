@@ -538,14 +538,70 @@ final class HomeViewModel: ObservableObject {
     }
 
     private func loadHomeCatalog<T>(_ id: String, fetch: () async throws -> [T]) async -> [T] {
-        do {
-            let items = try await fetch()
-            Logger.shared.log("HomeViewModel: catalog \(id) loaded count=\(items.count)", type: "TMDB")
-            return items
-        } catch {
-            Logger.shared.log("HomeViewModel: catalog \(id) failed: \(error.localizedDescription)", type: "Error")
-            return []
+        // Home is composed from independent providers/catalogs. A transient
+        // connection reset or TMDB 5xx must not permanently turn an otherwise
+        // healthy Home launch into an empty catalog screen.
+        let retryDelays: [UInt64] = [400_000_000, 1_000_000_000]
+        var lastError: Error?
+
+        for attempt in 0...retryDelays.count {
+            guard !Task.isCancelled else { return [] }
+            do {
+                let items = try await fetch()
+                Logger.shared.log(
+                    "HomeViewModel: catalog \(id) loaded count=\(items.count) attempt=\(attempt + 1)",
+                    type: "TMDB"
+                )
+                return items
+            } catch {
+                lastError = error
+                guard attempt < retryDelays.count,
+                      Self.shouldRetryHomeCatalogRequest(after: error),
+                      !Task.isCancelled else {
+                    break
+                }
+                Logger.shared.log(
+                    "HomeViewModel: catalog \(id) transient failure on attempt \(attempt + 1); retrying: \(error.localizedDescription)",
+                    type: "TMDB"
+                )
+                do {
+                    try await Task.sleep(nanoseconds: retryDelays[attempt])
+                } catch {
+                    return []
+                }
+            }
         }
+
+        Logger.shared.log(
+            "HomeViewModel: catalog \(id) failed after retries: \(lastError?.localizedDescription ?? "unknown error")",
+            type: "Error"
+        )
+        return []
+    }
+
+    private static func shouldRetryHomeCatalogRequest(after error: Error) -> Bool {
+        if let tmdbError = error as? TMDBError {
+            switch tmdbError {
+            case .networkError(let underlying):
+                return shouldRetryHomeCatalogRequest(after: underlying)
+            case .httpError(let statusCode, _, _):
+                return statusCode == 408 || statusCode == 425 || statusCode == 429 || (500...599).contains(statusCode)
+            case .invalidURL, .decodingError, .missingAPIKey:
+                return false
+            }
+        }
+
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain {
+            switch URLError.Code(rawValue: nsError.code) {
+            case .timedOut, .cannotFindHost, .cannotConnectToHost, .networkConnectionLost,
+                 .notConnectedToInternet, .dnsLookupFailed, .resourceUnavailable:
+                return true
+            default:
+                return false
+            }
+        }
+        return false
     }
 
     private func loadHomeCatalogIfNeeded<T>(
