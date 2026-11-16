@@ -550,8 +550,15 @@ final class HomeViewModel: ObservableObject {
         await withTaskGroup(of: (String, [TMDBSearchResult]).self) { group in
             for kind in kinds {
                 group.addTask {
-                    let items = (try? await tmdbService.discoverForKids(query: kind.query)) ?? []
-                    return (kind.catalogID, items)
+                    do {
+                        let items = try await tmdbService.discoverForKids(query: kind.query)
+                        return (kind.catalogID, items)
+                    } catch {
+                        await self.catalogFailureRecorder.record(
+                            "Catalog \(kind.catalogID): \(error.localizedDescription)"
+                        )
+                        return (kind.catalogID, [])
+                    }
                 }
             }
             for await (id, items) in group {
