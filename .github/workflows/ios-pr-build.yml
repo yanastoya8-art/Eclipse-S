@@ -181,13 +181,13 @@ jobs:
           # SwiftPM git checkouts are read-only; make this CI-only manifest copy writable.
           manifest.chmod(0o644)
           source = manifest.read_text()
-          import re
-          pattern = r'(?s)(let requiredArtifacts = \\[).*?(\\n\\s*\\])'
-          replacement = r'\\1\\n        "Libmpv", "Libavcodec", "Libavdevice", "Libavfilter",\\n        "Libavformat", "Libavutil", "Libswresample", "Libswscale",\\2'
-          updated, count = re.subn(pattern, replacement, source, count=1)
-          if count != 1:
-              raise SystemExit("Could not safely narrow MPVKit local artifact validation")
-          manifest.write_text(updated)
+          start = source.index("    let requiredArtifacts = [")
+          end = source.index("\n    ]", start) + len("\n    ]")
+          replacement = """    let requiredArtifacts = [
+                  "Libmpv", "Libavcodec", "Libavdevice", "Libavfilter",
+                  "Libavformat", "Libavutil", "Libswresample", "Libswscale",
+              ]"""
+          manifest.write_text(source[:start] + replacement + source[end:])
           PY
 
           # Fail here with a useful diagnostic instead of letting Package.swift abort
