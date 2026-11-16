@@ -743,17 +743,15 @@ struct SearchView: View {
             return
         }
 
-        // Enter the loading state before the debounce window so an empty
-        // result snapshot never flashes a false "No results found" message.
+        // Keep the previous result snapshot interactive while the next
+        // query is debounced and resolved. Clearing it on every keystroke
+        // caused the grid, category controls and navigation targets to be
+        // rebuilt repeatedly, making the browser feel frozen and untappable.
         isLoading = true
         errorMessage = nil
-        searchResults = []
-#if os(tvOS)
-        tvFocusedResultID = nil
-#endif
 
         pendingSearchTask = Task { [query] in
-            try? await Task.sleep(nanoseconds: 450_000_000)
+            try? await Task.sleep(nanoseconds: 600_000_000)
             guard !Task.isCancelled else { return }
 
             await MainActor.run {
@@ -875,14 +873,17 @@ struct SearchView: View {
                 let needsAnimeIdentity = searchFilter == .anime
                     || !selectedDubLanguages.isEmpty
                     || UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
+                // Anime identity resolution is network-backed. For broad
+                // searches, resolve only likely anime candidates already
+                // marked by TMDB's genre/origin/language metadata (the helper
+                // performs that narrowing) and skip it for non-anime filters.
                 let identityResolvedResults = needsAnimeIdentity
                     ? await resolveSearchAnimeIdentities(results)
                     : results
                 try Task.checkCancellation()
-                if !selectedDubLanguages.isEmpty,
-                   !MyDubListDubFilter.shared.prepareCachedSnapshot() {
-                    _ = await MyDubListDubFilter.shared.refresh()
-                }
+                // Do not refresh the remote MyDubList index on each
+                // keystroke. A missing cache is handled by the schedule/filter
+                // refresh path; search must remain responsive and cancellable.
                 try Task.checkCancellation()
                 await contentFilter.prepareMaturityRatings(for: identityResolvedResults)
                 try Task.checkCancellation()
