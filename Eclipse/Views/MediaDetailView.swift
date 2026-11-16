@@ -672,7 +672,7 @@ struct MediaDetailContentView: View {
         // Keep the colour bleed visible in landscape, but scale its tail to
         // the shorter viewport instead of forcing a 680pt minimum extension.
         if usesLandscapeDetailComposition {
-            return min(max(detailViewportHeight * 0.62, 240), 420)
+            return min(max(detailViewportHeight * 0.72, 300), 520)
         }
         return min(max(detailViewportHeight * 0.78, 680), 900)
     }
@@ -680,7 +680,9 @@ struct MediaDetailContentView: View {
     private var mediaDetailHeroBleedStrength: Double {
         let configuredStrength = theme.scopedBleedStrength()
         guard usesWideDetailLayout, configuredStrength > 0.001 else { return configuredStrength }
-        return min(max(configuredStrength * 1.18, 0.92), 1.25)
+        return usesLandscapeDetailComposition
+            ? min(max(configuredStrength * 1.28, 1.0), 1.45)
+            : min(max(configuredStrength * 1.18, 0.92), 1.25)
     }
 
     private var designMetrics: ExperimentalMediaDesignMetrics {
@@ -7190,7 +7192,7 @@ struct MediaDetailContentView: View {
             // A missing logo is not a successful lookup: keep the enrichment
             // retryable so transient provider/API failures do not become a
             // permanent cached "no logo" result.
-            optionalPresentationIsComplete = credits != nil && titleImages != nil && (resolvedLogoURL != nil || !isAnimeShow)
+            optionalPresentationIsComplete = credits != nil && titleImages != nil && resolvedLogoURL != nil
             cacheOptionalPresentation(key: cacheKey)
 
             let elapsedMs = Int(((ProcessInfo.processInfo.systemUptime - startedAt) * 1_000).rounded())
