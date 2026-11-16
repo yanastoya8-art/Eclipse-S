@@ -2641,8 +2641,14 @@ struct MediaDetailContentView: View {
                     Color.clear
                 }
                 .frame(
-                    width: min(detailViewportWidth * 0.72 * CGFloat(activeTitleLogoSize), detailViewportWidth * 0.92),
-                    height: min(max(headerHeight * 0.26 * CGFloat(activeTitleLogoSize), 72), headerHeight * 0.55)
+                    width: min(
+                        detailViewportWidth * 0.72 * CGFloat(activeTitleLogoSize),
+                        detailViewportWidth * (usesLandscapeDetailComposition ? 1.15 : 0.92)
+                    ),
+                    height: min(
+                        max(headerHeight * 0.26 * CGFloat(activeTitleLogoSize), 72),
+                        headerHeight * (usesLandscapeDetailComposition ? 0.72 : 0.55)
+                    )
                 )
                 .overlay {
                     if activeTitleLogoWeight > 0.01 {
