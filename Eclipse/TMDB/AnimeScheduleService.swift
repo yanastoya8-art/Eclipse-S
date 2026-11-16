@@ -920,7 +920,7 @@ actor SpanishDubAIResearchService {
         let (url, body, authHeader, authValue) = try Self.requestParts(provider: provider, apiKey: apiKey, prompt: prompt)
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.timeoutInterval = 35
+        request.timeoutInterval = 18
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(authValue, forHTTPHeaderField: authHeader)
