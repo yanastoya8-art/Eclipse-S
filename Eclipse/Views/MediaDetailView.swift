@@ -7102,7 +7102,7 @@ struct MediaDetailContentView: View {
             if let credits { castMembers = credits.cast }
             titleArtworkLookupComplete = true
             // A failed credits request must not be cached as a completed enrichment pass.
-            optionalPresentationIsComplete = credits != nil && englishLogoURL != nil
+            optionalPresentationIsComplete = credits != nil && titleImages != nil
             cacheOptionalPresentation(key: cacheKey)
 
             let elapsedMs = Int(((ProcessInfo.processInfo.systemUptime - startedAt) * 1_000).rounded())
