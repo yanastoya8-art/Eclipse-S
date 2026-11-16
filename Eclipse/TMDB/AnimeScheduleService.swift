@@ -540,7 +540,7 @@ actor TsuzukiAnimeDubScheduleService {
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .gregorian)
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.timeZone = TimeZone.current
         formatter.dateFormat = "yyyy-MM-dd"
         let start = formatter.string(from: now)
         let cacheKey = "\(start):\(days)"
@@ -837,7 +837,7 @@ actor SpanishDubAIResearchService {
                           result.status.lowercased() == "confirmed",
                           result.region.lowercased().contains("spanish"),
                           let date = Self.parseDate(result.date),
-                          date >= Self.utcStartOfDay(now),
+                          date >= Calendar.current.startOfDay(for: now),
                           date <= now.addingTimeInterval(180 * 86400),
                           let source = result.sources.first(where: { Self.isUsableSource($0) }) else {
                         continue
@@ -900,10 +900,13 @@ actor SpanishDubAIResearchService {
     ) async throws -> [ResearchCandidate?] {
         let grouped = Dictionary(grouping: entries, by: { $0.mediaId })
         let titles = grouped.values.compactMap(\.first).map { entry in
-            let title = [entry.englishTitle, entry.title, entry.romajiTitle]
-                .compactMap { $0 }.first(where: { !$0.isEmpty }) ?? entry.title
+            let names = Array(Set([entry.englishTitle, entry.title, entry.romajiTitle, entry.nativeTitle]
+                .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }))
+            let year = entry.releaseYear.map { " · year \($0)" } ?? ""
+            let mal = entry.malID.map { " · MAL ID \($0)" } ?? ""
             let episodes = grouped[entry.mediaId, default: []].map(\.episode).sorted()
-            return "\(title) (AniList ID \(entry.mediaId)): episodes \(episodes.map(String.init).joined(separator: ", "))"
+            return "\(names.joined(separator: " / "))\(year) (AniList ID \(entry.mediaId)\(mal)): episodes \(episodes.map(String.init).joined(separator: ", "))"
         }.joined(separator: "\n")
         let prompt = """
         Research upcoming Spanish-language anime dub release dates using live web search.
@@ -1043,12 +1046,6 @@ actor SpanishDubAIResearchService {
         "\(entry.mediaId):\(entry.episode)"
     }
 
-    private static func utcStartOfDay(_ date: Date) -> Date {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
-        return calendar.startOfDay(for: date)
-    }
-
     private static func parseDate(_ raw: String) -> Date? {
         guard raw.count == 10 else { return nil }
         let formatter = DateFormatter()
@@ -1063,7 +1060,7 @@ actor SpanishDubAIResearchService {
               url.scheme?.lowercased() == "https",
               let host = url.host?.lowercased(), !host.isEmpty,
               url.user == nil, url.password == nil else { return false }
-        let trusted = ["crunchyroll.com", "netflix.com", "hidive.com", "hulu.com", "disneyplus.com", "primevideo.com", "amazon.com", "aniplexusa.com", "aniplex.co.jp", "toei-animation.com", "viz.com", "animenewsnetwork.com", "animecorner.me", "comicbook.com", "ign.com", "variety.com", "deadline.com", "guianime.com", "doblaje.fandom.com", "doblaje-espana.fandom.com"]
+        let trusted = ["crunchyroll.com", "netflix.com", "hidive.com", "hulu.com", "disneyplus.com", "primevideo.com", "amazon.com", "aniplexusa.com", "aniplex.co.jp", "toei-animation.com", "viz.com", "selecta-vision.com", "animebox.net", "atresplayer.com", "pluto.tv", "movistarplus.es", "max.com", "animenewsnetwork.com", "animecorner.me", "comicbook.com", "ign.com", "variety.com", "deadline.com", "guianime.com", "doblaje.fandom.com", "doblaje-espana.fandom.com"]
         return trusted.contains(where: { host == $0 || host.hasSuffix("." + $0) })
     }
 
