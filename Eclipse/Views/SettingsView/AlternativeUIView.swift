@@ -78,6 +78,7 @@ struct AlternativeUIView: View {
     @AppStorage(HomeAnimatedBackgroundSettings.enabledKey) private var homeAnimatedBackgroundEnabled = HomeAnimatedBackgroundSettings.defaultEnabled
     @AppStorage(HomeAnimatedBackgroundQuality.storageKey) private var homeAnimatedBackgroundQuality = HomeAnimatedBackgroundQuality.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundFrameRate.storageKey) private var homeAnimatedBackgroundFrameRate = HomeAnimatedBackgroundFrameRate.defaultValue.rawValue
+    @AppStorage(HomeAnimatedBackgroundParticleColor.storageKey) private var homeAnimatedBackgroundParticleColor = HomeAnimatedBackgroundParticleColor.defaultValue.rawValue
     @AppStorage(AppPerformanceOverlaySettings.enabledKey) private var appPerformanceOverlayEnabled = AppPerformanceOverlaySettings.defaultEnabled
 #if !os(tvOS)
     @AppStorage(ModeSwitchAnimationSettings.enabledKey) private var modeSwitchAnimationEnabled = ModeSwitchAnimationSettings.defaultEnabled
@@ -478,6 +479,19 @@ struct AlternativeUIView: View {
                 }
                 .pickerStyle(.menu)
                 .id(AppearanceSettingsSearchTarget.animationQuality.anchorID)
+            }
+
+            settingRow(
+                title: "Animation Color",
+                description: "Choose the color used by the animated rings, stars, circles, and ambient particles."
+            ) {
+                Picker("", selection: $homeAnimatedBackgroundParticleColor) {
+                    ForEach(HomeAnimatedBackgroundParticleColor.allCases) { color in
+                        Text(color.displayName).tag(color.rawValue)
+                    }
+                }
+                .pickerStyle(.menu)
+                .id("appearance-settings-search-animation-color")
             }
 
             settingRow(
