@@ -22,26 +22,33 @@ enum PosterArtworkURLResolver {
     static func candidates(for result: TMDBSearchResult) -> [String] {
         var candidates: [String] = []
 
-        // Use specialist art first where it is most useful, then TMDB's
-        // original-size asset before smaller catalogue derivatives.
-        if result.isMovie, let fanart = result.fanartTVPosterURL, !fanart.isEmpty {
-            candidates.append(fanart)
-        }
-        if let anime = result.animeArtworkURL,
-           !anime.isEmpty,
-           anime.localizedCaseInsensitiveContains("taizen.moe") {
+        // Anime cover services often provide sharper, cleaner source artwork
+        // than TMDB's catalogue-sized poster. Prefer that artwork for anime,
+        // while keeping Fanart.tv first for movies and TVMaze for live-action TV.
+        let language = result.originalLanguage?.lowercased() ?? ""
+        let asianAnimationCountries: Set<String> = ["JP", "CN", "KR", "TW"]
+        let isAnime = result.animeIdentitySeed != nil
+            || result.isAnimeHint == true
+            || (result.genreIds?.contains(16) == true
+                && (["ja", "zh", "ko"].contains(language)
+                    || result.originCountry?.contains(where: { asianAnimationCountries.contains($0) }) == true))
+
+        if isAnime, let anime = result.animeArtworkURL, !anime.isEmpty {
             candidates.append(anime)
+        }
+        if !isAnime, result.isMovie, let fanart = result.fanartTVPosterURL, !fanart.isEmpty {
+            candidates.append(fanart)
         }
         if let original = originalTMDBPosterURL(for: result) {
             candidates.append(original)
         }
-        if let fanart = result.fanartTVPosterURL, !fanart.isEmpty {
+        if !isAnime, let fanart = result.fanartTVPosterURL, !fanart.isEmpty {
             candidates.append(fanart)
         }
-        if let tvMaze = result.tvMazePosterURL, !tvMaze.isEmpty {
+        if !isAnime, let tvMaze = result.tvMazePosterURL, !tvMaze.isEmpty {
             candidates.append(tvMaze)
         }
-        if let anime = result.animeArtworkURL, !anime.isEmpty {
+        if !isAnime, let anime = result.animeArtworkURL, !anime.isEmpty {
             candidates.append(anime)
         }
         if let full = result.fullPosterURL, !full.isEmpty {
@@ -64,15 +71,9 @@ struct CenteredPosterTitleOverlay: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                stops: [
-                    .init(color: .clear, location: 0),
-                    .init(color: .black.opacity(0.58), location: 0.5),
-                    .init(color: .clear, location: 1)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
+            // Keep the source poster at its original brightness. A dark gradient
+            // here was unintentionally tinting every browsing/search poster,
+            // even when no title artwork was available.
 
             if let logoURL, !logoURL.isEmpty {
                 ResilientArtworkImage(
@@ -85,7 +86,7 @@ struct CenteredPosterTitleOverlay: View {
                 .frame(maxWidth: 900, maxHeight: 260)
                 .padding(.horizontal, 8)
             } else {
-                Color.clear
+                titleText
             }
         }
         .accessibilityElement(children: .ignore)

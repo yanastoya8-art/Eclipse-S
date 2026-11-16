@@ -14,6 +14,7 @@ struct DiscoverDetailView: View {
     @State private var currentPage = 1
     @State private var isLoadingMore = false
     @State private var hasMorePages = true
+    @State private var loadGeneration = UUID()
     @StateObject private var contentFilter = TMDBContentFilter.shared
     @Environment(\.heroNamespace) private var heroNamespace
 
@@ -71,6 +72,16 @@ struct DiscoverDetailView: View {
                 .padding(.horizontal, isTvOS ? 60 : (isIPad ? 28 : 16))
                 .padding(.top, heroItem != nil ? (isTvOS ? 40 : (isIPad ? 28 : 16)) : (isTvOS ? 24 : 8))
 
+                // A dedicated sentinel keeps pagination moving when the last
+                // card's onAppear is not re-fired after a page append.
+                if loadMore != nil && hasMorePages {
+                    Color.clear
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 1)
+                        .id("browse-pagination-\(items.count)-\(currentPage)")
+                        .onAppear { loadNextPage() }
+                }
+
                 if isLoadingMore {
                     EclipseLoadingIndicator()
                         .padding(.vertical, 20)
@@ -93,6 +104,22 @@ struct DiscoverDetailView: View {
                 if filteredItems.isEmpty {
                     loadNextPage()
                 }
+            }
+        }
+        .onChangeComp(of: title) { _, _ in
+            // The same navigation destination can be reused while switching
+            // between Anime, Movies and Series. Invalidate any in-flight page
+            // request and discard the previous catalog's tail before loading
+            // the new category.
+            loadGeneration = UUID()
+            items = initialItems
+            initialPageItemCount = initialItems.count
+            currentPage = 1
+            isLoadingMore = false
+            hasMorePages = true
+            filterRefreshRevision &+= 1
+            if filteredItems.isEmpty {
+                loadNextPage()
             }
         }
         .onChangeComp(of: initialItems.map(\.stableIdentity)) { _, _ in
@@ -359,6 +386,8 @@ struct DiscoverDetailView: View {
     private func loadNextPage() {
         guard let loadMore = loadMore, !isLoadingMore, hasMorePages else { return }
         isLoadingMore = true
+        let generation = UUID()
+        loadGeneration = generation
         Task { @MainActor in
             // A page can be non-empty at the provider but empty after strict
             // language/age/production filters. Scan a few subsequent pages
@@ -369,6 +398,7 @@ struct DiscoverDetailView: View {
             while consecutiveEmptyPages < maximumEmptyPagesToScan {
                 currentPage += 1
                 let newItems = await loadMore(currentPage)
+                guard generation == loadGeneration else { return }
                 let existingIds = Set(items.map { $0.stableIdentity })
                 let unique = newItems.filter { !existingIds.contains($0.stableIdentity) }
                 if unique.isEmpty {
@@ -382,6 +412,7 @@ struct DiscoverDetailView: View {
             if consecutiveEmptyPages >= maximumEmptyPagesToScan {
                 hasMorePages = false
             }
+            guard generation == loadGeneration else { return }
             isLoadingMore = false
         }
     }
