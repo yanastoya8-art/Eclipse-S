@@ -2550,12 +2550,14 @@ private struct BrowseMediaView: View {
         guard !candidates.isEmpty else { return results }
 
         if !selectedDubLanguageCodes.isEmpty || originalAudioFilterEnabled {
-            // The identity resolver below immediately performs many per-title
-            // mapping lookups. Wait for the shared index warm-up first so those
-            // lookups can use one cached global index instead of racing it and
-            // issuing a burst of individual network requests for each anime.
-            await AniMapMappingService.shared.prepareGlobalIndexIfNeeded()
+            // Load a previously persisted index before per-title lookups, but do
+            // not block Browse on downloading the full global index on a cold
+            // install. Keep the network refresh in the background.
+            await AniMapMappingService.shared.prepareCachedGlobalIndexIfNeeded()
             guard !Task.isCancelled else { return results }
+            Task(priority: .utility) {
+                await AniMapMappingService.shared.prepareGlobalIndexIfNeeded()
+            }
         }
 
         let resolvedResults = await withTaskGroup(of: (Int, TMDBSearchResult).self) { group in
