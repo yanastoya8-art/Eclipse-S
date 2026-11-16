@@ -29,6 +29,10 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
     case horizontalEpisodeList
     case showUnairedEpisodes
     case titleLogoPosition
+    case titleLogoSize
+    case titleLogoWeight
+    case heroActionPosition
+    case heroSynopsisPosition
     case tmdbTitleArt
     case dataSaver
     case ageRating
@@ -48,7 +52,7 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
             return "interface"
         case .switchModeAnimation, .animatedBackground, .animationQuality, .animationColor, .animationFrameRate, .appPerformanceOverlay, .hideSplashScreen:
             return "motion"
-        case .alternativeSeasonMenu, .horizontalEpisodeList, .showUnairedEpisodes, .titleLogoPosition, .tmdbTitleArt, .dataSaver, .ageRating, .similarTitles:
+        case .alternativeSeasonMenu, .horizontalEpisodeList, .showUnairedEpisodes, .titleLogoPosition, .titleLogoSize, .titleLogoWeight, .heroActionPosition, .heroSynopsisPosition, .tmdbTitleArt, .dataSaver, .ageRating, .similarTitles:
             return "details"
         case .libraryBookmarks, .libraryCollectionLayout:
             return "library"
@@ -63,6 +67,10 @@ struct AlternativeUIView: View {
     @AppStorage(MediaDetailPlatformDefaults.horizontalEpisodeListKey) private var horizontalEpisodeList = MediaDetailPlatformDefaults.prefersHorizontalEpisodes
     @AppStorage(MediaDetailEpisodeVisibilitySettings.showUnairedEpisodesKey) private var showUnairedEpisodes = MediaDetailEpisodeVisibilitySettings.defaultShowUnairedEpisodes
     @AppStorage(MediaDetailTitleLogoPositionSettings.verticalPositionKey) private var titleLogoVerticalPosition = MediaDetailTitleLogoPositionSettings.defaultVerticalPosition
+    @AppStorage(MediaDetailTitleLogoAppearanceSettings.sizeKey) private var titleLogoSize = MediaDetailTitleLogoAppearanceSettings.defaultSize
+    @AppStorage(MediaDetailTitleLogoAppearanceSettings.weightKey) private var titleLogoWeight = MediaDetailTitleLogoAppearanceSettings.defaultWeight
+    @AppStorage(MediaDetailHeroContentPositionSettings.actionsOffsetKey) private var heroActionsOffset = MediaDetailHeroContentPositionSettings.defaultOffset
+    @AppStorage(MediaDetailHeroContentPositionSettings.synopsisOffsetKey) private var heroSynopsisOffset = MediaDetailHeroContentPositionSettings.defaultOffset
     @AppStorage(ImageDataSaverSettings.enabledKey, store: .standard) private var imageDataSaverEnabled = false
     @AppStorage(MediaDetailAgeRatingSettings.enabledKey) private var mediaDetailAgeRatingEnabled = MediaDetailAgeRatingSettings.defaultEnabled
     @AppStorage(MediaDetailSimilarTitlesSettings.enabledKey) private var mediaDetailSimilarTitlesEnabled = MediaDetailSimilarTitlesSettings.defaultEnabled
@@ -484,7 +492,7 @@ struct AlternativeUIView: View {
 
             settingRow(
                 title: "Animation Color",
-                description: "Choose the color used by the animated rings, stars, circles, and ambient particles."
+                description: "Choose the particle color used by the animated rings, stars, and circles in Streaming and Reader mode."
             ) {
                 Picker("", selection: $homeAnimatedBackgroundParticleColor) {
                     ForEach(HomeAnimatedBackgroundParticleColor.allCases) { color in
@@ -492,6 +500,9 @@ struct AlternativeUIView: View {
                     }
                 }
                 .pickerStyle(.menu)
+                .accessibilityLabel("Animation Color")
+                .accessibilityIdentifier("settings.appearance.animationColor")
+                .accessibilityValue(HomeAnimatedBackgroundParticleColor.resolved(homeAnimatedBackgroundParticleColor).displayName)
                 .id(AppearanceSettingsSearchTarget.animationColor.anchorID)
             }
 
@@ -565,6 +576,38 @@ struct AlternativeUIView: View {
                 step: MediaDetailTitleLogoPositionSettings.step
             )
             .id(AppearanceSettingsSearchTarget.titleLogoPosition.anchorID)
+            sliderRow(
+                title: "Title Logo Size",
+                description: "Make transparent title logos larger or smaller on posters and hero banners.",
+                value: $titleLogoSize,
+                range: MediaDetailTitleLogoAppearanceSettings.sizeRange,
+                step: 0.05
+            )
+            .id(AppearanceSettingsSearchTarget.titleLogoSize.anchorID)
+            sliderRow(
+                title: "Title Logo Weight",
+                description: "Slightly thicken thin logo strokes while keeping the original transparent artwork.",
+                value: $titleLogoWeight,
+                range: MediaDetailTitleLogoAppearanceSettings.weightRange,
+                step: 0.05
+            )
+            .id(AppearanceSettingsSearchTarget.titleLogoWeight.anchorID)
+            sliderRow(
+                title: "Action Buttons Vertical Position",
+                description: "Move the detail page action buttons higher or lower.",
+                value: $heroActionsOffset,
+                range: MediaDetailHeroContentPositionSettings.supportedRange,
+                step: MediaDetailHeroContentPositionSettings.step
+            )
+            .id(AppearanceSettingsSearchTarget.heroActionPosition.anchorID)
+            sliderRow(
+                title: "Synopsis Vertical Position",
+                description: "Move the detail page synopsis independently of the action buttons.",
+                value: $heroSynopsisOffset,
+                range: MediaDetailHeroContentPositionSettings.supportedRange,
+                step: MediaDetailHeroContentPositionSettings.step
+            )
+            .id(AppearanceSettingsSearchTarget.heroSynopsisPosition.anchorID)
             toggleRow(
                 title: "Show Age Rating",
                 description: "Display the available content age rating on movie, series and anime detail pages.",

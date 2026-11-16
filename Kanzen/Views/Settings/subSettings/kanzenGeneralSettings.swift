@@ -69,14 +69,23 @@ struct KanzenGeneralSettingsView: View {
     var body: some View {
         Form {
             Section(header: Text("Interface & Scope")) {
-                HStack {
-                    Text("Interface")
-                    Spacer()
+                HStack(alignment: .center, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Interface")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        Text("Modern is the redesigned look. Classic restores the original layout (requires restart).")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 8)
                     Picker("Interface", selection: interfaceBinding) {
                         Text("Modern").tag(true)
                         Text("Classic").tag(false)
                     }
                     .pickerStyle(.menu)
+                    .labelsHidden()
                 }
 
                 if modernInterfaceEnabled != ExperimentalFeatureState.isEnabledAtLaunch {
@@ -85,21 +94,32 @@ struct KanzenGeneralSettingsView: View {
                         .foregroundColor(.secondary)
                 }
 
-                Toggle("Global Appearance", isOn: $theme.globalAppearanceEnabled)
-                    .onChange(of: theme.globalAppearanceEnabled) { _ in
-                        settings.updateAppearance()
+                Toggle(isOn: $theme.globalAppearanceEnabled) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Global Appearance")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        Text("Share appearance changes between media and reader mode.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
+                }
+                .onChange(of: theme.globalAppearanceEnabled) { _ in
+                    settings.updateAppearance()
+                }
 
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .center, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
                         Text("Accent Color")
                             .font(.subheadline)
                             .fontWeight(.medium)
                         Text("Affects buttons, links and other interactive elements.")
                             .font(.caption)
                             .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    Spacer()
+                    Spacer(minLength: 8)
                     ColorPicker("", selection: accentColorBinding)
                         .labelsHidden()
                 }

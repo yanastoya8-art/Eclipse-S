@@ -225,8 +225,8 @@ struct ScheduleEntry: Identifiable, Sendable {
         animeMALID = animeEntry.malID
         airingTimeWithdrawn = animeEntry.airingTimeWithdrawn == true
         originalLanguage = nil
-        releaseYear = nil
-        runtimeMinutes = nil
+        releaseYear = animeEntry.releaseYear
+        runtimeMinutes = animeEntry.runtimeMinutes
         isMovie = false
     }
 
@@ -784,6 +784,27 @@ final class ScheduleViewModel: ObservableObject {
             guard !AnimeSpecialFormatPolicy.shouldExclude(format: entry.format, enabled: hideAnimeSpecials) else {
                 return false
             }
+
+            let searchableTitle = [
+                entry.title, entry.englishTitle, entry.romajiTitle, entry.nativeTitle
+            ].compactMap { $0 }.joined(separator: " ")
+            // Apply the same anime category/runtime/era exclusions used by
+            // Browse before publishing the calendar. Previously the schedule
+            // only applied dub availability and special-format filters, so
+            // enabling these catalog filters left incompatible anime visible.
+            guard !TMDBContentFilter.shouldExcludeAnimeCategory(
+                title: searchableTitle,
+                overview: entry.overview
+            ) else { return false }
+            if UserDefaults.standard.bool(forKey: "catalogHidePre1994Anime"),
+               let year = entry.releaseYear, year < 1994 {
+                return false
+            }
+            if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent"),
+               let runtime = entry.runtimeMinutes, runtime < 20 {
+                return false
+            }
+
             // With no dub-language filter selected, preserve the existing
             // schedule behavior while still applying the independent
             // specials/OVAs preference above.

@@ -44,3 +44,21 @@ enum MediaDetailTitleLogoPositionSettings {
     static let supportedRange: ClosedRange<Double> = 0.15...0.85
     static let step = 0.05
 }
+
+
+enum MediaDetailTitleLogoAppearanceSettings {
+    static let sizeKey = "mediaDetailTitleLogoSize"
+    static let weightKey = "mediaDetailTitleLogoWeight"
+    static let defaultSize = 1.0
+    static let sizeRange: ClosedRange<Double> = 0.65...1.45
+    static let defaultWeight = 0.0
+    static let weightRange: ClosedRange<Double> = 0.0...1.0
+}
+
+enum MediaDetailHeroContentPositionSettings {
+    static let actionsOffsetKey = "mediaDetailHeroActionsOffset"
+    static let synopsisOffsetKey = "mediaDetailHeroSynopsisOffset"
+    static let defaultOffset = 0.0
+    static let supportedRange: ClosedRange<Double> = -100...100
+    static let step = 5.0
+}

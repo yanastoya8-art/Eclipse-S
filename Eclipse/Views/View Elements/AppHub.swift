@@ -543,7 +543,10 @@ struct AppHubOverlay: View {
     private func switchToReaderMode(origin: CGPoint) {
         guard !showKanzen else { return }
 
-        guard modeSwitchAnimationEnabled else {
+        // The settings description promises that Reduce Motion disables this
+        // transition. Respect the system accessibility preference as well as
+        // the in-app toggle so the delayed burst cannot run unexpectedly.
+        guard modeSwitchAnimationEnabled, !reduceMotion else {
             showKanzen = true
             return
         }

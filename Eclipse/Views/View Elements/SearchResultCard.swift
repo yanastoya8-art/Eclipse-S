@@ -70,26 +70,23 @@ struct CenteredPosterTitleOverlay: View {
     var fontSize: CGFloat = 16
     var verticalPosition: Double = MediaDetailTitleLogoPositionSettings.defaultVerticalPosition
 
+    @AppStorage(MediaDetailTitleLogoAppearanceSettings.sizeKey)
+    private var logoSize = MediaDetailTitleLogoAppearanceSettings.defaultSize
+    @AppStorage(MediaDetailTitleLogoAppearanceSettings.weightKey)
+    private var logoWeight = MediaDetailTitleLogoAppearanceSettings.defaultWeight
+
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                // Keep the source poster at its original brightness. A dark gradient
-                // here was unintentionally tinting every browsing/search poster,
-                // even when no title artwork was available.
-
+                // Never replace missing transparent artwork with ordinary text:
+                // that creates a visibly different title treatment between cards.
                 if let logoURL, !logoURL.isEmpty {
-                    ResilientArtworkImage(
-                        urls: [logoURL],
-                        decodeSize: CGSize(width: 900, height: 260),
-                        contentMode: .fit
-                    ) {
-                        Color.clear
-                    }
-                    .frame(maxWidth: min(geometry.size.width * 0.9, 900), maxHeight: min(geometry.size.height * 0.34, 260))
-                    .padding(.horizontal, 8)
-                } else {
-                    titleText
-                        .frame(maxWidth: geometry.size.width * 0.9)
+                    logoImage
+                        .frame(
+                            maxWidth: min(geometry.size.width * 0.9 * CGFloat(logoSize), 900),
+                            maxHeight: min(geometry.size.height * 0.34 * CGFloat(logoSize), 260)
+                        )
+                        .padding(.horizontal, 8)
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
@@ -100,15 +97,32 @@ struct CenteredPosterTitleOverlay: View {
         .allowsHitTesting(false)
     }
 
-    private var titleText: some View {
-        Text(title)
-            .font(.system(size: fontSize, weight: .heavy, design: .rounded))
-            .foregroundStyle(.white)
-            .multilineTextAlignment(.center)
-            .lineLimit(3)
-            .minimumScaleFactor(0.72)
-            .shadow(color: .black.opacity(0.85), radius: 7, x: 0, y: 3)
-            .padding(.horizontal, 10)
+    @ViewBuilder
+    private var logoImage: some View {
+        if let logoURL, !logoURL.isEmpty {
+            ResilientArtworkImage(
+                urls: [logoURL],
+                decodeSize: CGSize(width: 1200, height: 360),
+                contentMode: .fit
+            ) {
+                Color.clear
+            }
+            // A subtle second pass thickens thin logo strokes without adding
+            // a text fallback or altering the source artwork.
+            .overlay {
+                if logoWeight > 0.01 {
+                    ResilientArtworkImage(
+                        urls: [logoURL],
+                        decodeSize: CGSize(width: 1200, height: 360),
+                        contentMode: .fit
+                    ) {
+                        Color.clear
+                    }
+                    .offset(x: 0.6, y: 0)
+                    .opacity(min(max(logoWeight, 0), 1) * 0.65)
+                }
+            }
+        }
     }
 }
 

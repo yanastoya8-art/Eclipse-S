@@ -19,6 +19,7 @@ struct KanzenModeSwitchButton: View {
     @AppStorage("showKanzen", store: .standard) private var showKanzen: Bool = false
     @AppStorage(ModeSwitchAnimationSettings.enabledKey) private var modeSwitchAnimationEnabled = ModeSwitchAnimationSettings.defaultEnabled
     @EnvironmentObject private var modeSwitchTransitionCoordinator: ModeSwitchTransitionCoordinator
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isLaunching = false
     @State private var buttonFrame: CGRect = .zero
 
@@ -76,7 +77,8 @@ struct KanzenModeSwitchButton: View {
     private func switchToMediaMode() {
         guard showKanzen, !isLaunching else { return }
 
-        guard modeSwitchAnimationEnabled else {
+        // Keep both directions consistent with the Reduce Motion preference.
+        guard modeSwitchAnimationEnabled, !reduceMotion else {
             showKanzen = false
             return
         }

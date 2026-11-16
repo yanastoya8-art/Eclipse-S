@@ -260,10 +260,33 @@ struct KanzenHomeView: View {
                     unsupportedSourceView(source)
                 }
             } else {
+                let featuredSection = sections.first {
+                    $0.displayStyle == .featured && !$0.items.isEmpty
+                }
+                let featuredItem = featuredSection?.items.first
+
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 24) {
+                        if let featuredSection, let featuredItem {
+                            NavigationLink(
+                                destination: MangaHomeItemDestination(
+                                    source: source,
+                                    section: featuredSection,
+                                    item: featuredItem
+                                )
+                            ) {
+                                MangaHomeHeroBanner(item: featuredItem)
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.horizontal, isIPad ? 24 : 16)
+                        }
+
                         ForEach(sections) { section in
-                            MangaHomeSectionView(source: source, section: section)
+                            MangaHomeSectionView(
+                                source: source,
+                                section: section,
+                                excludingItemID: section.id == featuredSection?.id ? featuredItem?.id : nil
+                            )
                         }
                     }
                     .padding(.top, ExperimentalFeatureState.isEnabledAtLaunch ? max(18, metrics.sectionSpacing * 0.55) : 18)
@@ -397,6 +420,7 @@ struct KanzenHomeView: View {
 private struct MangaHomeSectionView: View {
     let source: MangaHomeSource
     let section: MangaHomeSection
+    var excludingItemID: String? = nil
 
     private var metrics: ExperimentalMediaDesignMetrics { .current }
 
@@ -458,7 +482,7 @@ private struct MangaHomeSectionView: View {
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(alignment: .top, spacing: ExperimentalFeatureState.isEnabledAtLaunch ? (isIPad ? 22 : 18) : 12) {
-                        ForEach(Array(section.items.prefix(visibleItemLimit))) { item in
+                        ForEach(Array(section.items.filter { $0.id != excludingItemID }.prefix(visibleItemLimit))) { item in
                             NavigationLink(destination: MangaHomeItemDestination(source: source, section: section, item: item)) {
                                 card(for: item)
                             }
@@ -637,6 +661,80 @@ private struct MangaHomeFeaturedCard: View {
                 .stroke(Color.white.opacity(ExperimentalFeatureState.isEnabledAtLaunch ? 0.08 : 0), lineWidth: 1)
         )
         .shadow(color: .black.opacity(ExperimentalFeatureState.isEnabledAtLaunch ? 0.28 : 0), radius: 14, x: 0, y: 8)
+    }
+}
+
+private struct MangaHomeHeroBanner: View {
+    let item: MangaHomeItem
+
+    private var bannerWidth: CGFloat {
+        min(max(EclipseViewport.bounds.width - (isIPad ? 48 : 32), 280), isIPad ? 900 : 760)
+    }
+
+    private var bannerHeight: CGFloat {
+        bannerWidth * (isIPad ? 0.40 : 0.52)
+    }
+
+    private var radius: CGFloat {
+        ExperimentalFeatureState.isEnabledAtLaunch ? ExperimentalMediaDesignMetrics.current.cardRadius : 12
+    }
+
+    var body: some View {
+        ZStack(alignment: .bottomLeading) {
+            ReaderScopedRemoteImage(
+                url: URL(string: item.imageURL),
+                readerExtensionSourceID: item.route?.readerExtensionSourceID,
+                maximumPixelSize: isIPad ? 1_800 : 1_200
+            ) {
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .fill(Color.white.opacity(0.08))
+                    .overlay(
+                        Image(systemName: "book.closed")
+                            .font(.system(size: 34))
+                            .foregroundColor(.white.opacity(0.42))
+                    )
+            }
+            .scaledToFill()
+            .frame(width: bannerWidth, height: bannerHeight)
+            .clipped()
+
+            LinearGradient(
+                colors: [.clear, .black.opacity(0.28), .black.opacity(0.88)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text(item.title)
+                    .font(.system(size: isIPad ? 30 : 23, weight: .bold))
+                    .foregroundColor(.white)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.82)
+
+                if let subtitle = item.subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.system(size: isIPad ? 17 : 14, weight: .medium))
+                        .foregroundColor(.white.opacity(0.76))
+                        .lineLimit(1)
+                }
+
+                Label("Open", systemImage: "book.fill")
+                    .font(.system(size: isIPad ? 16 : 14, weight: .semibold))
+                    .foregroundColor(.black)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 9)
+                    .background(Capsule().fill(Color.white.opacity(0.94)))
+                    .padding(.top, 2)
+            }
+            .padding(isIPad ? 24 : 17)
+        }
+        .frame(width: bannerWidth, height: bannerHeight)
+        .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.24), radius: 16, x: 0, y: 8)
     }
 }
 

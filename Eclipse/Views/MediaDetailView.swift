@@ -461,6 +461,14 @@ struct MediaDetailContentView: View {
     @State private var logoURL: String?
     @AppStorage(MediaDetailTitleLogoPositionSettings.verticalPositionKey)
     private var titleLogoVerticalPosition = MediaDetailTitleLogoPositionSettings.defaultVerticalPosition
+    @AppStorage(MediaDetailTitleLogoAppearanceSettings.sizeKey)
+    private var detailTitleLogoSize = MediaDetailTitleLogoAppearanceSettings.defaultSize
+    @AppStorage(MediaDetailTitleLogoAppearanceSettings.weightKey)
+    private var detailTitleLogoWeight = MediaDetailTitleLogoAppearanceSettings.defaultWeight
+    @AppStorage(MediaDetailHeroContentPositionSettings.actionsOffsetKey)
+    private var heroActionsVerticalOffset = MediaDetailHeroContentPositionSettings.defaultOffset
+    @AppStorage(MediaDetailHeroContentPositionSettings.synopsisOffsetKey)
+    private var heroSynopsisVerticalOffset = MediaDetailHeroContentPositionSettings.defaultOffset
     @State private var alternatePosterURL: String?
     @State private var tvMazePosterURL: String?
     @State private var isAnimeShow = false
@@ -635,6 +643,11 @@ struct MediaDetailContentView: View {
 
     private var mediaDetailHeroBleedTail: CGFloat {
         guard usesWideDetailLayout else { return headerHeight * 0.62 }
+        // Keep the colour bleed visible in landscape, but scale its tail to
+        // the shorter viewport instead of forcing a 680pt minimum extension.
+        if usesLandscapeDetailComposition {
+            return min(max(detailViewportHeight * 0.62, 240), 420)
+        }
         return min(max(detailViewportHeight * 0.78, 680), 900)
     }
 
@@ -1003,6 +1016,12 @@ struct MediaDetailContentView: View {
         detailViewportHeight * 0.8
 #else
         let portraitPosterHeight = EclipseViewport.bounds.width * 1.5
+        // Landscape has a much shorter vertical viewport. Scale the hero to
+        // that viewport instead of retaining the tall iPad/portrait banner,
+        // which otherwise pushes actions and synopsis far below the fold.
+        if usesLandscapeDetailComposition {
+            return min(max(detailViewportHeight * 0.88, 320), 520)
+        }
         if ExperimentalFeatureState.isEnabledAtLaunch {
             let measuredHeight = designMetrics.detailHeroHeight(
                 screenHeight: detailViewportHeight,
@@ -2509,9 +2528,11 @@ struct MediaDetailContentView: View {
                     // Portrait posters are shown at their natural 2:3 presentation ratio.
                     // Reserve their full display height before placing metadata/actions.
                     Spacer(minLength: 0)
-                        .frame(height: usesWideDetailLayout
-                            ? headerHeight * 0.78
-                            : min(EclipseViewport.bounds.width * 1.5, headerHeight - 40))
+                        .frame(height: usesLandscapeDetailComposition
+                            ? min(max(headerHeight * 0.64, 210), 340)
+                            : (usesWideDetailLayout
+                                ? headerHeight * 0.78
+                                : min(EclipseViewport.bounds.width * 1.5, headerHeight - 40)))
                     headerSection
                         .frame(maxWidth: .infinity, alignment: usesLandscapeDetailComposition ? .center : (usesWideDetailLayout ? .trailing : .center))
                         .padding(.horizontal, usesWideDetailLayout ? 48 : 0)
@@ -2561,41 +2582,52 @@ struct MediaDetailContentView: View {
 
             gradientOverlay
 
-            // Transparent title marks are most legible when centered over the
-            // poster artwork rather than positioned above or below it.
+            // Use only transparent title artwork. Never synthesize ordinary
+            // title text over a poster when a provider has no logo asset.
             if let logoURL, !logoURL.isEmpty {
                 ResilientArtworkImage(
                     urls: [logoURL],
                     decodeSize: CGSize(
-                        width: max(EclipseViewport.bounds.width * EclipseViewport.scale * 0.72, 1),
-                        height: max(headerHeight * EclipseViewport.scale * 0.22, 1)
+                        width: max(EclipseViewport.bounds.width * EclipseViewport.scale * 0.9, 1),
+                        height: max(headerHeight * EclipseViewport.scale * 0.3, 1)
                     ),
                     contentMode: .fit
                 ) {
                     Color.clear
                 }
                 .frame(
-                    width: min(EclipseViewport.bounds.width * 0.72, 520),
-                    height: min(max(headerHeight * 0.22, 72), 150)
+                    width: min(EclipseViewport.bounds.width * 0.72 * CGFloat(detailTitleLogoSize), 680),
+                    height: min(max(headerHeight * 0.22 * CGFloat(detailTitleLogoSize), 72), 190)
                 )
+                .overlay {
+                    if detailTitleLogoWeight > 0.01 {
+                        ResilientArtworkImage(
+                            urls: [logoURL],
+                            decodeSize: CGSize(
+                                width: max(EclipseViewport.bounds.width * EclipseViewport.scale * 0.9, 1),
+                                height: max(headerHeight * EclipseViewport.scale * 0.3, 1)
+                            ),
+                            contentMode: .fit
+                        ) {
+                            Color.clear
+                        }
+                        .offset(x: 0.6, y: 0)
+                        .opacity(min(max(detailTitleLogoWeight, 0), 1) * 0.65)
+                    }
+                }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 // The position is user-adjustable in Appearance → Detail Pages.
                 .offset(y: headerHeight * CGFloat(titleLogoVerticalPosition - 0.5))
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
-            } else {
-                Text(searchResult.displayTitle)
-                    .font(.system(size: 30, weight: .heavy, design: .rounded))
-                    .foregroundStyle(.white)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(3)
-                    .shadow(color: .black.opacity(0.85), radius: 7, x: 0, y: 3)
-                    .padding(.horizontal, 24)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                    .offset(y: headerHeight * CGFloat(titleLogoVerticalPosition - 0.5))
-                    .allowsHitTesting(false)
             }
         }
+        // Landscape detail content is inset by the device's horizontal safe
+        // areas. The hero artwork should not inherit those insets: extend only
+        // this backdrop layer to the physical screen edges. Foreground controls
+        // and the portrait composition keep their existing safe-area layout.
+        .frame(maxWidth: .infinity)
+        .ignoresSafeArea(.container, edges: usesLandscapeDetailComposition ? .horizontal : [])
     }
 
     @ViewBuilder
@@ -2777,11 +2809,13 @@ struct MediaDetailContentView: View {
             if shouldShowHeroActions {
                 experimentalPlayAndBookmarkSection
                     .padding(.top, isTvOS ? 16 : (usesWideDetailLayout ? 6 : 2))
+                    .offset(y: CGFloat(heroActionsVerticalOffset))
             }
 
             if shouldShowHeroOverview {
                 experimentalHeroSynopsisSection
                     .padding(.top, isTvOS ? 12 : (usesWideDetailLayout ? 2 : 0))
+                    .offset(y: CGFloat(heroSynopsisVerticalOffset))
             }
 
             if shouldShowHeroDetails {

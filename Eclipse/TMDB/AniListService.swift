@@ -5571,7 +5571,10 @@ final class AniListService {
                 hasKnownAiringTime: entry.hasKnownAiringTime,
                 scheduleProvider: entry.scheduleProvider,
                 malID: entry.malID,
-                airingTimeWithdrawn: entry.airingTimeWithdrawn
+                airingTimeWithdrawn: entry.airingTimeWithdrawn,
+                tags: entry.tags,
+                releaseYear: entry.releaseYear,
+                runtimeMinutes: entry.runtimeMinutes
             )
         }
         return AnimeAiringScheduleResult(
@@ -5634,10 +5637,12 @@ final class AniListService {
                             title { romaji english native }
                             averageScore isAdult genres tags { name rank isMediaSpoiler } nextAiringEpisode { episode airingAt } coverImage { large medium }
                             format
+                            duration
+                            startDate { year }
+                            seasonYear
                         }
                     }
                 }
-            }
             """
 
             let data = try await executeGraphQLQuery(query, token: nil)
@@ -5673,7 +5678,9 @@ final class AniListService {
                     format: schedule.media.format,
                     hasKnownAiringTime: true,
                     malID: schedule.media.idMal,
-                    tags: schedule.media.tags?.map(\.name)
+                    tags: schedule.media.tags?.map(\.name),
+                    releaseYear: schedule.media.startDate?.year ?? schedule.media.seasonYear,
+                    runtimeMinutes: schedule.media.duration
                 )
             }
             .filter { entry in
@@ -12190,6 +12197,8 @@ struct AniListAiringScheduleEntry: Identifiable, Codable, Sendable {
     var malID: Int? = nil
     var airingTimeWithdrawn: Bool? = nil
     var tags: [String]? = nil
+    var releaseYear: Int? = nil
+    var runtimeMinutes: Int? = nil
 }
 
 struct AnimeAiringScheduleResult: Sendable {
@@ -12491,6 +12500,7 @@ struct AniListAnime: Codable {
     let tags: [AniListTag]?
     let title: AniListTitle
     let episodes: Int?
+    var duration: Int? = nil
     let status: String?
     let startDate: AniListDate?
     var endDate: AniListDate? = nil
@@ -12504,7 +12514,7 @@ struct AniListAnime: Codable {
 
     private enum CodingKeys: String, CodingKey {
         case id, idMal, externalLinks, averageScore, isAdult, genres, tags, title
-        case episodes, status, startDate, endDate, seasonYear, season, coverImage, format, type
+        case episodes, duration, status, startDate, endDate, seasonYear, season, coverImage, format, type
         case nextAiringEpisode, relations
     }
 
