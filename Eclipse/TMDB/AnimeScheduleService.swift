@@ -706,68 +706,13 @@ enum AnimeScheduleFallback {
 
 enum SpanishDubAIProvider: String, CaseIterable, Identifiable, Codable {
     case gemini
-    case perplexity
     case openAI
 
     var id: String { rawValue }
     var displayName: String {
         switch self {
         case .gemini: return "Google Gemini"
-        case .perplexity: return "Perplexity"
         case .openAI: return "OpenAI"
-        }
-    }
-}
-
-/// API credentials are device-local and never written to UserDefaults or bundled in the app.
-enum SpanishDubAIKeyStore {
-    private static let service = "app.eclipse.spanish-dub-ai"
-
-    static func load(_ provider: SpanishDubAIProvider) -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: provider.rawValue,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-        var result: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let data = result as? Data,
-              let value = String(data: data, encoding: .utf8)?
-                .trimmingCharacters(in: .whitespacesAndNewlines),
-              !value.isEmpty else { return nil }
-        return value
-    }
-
-    static func save(_ value: String, for provider: SpanishDubAIProvider) throws {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: provider.rawValue
-        ]
-        guard !trimmed.isEmpty else {
-            let status = SecItemDelete(query as CFDictionary)
-            guard status == errSecSuccess || status == errSecItemNotFound else {
-                throw NSError(domain: NSOSStatusErrorDomain, code: Int(status))
-            }
-            return
-        }
-        let attributes: [String: Any] = [
-            kSecValueData as String: Data(trimmed.utf8),
-            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-        ]
-        let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
-        if status == errSecItemNotFound {
-            var insert = query
-            attributes.forEach { insert[$0.key] = $0.value }
-            let addStatus = SecItemAdd(insert as CFDictionary, nil)
-            guard addStatus == errSecSuccess else {
-                throw NSError(domain: NSOSStatusErrorDomain, code: Int(addStatus))
-            }
-        } else if status != errSecSuccess {
-            throw NSError(domain: NSOSStatusErrorDomain, code: Int(status))
         }
     }
 }
@@ -820,7 +765,7 @@ actor SpanishDubAIResearchService {
 
         var didAttemptProvider = false
         for provider in SpanishDubAIProvider.allCases {
-            let apiKey = SpanishDubAIKeyStore.load(provider) ?? ""
+            let apiKey = Self.apiKey(for: provider) ?? ""
             guard !apiKey.isEmpty else { continue }
             didAttemptProvider = true
             let unresolved = candidates.filter { entry in
@@ -952,12 +897,6 @@ actor SpanishDubAIResearchService {
                     }
                 }
             }
-        case .perplexity:
-            guard let choices = payload["choices"] as? [[String: Any]],
-                  let message = choices.first?["message"] as? [String: Any],
-                  let content = message["content"] as? String else { throw AnimeScheduleError.invalidResponse }
-            text = content
-            for url in payload["citations"] as? [String] ?? [] { citations.insert(url) }
         case .openAI:
             guard let output = payload["output"] as? [[String: Any]] else { throw AnimeScheduleError.invalidResponse }
             var chunks: [String] = []
@@ -1022,15 +961,6 @@ actor SpanishDubAIResearchService {
                 "contents": [["parts": [["text": prompt]]]],
                 "tools": [["google_search": [:]]]
             ], "x-goog-api-key", apiKey)
-        case .perplexity:
-            guard let url = URL(string: "https://api.perplexity.ai/chat/completions") else {
-                throw AnimeScheduleError.invalidResponse
-            }
-            return (url, [
-                "model": "sonar",
-                "temperature": 0.1,
-                "messages": [["role": "user", "content": prompt]]
-            ], "Authorization", "Bearer " + apiKey)
         case .openAI:
             guard let url = URL(string: "https://api.openai.com/v1/responses") else {
                 throw AnimeScheduleError.invalidResponse
@@ -1041,6 +971,20 @@ actor SpanishDubAIResearchService {
                 "input": prompt
             ], "Authorization", "Bearer " + apiKey)
         }
+    }
+
+    /// Keys are supplied by GitHub Actions and injected into the generated app Info.plist.
+    /// A key embedded in an iOS app can be extracted; production deployments should use a server proxy.
+    private static func apiKey(for provider: SpanishDubAIProvider) -> String? {
+        let infoKey: String
+        switch provider {
+        case .gemini: infoKey = "GeminiAPIKey"
+        case .openAI: infoKey = "OpenAIAPIKey"
+        }
+        let value = (Bundle.main.object(forInfoDictionaryKey: infoKey) as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let value, !value.isEmpty, !value.contains("$(") else { return nil }
+        return value
     }
 
     private static func cacheKey(for entry: AniListAiringScheduleEntry) -> String {
