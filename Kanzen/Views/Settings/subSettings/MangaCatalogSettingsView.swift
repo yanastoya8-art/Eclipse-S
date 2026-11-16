@@ -13,6 +13,8 @@ struct MangaCatalogSettingsView: View {
     @StateObject private var contentFilter = ReaderContentFilter.shared
     @StateObject private var customCatalogManager = KanzenCustomCatalogManager.shared
     @State private var errorMessage: String?
+    @AppStorage(ReaderHomeCatalogVisibilitySettings.showPopularKey, store: ProfileSettingsStore.active) private var showPopularCatalog = ReaderHomeCatalogVisibilitySettings.defaultShowPopular
+    @AppStorage(ReaderHomeCatalogVisibilitySettings.showLatestKey, store: ProfileSettingsStore.active) private var showLatestCatalog = ReaderHomeCatalogVisibilitySettings.defaultShowLatest
 
     private var sources: [ReaderExtensionInstalledSource] {
         readerExtensionManager.installedSources.sorted {
@@ -63,6 +65,16 @@ struct MangaCatalogSettingsView: View {
 
     private var sourceList: some View {
         List {
+            Section(
+                header: Text("Discover Catalogs"),
+                footer: Text("Choose which built-in discovery rows appear on the Reader home screen. Disabled catalogs are not requested from sources.")
+            ) {
+                Toggle("Popular", isOn: $showPopularCatalog)
+                Toggle("Latest Updates", isOn: $showLatestCatalog)
+            }
+            .eclipseExperimentalSettingsRows()
+            .background(EclipseScrollTracker())
+
             Section(
                 header: Text("Custom Catalogs"),
                 footer: Text("Save a filtered search from any Reader source and it becomes an extra row on Discover.")

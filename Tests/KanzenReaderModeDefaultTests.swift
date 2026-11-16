@@ -7,6 +7,25 @@ import SwiftUI
 import WebKit
 
 final class KanzenReaderModeDefaultTests: XCTestCase {
+    func testReaderHomeCatalogVisibilityDefaultsAndIndependentOverrides() {
+        let suiteName = "ReaderHomeCatalogVisibilityTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        XCTAssertTrue(ReaderHomeCatalogVisibilitySettings.showsPopular(defaults: defaults))
+        XCTAssertTrue(ReaderHomeCatalogVisibilitySettings.showsLatest(defaults: defaults))
+
+        defaults.set(false, forKey: ReaderHomeCatalogVisibilitySettings.showPopularKey)
+        XCTAssertFalse(ReaderHomeCatalogVisibilitySettings.showsPopular(defaults: defaults))
+        XCTAssertTrue(ReaderHomeCatalogVisibilitySettings.showsLatest(defaults: defaults))
+        XCTAssertFalse(ReaderHomeCatalogVisibilitySettings.allows(.popular, defaults: defaults))
+        XCTAssertTrue(ReaderHomeCatalogVisibilitySettings.allows(.latestUpdates, defaults: defaults))
+        XCTAssertTrue(ReaderHomeCatalogVisibilitySettings.allows(.custom, defaults: defaults))
+
+        defaults.set(false, forKey: ReaderHomeCatalogVisibilitySettings.showLatestKey)
+        XCTAssertFalse(ReaderHomeCatalogVisibilitySettings.allows(.latestUpdates, defaults: defaults))
+    }
+
     func testChangingSourceTrackerMatchClearsUnrelatedOppositeID() {
         var item = MangaLibraryItem(aniListId: -100, title: "Source manga", coverURL: nil, format: "MANGA", totalChapters: 100)
         item.trackerAniListId = 10

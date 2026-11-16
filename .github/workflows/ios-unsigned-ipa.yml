@@ -48,7 +48,7 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Validate immutable MPVKit revision
         env:
-          MPVKIT_SOURCE_REVISION: fee7aa27869ed4775ff2984de4438484d902e67b
+          MPVKIT_SOURCE_REVISION: b951a22fc5ddbf708057ace059e3742dae685e4d
         run: |
           set -euo pipefail
 
@@ -60,32 +60,107 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           repository: yanastoya8-art/MPVKit-S
-          ref: fee7aa27869ed4775ff2984de4438484d902e67b
+          ref: b951a22fc5ddbf708057ace059e3742dae685e4d
           path: MPVKit
       - name: Verify immutable MPVKit checkout
         env:
-          MPVKIT_SOURCE_REVISION: fee7aa27869ed4775ff2984de4438484d902e67b
+          MPVKIT_SOURCE_REVISION: b951a22fc5ddbf708057ace059e3742dae685e4d
         run: test "$(git -C MPVKit rev-parse HEAD)" = "$MPVKIT_SOURCE_REVISION"
+
+      - name: Set up Xcode
+        uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Validate Apple SDK toolchain
+        id: apple-sdk
+        run: |
+          set -euo pipefail
+
+          echo "Selected developer directory: $(xcode-select -p)"
+          xcodebuild -version
+          for sdk in iphoneos iphonesimulator; do
+            sdk_path="$(xcrun --sdk "$sdk" --show-sdk-path)"
+            if [[ -z "$sdk_path" || ! -d "$sdk_path" ]]; then
+              echo "::error::The $sdk SDK is unavailable in the selected Xcode installation."
+              exit 1
+            fi
+            echo "$sdk SDK: $sdk_path"
+          done
+
+          xcode_version="$(xcodebuild -version | awk '/^Xcode / { print $2; exit }')"
+          device_sdk="$(xcrun --sdk iphoneos --show-sdk-version)"
+          simulator_sdk="$(xcrun --sdk iphonesimulator --show-sdk-version)"
+          echo "cache-key=xcode-${xcode_version}-ios-${device_sdk}-sim-${simulator_sdk}" >> "$GITHUB_OUTPUT"
 
       - name: Cache patched MPVKit iOS frameworks
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: MPVKit/dist/release
-          key: mpvkit-ios-${{ runner.os }}-fee7aa27869ed4775ff2984de4438484d902e67b
+          key: mpvkit-ios-${{ runner.os }}-${{ runner.arch }}-${{ steps.apple-sdk.outputs.cache-key }}-b951a22fc5ddbf708057ace059e3742dae685e4d-${{ hashFiles('MPVKit/Makefile', 'MPVKit/Sources/BuildScripts/**/*.swift', 'MPVKit/Sources/BuildScripts/patch/**/*.patch') }}
 
       - name: Build patched MPVKit for iPhone and iPad
         run: |
           set -euo pipefail
           REQUIRED_FRAMEWORKS=(Libmpv Libavcodec Libavdevice Libavfilter Libavformat Libavutil Libswresample Libswscale)
           CACHE_VALID=true
-          test -f MPVKit/dist/release/Package.swift || CACHE_VALID=false
-          for framework in "${REQUIRED_FRAMEWORKS[@]}"; do
-            test -f "MPVKit/dist/release/xcframework/${framework}.xcframework/Info.plist" || CACHE_VALID=false
-          done
+          if [[ ! -f MPVKit/dist/release/Package.swift ]]; then CACHE_VALID=false; fi
+          if [[ ! -d MPVKit/dist/release/xcframework ]]; then CACHE_VALID=false; fi
 
-          if [ "$CACHE_VALID" = true ]; then
-            echo "Using cached, revision-pinned MPVKit iOS frameworks."
+          if [[ "$CACHE_VALID" == true ]]; then
+            if python3 - MPVKit/dist/release/xcframework "${REQUIRED_FRAMEWORKS[@]}" <<'PY'
+          import plistlib
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          required = sys.argv[2:]
+          errors = []
+          for name in required:
+              bundle = root / f"{name}.xcframework"
+              info = bundle / "Info.plist"
+              if bundle.is_symlink() or not bundle.is_dir() or info.is_symlink() or not info.is_file():
+                  errors.append(f"{name}: missing or invalid XCFramework bundle")
+                  continue
+              try:
+                  libraries = plistlib.loads(info.read_bytes())["AvailableLibraries"]
+              except Exception as error:
+                  errors.append(f"{name}: unreadable Info.plist ({error})")
+                  continue
+              device = False
+              simulator = False
+              for library in libraries:
+                  identifier = library.get("LibraryIdentifier", "")
+                  library_path = library.get("LibraryPath", "")
+                  binary = bundle / identifier / library_path
+                  if not identifier or not library_path or not binary.exists():
+                      errors.append(f"{name}: missing framework payload for {identifier or 'unknown slice'}")
+                      continue
+                  architectures = library.get("SupportedArchitectures", [])
+                  if library.get("SupportedPlatform") == "ios" and "arm64" in architectures:
+                      if library.get("SupportedPlatformVariant") is None:
+                          device = True
+                      elif library.get("SupportedPlatformVariant") == "simulator":
+                          simulator = True
+              if not device or not simulator:
+                  errors.append(f"{name}: requires iOS arm64 device and simulator slices")
+          if errors:
+              print("\n".join(errors), file=sys.stderr)
+              raise SystemExit(1)
+          print(f"Validated {len(required)} cached iOS XCFrameworks (device + simulator).")
+          PY
+            then
+              :
+            else
+              CACHE_VALID=false
+            fi
+          fi
+
+          if [[ "$CACHE_VALID" == true ]]; then
+            echo "Using cached MPVKit frameworks for the selected Xcode SDKs."
           else
+            echo "::notice::MPVKit cache is missing or invalid; rebuilding the pinned source."
+            rm -rf MPVKit/dist/release
             brew install autoconf automake cmake libtool nasm ninja pkg-config
             MPVKIT_BUILD_VENV="$RUNNER_TEMP/mpvkit-build-venv"
             python3 -m venv "$MPVKIT_BUILD_VENV"
@@ -97,23 +172,17 @@ jobs:
                 MPVKIT_BUILD_SUCCEEDED=true
                 break
               fi
-            
-              echo "::warning::MPVKit build attempt $attempt failed. Retrying transient upstream download failures."
-              # Remove incomplete OpenSSL downloads so the next attempt starts cleanly.
+
+              echo "::warning::MPVKit build attempt $attempt failed."
               rm -rf MPVKit/dist/openssl-3.3.5 MPVKit/dist/openssl-3.3.5.log
-              if [ "$attempt" -lt 3 ]; then sleep "$((attempt * 10))"; fi
+              if [[ "$attempt" -lt 3 ]]; then sleep "$((attempt * 10))"; fi
             done
-            if [ "$MPVKIT_BUILD_SUCCEEDED" != true ]; then
-              echo "::error::MPVKit did not build successfully after three attempts."
+            if [[ "$MPVKIT_BUILD_SUCCEEDED" != true ]]; then
+              echo "::error::MPVKit did not build successfully after three attempts. See the first compiler/configure error above."
               exit 1
             fi
           fi
           test -f MPVKit/dist/release/Package.swift
-
-      - name: Set up Xcode
-        uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
-        with:
-          xcode-version: latest-stable
 
       - name: Resolve unsigned build settings
         env:
@@ -214,7 +283,7 @@ jobs:
 
       - name: Resolve Swift packages
         env:
-          MPVKIT_SOURCE_REVISION: fee7aa27869ed4775ff2984de4438484d902e67b
+          MPVKIT_SOURCE_REVISION: b951a22fc5ddbf708057ace059e3742dae685e4d
         run: |
           set -euo pipefail
 

@@ -21,6 +21,7 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
     case switchModeAnimation
     case animatedBackground
     case animationQuality
+    case animationColor
     case animationFrameRate
     case appPerformanceOverlay
     case hideSplashScreen
@@ -45,7 +46,7 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
             return "theme"
         case .interface, .globalAppearance, .accentColor:
             return "interface"
-        case .switchModeAnimation, .animatedBackground, .animationQuality, .animationFrameRate, .appPerformanceOverlay, .hideSplashScreen:
+        case .switchModeAnimation, .animatedBackground, .animationQuality, .animationColor, .animationFrameRate, .appPerformanceOverlay, .hideSplashScreen:
             return "motion"
         case .alternativeSeasonMenu, .horizontalEpisodeList, .showUnairedEpisodes, .titleLogoPosition, .tmdbTitleArt, .dataSaver, .ageRating, .similarTitles:
             return "details"
@@ -78,6 +79,7 @@ struct AlternativeUIView: View {
     @AppStorage(HomeAnimatedBackgroundSettings.enabledKey) private var homeAnimatedBackgroundEnabled = HomeAnimatedBackgroundSettings.defaultEnabled
     @AppStorage(HomeAnimatedBackgroundQuality.storageKey) private var homeAnimatedBackgroundQuality = HomeAnimatedBackgroundQuality.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundFrameRate.storageKey) private var homeAnimatedBackgroundFrameRate = HomeAnimatedBackgroundFrameRate.defaultValue.rawValue
+    @AppStorage(HomeAnimatedBackgroundParticleColor.storageKey) private var homeAnimatedBackgroundParticleColor = HomeAnimatedBackgroundParticleColor.defaultValue.rawValue
     @AppStorage(AppPerformanceOverlaySettings.enabledKey) private var appPerformanceOverlayEnabled = AppPerformanceOverlaySettings.defaultEnabled
 #if !os(tvOS)
     @AppStorage(ModeSwitchAnimationSettings.enabledKey) private var modeSwitchAnimationEnabled = ModeSwitchAnimationSettings.defaultEnabled
@@ -478,6 +480,19 @@ struct AlternativeUIView: View {
                 }
                 .pickerStyle(.menu)
                 .id(AppearanceSettingsSearchTarget.animationQuality.anchorID)
+            }
+
+            settingRow(
+                title: "Animation Color",
+                description: "Choose the color used by the animated rings, stars, circles, and ambient particles."
+            ) {
+                Picker("", selection: $homeAnimatedBackgroundParticleColor) {
+                    ForEach(HomeAnimatedBackgroundParticleColor.allCases) { color in
+                        Text(color.displayName).tag(color.rawValue)
+                    }
+                }
+                .pickerStyle(.menu)
+                .id(AppearanceSettingsSearchTarget.animationColor.anchorID)
             }
 
             settingRow(
@@ -1063,6 +1078,7 @@ struct AlternativeUIView: View {
         homeAnimatedBackgroundEnabled = HomeAnimatedBackgroundSettings.defaultEnabled
         homeAnimatedBackgroundQuality = HomeAnimatedBackgroundQuality.defaultValue.rawValue
         homeAnimatedBackgroundFrameRate = HomeAnimatedBackgroundFrameRate.defaultValue.rawValue
+        homeAnimatedBackgroundParticleColor = HomeAnimatedBackgroundParticleColor.defaultValue.rawValue
         appPerformanceOverlayEnabled = AppPerformanceOverlaySettings.defaultEnabled
 #if !os(tvOS)
         modeSwitchAnimationEnabled = ModeSwitchAnimationSettings.defaultEnabled

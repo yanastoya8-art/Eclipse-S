@@ -20,6 +20,8 @@ struct KanzenHomeView: View {
     @StateObject private var customCatalogManager = KanzenCustomCatalogManager.shared
     @State private var scrollOffset: CGFloat = 0
     @State private var didReportStartupReady = false
+    @AppStorage(ReaderHomeCatalogVisibilitySettings.showPopularKey, store: ProfileSettingsStore.active) private var showPopularCatalog = ReaderHomeCatalogVisibilitySettings.defaultShowPopular
+    @AppStorage(ReaderHomeCatalogVisibilitySettings.showLatestKey, store: ProfileSettingsStore.active) private var showLatestCatalog = ReaderHomeCatalogVisibilitySettings.defaultShowLatest
     private var metrics: ExperimentalMediaDesignMetrics { .current }
 
     init(onStartupReady: @escaping () -> Void = {}) {
@@ -84,6 +86,12 @@ struct KanzenHomeView: View {
                 homeViewModel.updateSources(sources)
                 homeViewModel.loadSelectedSource(force: true)
             }
+        }
+        .onChange(of: showPopularCatalog) { _ in
+            reloadHomeAfterCatalogVisibilityChange()
+        }
+        .onChange(of: showLatestCatalog) { _ in
+            reloadHomeAfterCatalogVisibilityChange()
         }
         .onChange(of: contentFilter.isKidsProfileActive) { isKids in
             if isKids {
@@ -183,7 +191,11 @@ struct KanzenHomeView: View {
             }
 
         case .unsupported:
-            unsupportedSourceView(source)
+            if !showPopularCatalog && !showLatestCatalog {
+                disabledBuiltInCatalogsView
+            } else {
+                unsupportedSourceView(source)
+            }
 
         case .browserVerificationRequired(let host):
             VStack(spacing: 12) {
@@ -242,7 +254,11 @@ struct KanzenHomeView: View {
 
         case .loaded:
             if sections.isEmpty {
-                unsupportedSourceView(source)
+                if !showPopularCatalog && !showLatestCatalog {
+                    disabledBuiltInCatalogsView
+                } else {
+                    unsupportedSourceView(source)
+                }
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 24) {
@@ -291,6 +307,27 @@ struct KanzenHomeView: View {
         .padding()
     }
 
+    private var disabledBuiltInCatalogsView: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "rectangle.stack.badge.minus")
+                .font(.system(size: 42))
+                .foregroundColor(.secondary)
+            Text("Reader Catalogs Disabled")
+                .font(.headline)
+                .foregroundColor(.secondary)
+            Text("Popular and Latest Updates are both disabled. Enable either catalog in Home Sources to show discovery rows.")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+            NavigationLink(destination: MangaCatalogSettingsView().environmentObject(moduleManager)) {
+                Label("Home Sources", systemImage: "slider.horizontal.3")
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding()
+    }
+
     private var disabledSourcesView: some View {
         VStack(spacing: 12) {
             Image(systemName: "eye.slash")
@@ -323,6 +360,11 @@ struct KanzenHomeView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
+    }
+
+    private func reloadHomeAfterCatalogVisibilityChange() {
+        guard !ProfileManager.shared.isKidsModeActive else { return }
+        homeViewModel.reloadForCatalogChange()
     }
 
     private func syncSourcesAndLoad() {
