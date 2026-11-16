@@ -26,6 +26,15 @@ struct DiscoverDetailView: View {
         )
     }
 
+    // Start fetching before the user reaches the final card. Lazy grids do not
+    // always re-fire the last visible card's onAppear after a page append,
+    // which made Browse appear to stall until the user nudged the scroll view.
+    private var paginationTriggerIdentity: String? {
+        guard !filteredItems.isEmpty else { return nil }
+        let triggerIndex = max(0, filteredItems.count - 6)
+        return filteredItems[triggerIndex].stableIdentity
+    }
+
     private var columns: [GridItem] {
 #if os(tvOS)
         return [
@@ -63,7 +72,7 @@ struct DiscoverDetailView: View {
                         .buttonStyle(PlainButtonStyle())
 #endif
                         .onAppear {
-                            if item.stableIdentity == filteredItems.last?.stableIdentity {
+                            if item.stableIdentity == paginationTriggerIdentity {
                                 loadNextPage()
                             }
                         }
