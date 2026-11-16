@@ -21,6 +21,8 @@ struct KanzenGeneralSettingsView: View {
     @AppStorage("readerMargin") private var readerMargin: Double = 4
     @AppStorage("readerReadThresholdPercent") private var readerReadThresholdPercent: Double = 80
     @AppStorage("readerDetailHeroBlur") private var readerDetailHeroBlur: Double = 26
+    @AppStorage(ExperimentalFeatureState.enabledKey, store: ProfileSettingsStore.device) private var modernInterfaceEnabled = true
+    @State private var showRestartAlert = false
     @State private var readerDetailElements = ReaderDetailElement.orderedElements()
     @State private var hiddenReaderDetailElements = ReaderDetailElement.hiddenElements()
 
@@ -66,14 +68,46 @@ struct KanzenGeneralSettingsView: View {
 
     var body: some View {
         Form {
-            Section(header: Text("Interface")) {
+            Section(header: Text("Interface & Scope")) {
+                HStack {
+                    Text("Interface")
+                    Spacer()
+                    Picker("Interface", selection: interfaceBinding) {
+                        Text("Modern").tag(true)
+                        Text("Classic").tag(false)
+                    }
+                    .pickerStyle(.menu)
+                }
+
+                if modernInterfaceEnabled != ExperimentalFeatureState.isEnabledAtLaunch {
+                    Label("Restart required to apply the interface change", systemImage: "arrow.clockwise")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
                 Toggle("Global Appearance", isOn: $theme.globalAppearanceEnabled)
                     .onChange(of: theme.globalAppearanceEnabled) { _ in
                         settings.updateAppearance()
                     }
 
-                ColorPicker("Accent Color", selection: accentColorBinding)
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Accent Color")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        Text("Affects buttons, links and other interactive elements.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    ColorPicker("", selection: accentColorBinding)
+                        .labelsHidden()
+                }
+            }
+            .eclipseExperimentalSettingsRows()
+            .background(EclipseScrollTracker())
 
+            Section(header: Text("Theme")) {
                 HStack {
                     Text("Appearance")
                     Spacer()
@@ -135,6 +169,7 @@ struct KanzenGeneralSettingsView: View {
             .eclipseExperimentalSettingsRows()
             .background(EclipseScrollTracker())
 
+            Section(header: Text("Reader Text")) {
             Section(header: Text("Reader Text")) {
                 HStack {
                     Text("Font Size")
