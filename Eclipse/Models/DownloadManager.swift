@@ -5725,15 +5725,17 @@ final class DownloadManager: NSObject, ObservableObject {
         )
         try validateAutoModeProbeResponse(probe)
 
-        if let invalidPayload = obviousInvalidMediaPayload(in: probe) {
-            throw AutoModeDownloadValidationFailure(message: invalidPayload, isRetryable: false)
+        // Some services (including proxy-backed and MangaYomi sources) expose
+        // HLS through opaque URLs without a .m3u8 suffix. Detect the playlist
+        // from its response body and validate it with the HLS path instead of
+        // rejecting it as an invalid direct media file.
+        if autoModePlaylistText(from: probe.data) != nil {
+            try await validateAutoModeHLSDownload(url: url, headers: headers)
+            return
         }
 
-        if autoModePlaylistText(from: probe.data) != nil {
-            throw AutoModeDownloadValidationFailure(
-                message: "The source returned an HLS playlist where a direct media file was expected.",
-                isRetryable: false
-            )
+        if let invalidPayload = obviousInvalidMediaPayload(in: probe) {
+            throw AutoModeDownloadValidationFailure(message: invalidPayload, isRetryable: false)
         }
 
         if let advertisedLength = advertisedFullPayloadLength(from: probe.response),
@@ -10283,19 +10285,22 @@ extension DownloadManager: URLSessionDownloadDelegate {
             }
 
 #if (os(iOS) && !targetEnvironment(macCatalyst)) || os(macOS)
-            // Some Stremio addons expose HLS playlists through opaque URLs
-            // that do not contain ".m3u8". Do not save that tiny manifest as
-            // a completed video; hand it to the HLS segment downloader instead.
+            // Stremio, Nuvio and extension-backed service sources can expose
+            // HLS playlists through opaque URLs without a .m3u8 suffix. Never
+            // save the manifest as a completed video; hand it to the segment
+            // downloader while preserving the provider's protected route.
             if let item = self.downloads.first(where: { $0.id == downloadId }),
-               item.lastContentReference?.kind == .stremio,
+               let referenceKind = item.lastContentReference?.kind,
+               [.stremio, .nuvio, .service].contains(referenceKind),
                !item.isHLS,
                self.stremioResponseIsHLSPlaylist(httpResponse, body: body) {
-                guard let attempt = self.protectedProviderAttempts[downloadId],
-                      attempt.providerKind == .stremio,
+                guard let expectedProviderKind = item.effectiveProtectedProviderKind,
+                      let attempt = self.protectedProviderAttempts[downloadId],
+                      attempt.providerKind == expectedProviderKind,
                       attempt.attemptID == protectedNuvioAttemptID else {
                     self.markFailed(
                         id: downloadId,
-                        error: "The Stremio addon returned an HLS playlist, but its protected download route expired. Resume the download to try again."
+                        error: "The provider returned an HLS playlist, but its protected download route expired. Resume the download to try again."
                     )
                     return
                 }
@@ -10306,6 +10311,9 @@ extension DownloadManager: URLSessionDownloadDelegate {
                 }
                 if let index = self.downloads.firstIndex(where: { $0.id == downloadId }) {
                     self.downloads[index].protectedTransportKind = .hls
+                    if expectedProviderKind == .nuvio {
+                        self.downloads[index].nuvioTransportKind = .hls
+                    }
                     self.downloads[index].directResumeCheckpoint = nil
                     self.downloads[index].directRangeUnsupported = nil
                     self.downloads[index].hlsResumeSegmentIndex = nil
@@ -10329,7 +10337,7 @@ extension DownloadManager: URLSessionDownloadDelegate {
                         protectedNuvioAttemptID: attempt.attemptID
                     )
                     Logger.shared.log(
-                        "Stremio: detected HLS playlist from response; continuing with segment download id=\(downloadId)",
+                        "Provider: detected HLS playlist from response; continuing with segment download id=\(downloadId)",
                         type: "Download"
                     )
                     return
