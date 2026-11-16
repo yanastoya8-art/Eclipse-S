@@ -5442,6 +5442,10 @@ private struct LanguageFiltersSettingsView: View {
                         try SpanishDubAIKeyStore.save(openAIAPIKey, for: .openAI)
                         aiKeySaveFailed = false
                         aiKeySaveMessage = "Keys saved securely on this device."
+                        Task {
+                            await SpanishDubAIResearchService.shared.clearNegativeCache()
+                            NotificationCenter.default.post(name: Notification.Name("scheduleContentFiltersDidChange"), object: nil)
+                        }
                     } catch {
                         aiKeySaveFailed = true
                         aiKeySaveMessage = "Could not save one or more keys. Please try again."
