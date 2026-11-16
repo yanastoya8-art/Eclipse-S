@@ -5634,6 +5634,7 @@ final class AniListService {
                             title { romaji english native }
                             averageScore isAdult genres tags { name rank isMediaSpoiler } nextAiringEpisode { episode airingAt } coverImage { large medium }
                             format
+                            duration
                             startDate { year }
                             seasonYear
                         }
@@ -5675,7 +5676,8 @@ final class AniListService {
                     hasKnownAiringTime: true,
                     malID: schedule.media.idMal,
                     tags: schedule.media.tags?.map(\.name),
-                    releaseYear: schedule.media.startDate?.year ?? schedule.media.seasonYear
+                    releaseYear: schedule.media.startDate?.year ?? schedule.media.seasonYear,
+                    runtimeMinutes: schedule.media.duration
                 )
             }
             .filter { entry in
@@ -12494,6 +12496,7 @@ struct AniListAnime: Codable {
     let tags: [AniListTag]?
     let title: AniListTitle
     let episodes: Int?
+    var duration: Int? = nil
     let status: String?
     let startDate: AniListDate?
     var endDate: AniListDate? = nil
