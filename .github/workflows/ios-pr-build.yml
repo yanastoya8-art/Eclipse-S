@@ -15,7 +15,7 @@ permissions:
 # queued or in-progress runs instead of accumulating hours of stale builds.
 concurrency:
   group: ios-pr-build-${{ github.event.pull_request.number || github.ref_name }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   prune-stale-ios-builds:
@@ -48,13 +48,13 @@ jobs:
             echo "This run is stale; only the latest branch commit may prune queued builds."
             exit 0
           fi
-          if ! stale_runs="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ios-pr-build.yml --branch "$BRANCH_NAME" --limit 100 --json databaseId,status --jq '.[] | select(.status == "queued" or .status == "pending" or .status == "in_progress") | .databaseId')"; then
+          if ! stale_runs="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ios-pr-build.yml --branch "$BRANCH_NAME" --limit 100 --json databaseId,status --jq '.[] | select(.status == "queued" or .status == "pending") | .databaseId')"; then
             echo "::warning::Could not list stale runs; continuing with the current build."
             exit 0
           fi
           while IFS= read -r run_id; do
             [[ -z "$run_id" || "$run_id" == "$CURRENT_RUN_ID" ]] && continue
-            echo "Cancelling superseded queued/in-progress run $run_id"
+            echo "Cancelling superseded queued run $run_id"
             gh run cancel "$run_id" --repo "$GITHUB_REPOSITORY" || echo "::warning::Could not cancel stale run $run_id"
           done <<< "$stale_runs"
 
@@ -181,11 +181,13 @@ jobs:
           # SwiftPM git checkouts are read-only; make this CI-only manifest copy writable.
           manifest.chmod(0o644)
           source = manifest.read_text()
-          old = '"Libmpv", "MoltenVK", "Libplacebo", "Libavcodec"'
-          new = '"Libmpv", "Libavcodec"'
-          if source.count(old) != 1:
+          import re
+          pattern = r'(?s)(let requiredArtifacts = \\[).*?(\\n\\s*\\])'
+          replacement = r'\\1\\n        "Libmpv", "Libavcodec", "Libavdevice", "Libavfilter",\\n        "Libavformat", "Libavutil", "Libswresample", "Libswscale",\\2'
+          updated, count = re.subn(pattern, replacement, source, count=1)
+          if count != 1:
               raise SystemExit("Could not safely narrow MPVKit local artifact validation")
-          manifest.write_text(source.replace(old, new, 1))
+          manifest.write_text(updated)
           PY
 
           # Fail here with a useful diagnostic instead of letting Package.swift abort
