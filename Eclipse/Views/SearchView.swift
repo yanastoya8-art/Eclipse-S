@@ -35,6 +35,7 @@ struct SearchView: View {
     @State private var isLoadingRandom = false
     @State private var randomErrorMessage: String?
     @State private var pendingSearchTask: Task<Void, Never>?
+    @State private var activeSearchTask: Task<Void, Never>?
     @State private var lastSubmittedSearchQuery = ""
     @State private var searchRequestSerial = 0
 #if os(tvOS)
@@ -468,6 +469,8 @@ struct SearchView: View {
             tvSearchPresentationGeneration = UUID()
 #endif
             pendingSearchTask?.cancel()
+            activeSearchTask?.cancel()
+            activeSearchTask = nil
         }
     }
 
@@ -706,6 +709,8 @@ struct SearchView: View {
     private func reloadSearchResultsForProfileChange() {
         pendingSearchTask?.cancel()
         pendingSearchTask = nil
+        activeSearchTask?.cancel()
+        activeSearchTask = nil
 
         searchRequestSerial += 1
         searchResults = []
@@ -721,6 +726,9 @@ struct SearchView: View {
 
     private func scheduleSearch(for value: String) {
         pendingSearchTask?.cancel()
+        activeSearchTask?.cancel()
+        activeSearchTask = nil
+        searchRequestSerial += 1
 
         let query = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else {
@@ -846,13 +854,16 @@ struct SearchView: View {
         isLoading = true
         errorMessage = nil
 
-        Task {
+        activeSearchTask?.cancel()
+        activeSearchTask = Task {
             do {
                 var results = try await tmdbService.searchMulti(query: query)
+                try Task.checkCancellation()
                 let shouldSearchTVEndpoint = results.isEmpty
                     || (searchFilter == .anime && !results.contains(where: isAnimeResult))
                 if shouldSearchTVEndpoint {
                     if let tvResults = try? await tmdbService.searchTVShows(query: query) {
+                        try Task.checkCancellation()
                         var seen = Set(results.map(\.stableIdentity))
                         let supplemental = tvResults
                             .map(\.asSearchResult)
@@ -860,12 +871,21 @@ struct SearchView: View {
                         results.append(contentsOf: supplemental)
                     }
                 }
-                let identityResolvedResults = await resolveSearchAnimeIdentities(results)
-                if !MyDubListDubFilter.shared.selectedLanguages.isEmpty,
+                let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguages
+                let needsAnimeIdentity = searchFilter == .anime
+                    || !selectedDubLanguages.isEmpty
+                    || UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
+                let identityResolvedResults = needsAnimeIdentity
+                    ? await resolveSearchAnimeIdentities(results)
+                    : results
+                try Task.checkCancellation()
+                if !selectedDubLanguages.isEmpty,
                    !MyDubListDubFilter.shared.prepareCachedSnapshot() {
                     _ = await MyDubListDubFilter.shared.refresh()
                 }
+                try Task.checkCancellation()
                 await contentFilter.prepareMaturityRatings(for: identityResolvedResults)
+                try Task.checkCancellation()
 
                 await MainActor.run {
                     guard serial == searchRequestSerial,
@@ -882,6 +902,7 @@ struct SearchView: View {
 #endif
                     self.searchResults = identityResolvedResults
                     self.isLoading = false
+                    self.activeSearchTask = nil
 #if os(tvOS)
                     if let restoredFocus {
                         DispatchQueue.main.async {
@@ -901,6 +922,7 @@ struct SearchView: View {
                           searchText.trimmingCharacters(in: .whitespacesAndNewlines).caseInsensitiveCompare(query) == .orderedSame else {
                         return
                     }
+                    self.activeSearchTask = nil
                     self.errorMessage = error.localizedDescription
                     self.isLoading = false
                 }
