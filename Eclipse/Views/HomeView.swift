@@ -603,6 +603,7 @@ struct HomeView: View {
     @AppStorage("heroBannerCatalogId") private var heroBannerCatalogId = "trending"
     @AppStorage("heroBannerBehavior") private var heroBannerBehavior = HeroBannerBehavior.defaultValue.rawValue
     @AppStorage(HomeHeroTitleLogoPositionSettings.verticalPositionKey) private var homeHeroTitleLogoVerticalPosition = HomeHeroTitleLogoPositionSettings.defaultVerticalPosition
+    @AppStorage("homeHeroTitleLogoSize") private var homeHeroTitleLogoSize = 1.0
     @AppStorage(HomeAnimatedBackgroundSettings.enabledKey) private var homeAnimatedBackgroundEnabled = HomeAnimatedBackgroundSettings.defaultEnabled
     @AppStorage(ExperimentalMediaDesignPreset.storageKey) private var experimentalDesignPreset = ExperimentalMediaDesignPreset.defaultValue.rawValue
     @AppStorage(ExperimentalHeroBleedLevel.storageKey) private var experimentalHeroBleedLevel = ExperimentalHeroBleedLevel.defaultValue.rawValue
@@ -1414,10 +1415,10 @@ struct HomeView: View {
                 CenteredPosterTitleOverlay(
                     title: hero.displayTitle,
                     logoURL: hero.animeLogoURL ?? heroLogoURL,
-                    fontSize: usesWideHomeLayout ? 34 : 24
+                    fontSize: (usesWideHomeLayout ? 34 : 24) * homeHeroTitleLogoSize
                 )
-                .frame(maxWidth: usesWideHomeLayout ? 760 : 520)
-                .frame(height: min(max(heroHeight * 0.24, 112), 190))
+                .frame(maxWidth: (usesWideHomeLayout ? 760 : 520) * homeHeroTitleLogoSize)
+                .frame(height: min(max(heroHeight * 0.24 * homeHeroTitleLogoSize, 112 * homeHeroTitleLogoSize), 190 * homeHeroTitleLogoSize))
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 .offset(y: CGFloat(homeHeroTitleLogoVerticalPosition - 0.5) * heroHeight)
                 .padding(.horizontal, 20)
