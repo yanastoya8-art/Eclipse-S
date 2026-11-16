@@ -173,6 +173,7 @@ struct SettingsView: View {
             .init(id: "skip-filler", title: "Skip Filler Episodes", location: "Media Player > Next Episode", icon: "forward.end.fill", color: .yellow, keywords: ["anime filler", "filler skip"], action: .destination(.playerTarget(.skipFillerEpisodes))),
             .init(id: "next-episode-threshold", title: "Next Episode Appearance Threshold", location: "Media Player > Next Episode", icon: "chart.bar.xaxis", color: .yellow, keywords: ["next episode percentage", "90 percent", "button timing"], action: .destination(.playerTarget(.appearanceThreshold))),
             .init(id: "appearance", title: "Appearance", location: "Basic", icon: "paintbrush.fill", color: .purple, keywords: ["theme", "layout", "home", "details", "artwork", "UI"], action: .destination(.appearance)),
+            .init(id: "appearance-home-hero-logo-position", title: "Home Hero Title Logo Position", location: "Appearance > Home Layout > Hero", icon: "arrow.up.and.down", color: .purple, keywords: ["home banner logo", "move home title logo", "hero title position"], action: .destination(.homeLayout)),
             .init(id: "appearance-background-style", title: "Background Style", location: "Appearance > Theme", icon: "rectangle.fill", color: .purple, keywords: ["gradient", "solid", "background"], action: .destination(.appearanceTarget(.backgroundStyle))),
             .init(id: "appearance-color-bleed", title: "Color Bleed", location: "Appearance > Theme", icon: "paintbrush.pointed", color: .purple, keywords: ["banner color", "background wash", "intensity"], action: .destination(.appearanceTarget(.colorBleed))),
             .init(id: "appearance-background-intensity", title: "Background Intensity", location: "Appearance > Theme", icon: "sun.max", color: .purple, keywords: ["lighten", "darken", "background brightness"], action: .destination(.appearanceTarget(.backgroundIntensity))),
@@ -968,6 +969,8 @@ struct SettingsView: View {
             return AnyView(settingsSearchableContent(PlayerSettingsView(initialSearchTarget: target)))
         case .appearance:
             return AnyView(settingsSearchableContent(AlternativeUIView()))
+        case .homeLayout:
+            return AnyView(settingsSearchableContent(HomeLayoutView()))
         case .appearanceTarget(let target):
             return AnyView(settingsSearchableContent(AlternativeUIView(initialSearchTarget: target)))
         case .animeFilters:
@@ -1890,6 +1893,7 @@ private enum SettingsSearchDestination: Hashable {
     case playerTarget(PlayerSettingsSearchTarget)
     case appearance
     case appearanceTarget(AppearanceSettingsSearchTarget)
+    case homeLayout
     case animeFilters
     case runtimeFilters
     case productions
