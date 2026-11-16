@@ -643,6 +643,11 @@ struct MediaDetailContentView: View {
 
     private var mediaDetailHeroBleedTail: CGFloat {
         guard usesWideDetailLayout else { return headerHeight * 0.62 }
+        // Keep the colour bleed visible in landscape, but scale its tail to
+        // the shorter viewport instead of forcing a 680pt minimum extension.
+        if usesLandscapeDetailComposition {
+            return min(max(detailViewportHeight * 0.62, 240), 420)
+        }
         return min(max(detailViewportHeight * 0.78, 680), 900)
     }
 
