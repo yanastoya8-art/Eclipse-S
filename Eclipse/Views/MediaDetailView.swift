@@ -461,6 +461,10 @@ struct MediaDetailContentView: View {
     @State private var logoURL: String?
     @AppStorage(MediaDetailTitleLogoPositionSettings.verticalPositionKey)
     private var titleLogoVerticalPosition = MediaDetailTitleLogoPositionSettings.defaultVerticalPosition
+    @AppStorage(MediaDetailTitleLogoAppearanceSettings.sizeKey)
+    private var detailTitleLogoSize = MediaDetailTitleLogoAppearanceSettings.defaultSize
+    @AppStorage(MediaDetailTitleLogoAppearanceSettings.weightKey)
+    private var detailTitleLogoWeight = MediaDetailTitleLogoAppearanceSettings.defaultWeight
     @AppStorage(MediaDetailHeroContentPositionSettings.actionsOffsetKey)
     private var heroActionsVerticalOffset = MediaDetailHeroContentPositionSettings.defaultOffset
     @AppStorage(MediaDetailHeroContentPositionSettings.synopsisOffsetKey)
@@ -2565,39 +2569,44 @@ struct MediaDetailContentView: View {
 
             gradientOverlay
 
-            // Transparent title marks are most legible when centered over the
-            // poster artwork rather than positioned above or below it.
+            // Use only transparent title artwork. Never synthesize ordinary
+            // title text over a poster when a provider has no logo asset.
             if let logoURL, !logoURL.isEmpty {
                 ResilientArtworkImage(
                     urls: [logoURL],
                     decodeSize: CGSize(
-                        width: max(EclipseViewport.bounds.width * EclipseViewport.scale * 0.72, 1),
-                        height: max(headerHeight * EclipseViewport.scale * 0.22, 1)
+                        width: max(EclipseViewport.bounds.width * EclipseViewport.scale * 0.9, 1),
+                        height: max(headerHeight * EclipseViewport.scale * 0.3, 1)
                     ),
                     contentMode: .fit
                 ) {
                     Color.clear
                 }
                 .frame(
-                    width: min(EclipseViewport.bounds.width * 0.72, 520),
-                    height: min(max(headerHeight * 0.22, 72), 150)
+                    width: min(EclipseViewport.bounds.width * 0.72 * CGFloat(detailTitleLogoSize), 680),
+                    height: min(max(headerHeight * 0.22 * CGFloat(detailTitleLogoSize), 72), 190)
                 )
+                .overlay {
+                    if detailTitleLogoWeight > 0.01 {
+                        ResilientArtworkImage(
+                            urls: [logoURL],
+                            decodeSize: CGSize(
+                                width: max(EclipseViewport.bounds.width * EclipseViewport.scale * 0.9, 1),
+                                height: max(headerHeight * EclipseViewport.scale * 0.3, 1)
+                            ),
+                            contentMode: .fit
+                        ) {
+                            Color.clear
+                        }
+                        .offset(x: 0.6, y: 0)
+                        .opacity(min(max(detailTitleLogoWeight, 0), 1) * 0.65)
+                    }
+                }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 // The position is user-adjustable in Appearance → Detail Pages.
                 .offset(y: headerHeight * CGFloat(titleLogoVerticalPosition - 0.5))
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
-            } else {
-                Text(searchResult.displayTitle)
-                    .font(.system(size: 30, weight: .heavy, design: .rounded))
-                    .foregroundStyle(.white)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(3)
-                    .shadow(color: .black.opacity(0.85), radius: 7, x: 0, y: 3)
-                    .padding(.horizontal, 24)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                    .offset(y: headerHeight * CGFloat(titleLogoVerticalPosition - 0.5))
-                    .allowsHitTesting(false)
             }
         }
     }
