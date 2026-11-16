@@ -7157,10 +7157,25 @@ final class DownloadManager: NSObject, ObservableObject {
     }
 
     private func protectedOwnerMatchesActiveProfile(_ item: DownloadItem) -> Bool {
-        ProtectedDownloadPersistencePolicy.profileAuthority(
+        let activeProfileID = ProfileManager.shared.activeProfileID
+        switch ProtectedDownloadPersistencePolicy.profileAuthority(
             ownerProfileID: item.effectiveProtectedOwnerProfileID,
-            activeProfileID: ProfileManager.shared.activeProfileID
-        ) == .authorized
+            activeProfileID: activeProfileID
+        ) {
+        case .authorized:
+            return true
+        case .waitingForOwner:
+            return false
+        case .bindLegacyOwner(let ownerProfileID):
+            // Older service/Nuvio download rows predate profile ownership.
+            // Bind them once to the profile that is actively resuming them;
+            // rejecting this state left legacy MangaYomi/service downloads
+            // permanently queued with "Waiting for the download's profile".
+            guard let index = downloads.firstIndex(where: { $0.id == item.id }) else { return false }
+            downloads[index].protectedOwnerProfileID = ownerProfileID
+            saveDownloads()
+            return true
+        }
     }
 
     private func nuvioOwnerMatchesActiveProfile(_ item: DownloadItem) -> Bool {
@@ -10298,11 +10313,46 @@ extension DownloadManager: URLSessionDownloadDelegate {
             // save the manifest as a completed video; hand it to the segment
             // downloader while preserving the provider's protected route.
             if let item = self.downloads.first(where: { $0.id == downloadId }),
-               let referenceKind = item.lastContentReference?.kind,
-               [.stremio, .nuvio, .service].contains(referenceKind),
                !item.isHLS,
                self.stremioResponseIsHLSPlaylist(httpResponse, body: body) {
-                guard let expectedProviderKind = item.effectiveProtectedProviderKind,
+                let expectedProviderKind: ProtectedDownloadProviderKind?
+                switch Self.protectedAuthorityState(for: item) {
+                case .authorized(let kind):
+                    expectedProviderKind = kind
+                case .legacyService:
+                    expectedProviderKind = .service
+                case .legacyStremio:
+                    expectedProviderKind = .stremio
+                case .notProtected, .invalid:
+                    expectedProviderKind = nil
+                }
+                guard let expectedProviderKind else {
+                    // A non-protected direct source may also hide an HLS
+                    // manifest behind an extensionless URL. Its original
+                    // request headers remain valid for the segment downloader.
+                    guard Self.protectedAuthorityState(for: item) == .notProtected else {
+                        self.markFailed(
+                            id: downloadId,
+                            error: "The provider returned an HLS playlist, but its protected download route expired. Resume the download to try again."
+                        )
+                        return
+                    }
+                    self.activeTasks.removeValue(forKey: downloadId)
+                    if let partialURL = self.directPartialURL(id: downloadId) {
+                        try? self.fileManager.removeItem(at: partialURL)
+                    }
+                    var hlsItem = item
+                    hlsItem.protectedTransportKind = .hls
+                    if let index = self.downloads.firstIndex(where: { $0.id == downloadId }) {
+                        self.downloads[index].protectedTransportKind = .hls
+                        self.downloads[index].error = nil
+                        hlsItem = self.downloads[index]
+                        self.saveDownloads()
+                    }
+                    self.startHLSDownload(hlsItem, headersOverride: hlsItem.headers)
+                    return
+                }
+                guard [.stremio, .nuvio, .service].contains(expectedProviderKind),
                       let attempt = self.protectedProviderAttempts[downloadId],
                       attempt.providerKind == expectedProviderKind,
                       attempt.attemptID == protectedNuvioAttemptID else {
