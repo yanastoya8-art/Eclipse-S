@@ -224,7 +224,7 @@ enum AnimeScheduleAPIKeyStore {
 
         let attributes: [String: Any] = [
             kSecValueData as String: Data(trimmed.utf8),
-            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         ]
         let status = SecItemUpdate(lookup as CFDictionary, attributes as CFDictionary)
         if status == errSecItemNotFound {
