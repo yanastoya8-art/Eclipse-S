@@ -63,6 +63,10 @@ struct AlternativeUIView: View {
     @AppStorage(MediaDetailPlatformDefaults.horizontalEpisodeListKey) private var horizontalEpisodeList = MediaDetailPlatformDefaults.prefersHorizontalEpisodes
     @AppStorage(MediaDetailEpisodeVisibilitySettings.showUnairedEpisodesKey) private var showUnairedEpisodes = MediaDetailEpisodeVisibilitySettings.defaultShowUnairedEpisodes
     @AppStorage(MediaDetailTitleLogoPositionSettings.verticalPositionKey) private var titleLogoVerticalPosition = MediaDetailTitleLogoPositionSettings.defaultVerticalPosition
+    @AppStorage(MediaDetailTitleLogoAppearanceSettings.sizeKey) private var titleLogoSize = MediaDetailTitleLogoAppearanceSettings.defaultSize
+    @AppStorage(MediaDetailTitleLogoAppearanceSettings.weightKey) private var titleLogoWeight = MediaDetailTitleLogoAppearanceSettings.defaultWeight
+    @AppStorage(MediaDetailHeroContentPositionSettings.actionsOffsetKey) private var heroActionsOffset = MediaDetailHeroContentPositionSettings.defaultOffset
+    @AppStorage(MediaDetailHeroContentPositionSettings.synopsisOffsetKey) private var heroSynopsisOffset = MediaDetailHeroContentPositionSettings.defaultOffset
     @AppStorage(ImageDataSaverSettings.enabledKey, store: .standard) private var imageDataSaverEnabled = false
     @AppStorage(MediaDetailAgeRatingSettings.enabledKey) private var mediaDetailAgeRatingEnabled = MediaDetailAgeRatingSettings.defaultEnabled
     @AppStorage(MediaDetailSimilarTitlesSettings.enabledKey) private var mediaDetailSimilarTitlesEnabled = MediaDetailSimilarTitlesSettings.defaultEnabled
@@ -565,6 +569,34 @@ struct AlternativeUIView: View {
                 step: MediaDetailTitleLogoPositionSettings.step
             )
             .id(AppearanceSettingsSearchTarget.titleLogoPosition.anchorID)
+            sliderRow(
+                title: "Title Logo Size",
+                description: "Make transparent title logos larger or smaller on posters and hero banners.",
+                value: $titleLogoSize,
+                range: MediaDetailTitleLogoAppearanceSettings.sizeRange,
+                step: 0.05
+            )
+            sliderRow(
+                title: "Title Logo Weight",
+                description: "Slightly thicken thin logo strokes while keeping the original transparent artwork.",
+                value: $titleLogoWeight,
+                range: MediaDetailTitleLogoAppearanceSettings.weightRange,
+                step: 0.05
+            )
+            sliderRow(
+                title: "Action Buttons Vertical Position",
+                description: "Move the detail page action buttons higher or lower.",
+                value: $heroActionsOffset,
+                range: MediaDetailHeroContentPositionSettings.supportedRange,
+                step: MediaDetailHeroContentPositionSettings.step
+            )
+            sliderRow(
+                title: "Synopsis Vertical Position",
+                description: "Move the detail page synopsis independently of the action buttons.",
+                value: $heroSynopsisOffset,
+                range: MediaDetailHeroContentPositionSettings.supportedRange,
+                step: MediaDetailHeroContentPositionSettings.step
+            )
             toggleRow(
                 title: "Show Age Rating",
                 description: "Display the available content age rating on movie, series and anime detail pages.",
