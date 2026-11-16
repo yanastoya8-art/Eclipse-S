@@ -177,17 +177,26 @@ struct DownloadedShowDetailView: View {
 
     private func seasonSection(_ season: DownloadedSeasonGroup) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            if seasons.count > 1 {
-                Text("Season \(season.seasonNumber)")
-                    .font(.headline)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                    .padding(.leading, 4)
-            }
+            // Always show the season label, including when only one season
+            // has downloaded episodes in this show folder.
+            Text("Season \\(season.seasonNumber)")
+                .font(.headline)
+                .fontWeight(.bold)
+                .foregroundColor(.white)
+                .padding(.leading, 4)
 
-            ForEach(season.episodes) { item in
+            ForEach(orderedEpisodes(in: season)) { item in
                 episodeCard(item)
             }
+        }
+    }
+
+    private func orderedEpisodes(in season: DownloadedSeasonGroup) -> [DownloadItem] {
+        season.episodes.sorted {
+            let left = $0.episodeNumber ?? Int.max
+            let right = $1.episodeNumber ?? Int.max
+            if left != right { return left < right }
+            return $0.displayTitle.localizedCaseInsensitiveCompare($1.displayTitle) == .orderedAscending
         }
     }
 
