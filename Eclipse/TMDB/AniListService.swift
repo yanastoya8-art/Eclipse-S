@@ -1864,6 +1864,12 @@ actor AniMapMappingService {
         )
     }
 
+    /// Loads only the on-disk index. Browse can use cached mappings immediately
+    /// without waiting for the potentially large global-index network refresh.
+    func prepareCachedGlobalIndexIfNeeded() async {
+        await loadGlobalIndexFromDiskIfNeeded()
+    }
+
     func prepareGlobalIndexIfNeeded() async {
         await loadGlobalIndexFromDiskIfNeeded()
 
