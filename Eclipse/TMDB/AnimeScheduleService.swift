@@ -876,7 +876,8 @@ actor SpanishDubAIResearchService {
                 romajiTitle: original.romajiTitle,
                 nativeTitle: original.nativeTitle,
                 format: original.format,
-                hasKnownAiringTime: true,
+                // The announcement confirms the calendar date, not a clock time.
+                hasKnownAiringTime: false,
                 scheduleProvider: .aiSpanishDub,
                 malID: original.malID,
                 airingTimeWithdrawn: false,
