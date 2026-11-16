@@ -3047,19 +3047,23 @@ struct MediaDetailContentView: View {
         // Never let an older metadata request publish into the new detail.
         let requestIdentity = searchResult.stableIdentity
         let requestLanguage = selectedLanguage
+        let seededIdentity = searchResult.animeIdentitySeed
+        var resolvedMALID = ratingMALID ?? seededIdentity?.malId
         let seededID = [
             preferredAniListID,
             exactAnimeNavigationSeedAniListId,
-            searchResult.animeIdentitySeed?.anilistId
+            seededIdentity?.anilistId
         ].compactMap { $0 }.first(where: { $0 > 0 })
 
         let anilistID: Int
         if let seededID {
             anilistID = seededID
         } else {
-            let resolvedID = await AniListService.shared.searchAnimeIdentity(
+            let resolvedIdentity = await AniListService.shared.searchAnimeIdentity(
                 title: searchResult.displayTitle
-            )?.anilistId
+            )
+            resolvedMALID = resolvedMALID ?? resolvedIdentity?.malId
+            let resolvedID = resolvedIdentity?.anilistId
             guard !Task.isCancelled,
                   animeAgeRatingRequestID == requestID,
                   searchResult.stableIdentity == requestIdentity,
@@ -3076,7 +3080,7 @@ struct MediaDetailContentView: View {
             // second authoritative classification source when configured.
             if rating == nil || rating == .unknown,
                MALMetadataService.shared.isConfigured,
-               let malID = ratingMALID, malID > 0 {
+               let malID = resolvedMALID, malID > 0 {
                 rating = await MALMetadataService.shared.fetchMaturityRating(malID: malID)
             }
             guard !Task.isCancelled,
