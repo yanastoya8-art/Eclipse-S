@@ -112,6 +112,7 @@ enum ScheduleProvider: String, Codable, Sendable {
     case trakt
     case traktMovie
     case tvMaze
+    case aiSpanishDub
 
     func metadataCacheKey(mediaID: Int, tmdbID: Int?, entryID: String) -> String {
         if let tmdbID, tmdbID > 0 {
@@ -185,6 +186,7 @@ struct ScheduleEntry: Identifiable, Sendable {
     var isStreamingRelease: Bool
     let tmdbId: Int?
     var originalLanguage: String?
+    var scheduleSourceURL: String? = nil
     let releaseYear: Int?
     var runtimeMinutes: Int?
     let animeMALID: Int?
@@ -228,6 +230,7 @@ struct ScheduleEntry: Identifiable, Sendable {
         originalLanguage = nil
         releaseYear = animeEntry.releaseYear
         runtimeMinutes = animeEntry.runtimeMinutes
+        scheduleSourceURL = animeEntry.sourceURL
         isMovie = false
     }
 
@@ -818,7 +821,7 @@ final class ScheduleViewModel: ObservableObject {
             guard !selectedLanguages.isEmpty else { return true }
             // DubOnly entries are already verified English-dub timetable rows;
             // do not require a second, unrelated MyDubList lookup to retain them.
-            if entry.provider == .justWatch {
+            if entry.provider == .justWatch || entry.provider == .aiSpanishDub {
                 // JustWatch has already verified the selected audio language;
                 // do not require a second MyDubList lookup for the same title.
                 return true
@@ -972,6 +975,20 @@ final class ScheduleViewModel: ObservableObject {
                             verifiedJustWatchEntries = languageMatches
                                 .filter(\.isStreamingRelease)
                                 .map { $0.markedAsVerifiedJustWatchDub() }
+
+                            // AI research is a sequential fallback for Spanish only:
+                            // it searches episodes JustWatch could not verify and only
+                            // accepts future dates backed by returned web citations.
+                            if selectedDubLanguages.contains(MyDubListLanguage.spanish.rawValue) {
+                                let knownEpisodes = Set(verifiedJustWatchEntries.map {
+                                    "\($0.sourceMediaId):\($0.episode)"
+                                })
+                                let unresolved = broadcast.entries.filter {
+                                    !knownEpisodes.contains("\($0.mediaId):\($0.episode)")
+                                }
+                                let researched = await SpanishDubAIResearchService.shared.research(entries: unresolved)
+                                verifiedJustWatchEntries.append(contentsOf: researched.map(ScheduleEntry.init(animeEntry:)))
+                            }
                         }
                     }
                 } else {
