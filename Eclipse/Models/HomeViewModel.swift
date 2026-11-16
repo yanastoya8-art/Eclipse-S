@@ -11,6 +11,23 @@ import SwiftUI
 import UIKit
 #endif
 
+private actor HomeCatalogFailureRecorder {
+    private var firstFailure: String?
+
+    func reset() {
+        firstFailure = nil
+    }
+
+    func record(_ message: String) {
+        guard firstFailure == nil else { return }
+        firstFailure = String(message.prefix(240))
+    }
+
+    func firstFailureMessage() -> String? {
+        firstFailure
+    }
+}
+
 enum HomeHeroSelectionSettings {
     static let storageKey = "homeHeroSelectedTitlesV1"
     static let didChangeNotification = Notification.Name("homeHeroSelectionDidChange")
@@ -68,6 +85,7 @@ final class HomeViewModel: ObservableObject {
         }
     }
     private var activeLoadTask: Task<Void, Never>?
+    private let catalogFailureRecorder = HomeCatalogFailureRecorder()
     private weak var activeContentFilter: TMDBContentFilter?
     private var catalogFilterObserver: NSObjectProtocol?
 
@@ -150,6 +168,7 @@ final class HomeViewModel: ObservableObject {
         }
 
         activeLoadTask = Task {
+            await catalogFailureRecorder.reset()
             let (enabledCatalogSnapshot, generation) = await MainActor.run {
 
                 _ = StremioAddonManager.shared
@@ -431,6 +450,7 @@ final class HomeViewModel: ObservableObject {
             _ = await widgetsLoaded
             _ = await recommendationsLoaded
             guard !Task.isCancelled else { return }
+            let firstCatalogFailure = await catalogFailureRecorder.firstFailureMessage()
 
             await MainActor.run {
 
@@ -460,9 +480,15 @@ final class HomeViewModel: ObservableObject {
                 }
                 self.hasCompletedInitialLoad = true
                 self.hasRenderableStartupContent = finalLoadedCount > 0
-                self.errorMessage = finalLoadedCount == 0 && !permitsEmptyResults
-                    ? "Unable to load home catalogs. Check your internet connection and API configuration, then try again."
-                    : nil
+                if finalLoadedCount == 0 && !permitsEmptyResults {
+                    if let firstCatalogFailure {
+                        self.errorMessage = "Home catalogs could not be loaded: \(firstCatalogFailure)"
+                    } else {
+                        self.errorMessage = "No results were returned by the enabled catalogs. Check your content filters and catalog selections."
+                    }
+                } else {
+                    self.errorMessage = nil
+                }
                 self.activeLoadTask = nil
             }
         }
@@ -524,8 +550,15 @@ final class HomeViewModel: ObservableObject {
         await withTaskGroup(of: (String, [TMDBSearchResult]).self) { group in
             for kind in kinds {
                 group.addTask {
-                    let items = (try? await tmdbService.discoverForKids(query: kind.query)) ?? []
-                    return (kind.catalogID, items)
+                    do {
+                        let items = try await tmdbService.discoverForKids(query: kind.query)
+                        return (kind.catalogID, items)
+                    } catch {
+                        await self.catalogFailureRecorder.record(
+                            "Catalog \(kind.catalogID): \(error.localizedDescription)"
+                        )
+                        return (kind.catalogID, [])
+                    }
                 }
             }
             for await (id, items) in group {
@@ -555,6 +588,7 @@ final class HomeViewModel: ObservableObject {
                 return items
             } catch {
                 lastError = error
+                await catalogFailureRecorder.record("Catalog \(id): \(error.localizedDescription)")
                 guard attempt < retryDelays.count,
                       Self.shouldRetryHomeCatalogRequest(after: error),
                       !Task.isCancelled else {
