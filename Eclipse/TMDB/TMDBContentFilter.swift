@@ -657,7 +657,7 @@ class TMDBContentFilter: ObservableObject {
         }
         guard !unresolvedIDs.isEmpty else { return }
 
-        var ratings = (try? await TaizenAnimeAgeRatingService.shared.ratings(anilistIDs: unresolvedIDs)) ?? [:]
+        var ratings = (try? await TaizenAnimeAgeRatingService.shared.ratings(anilistIDs: Array(unresolvedIDs))) ?? [:]
         let missingIDs = unresolvedIDs.filter { ratings[$0] == nil || ratings[$0] == .unknown }
         if MALMetadataService.shared.isConfigured, !missingIDs.isEmpty {
             await withTaskGroup(of: (Int, MaturityRating?).self) { group in
