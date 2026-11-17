@@ -2762,8 +2762,12 @@ struct MediaDetailContentView: View {
         if ExperimentalFeatureState.isEnabledAtLaunch {
             let bleedColor = mediaDetailHeroBleedColor ?? heroBlendColor
             let landscapeTail = usesLandscapeDetailComposition ? mediaDetailHeroBleedTail : 0
+            // Keep the gradient over the lower part of the actual poster,
+            // then continue it past the hero edge into the detail content. The
+            // previous landscape sizing started the gradient only after the
+            // poster ended, so the artwork itself never received colour bleed.
             let gradientHeight = usesLandscapeDetailComposition
-                ? mediaDetailHeroBleedTail
+                ? headerHeight * 0.72 + mediaDetailHeroBleedTail
                 : max(designMetrics.heroBottomFadeHeight + 90, usesWideDetailLayout ? 560 : 430)
 
             LinearGradient(
