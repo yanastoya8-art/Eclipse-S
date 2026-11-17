@@ -155,7 +155,7 @@ struct StretchyHeaderView: View {
                                 .frame(
                                     width: geometry.size.width,
                                     height: height,
-                                    alignment: preservesArtworkComposition ? .top : .center
+                                    alignment: .top
                                 )
                         } else {
                             Rectangle().fill(placeholderColor)
