@@ -2595,8 +2595,11 @@ struct MediaDetailContentView: View {
                                 ? headerHeight * 0.78
                                 : min(EclipseViewport.bounds.width * 1.5, headerHeight - 40)))
                     headerSection
-                        .frame(maxWidth: .infinity, alignment: usesLandscapeDetailComposition ? .center : (usesWideDetailLayout ? .trailing : .center))
-                        .padding(.horizontal, usesWideDetailLayout ? 48 : 0)
+                        // Keep the overview group centred against the visible landscape viewport.
+                        // The artwork extends beneath the horizontal safe areas, but the controls
+                        // must use a symmetric, full-width layout rather than inheriting that offset.
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.horizontal, usesLandscapeDetailComposition ? 0 : (usesWideDetailLayout ? 48 : 0))
                 }
                 .frame(maxWidth: .infinity, alignment: .top)
             }
@@ -2623,7 +2626,7 @@ struct MediaDetailContentView: View {
                 // Portrait covers keep their native composition; wide
                 // layouts fill the banner so a portrait fallback does not
                 // leave empty bands around the artwork.
-                preservesArtworkComposition: !usesWideDetailLayout
+                preservesArtworkComposition: true
             )
             // StretchyHeaderView can initially report its intrinsic artwork
             // size before the first scroll-layout pass. Give landscape artwork
@@ -2747,15 +2750,23 @@ struct MediaDetailContentView: View {
 
     @ViewBuilder
     private var gradientOverlay: some View {
-        if ExperimentalFeatureState.isEnabledAtLaunch {
+        // Landscape bleed is drawn inside the hero artwork (rather than as a
+        // scroll-content background), so apply the dedicated slider here.
+        // Normalize against the default landscape strength to preserve the
+        // existing appearance at the default value while allowing 0 to disable it.
+        let landscapeBleedScale = CGFloat(
+            min(max(mediaDetailHeroBleedStrength / 1.48, 0), 2.0)
+        )
+        let bleedScale = usesLandscapeDetailComposition ? landscapeBleedScale : 1.0
 
+        if ExperimentalFeatureState.isEnabledAtLaunch {
             LinearGradient(
                 gradient: Gradient(stops: [
                     .init(color: .clear, location: 0.0),
-                    .init(color: heroBlendColor.opacity(0.08), location: 0.48),
-                    .init(color: heroBlendColor.opacity(0.28), location: 0.70),
-                    .init(color: heroBlendColor.opacity(0.68), location: 0.88),
-                    .init(color: heroBlendColor.opacity(1.0), location: 1.0)
+                    .init(color: heroBlendColor.opacity(0.08 * bleedScale), location: 0.48),
+                    .init(color: heroBlendColor.opacity(0.28 * bleedScale), location: 0.70),
+                    .init(color: heroBlendColor.opacity(0.68 * bleedScale), location: 0.88),
+                    .init(color: heroBlendColor.opacity(1.0 * bleedScale), location: 1.0)
                 ]),
                 startPoint: .top,
                 endPoint: .bottom
@@ -2766,10 +2777,10 @@ struct MediaDetailContentView: View {
         } else {
             LinearGradient(
                 gradient: Gradient(stops: [
-                    .init(color: atmosphereColor.opacity(theme.atmosphereStyle == .solid ? 0.0 : 0.0), location: 0.0),
-                    .init(color: atmosphereColor.opacity(theme.atmosphereStyle == .solid ? 0.25 : 0.16), location: 0.20),
-                    .init(color: atmosphereColor.opacity(theme.atmosphereStyle == .solid ? 0.62 : 0.42), location: 0.62),
-                    .init(color: atmosphereColor.opacity(1), location: 1.0)
+                    .init(color: atmosphereColor.opacity(0.0), location: 0.0),
+                    .init(color: atmosphereColor.opacity(0.16 * bleedScale), location: 0.20),
+                    .init(color: atmosphereColor.opacity(0.42 * bleedScale), location: 0.62),
+                    .init(color: atmosphereColor.opacity(1.0 * bleedScale), location: 1.0)
                 ]),
                 startPoint: .top,
                 endPoint: .bottom
@@ -2909,6 +2920,7 @@ struct MediaDetailContentView: View {
                 : (usesWideDetailLayout ? 520 : .infinity),
             alignment: .center
         )
+        .frame(maxWidth: .infinity, alignment: .center)
         .padding(.top, usesWideDetailLayout ? 52 : 64)
         .padding(.bottom, isTvOS ? 60 : (usesWideDetailLayout ? 30 : 42))
         .background {
