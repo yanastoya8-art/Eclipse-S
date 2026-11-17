@@ -672,7 +672,9 @@ struct MediaDetailContentView: View {
     }
 
     private var mediaDetailHeroBleedColor: Color? {
-        usesWideDetailLayout ? heroBlendColor : heroBleedColor
+        // Use the same extracted artwork colour in both orientations. The
+        // landscape layout must not substitute the theme's generic blend tint.
+        heroBleedColor
     }
 
     private var mediaDetailHeroBleedTail: CGFloat {
@@ -2758,19 +2760,29 @@ struct MediaDetailContentView: View {
         let bleedScale = usesLandscapeDetailComposition ? landscapeBleedScale : 1.0
 
         if ExperimentalFeatureState.isEnabledAtLaunch {
+            let bleedColor = mediaDetailHeroBleedColor ?? heroBlendColor
+            let landscapeTail = usesLandscapeDetailComposition ? mediaDetailHeroBleedTail : 0
+            let gradientHeight = usesLandscapeDetailComposition
+                ? mediaDetailHeroBleedTail
+                : max(designMetrics.heroBottomFadeHeight + 90, usesWideDetailLayout ? 560 : 430)
+
             LinearGradient(
                 gradient: Gradient(stops: [
                     .init(color: .clear, location: 0.0),
-                    .init(color: heroBlendColor.opacity(0.08 * bleedScale), location: 0.48),
-                    .init(color: heroBlendColor.opacity(0.28 * bleedScale), location: 0.70),
-                    .init(color: heroBlendColor.opacity(0.68 * bleedScale), location: 0.88),
-                    .init(color: heroBlendColor.opacity(1.0 * bleedScale), location: 1.0)
+                    .init(color: bleedColor.opacity(0.08 * bleedScale), location: 0.20),
+                    .init(color: bleedColor.opacity(0.28 * bleedScale), location: 0.48),
+                    .init(color: bleedColor.opacity(0.68 * bleedScale), location: 0.78),
+                    .init(color: bleedColor.opacity(1.0 * bleedScale), location: 1.0)
                 ]),
                 startPoint: .top,
                 endPoint: .bottom
             )
-            .frame(height: max(designMetrics.heroBottomFadeHeight + 90, usesWideDetailLayout ? 560 : 430))
+            // In landscape the fade begins exactly at the hero's lower edge
+            // and extends behind the first detail rows. It belongs to this
+            // hero only, so it cannot tint the full page or episode list.
+            .frame(height: gradientHeight)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            .offset(y: landscapeTail)
             .allowsHitTesting(false)
         } else {
             LinearGradient(
