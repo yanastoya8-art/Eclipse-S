@@ -1784,7 +1784,10 @@ struct MediaDetailContentView: View {
             AtmosphereBackdrop(
                 input: theme.atmosphereInput(
                     dominant: ambientColor,
-                    hasHeroBleed: false,
+                    // Landscape leaves horizontal space beyond the inset
+                    // content column. Extend the hero's extracted colour into
+                    // that area instead of reverting to the flat base backdrop.
+                    hasHeroBleed: usesLandscapeDetailComposition,
                     heroHeight: headerHeight,
                     fadeDistance: headerHeight * 0.62
                 ),

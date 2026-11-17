@@ -684,6 +684,24 @@ private struct MangaHomeHeroBanner: View {
 
     var body: some View {
         ZStack {
+            // Reuse the hero artwork as a soft, oversized backdrop. This gives
+            // Reader mode the same edge-to-edge colour bleed treatment as the
+            // Watch hero without introducing a second network fetch (Kingfisher
+            // serves both views from its shared image cache).
+            ReaderScopedRemoteImage(
+                url: URL(string: item.imageURL),
+                readerExtensionSourceID: item.route?.readerExtensionSourceID,
+                maximumPixelSize: isIPad ? 2_400 : 1_800
+            ) {
+                Rectangle().fill(Color.black.opacity(0.18))
+            }
+            .scaledToFill()
+            .frame(width: bannerWidth + 112, height: bannerHeight + 112)
+            .blur(radius: 38)
+            .opacity(0.72)
+            .offset(y: -42)
+            .allowsHitTesting(false)
+
             ReaderScopedRemoteImage(
                 url: URL(string: item.imageURL),
                 readerExtensionSourceID: item.route?.readerExtensionSourceID,

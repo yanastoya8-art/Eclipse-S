@@ -560,8 +560,11 @@ struct AppHubOverlay: View {
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
 #endif
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) {
-            withAnimation(.timingCurve(0.2, 0.75, 0.25, 1, duration: 0.82)) {
+        // Keep the mode hand-off short: the previous 0.82s transition
+        // kept both home trees alive through most of the animation and made
+        // the switch feel stalled on older iPhones.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) {
+            withAnimation(.timingCurve(0.2, 0.75, 0.25, 1, duration: 0.48)) {
                 showKanzen = true
             }
         }

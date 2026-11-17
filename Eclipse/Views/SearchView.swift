@@ -2292,6 +2292,13 @@ private struct BrowseMediaView: View {
                     unfilteredResults = sortedDeduplicatedResults(combinedRawResults, by: sort)
                     results = sortedDeduplicatedResults(filtered, by: sort)
 
+                    // Warm the shared logo cache as soon as a page arrives.
+                    // Visible cards can reuse in-flight/cached artwork rather
+                    // than starting an independent lookup on appearance.
+                    Task(priority: .utility) {
+                        await SearchResultTitleLogoCache.shared.prefetch(results: pageResult.results)
+                    }
+
                     currentPage = page
                     hasMorePages = pageResult.hasMore
                     isLoading = false
@@ -2308,10 +2315,24 @@ private struct BrowseMediaView: View {
                     }
 
                     if browseMediaType.isAnime && !requiresAnimeIdentityBeforeFiltering {
-                        // Keep the first paint fast. Poster/logo enrichment is
-                        // allowed to finish after results are already interactive.
+                        // Keep the first paint fast. Anime identity, clean cover
+                        // and logo enrichment can finish after the grid is interactive.
                         Task {
                             let enriched = await resolveAnimeBrowseIdentities(pageResult.results)
+                            guard queryGeneration == browseQueryGeneration,
+                                  mediaType == browseMediaType.tmdbValue else { return }
+                            var enrichedByID: [Int: TMDBSearchResult] = [:]
+                            for result in enriched { enrichedByID[result.id] = result }
+                            unfilteredResults = unfilteredResults.map { enrichedByID[$0.id] ?? $0 }
+                            results = results.map { enrichedByID[$0.id] ?? $0 }
+                        }
+                    } else if !browseMediaType.isAnime {
+                        // Browse used to resolve Fanart.tv/TVMaze artwork only
+                        // from the anime enrichment path. Consequently movie and
+                        // TV cards had no clean poster candidates and displayed
+                        // generic gradient placeholders with logos on top.
+                        Task {
+                            let enriched = await resolveBrowsePosterArtwork(pageResult.results)
                             guard queryGeneration == browseQueryGeneration,
                                   mediaType == browseMediaType.tmdbValue else { return }
                             var enrichedByID: [Int: TMDBSearchResult] = [:]
@@ -2581,7 +2602,6 @@ private struct BrowseMediaView: View {
 
         let candidates = results.enumerated().compactMap { index, result -> (Int, TMDBSearchResult, Bool)? in
             let hasTaizenPoster = result.animeArtworkURL?.contains("taizen.moe") == true
-            if hasTaizenPoster, result.animeLogoURL != nil { return nil }
 
             let originalLanguage = result.originalLanguage?.lowercased() ?? ""
             let baseLanguage = originalLanguage.split(separator: "-").first.map(String.init) ?? originalLanguage
@@ -2590,6 +2610,14 @@ private struct BrowseMediaView: View {
             }
             let needsDubIdentity = !selectedDubLanguageCodes.isEmpty && !nativeAudioMatchesDubFilter
             let needsAudioIdentity = originalAudioFilterEnabled && !["en", "es"].contains(baseLanguage)
+            // Existing clean artwork must not short-circuit identity resolution
+            // when a selected dub/audio filter still needs AniList metadata.
+            // Otherwise an anime with a Taizen poster and logo is incorrectly
+            // discarded before the strict language filter can inspect it.
+            if hasTaizenPoster, result.animeLogoURL != nil,
+               !needsDubIdentity, !needsAudioIdentity {
+                return nil
+            }
             let likelyAnime = result.isAnimeHint == true
                 || (result.genreIds?.contains(16) == true
                     && (["ja", "zh", "ko"].contains(baseLanguage)
@@ -2802,6 +2830,38 @@ private struct BrowseMediaView: View {
         }
     }
 
+    private func resolveBrowsePosterArtwork(_ results: [TMDBSearchResult]) async -> [TMDBSearchResult] {
+        let tvMazeRequests = results.compactMap { result -> TVMazePosterRequest? in
+            guard result.mediaType.lowercased() == "tv",
+                  result.animeIdentitySeed == nil,
+                  result.isAnimeHint != true else { return nil }
+            let rawYear = result.firstAirDate ?? result.releaseDate
+            return TVMazePosterRequest(
+                id: result.id,
+                title: result.displayTitle,
+                year: rawYear.flatMap { Int($0.prefix(4)) }
+            )
+        }
+        let fanartRequests = results.compactMap { result -> FanartTVMoviePosterRequest? in
+            guard result.mediaType.lowercased() == "movie",
+                  result.animeIdentitySeed == nil,
+                  result.isAnimeHint != true else { return nil }
+            return FanartTVMoviePosterRequest(id: result.id)
+        }
+        async let tvMazeTask = TVMazeArtworkPosterService.shared.posters(for: tvMazeRequests)
+        async let fanartTask = FanartTVMovieArtworkService.shared.posters(for: fanartRequests)
+        let (tvMazePosters, fanartPosters) = await (tvMazeTask, fanartTask)
+        return results.map { result in
+            if let poster = fanartPosters[result.id] {
+                return result.withFanartTVPosterURL(poster)
+            }
+            if let poster = tvMazePosters[result.id] {
+                return result.withTVMazePosterURL(poster)
+            }
+            return result
+        }
+    }
+
     private func filterResultsForBrowseType(
         _ fetched: [TMDBSearchResult],
         mediaType: BrowseMediaType,
@@ -2822,12 +2882,21 @@ private struct BrowseMediaView: View {
             }
         }
 
-        guard ageRating != .all else {
+        let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguages
+        let requiresAnimeIdentity = mediaType.isAnime && (
+            !selectedDubLanguages.isEmpty
+                || UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
+        )
+        guard ageRating != .all || requiresAnimeIdentity else {
             return typeFiltered
         }
         guard !Task.isCancelled else { return [] }
 
-        // Resolve missing anime identities before age filtering. Otherwise
+        // Resolve missing anime identities before age filtering and language
+        // filtering. Previously this entire resolver was skipped when age rating
+        // was set to All, so dub-filtered anime could never obtain AniList IDs
+        // and were incorrectly removed as unverified.
+        //
         // AniList/Taizen cannot supply the rating for TMDB discover rows with
         // incomplete metadata and those titles are incorrectly treated as unrated.
         let ratingCandidates = mediaType.isAnime
