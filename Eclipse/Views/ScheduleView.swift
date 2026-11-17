@@ -49,7 +49,7 @@ struct ScheduleView: View {
             allAgesBlockedScheduleEntryIDs = Set(
                 entries
                     .filter { TMDBContentFilter.shared.scheduleEntryIsAllAges($0) }
-                    .map(\\.id)
+                    .map(\.id)
             )
         }
     }
