@@ -3650,7 +3650,7 @@ struct MediaDetailContentView: View {
                 knownMALID: ratingMALID,
                 allowsTMDBSeasonScope: !isLoading && anilistEpisodes == nil && selectedSpecialEpisodeContext == nil
             )
-            .offset(y: usesLandscapeDetailComposition ? landscapeRatingNotesOffset : portraitRatingNotesOffset)
+            .offset(y: CGFloat(usesLandscapeDetailComposition ? landscapeRatingNotesOffset : portraitRatingNotesOffset))
         case .traktComments:
             traktCommentsSection
         case .episodes:
