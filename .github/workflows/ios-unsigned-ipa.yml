@@ -583,7 +583,7 @@ jobs:
           for version_entry in app_entry["versions"]:
               if not required_version.issubset(version_entry) or not set(version_entry).issubset(allowed_version):
                   raise SystemExit("Invalid SideStore version keys")
-          path.write_text(json.dumps(feed, indent=2, ensure_ascii=False) + "\\n")
+          path.write_text(json.dumps(feed, indent=2, ensure_ascii=False) + "\n")
           parsed = json.loads(path.read_text())
           if parsed != feed:
               raise SystemExit("SideStore source JSON round-trip validation failed")
