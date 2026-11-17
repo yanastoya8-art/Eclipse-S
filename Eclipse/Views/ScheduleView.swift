@@ -38,6 +38,22 @@ struct ScheduleView: View {
     @State private var kidsScheduleFilterGeneration = 0
     @State private var scheduleNeedsFilterRefresh = false
 
+    private func refreshAllAgesScheduleFilter(_ entries: [ScheduleEntry]) {
+        allAgesScheduleFilterGeneration &+= 1
+        let generation = allAgesScheduleFilterGeneration
+
+        Task { @MainActor in
+            await TMDBContentFilter.shared.prepareScheduleAgeRatings(for: entries)
+
+            guard generation == allAgesScheduleFilterGeneration else { return }
+            allAgesBlockedScheduleEntryIDs = Set(
+                entries
+                    .filter { TMDBContentFilter.shared.scheduleEntryIsAllAges($0) }
+                    .map(\\.id)
+            )
+        }
+    }
+
     private func visibleToProfile(_ entries: [ScheduleEntry]) -> [ScheduleEntry] {
         let ageFilteredEntries = entries.filter { !allAgesBlockedScheduleEntryIDs.contains($0.id) }
         let profileEntries = UserDefaults.standard.bool(forKey: "catalogHideAnime")
