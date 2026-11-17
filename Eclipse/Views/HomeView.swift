@@ -604,6 +604,7 @@ struct HomeView: View {
     @AppStorage("heroBannerBehavior") private var heroBannerBehavior = HeroBannerBehavior.defaultValue.rawValue
     @AppStorage(HomeHeroTitleLogoPositionSettings.verticalPositionKey) private var homeHeroTitleLogoVerticalPosition = HomeHeroTitleLogoPositionSettings.defaultVerticalPosition
     @AppStorage("homeHeroTitleLogoSize") private var homeHeroTitleLogoSize = 1.0
+    @AppStorage("homeHeroBannerBleedIntensity") private var homeHeroBannerBleedIntensity = 1.0
     @AppStorage(HomeAnimatedBackgroundSettings.enabledKey) private var homeAnimatedBackgroundEnabled = HomeAnimatedBackgroundSettings.defaultEnabled
     @AppStorage(ExperimentalMediaDesignPreset.storageKey) private var experimentalDesignPreset = ExperimentalMediaDesignPreset.defaultValue.rawValue
     @AppStorage(ExperimentalHeroBleedLevel.storageKey) private var experimentalHeroBleedLevel = ExperimentalHeroBleedLevel.defaultValue.rawValue
@@ -1059,7 +1060,7 @@ struct HomeView: View {
                 color: ExperimentalFeatureState.isEnabledAtLaunch ? heroBleedColor : nil,
                 heroHeight: heroHeight,
                 tail: heroHeight * 0.62,
-                strength: theme.scopedBleedStrength()
+                strength: min(max(theme.scopedBleedStrength() * homeHeroBannerBleedIntensity, 0), 4)
             )
         }
         .coordinateSpace(name: "homeScroll")
@@ -1106,7 +1107,7 @@ struct HomeView: View {
     }
 
     private func macHeroBleed(color: Color, layout: MacHomeHeroLayout) -> some View {
-        let strength = min(max(theme.scopedBleedStrength() * designMetrics.heroWashStrength, 0), 1.5)
+        let strength = min(max(theme.scopedBleedStrength() * designMetrics.heroWashStrength * homeHeroBannerBleedIntensity, 0), 4)
         let height = layout.height + layout.bleedTail
         let boundary = layout.height / height
         return LinearGradient(
