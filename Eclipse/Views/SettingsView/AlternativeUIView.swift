@@ -44,6 +44,7 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
     case landscapeTitleLogoWeight
     case landscapeHeroActionPosition
     case landscapeHeroSynopsisPosition
+    case landscapeContentHorizontalPosition
     case tmdbTitleArt
     case dataSaver
     case ageRating
@@ -63,7 +64,7 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
             return "interface"
         case .switchModeAnimation, .animatedBackground, .animationQuality, .animationColor, .customAnimationColor, .animationFrameRate, .appPerformanceOverlay, .hideSplashScreen:
             return "motion"
-        case .alternativeSeasonMenu, .horizontalEpisodeList, .showUnairedEpisodes, .titleLogoPosition, .titleLogoSize, .titleLogoWeight, .heroActionPosition, .heroSynopsisPosition, .landscapeTitleLogoPosition, .landscapeTitleLogoSize, .landscapeTitleLogoWeight, .landscapeHeroActionPosition, .landscapeHeroSynopsisPosition, .tmdbTitleArt, .dataSaver, .ageRating, .similarTitles:
+        case .alternativeSeasonMenu, .horizontalEpisodeList, .showUnairedEpisodes, .titleLogoPosition, .titleLogoSize, .titleLogoWeight, .heroActionPosition, .heroSynopsisPosition, .landscapeTitleLogoPosition, .landscapeTitleLogoSize, .landscapeTitleLogoWeight, .landscapeHeroActionPosition, .landscapeHeroSynopsisPosition, .landscapeContentHorizontalPosition, .tmdbTitleArt, .dataSaver, .ageRating, .similarTitles:
             return "details"
         case .libraryBookmarks, .libraryCollectionLayout:
             return "library"
@@ -89,6 +90,7 @@ struct AlternativeUIView: View {
     @AppStorage(LandscapeMediaDetailAppearanceSettings.logoWeightKey) private var landscapeTitleLogoWeight = LandscapeMediaDetailAppearanceSettings.defaultLogoWeight
     @AppStorage(LandscapeMediaDetailAppearanceSettings.actionsOffsetKey) private var landscapeHeroActionsOffset = LandscapeMediaDetailAppearanceSettings.defaultOffset
     @AppStorage(LandscapeMediaDetailAppearanceSettings.synopsisOffsetKey) private var landscapeHeroSynopsisOffset = LandscapeMediaDetailAppearanceSettings.defaultOffset
+    @AppStorage(LandscapeMediaDetailAppearanceSettings.contentHorizontalOffsetKey) private var landscapeContentHorizontalOffset = LandscapeMediaDetailAppearanceSettings.defaultContentHorizontalOffset
     @AppStorage("mediaDetailPortraitHeroBleedIntensity") private var portraitHeroBleedIntensity = 1.0
     @AppStorage("mediaDetailLandscapeHeroBleedIntensity") private var landscapeHeroBleedIntensity = 1.0
     @AppStorage(ImageDataSaverSettings.enabledKey, store: .standard) private var imageDataSaverEnabled = false
@@ -691,6 +693,8 @@ struct AlternativeUIView: View {
                 .id(AppearanceSettingsSearchTarget.landscapeHeroActionPosition.anchorID)
             sliderRow(title: "Landscape Synopsis Vertical Position", description: "Move the synopsis independently in landscape detail pages.", value: $landscapeHeroSynopsisOffset, range: LandscapeMediaDetailAppearanceSettings.offsetRange, step: LandscapeMediaDetailAppearanceSettings.offsetStep)
                 .id(AppearanceSettingsSearchTarget.landscapeHeroSynopsisPosition.anchorID)
+            sliderRow(title: "Landscape Content Horizontal Position", description: "Move the genre, action buttons, ratings, notes and episode content left or right on landscape detail pages.", value: $landscapeContentHorizontalOffset, range: LandscapeMediaDetailAppearanceSettings.contentHorizontalOffsetRange, step: LandscapeMediaDetailAppearanceSettings.contentHorizontalOffsetStep)
+                .id(AppearanceSettingsSearchTarget.landscapeContentHorizontalPosition.anchorID)
             sliderRow(
                 title: "Landscape Ratings & Notes Position",
                 description: "Adjust the Ratings & Notes section independently in landscape detail pages.",
