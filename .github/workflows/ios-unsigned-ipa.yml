@@ -587,5 +587,5 @@ jobs:
           git add "$FEED_PATH"
           if ! git diff --cached --quiet; then
             git commit -m "Update SideStore feed for build $RUN_NUMBER"
-            git push origin HEAD
+            git push origin "HEAD:$GITHUB_REF_NAME"
           fi
