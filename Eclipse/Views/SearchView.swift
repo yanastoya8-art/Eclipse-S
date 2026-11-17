@@ -1644,6 +1644,12 @@ private struct BrowseMediaView: View {
             cancelBrowseLoad()
         }
         .onChangeComp(of: mediaType) { _, newMediaType in
+            // Never leave Movies/Series visible under the Anime selector (or
+            // vice versa) while the replacement discover request is running.
+            // The request serial still protects against late responses from the
+            // category we just left.
+            results.removeAll(keepingCapacity: true)
+            unfilteredResults.removeAll(keepingCapacity: true)
             if profileAppliedMediaType == newMediaType {
                 profileAppliedMediaType = nil
                 return
