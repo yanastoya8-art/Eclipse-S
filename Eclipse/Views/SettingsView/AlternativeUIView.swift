@@ -686,7 +686,7 @@ struct AlternativeUIView: View {
                 title: "Landscape Hero Color Bleed Intensity",
                 description: "Set how strongly the detail-page hero color extends down the page in landscape mode.",
                 value: $landscapeHeroBleedIntensity,
-                range: 0...2,
+                range: 0...3.5,
                 step: 0.05
             )
         } header: {
