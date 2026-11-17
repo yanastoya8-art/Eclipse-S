@@ -141,7 +141,15 @@ struct StretchyHeaderView: View {
                                         }
                                         .resizable()
                                         .aspectRatio(contentMode: .fit)
-                                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                                        // Give the poster a real, finite drawing canvas.
+                                        // Without this, SwiftUI can centre its intrinsic
+                                        // image inside the hero's flexible geometry and
+                                        // leave an empty strip above the visible artwork.
+                                        .frame(
+                                            width: geometry.size.width,
+                                            height: height,
+                                            alignment: .top
+                                        )
                                 }
                             } else {
                                 KFImage(URL(string: imageURL))
