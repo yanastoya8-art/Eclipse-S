@@ -690,8 +690,7 @@ struct AlternativeUIView: View {
                 description: "Stretch or narrow the detail-page hero artwork from left to right. This affects landscape only.",
                 value: $landscapeHeroHorizontalStretch,
                 range: 0.85...1.5,
-                step: 0.05,
-                format: "%.2f×"
+                step: 0.05
             )
             .id(AppearanceSettingsSearchTarget.landscapeHeroHorizontalStretch.anchorID)
             sliderRow(
