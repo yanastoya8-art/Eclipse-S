@@ -296,7 +296,8 @@ struct SearchResultCard: View {
             ) {
                 FallbackImageView(
                     isMovie: result.isMovie,
-                    size: CGSize(width: posterDecodeWidth, height: posterDecodeWidth * 1.5)
+                    size: CGSize(width: posterDecodeWidth, height: posterDecodeWidth * 1.5),
+                    expandsToFillContainer: true
                 )
             }
 
