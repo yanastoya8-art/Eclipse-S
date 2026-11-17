@@ -74,6 +74,53 @@ final class TMDBAlternatePosterTests: XCTestCase {
         XCTAssertEqual(result.fullPosterURL, fanartURL)
     }
 
+    func testAnimePosterResolverRejectsTitleBearingAniListCoverFallback() {
+        let anilistCover = TMDBSearchResult(
+            id: 101,
+            mediaType: "tv",
+            title: "Example Anime",
+            name: nil,
+            overview: nil,
+            posterPath: "/title-bearing-tmdb.jpg",
+            backdropPath: nil,
+            releaseDate: nil,
+            firstAirDate: nil,
+            voteAverage: 8,
+            popularity: 10,
+            adult: false,
+            genreIds: [16],
+            originalLanguage: "ja",
+            originCountry: ["JP"],
+            isAnimeHint: true,
+            animeArtworkURL: "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/example.jpg"
+        )
+        XCTAssertTrue(PosterArtworkURLResolver.candidates(for: anilistCover).isEmpty)
+
+        let cleanTaizenCover = TMDBSearchResult(
+            id: 102,
+            mediaType: "tv",
+            title: "Example Anime",
+            name: nil,
+            overview: nil,
+            posterPath: "/title-bearing-tmdb.jpg",
+            backdropPath: nil,
+            releaseDate: nil,
+            firstAirDate: nil,
+            voteAverage: 8,
+            popularity: 10,
+            adult: false,
+            genreIds: [16],
+            originalLanguage: "ja",
+            originCountry: ["JP"],
+            isAnimeHint: true,
+            animeArtworkURL: "https://cdn.taizen.moe/posters/example.jpg"
+        )
+        XCTAssertEqual(
+            PosterArtworkURLResolver.bestPosterURL(for: cleanTaizenCover),
+            "https://cdn.taizen.moe/posters/example.jpg"
+        )
+    }
+
     func testStandardTMDBArtworkUsesNativeResolutionUnlessDataSaverIsEnabled() {
         let source = "https://image.tmdb.org/t/p/w500/poster.jpg"
         XCTAssertEqual(

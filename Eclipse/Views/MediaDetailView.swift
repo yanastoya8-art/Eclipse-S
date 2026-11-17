@@ -483,6 +483,8 @@ struct MediaDetailContentView: View {
     private var landscapeHeroActionsVerticalOffset = LandscapeMediaDetailAppearanceSettings.defaultOffset
     @AppStorage(LandscapeMediaDetailAppearanceSettings.synopsisOffsetKey)
     private var landscapeHeroSynopsisVerticalOffset = LandscapeMediaDetailAppearanceSettings.defaultOffset
+    @AppStorage(LandscapeMediaDetailAppearanceSettings.contentHorizontalOffsetKey)
+    private var landscapeContentHorizontalOffset = LandscapeMediaDetailAppearanceSettings.defaultContentHorizontalOffset
     @AppStorage("mediaDetailPortraitHeroBleedIntensity")
     private var portraitHeroBleedIntensity = 1.0
     @AppStorage("mediaDetailLandscapeHeroBleedIntensity")
@@ -2625,10 +2627,9 @@ struct MediaDetailContentView: View {
                 },
                 placeholderColor: shouldAnalyzeAlternatePoster ? .clear : Color.gray.opacity(0.3),
                 fallbackImageURLs: detailHeroFallbackImageURLs,
-                // Keep the full poster visible in portrait. In landscape,
-                // fill the banner with the single poster image and pin it to
-                // the top so the important upper artwork is never cropped.
-                preservesArtworkComposition: !usesLandscapeDetailComposition
+                // Fill the reserved hero viewport with one artwork image;
+                // StretchyHeaderView clips the overflow instead of leaving
+                // an aspect-fit gap beneath a short image.
             )
             // StretchyHeaderView can initially report its intrinsic artwork
             // size before the first scroll-layout pass. Give landscape artwork
@@ -2935,6 +2936,7 @@ struct MediaDetailContentView: View {
             alignment: .center
         )
         .frame(maxWidth: .infinity, alignment: .center)
+        .offset(x: usesLandscapeDetailComposition ? CGFloat(landscapeContentHorizontalOffset) : 0)
         .padding(.top, usesWideDetailLayout ? 52 : 64)
         .padding(.bottom, isTvOS ? 60 : (usesWideDetailLayout ? 30 : 42))
         .background {
@@ -3660,6 +3662,7 @@ struct MediaDetailContentView: View {
 
     @ViewBuilder
     private func mediaDetailElementView(_ element: MediaDetailElement) -> some View {
+        Group {
         switch element {
         case .actions:
             playAndBookmarkSection
@@ -3707,6 +3710,8 @@ struct MediaDetailContentView: View {
         case .trailers:
             experimentalTrailersSection
         }
+        }
+        .offset(x: usesLandscapeDetailComposition ? CGFloat(landscapeContentHorizontalOffset) : 0)
     }
 
     private func originalTitleForSearchSheet(_ episode: TMDBEpisode?) -> String? {

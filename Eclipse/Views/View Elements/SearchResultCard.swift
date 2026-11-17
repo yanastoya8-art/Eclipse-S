@@ -25,7 +25,17 @@ enum PosterArtworkURLResolver {
                 && (["ja", "zh", "ko"].contains(language)
                     || result.originCountry?.contains(where: { asianAnimationCountries.contains($0) }) == true))
 
-        if isAnime, let anime = result.animeArtworkURL, !anime.isEmpty {
+        if isAnime, let fanart = result.fanartTVPosterURL, !fanart.isEmpty {
+            candidates.append(fanart)
+        }
+        if isAnime, let anime = result.animeArtworkURL, !anime.isEmpty,
+           let host = URL(string: anime)?.host?.lowercased(),
+           (host == "taizen.moe" || host.hasSuffix(".taizen.moe")
+                || host == "fanart.tv" || host.hasSuffix(".fanart.tv")) {
+            // Do not use AniList/TMDB cover scans as a fallback here: many
+            // have the series title baked into the image. Keep only the clean
+            // Taizen/Fanart artwork so the transparent logo remains the sole
+            // title treatment on Home and Browse poster cards.
             candidates.append(anime)
         }
         if !isAnime, result.isMovie, let fanart = result.fanartTVPosterURL, !fanart.isEmpty {
@@ -43,6 +53,13 @@ enum PosterArtworkURLResolver {
         }
         if !isAnime, let anime = result.animeArtworkURL, !anime.isEmpty {
             candidates.append(anime)
+        }
+        if isAnime, candidates.isEmpty,
+           let titlelessBackdrop = result.fullBackdropURL,
+           !titlelessBackdrop.isEmpty {
+            // A clean backdrop is preferable to a title-bearing cover scan.
+            // It is cropped to the poster card by the image container.
+            candidates.append(titlelessBackdrop)
         }
 
         var seen = Set<String>()

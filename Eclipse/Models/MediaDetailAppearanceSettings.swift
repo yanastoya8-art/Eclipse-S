@@ -76,6 +76,10 @@ enum LandscapeMediaDetailAppearanceSettings {
     static let logoWeightKey = "mediaDetailLandscapeTitleLogoWeight"
     static let actionsOffsetKey = "mediaDetailLandscapeHeroActionsOffset"
     static let synopsisOffsetKey = "mediaDetailLandscapeHeroSynopsisOffset"
+    static let contentHorizontalOffsetKey = "mediaDetailLandscapeContentHorizontalOffset"
+    static let defaultContentHorizontalOffset = 0.0
+    static let contentHorizontalOffsetRange: ClosedRange<Double> = -300...300
+    static let contentHorizontalOffsetStep = 10.0
     static let defaultLogoPosition = 0.40
     static let logoPositionRange: ClosedRange<Double> = 0.15...0.85
     static let defaultLogoSize = 1.0
