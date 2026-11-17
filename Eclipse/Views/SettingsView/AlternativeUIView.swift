@@ -43,6 +43,8 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
     case landscapeTitleLogoWeight
     case landscapeHeroActionPosition
     case landscapeHeroSynopsisPosition
+    case landscapeHeroHorizontalStretch
+    case landscapeHeroVerticalStretch
     case tmdbTitleArt
     case dataSaver
     case ageRating
@@ -62,7 +64,7 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
             return "interface"
         case .switchModeAnimation, .animatedBackground, .animationQuality, .animationColor, .customAnimationColor, .animationFrameRate, .appPerformanceOverlay, .hideSplashScreen:
             return "motion"
-        case .alternativeSeasonMenu, .horizontalEpisodeList, .showUnairedEpisodes, .titleLogoPosition, .titleLogoSize, .titleLogoWeight, .heroActionPosition, .heroSynopsisPosition, .landscapeTitleLogoPosition, .landscapeTitleLogoSize, .landscapeTitleLogoWeight, .landscapeHeroActionPosition, .landscapeHeroSynopsisPosition, .tmdbTitleArt, .dataSaver, .ageRating, .similarTitles:
+        case .alternativeSeasonMenu, .horizontalEpisodeList, .showUnairedEpisodes, .titleLogoPosition, .titleLogoSize, .titleLogoWeight, .heroActionPosition, .heroSynopsisPosition, .landscapeTitleLogoPosition, .landscapeTitleLogoSize, .landscapeTitleLogoWeight, .landscapeHeroActionPosition, .landscapeHeroSynopsisPosition, .landscapeHeroHorizontalStretch, .landscapeHeroVerticalStretch, .tmdbTitleArt, .dataSaver, .ageRating, .similarTitles:
             return "details"
         case .libraryBookmarks, .libraryCollectionLayout:
             return "library"
@@ -90,6 +92,8 @@ struct AlternativeUIView: View {
     @AppStorage(LandscapeMediaDetailAppearanceSettings.synopsisOffsetKey) private var landscapeHeroSynopsisOffset = LandscapeMediaDetailAppearanceSettings.defaultOffset
     @AppStorage("mediaDetailPortraitHeroBleedIntensity") private var portraitHeroBleedIntensity = 1.0
     @AppStorage("mediaDetailLandscapeHeroBleedIntensity") private var landscapeHeroBleedIntensity = 1.0
+    @AppStorage("mediaDetailLandscapeHeroHorizontalStretch") private var landscapeHeroHorizontalStretch = 1.0
+    @AppStorage("mediaDetailLandscapeHeroVerticalStretch") private var landscapeHeroVerticalStretch = 1.0
     @AppStorage(ImageDataSaverSettings.enabledKey, store: .standard) private var imageDataSaverEnabled = false
     @AppStorage(MediaDetailAgeRatingSettings.enabledKey) private var mediaDetailAgeRatingEnabled = MediaDetailAgeRatingSettings.defaultEnabled
     @AppStorage(MediaDetailSimilarTitlesSettings.enabledKey) private var mediaDetailSimilarTitlesEnabled = MediaDetailSimilarTitlesSettings.defaultEnabled
@@ -681,6 +685,24 @@ struct AlternativeUIView: View {
                 .id(AppearanceSettingsSearchTarget.landscapeHeroActionPosition.anchorID)
             sliderRow(title: "Landscape Synopsis Vertical Position", description: "Move the synopsis independently in landscape detail pages.", value: $landscapeHeroSynopsisOffset, range: LandscapeMediaDetailAppearanceSettings.offsetRange, step: LandscapeMediaDetailAppearanceSettings.offsetStep)
                 .id(AppearanceSettingsSearchTarget.landscapeHeroSynopsisPosition.anchorID)
+            sliderRow(
+                title: "Landscape Hero Horizontal Stretch",
+                description: "Stretch or narrow the detail-page hero artwork from left to right. This affects landscape only.",
+                value: $landscapeHeroHorizontalStretch,
+                range: 0.85...1.5,
+                step: 0.05,
+                format: "%.2f×"
+            )
+            .id(AppearanceSettingsSearchTarget.landscapeHeroHorizontalStretch.anchorID)
+            sliderRow(
+                title: "Landscape Hero Vertical Stretch",
+                description: "Stretch or compress the detail-page hero artwork from top to bottom. This affects landscape only.",
+                value: $landscapeHeroVerticalStretch,
+                range: 0.85...1.5,
+                step: 0.05,
+                format: "%.2f×"
+            )
+            .id(AppearanceSettingsSearchTarget.landscapeHeroVerticalStretch.anchorID)
             sliderRow(
                 title: "Landscape Ratings & Notes Position",
                 description: "Adjust the Ratings & Notes section independently in landscape detail pages.",
