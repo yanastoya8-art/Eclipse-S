@@ -46,7 +46,6 @@ struct SettingsView: View {
     @AppStorage("catalogHideAllAgesAnime", store: .standard) private var hideAllAgesAnime = false
     @AppStorage("catalogRequireEnglishSpanishAudio", store: .standard) private var requireEnglishSpanishAudio = false
 #if !os(tvOS)
-    @AppStorage("showKanzen", store: .standard) private var showKanzen: Bool = false
     @State private var settingsSearchText = ""
 #if os(macOS) && arch(x86_64)
     @AppStorage(PlaybackEngine.defaultsKey) private var searchPlaybackEngine = ""
@@ -253,7 +252,6 @@ struct SettingsView: View {
             .init(id: "download-skip-filler", title: "Skip Filler in Download All", location: "Downloads", icon: "forward.end.fill", color: .yellow, keywords: ["anime", "batch", "filler"], action: .destination(.downloads)),
             .init(id: "backup", title: "Backup & Restore", location: "Data", icon: "arrow.triangle.2.circlepath", color: .teal, keywords: ["export", "import", "settings"], action: .destination(.backup)),
             .init(id: "logger", title: "Logger", location: "Data", icon: "doc.text", color: .yellow, keywords: ["logs", "diagnostics", "errors", "export"], action: .destination(.logger)),
-            .init(id: "reader-mode", title: "Switch to Reader Mode", location: "Others", icon: "book.fill", color: .orange, keywords: ["Kanzen", "manga", "reader"], action: .readerMode),
             .init(id: "legal", title: "Legal & Source", location: "Others", icon: "scroll.fill", color: .cyan, keywords: ["privacy", "license", "GitHub", "source code"], action: .destination(.legal))
         ]
 
@@ -728,25 +726,14 @@ struct SettingsView: View {
                 }
 
                 GlassSection(header: "Others") {
-                    VStack(spacing: 0) {
-                        Button {
-                            showKanzen = true
-                        } label: {
-                            GlassSettingsRow(icon: "book.fill", iconColor: .orange, title: "Switch to Reader Mode")
-                        }
-                        .buttonStyle(.plain)
-
-                        GlassDivider()
-
-                        NavigationLink(destination: settingsSearchableContent(LegalNoticeView(
-                            sourceCodeURL: sourceCodeURL,
-                            licenseURL: licenseURL,
-                            privacyPolicyURL: privacyPolicyURL
-                        ))) {
-                            GlassSettingsRow(icon: "scroll.fill", iconColor: .cyan, title: "Legal & Source")
-                        }
-                        .buttonStyle(.plain)
+                    NavigationLink(destination: settingsSearchableContent(LegalNoticeView(
+                        sourceCodeURL: sourceCodeURL,
+                        licenseURL: licenseURL,
+                        privacyPolicyURL: privacyPolicyURL
+                    ))) {
+                        GlassSettingsRow(icon: "scroll.fill", iconColor: .cyan, title: "Legal & Source")
                     }
+                    .buttonStyle(.plain)
                 }
 
                 if supportsGitHubReleaseUpdates {
@@ -914,14 +901,6 @@ struct SettingsView: View {
                 settingsSearchRow(entry)
             }
             .buttonStyle(.plain)
-        case .readerMode:
-            Button {
-                settingsSearchText = ""
-                showKanzen = true
-            } label: {
-                settingsSearchRow(entry)
-            }
-            .buttonStyle(.plain)
         }
     }
 
@@ -941,14 +920,6 @@ struct SettingsView: View {
                         scrollProxy.scrollTo(anchor, anchor: .top)
                     }
                 }
-            } label: {
-                settingsSearchRow(entry)
-            }
-            .buttonStyle(.plain)
-        case .readerMode:
-            Button {
-                settingsSearchText = ""
-                showKanzen = true
             } label: {
                 settingsSearchRow(entry)
             }
@@ -1943,7 +1914,6 @@ private enum NotificationSettingsSearchTarget: String, Hashable {
 private enum SettingsSearchAction: Hashable {
     case destination(SettingsSearchDestination)
     case anchor(String)
-    case readerMode
 }
 
 private struct SettingsSearchEntry: Identifiable, Hashable {
