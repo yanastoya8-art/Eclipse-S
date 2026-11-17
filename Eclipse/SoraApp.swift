@@ -239,38 +239,21 @@ struct SoraApp: App {
                 ContentView(onStartupReady: markStartupReady)
                     .onAppear { scheduleStartupFallback() }
 #else
-                if showKanzen {
-                    KanzenAppRoot(
-                        onStartupReady: markStartupReady,
-                        settings: settings,
-                        theme: theme,
-                        modeSwitchTransitionCoordinator: modeSwitchTransitionCoordinator
-                    )
-                        .onAppear { scheduleStartupFallback() }
-                        .transition(modeSwitchTransition(isReaderMode: true))
-                        .zIndex(1)
-                } else {
-                    Group {
-                        if ExperimentalFeatureState.isEnabledAtLaunch {
-                            ExperimentalContentView(onStartupReady: markStartupReady)
-                                .environmentObject(theme)
-                                .onAppear { scheduleStartupFallback() }
-                        } else {
-                            ContentView(onStartupReady: markStartupReady)
-                                .environmentObject(theme)
-                                .onAppear { scheduleStartupFallback() }
-                        }
+                Group {
+                    if ExperimentalFeatureState.isEnabledAtLaunch {
+                        ExperimentalContentView(onStartupReady: markStartupReady)
+                            .environmentObject(theme)
+                    } else {
+                        ContentView(onStartupReady: markStartupReady)
+                            .environmentObject(theme)
                     }
-                    .environmentObject(modeSwitchTransitionCoordinator)
-                    .transition(modeSwitchTransition(isReaderMode: false))
-                    .zIndex(0)
                 }
-
-                if modeSwitchAnimationEnabled, let modeSwitchBurst = modeSwitchTransitionCoordinator.activeBurst {
-                    AppModeSwitchBurstOverlay(burst: modeSwitchBurst)
-                        .id(modeSwitchBurst.id)
-                        .allowsHitTesting(false)
-                        .zIndex(2)
+                .environmentObject(modeSwitchTransitionCoordinator)
+                .onAppear {
+                    // Watch Mode is the only supported application mode.
+                    // Clear any legacy preference so older installs cannot reopen Reader Mode.
+                    showKanzen = false
+                    scheduleStartupFallback()
                 }
 #endif
 
@@ -391,31 +374,6 @@ struct SoraApp: App {
             .onAppear {
                 trackerManager.checkForExpiredTrackerSessions()
             }
-#if !os(tvOS)
-            // Mode changes are animated explicitly at the switch controls. Avoid a root-level
-            // implicit animation, which also animates unrelated state updates throughout both
-            // large app trees and can cause dropped frames during the cross-mode transition.
-            .onChange(of: showKanzen) { newValue in
-                if newValue {
-                    if modeSwitchTransitionCoordinator.activeBurst == nil {
-                        modeSwitchTransitionCoordinator.beginBurst(toReaderMode: true)
-                    }
-                } else {
-                    // Keep the same lightweight burst for Reader → Watch.
-                    // The previous cancellation removed the animation as soon
-                    // as the mode changed, leaving only a delayed view swap.
-                    if modeSwitchTransitionCoordinator.activeBurst == nil {
-                        modeSwitchTransitionCoordinator.beginBurst(toReaderMode: false)
-                    }
-                    warmSchedulesAfterStartup()
-                }
-            }
-            .onChange(of: modeSwitchAnimationEnabled) { isEnabled in
-                if !isEnabled {
-                    modeSwitchTransitionCoordinator.cancelBurst()
-                }
-            }
-#endif
             .onReceive(NotificationCenter.default.publisher(for: .homeInitialHydrationDidComplete)) { _ in
                 homeHydrationComplete = true
                 warmSchedulesAfterStartup()
@@ -427,10 +385,6 @@ struct SoraApp: App {
                 let components = url.pathComponents.dropFirst()
                 switch components.first?.lowercased() {
 #if !os(tvOS)
-                case "reader":
-                    showKanzen = true
-                case "video":
-                    showKanzen = false
 #endif
                 case "settings":
                     NotificationCenter.default.post(name: .eclipseDebugOpenSettings, object: nil)
@@ -501,13 +455,7 @@ struct SoraApp: App {
 #endif
     }
 
-    private var profilePickerIsReaderMode: Bool {
-#if os(tvOS)
-        false
-#else
-        showKanzen
-#endif
-    }
+    private var profilePickerIsReaderMode: Bool { false }
 
     private func presentCloudKitUpgradeNoticeIfReady() {
         guard cloudKitUpgradeNoticePending,
@@ -532,21 +480,9 @@ struct SoraApp: App {
 
 #endif
 
-    private var performanceAppMode: String {
-#if os(tvOS)
-        "media"
-#else
-        showKanzen ? "reader" : "media"
-#endif
-    }
+    private var performanceAppMode: String { "media" }
 
-    private var performanceModeSwitchActive: Bool {
-#if os(tvOS)
-        false
-#else
-        modeSwitchTransitionCoordinator.activeBurst != nil
-#endif
-    }
+    private var performanceModeSwitchActive: Bool { false }
 
     private func markStartupReady() {
         guard !startupReady else { return }
