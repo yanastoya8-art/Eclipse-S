@@ -692,7 +692,7 @@ struct MediaDetailContentView: View {
             ? landscapeHeroBleedIntensity
             : portraitHeroBleedIntensity
         let maximumIntensity = usesLandscapeDetailComposition ? 3.5 : 2.0
-        let configuredStrength = theme.scopedBleedStrength() * min(max(orientationIntensity, 0), maximumIntensity)
+        let configuredStrength = min(max(orientationIntensity, 0), maximumIntensity)
         guard usesWideDetailLayout, configuredStrength > 0.001 else { return configuredStrength }
         return usesLandscapeDetailComposition
             ? min(max(configuredStrength * 1.48, 0), 4.2)
@@ -2069,7 +2069,7 @@ struct MediaDetailContentView: View {
     private var macDetailHeroBackdrop: some View {
         GeometryReader { geometry in
             let fadeStart = min(max(0.78 - 0.16 * designMetrics.tuning.heroFadeDistanceScale, 0.3), 0.82)
-            let bleed = min(max(theme.scopedBleedStrength(), 0), 1.25)
+            let bleed = 1.0 // Detail-page bleed is controlled only by its orientation-specific settings.
             ZStack {
                 ResilientArtworkImage(
                     urls: ([detailHeroImageURL].compactMap { $0 } + detailHeroFallbackImageURLs),
