@@ -1655,6 +1655,12 @@ private struct BrowseMediaView: View {
             currentPage = 1
             hasMorePages = true
             errorMessage = nil
+            // Never leave Movies/Series visible under the Anime selector (or
+            // vice versa) while the replacement discover request is running.
+            // The request serial still protects against late responses from the
+            // category we just left.
+            results.removeAll(keepingCapacity: true)
+            unfilteredResults.removeAll(keepingCapacity: true)
             if profileAppliedMediaType == newMediaType {
                 profileAppliedMediaType = nil
                 reloadResults()
@@ -2323,11 +2329,13 @@ private struct BrowseMediaView: View {
                         loadNextPage()
                     }
 
-                    if browseMediaType.isAnime && !requiresAnimeIdentityBeforeFiltering {
-                        // Keep the first paint fast. Anime identity, clean cover
-                        // and logo enrichment can finish after the grid is interactive.
+                    if browseMediaType.isAnime {
+                        // Identity resolution required by strict audio filters is
+                        // completed before publishing, but artwork lookups are not.
+                        // Resolve clean covers/logos after the filtered grid is
+                        // interactive so the first page is not held behind image APIs.
                         Task {
-                            let enriched = await resolveAnimeBrowseIdentities(pageResult.results)
+                            let enriched = await resolveAnimeBrowseIdentities(pageResult.results, resolveArtwork: true)
                             guard queryGeneration == browseQueryGeneration,
                                   mediaType == browseMediaType.tmdbValue else { return }
                             var enrichedByID: [Int: TMDBSearchResult] = [:]
@@ -2602,7 +2610,8 @@ private struct BrowseMediaView: View {
     }
 
     private func resolveAnimeBrowseIdentities(
-        _ results: [TMDBSearchResult]
+        _ results: [TMDBSearchResult],
+        resolveArtwork: Bool = true
     ) async -> [TMDBSearchResult] {
         let selectedDubLanguageCodes = Set(MyDubListDubFilter.shared.selectedLanguages.compactMap {
             MyDubListLanguage(rawValue: $0)?.taizenLanguageCode
@@ -2689,15 +2698,17 @@ private struct BrowseMediaView: View {
                     let anilistID = identity.anilistId
 
                     let artworkURL: String?
-                    if let existingArtwork = result.animeArtworkURL {
+                    if !resolveArtwork {
+                        artworkURL = result.animeArtworkURL
+                    } else if let existingArtwork = result.animeArtworkURL {
                         artworkURL = existingArtwork
                     } else {
-                        let identity = await AniListService.shared.fetchAnimeSeasonIdentity(
+                        let artworkIdentity = await AniListService.shared.fetchAnimeSeasonIdentity(
                             anilistId: anilistID,
                             tmdbShowId: result.id,
                             title: result.displayTitle
                         )
-                        artworkURL = identity?.posterURL
+                        artworkURL = artworkIdentity?.posterURL
                     }
                     let enriched = TMDBSearchResult(
                         id: result.id,
@@ -2761,15 +2772,17 @@ private struct BrowseMediaView: View {
                         }
                         let anilistID = identity.anilistId
                         let artworkURL: String?
-                        if let existingArtwork = nextResult.animeArtworkURL {
+                        if !resolveArtwork {
+                            artworkURL = nextResult.animeArtworkURL
+                        } else if let existingArtwork = nextResult.animeArtworkURL {
                             artworkURL = existingArtwork
                         } else {
-                            let identity = await AniListService.shared.fetchAnimeSeasonIdentity(
+                            let artworkIdentity = await AniListService.shared.fetchAnimeSeasonIdentity(
                                 anilistId: anilistID,
                                 tmdbShowId: nextResult.id,
                                 title: nextResult.displayTitle
                             )
-                            artworkURL = identity?.posterURL
+                            artworkURL = artworkIdentity?.posterURL
                         }
                         return (nextIndex, TMDBSearchResult(
                             id: nextResult.id, mediaType: nextResult.mediaType,
@@ -2794,6 +2807,8 @@ private struct BrowseMediaView: View {
                 resolvedByIndex[index] ?? result
             }
         }
+
+        guard resolveArtwork else { return resolvedResults }
 
         let taizenArtwork = await TaizenAnimeArtworkService.shared.artworks(
             forAniListIDs: resolvedResults.compactMap { $0.animeIdentitySeed?.anilistId }
@@ -2909,7 +2924,7 @@ private struct BrowseMediaView: View {
         // AniList/Taizen cannot supply the rating for TMDB discover rows with
         // incomplete metadata and those titles are incorrectly treated as unrated.
         let ratingCandidates = mediaType.isAnime
-            ? await resolveAnimeBrowseIdentities(typeFiltered)
+            ? await resolveAnimeBrowseIdentities(typeFiltered, resolveArtwork: false)
             : typeFiltered
         guard !Task.isCancelled else { return [] }
 
