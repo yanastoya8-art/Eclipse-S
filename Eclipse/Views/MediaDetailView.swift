@@ -459,6 +459,10 @@ struct MediaDetailContentView: View {
     @State private var trackerPlaybackPresentationGeneration = UUID()
     @State private var romajiTitle: String?
     @State private var logoURL: String?
+    @AppStorage(MediaDetailRatingNotesPositionSettings.portraitOffsetKey)
+    private var portraitRatingNotesOffset = MediaDetailRatingNotesPositionSettings.defaultOffset
+    @AppStorage(MediaDetailRatingNotesPositionSettings.landscapeOffsetKey)
+    private var landscapeRatingNotesOffset = MediaDetailRatingNotesPositionSettings.defaultOffset
     @AppStorage(MediaDetailTitleLogoPositionSettings.verticalPositionKey)
     private var titleLogoVerticalPosition = MediaDetailTitleLogoPositionSettings.defaultVerticalPosition
     @AppStorage(MediaDetailTitleLogoAppearanceSettings.sizeKey)
@@ -3646,6 +3650,7 @@ struct MediaDetailContentView: View {
                 knownMALID: ratingMALID,
                 allowsTMDBSeasonScope: !isLoading && anilistEpisodes == nil && selectedSpecialEpisodeContext == nil
             )
+            .offset(y: usesLandscapeDetailComposition ? landscapeRatingNotesOffset : portraitRatingNotesOffset)
         case .traktComments:
             traktCommentsSection
         case .episodes:
