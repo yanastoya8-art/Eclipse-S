@@ -23,7 +23,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-unsigned-ipa:
@@ -499,3 +499,93 @@ jobs:
           path: ${{ env.IPA_PATH }}
           if-no-files-found: error
           retention-days: 1
+
+      # Keep every successful build available to SideStore without making it
+      # a stable/public app release. The prerelease asset is durable; Actions
+      # artifacts above remain short-lived for CI diagnostics.
+      - name: Publish successful IPA to SideStore and refresh source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_NUMBER: ${{ github.run_number }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          COMMIT_SHA: ${{ github.sha }}
+          IPA_PATH: ${{ env.IPA_PATH }}
+          APP_NAME: ${{ env.APP_NAME }}
+        run: |
+          set -euo pipefail
+
+          INFO_DIR="$RUNNER_TEMP/sidestore-app"
+          mkdir -p "$INFO_DIR"
+          unzip -q "$IPA_PATH" 'Payload/*.app/Info.plist' -d "$INFO_DIR"
+          INFO_PLIST="$(find "$INFO_DIR/Payload" -maxdepth 2 -name Info.plist -print -quit)"
+          test -f "$INFO_PLIST"
+
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$INFO_PLIST")
+          SHORT_VERSION=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$INFO_PLIST")
+          BUILD_VERSION=$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$INFO_PLIST")
+          MIN_OS_VERSION=$(/usr/libexec/PlistBuddy -c 'Print MinimumOSVersion' "$INFO_PLIST" 2>/dev/null || echo "15.0")
+          IPA_SIZE="$(stat -f%z "$IPA_PATH")"
+
+          TAG="sidestore-build-$RUN_NUMBER-$RUN_ATTEMPT"
+          gh release create "$TAG" "$IPA_PATH#Eclipse-unsigned.ipa" \
+            --repo "$REPOSITORY" \
+            --target "$COMMIT_SHA" \
+            --prerelease \
+            --title "Eclipse SideStore build $RUN_NUMBER" \
+            --notes "Automatically published after a successful unsigned iOS build. Commit: $COMMIT_SHA. This is a testing build, not a stable app release."
+
+          DOWNLOAD_URL="https://github.com/$REPOSITORY/releases/download/$TAG/Eclipse-unsigned.ipa"
+          FEED_PATH="side-store/alt-source.json"
+
+          python3 - "$FEED_PATH" "$BUNDLE_ID" "$SHORT_VERSION" "$BUILD_VERSION" "$MIN_OS_VERSION" "$IPA_SIZE" "$DOWNLOAD_URL" "$COMMIT_SHA" <<'PY'
+          import datetime
+          import json
+          import pathlib
+          import sys
+          import urllib.parse
+
+          path = pathlib.Path(sys.argv[1])
+          bundle_id, version, build, min_os, size, download_url, commit = sys.argv[2:]
+          feed = json.loads(path.read_text())
+          apps = feed.setdefault("apps", [])
+          app = next((item for item in apps if item.get("bundleIdentifier") == bundle_id), None)
+          if app is None:
+              app = {
+                  "name": "Eclipse",
+                  "bundleIdentifier": bundle_id,
+                  "developerName": "yanastoya8-art",
+                  "subtitle": "Unsigned iOS builds",
+                  "localizedDescription": "Eclipse builds automatically published after successful GitHub Actions IPA builds.",
+                  "tintColor": "#7C4DFF",
+                  "category": "entertainment",
+                  "versions": []
+              }
+              apps.append(app)
+
+          asset_url = urllib.parse.quote(download_url, safe=":/")
+          entry = {
+              "version": version,
+              "buildVersion": build,
+              "date": datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+              "downloadURL": asset_url,
+              "size": int(size),
+              "minOSVersion": min_os,
+              "localizedDescription": f"Automated successful build {build} from commit {commit[:7]}."
+          }
+          versions = app.setdefault("versions", [])
+          versions = [item for item in versions if item.get("buildVersion") != build]
+          app["versions"] = [entry] + versions[:9]
+          app["version"] = version
+
+          path.write_text(json.dumps(feed, indent=2, ensure_ascii=False) + "\\n")
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$FEED_PATH"
+          if ! git diff --cached --quiet; then
+            git commit -m "Update SideStore feed for build $RUN_NUMBER"
+            git push origin HEAD
+          fi
