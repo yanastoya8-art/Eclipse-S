@@ -41,6 +41,9 @@ struct SettingsView: View {
     @AppStorage("catalogHideBelowPG13Movies", store: .standard) private var hideBelowPG13Movies = true
     @AppStorage("catalogHideBelowTV14Shows", store: .standard) private var hideBelowTV14Shows = true
     @AppStorage("catalogHideBelowPG13Anime", store: .standard) private var hideBelowPG13Anime = false
+    @AppStorage("catalogHideAllAgesMovies", store: .standard) private var hideAllAgesMovies = false
+    @AppStorage("catalogHideAllAgesSeries", store: .standard) private var hideAllAgesSeries = false
+    @AppStorage("catalogHideAllAgesAnime", store: .standard) private var hideAllAgesAnime = false
     @AppStorage("catalogRequireEnglishSpanishAudio", store: .standard) private var requireEnglishSpanishAudio = false
 #if !os(tvOS)
     @AppStorage("showKanzen", store: .standard) private var showKanzen: Bool = false
@@ -543,7 +546,10 @@ struct SettingsView: View {
                         NavigationLink(destination: settingsSearchableContent(AgeFiltersSettingsView(
                             hideBelowPG13Movies: $hideBelowPG13Movies,
                             hideBelowTV14Shows: $hideBelowTV14Shows,
-                            hideBelowPG13Anime: $hideBelowPG13Anime
+                            hideBelowPG13Anime: $hideBelowPG13Anime,
+                            hideAllAgesMovies: $hideAllAgesMovies,
+                            hideAllAgesSeries: $hideAllAgesSeries,
+                            hideAllAgesAnime: $hideAllAgesAnime
                         ))) {
                             GlassSettingsRow(icon: "person.crop.circle.badge.checkmark", iconColor: .orange, title: "Age Filters")
                         }
@@ -1041,7 +1047,10 @@ struct SettingsView: View {
                 NavigationLink(destination: AgeFiltersSettingsView(
                     hideBelowPG13Movies: $hideBelowPG13Movies,
                     hideBelowTV14Shows: $hideBelowTV14Shows,
-                    hideBelowPG13Anime: $hideBelowPG13Anime
+                    hideBelowPG13Anime: $hideBelowPG13Anime,
+                    hideAllAgesMovies: $hideAllAgesMovies,
+                    hideAllAgesSeries: $hideAllAgesSeries,
+                    hideAllAgesAnime: $hideAllAgesAnime
                 )) {
                     Text("Age Filters")
                 }
@@ -5343,9 +5352,13 @@ private struct AgeFiltersSettingsView: View {
     @Binding var hideBelowPG13Movies: Bool
     @Binding var hideBelowTV14Shows: Bool
     @Binding var hideBelowPG13Anime: Bool
+    @Binding var hideAllAgesMovies: Bool
+    @Binding var hideAllAgesSeries: Bool
+    @Binding var hideAllAgesAnime: Bool
 
     private func filtersDidChange() {
         NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil)
+        NotificationCenter.default.post(name: Notification.Name("scheduleContentFiltersDidChange"), object: nil)
     }
 
     var body: some View {
@@ -5354,12 +5367,22 @@ private struct AgeFiltersSettingsView: View {
                 Toggle("Hide movies rated below 13+", isOn: $hideBelowPG13Movies)
                     .onChange(of: hideBelowPG13Movies) { _ in filtersDidChange() }
                     .accessibilityIdentifier("settings.contentFilters.moviesPG13")
-                Toggle("Hide TV shows rated below 13+", isOn: $hideBelowTV14Shows)
+                Toggle("Hide series rated below 13+", isOn: $hideBelowTV14Shows)
                     .onChange(of: hideBelowTV14Shows) { _ in filtersDidChange() }
-                    .accessibilityIdentifier("settings.contentFilters.tv14")
+                    .accessibilityIdentifier("settings.contentFilters.series13")
                 Toggle("Hide anime below PG-13", isOn: $hideBelowPG13Anime)
                     .onChange(of: hideBelowPG13Anime) { _ in filtersDidChange() }
                     .accessibilityIdentifier("settings.contentFilters.animePG13")
+
+                Toggle("Hide movies rated All Ages", isOn: $hideAllAgesMovies)
+                    .onChange(of: hideAllAgesMovies) { _ in filtersDidChange() }
+                    .accessibilityIdentifier("settings.contentFilters.moviesAllAges")
+                Toggle("Hide series rated All Ages", isOn: $hideAllAgesSeries)
+                    .onChange(of: hideAllAgesSeries) { _ in filtersDidChange() }
+                    .accessibilityIdentifier("settings.contentFilters.seriesAllAges")
+                Toggle("Hide anime rated All Ages", isOn: $hideAllAgesAnime)
+                    .onChange(of: hideAllAgesAnime) { _ in filtersDidChange() }
+                    .accessibilityIdentifier("settings.contentFilters.animeAllAges")
             } footer: {
                 Text("Movies use the selected movie certification. TV shows use European national content ratings only (for example 12+, 13+, 14+ and 16+); US and other non-European TV rating providers are ignored. Unknown ratings remain visible rather than being assigned an age without evidence.")
             }
