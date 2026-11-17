@@ -151,9 +151,7 @@ struct StretchyHeaderView: View {
                                     failedImageURLs.insert(imageURL)
                                 }
                                 .resizable()
-                                .aspectRatio(
-                                    contentMode: preservesArtworkComposition ? .fit : .fill
-                                )
+                                .aspectRatio(contentMode: .fill)
                                 .frame(
                                     width: geometry.size.width,
                                     height: height,
