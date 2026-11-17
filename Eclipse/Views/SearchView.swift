@@ -2292,6 +2292,13 @@ private struct BrowseMediaView: View {
                     unfilteredResults = sortedDeduplicatedResults(combinedRawResults, by: sort)
                     results = sortedDeduplicatedResults(filtered, by: sort)
 
+                    // Warm the shared logo cache as soon as a page arrives.
+                    // Visible cards can reuse in-flight/cached artwork rather
+                    // than starting an independent lookup on appearance.
+                    Task(priority: .utility) {
+                        await SearchResultTitleLogoCache.shared.prefetch(results: pageResult.results)
+                    }
+
                     currentPage = page
                     hasMorePages = pageResult.hasMore
                     isLoading = false
