@@ -46,7 +46,6 @@ struct SettingsView: View {
     @AppStorage("catalogHideAllAgesAnime", store: .standard) private var hideAllAgesAnime = false
     @AppStorage("catalogRequireEnglishSpanishAudio", store: .standard) private var requireEnglishSpanishAudio = false
 #if !os(tvOS)
-    @AppStorage("showKanzen", store: .standard) private var showKanzen: Bool = false
     @State private var settingsSearchText = ""
 #if os(macOS) && arch(x86_64)
     @AppStorage(PlaybackEngine.defaultsKey) private var searchPlaybackEngine = ""
@@ -177,9 +176,8 @@ struct SettingsView: View {
             .init(id: "next-episode-threshold", title: "Next Episode Appearance Threshold", location: "Media Player > Next Episode", icon: "chart.bar.xaxis", color: .yellow, keywords: ["next episode percentage", "90 percent", "button timing"], action: .destination(.playerTarget(.appearanceThreshold))),
             .init(id: "appearance", title: "Appearance", location: "Basic", icon: "paintbrush.fill", color: .purple, keywords: ["theme", "layout", "home", "details", "artwork", "UI"], action: .destination(.appearance)),
             .init(id: "appearance-home-hero-logo-position", title: "Home Hero Title Logo Position", location: "Appearance > Home Layout > Hero", icon: "arrow.up.and.down", color: .purple, keywords: ["home banner logo", "move home title logo", "hero title position"], action: .destination(.homeLayout)),
-            .init(id: "appearance-home-hero-bleed-intensity", title: "Home Hero Color Bleed Intensity", location: "Appearance > Home Layout > Hero", icon: "paintbrush.pointed", color: .purple, keywords: ["home banner bleed", "home hero color intensity", "home banner color strength"], action: .destination(.homeLayout)),
+            .init(id: "appearance-home-hero-bleed-intensity", title: "Hero Banner Color Bleed Intensity", location: "Appearance > Home Layout > Hero", icon: "paintbrush.pointed", color: .purple, keywords: ["home banner bleed", "hero banner color intensity", "home banner color strength"], action: .destination(.homeLayout)),
             .init(id: "appearance-background-style", title: "Background Style", location: "Appearance > Theme", icon: "rectangle.fill", color: .purple, keywords: ["gradient", "solid", "background"], action: .destination(.appearanceTarget(.backgroundStyle))),
-            .init(id: "appearance-color-bleed", title: "Color Bleed", location: "Appearance > Theme", icon: "paintbrush.pointed", color: .purple, keywords: ["banner color", "background wash", "intensity"], action: .destination(.appearanceTarget(.colorBleed))),
             .init(id: "appearance-background-intensity", title: "Background Intensity", location: "Appearance > Theme", icon: "sun.max", color: .purple, keywords: ["lighten", "darken", "background brightness"], action: .destination(.appearanceTarget(.backgroundIntensity))),
             .init(id: "appearance-interface", title: "Interface", location: "Appearance > Interface", icon: "rectangle.3.group", color: .purple, keywords: ["modern", "classic", "restart", "layout style"], action: .destination(.appearanceTarget(.interface))),
             .init(id: "appearance-global", title: "Global Appearance", location: "Appearance > Interface", icon: "paintbrush", color: .purple, keywords: ["media mode", "reader mode", "shared theme"], action: .destination(.appearanceTarget(.globalAppearance))),
@@ -205,6 +203,8 @@ struct SettingsView: View {
             .init(id: "appearance-landscape-title-logo-weight", title: "Landscape Title Logo Weight", location: "Appearance > Detail Pages > Landscape", icon: "bold", color: .purple, keywords: ["wide logo thickness", "landscape logo weight"], action: .destination(.appearanceTarget(.landscapeTitleLogoWeight))),
             .init(id: "appearance-landscape-actions-position", title: "Landscape Action Buttons Position", location: "Appearance > Detail Pages > Landscape", icon: "arrow.up.and.down", color: .purple, keywords: ["wide play button", "landscape action buttons"], action: .destination(.appearanceTarget(.landscapeHeroActionPosition))),
             .init(id: "appearance-landscape-synopsis-position", title: "Landscape Synopsis Position", location: "Appearance > Detail Pages > Landscape", icon: "arrow.up.and.down", color: .purple, keywords: ["wide synopsis", "landscape description"], action: .destination(.appearanceTarget(.landscapeHeroSynopsisPosition))),
+            .init(id: "appearance-landscape-hero-horizontal-stretch", title: "Landscape Hero Horizontal Stretch", location: "Appearance > Detail Pages > Landscape", icon: "arrow.left.and.right", color: .purple, keywords: ["widen banner", "narrow banner", "horizontal artwork scale"], action: .destination(.appearanceTarget(.landscapeHeroHorizontalStretch))),
+            .init(id: "appearance-landscape-hero-vertical-stretch", title: "Landscape Hero Vertical Stretch", location: "Appearance > Detail Pages > Landscape", icon: "arrow.up.and.down", color: .purple, keywords: ["taller banner", "shorter banner", "vertical artwork scale"], action: .destination(.appearanceTarget(.landscapeHeroVerticalStretch))),
             .init(id: "appearance-landscape-content-horizontal-position", title: "Landscape Content Horizontal Position", location: "Appearance > Detail Pages > Landscape", icon: "arrow.left.and.right", color: .purple, keywords: ["move genres", "move action buttons", "move ratings", "move notes", "move episodes", "left right alignment"], action: .destination(.appearanceTarget(.landscapeContentHorizontalPosition))),
             .init(id: "appearance-age-rating", title: "Show Age Rating", location: "Appearance > Media Detail Layout", icon: "eye", color: .purple, keywords: ["content rating", "age certification", "PG-13", "TV-14"], action: .destination(.appearanceTarget(.ageRating))),
             .init(id: "appearance-title-art", title: "TMDB Title Art", location: "Appearance > Detail Pages", icon: "text.below.photo", color: .purple, keywords: ["logo artwork", "title logo", "media artwork"], action: .destination(.appearanceTarget(.tmdbTitleArt))),
@@ -253,7 +253,6 @@ struct SettingsView: View {
             .init(id: "download-skip-filler", title: "Skip Filler in Download All", location: "Downloads", icon: "forward.end.fill", color: .yellow, keywords: ["anime", "batch", "filler"], action: .destination(.downloads)),
             .init(id: "backup", title: "Backup & Restore", location: "Data", icon: "arrow.triangle.2.circlepath", color: .teal, keywords: ["export", "import", "settings"], action: .destination(.backup)),
             .init(id: "logger", title: "Logger", location: "Data", icon: "doc.text", color: .yellow, keywords: ["logs", "diagnostics", "errors", "export"], action: .destination(.logger)),
-            .init(id: "reader-mode", title: "Switch to Reader Mode", location: "Others", icon: "book.fill", color: .orange, keywords: ["Kanzen", "manga", "reader"], action: .readerMode),
             .init(id: "legal", title: "Legal & Source", location: "Others", icon: "scroll.fill", color: .cyan, keywords: ["privacy", "license", "GitHub", "source code"], action: .destination(.legal))
         ]
 
@@ -728,25 +727,14 @@ struct SettingsView: View {
                 }
 
                 GlassSection(header: "Others") {
-                    VStack(spacing: 0) {
-                        Button {
-                            showKanzen = true
-                        } label: {
-                            GlassSettingsRow(icon: "book.fill", iconColor: .orange, title: "Switch to Reader Mode")
-                        }
-                        .buttonStyle(.plain)
-
-                        GlassDivider()
-
-                        NavigationLink(destination: settingsSearchableContent(LegalNoticeView(
-                            sourceCodeURL: sourceCodeURL,
-                            licenseURL: licenseURL,
-                            privacyPolicyURL: privacyPolicyURL
-                        ))) {
-                            GlassSettingsRow(icon: "scroll.fill", iconColor: .cyan, title: "Legal & Source")
-                        }
-                        .buttonStyle(.plain)
+                    NavigationLink(destination: settingsSearchableContent(LegalNoticeView(
+                        sourceCodeURL: sourceCodeURL,
+                        licenseURL: licenseURL,
+                        privacyPolicyURL: privacyPolicyURL
+                    ))) {
+                        GlassSettingsRow(icon: "scroll.fill", iconColor: .cyan, title: "Legal & Source")
                     }
+                    .buttonStyle(.plain)
                 }
 
                 if supportsGitHubReleaseUpdates {
@@ -914,14 +902,6 @@ struct SettingsView: View {
                 settingsSearchRow(entry)
             }
             .buttonStyle(.plain)
-        case .readerMode:
-            Button {
-                settingsSearchText = ""
-                showKanzen = true
-            } label: {
-                settingsSearchRow(entry)
-            }
-            .buttonStyle(.plain)
         }
     }
 
@@ -941,14 +921,6 @@ struct SettingsView: View {
                         scrollProxy.scrollTo(anchor, anchor: .top)
                     }
                 }
-            } label: {
-                settingsSearchRow(entry)
-            }
-            .buttonStyle(.plain)
-        case .readerMode:
-            Button {
-                settingsSearchText = ""
-                showKanzen = true
             } label: {
                 settingsSearchRow(entry)
             }
@@ -1943,7 +1915,6 @@ private enum NotificationSettingsSearchTarget: String, Hashable {
 private enum SettingsSearchAction: Hashable {
     case destination(SettingsSearchDestination)
     case anchor(String)
-    case readerMode
 }
 
 private struct SettingsSearchEntry: Identifiable, Hashable {

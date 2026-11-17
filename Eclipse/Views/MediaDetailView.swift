@@ -489,6 +489,10 @@ struct MediaDetailContentView: View {
     private var portraitHeroBleedIntensity = 1.0
     @AppStorage("mediaDetailLandscapeHeroBleedIntensity")
     private var landscapeHeroBleedIntensity = 1.0
+    @AppStorage("mediaDetailLandscapeHeroHorizontalStretch")
+    private var landscapeHeroHorizontalStretch = 1.0
+    @AppStorage("mediaDetailLandscapeHeroVerticalStretch")
+    private var landscapeHeroVerticalStretch = 1.0
 
     private var activeTitleLogoPosition: Double {
         usesLandscapeDetailComposition ? landscapeTitleLogoVerticalPosition : titleLogoVerticalPosition
@@ -694,7 +698,7 @@ struct MediaDetailContentView: View {
             ? landscapeHeroBleedIntensity
             : portraitHeroBleedIntensity
         let maximumIntensity = usesLandscapeDetailComposition ? 3.5 : 2.0
-        let configuredStrength = theme.scopedBleedStrength() * min(max(orientationIntensity, 0), maximumIntensity)
+        let configuredStrength = min(max(orientationIntensity, 0), maximumIntensity)
         guard usesWideDetailLayout, configuredStrength > 0.001 else { return configuredStrength }
         return usesLandscapeDetailComposition
             ? min(max(configuredStrength * 1.48, 0), 4.2)
@@ -1940,6 +1944,12 @@ struct MediaDetailContentView: View {
                     )
                 }
                 .coordinateSpace(name: "mediaDetailScroll")
+                // The hero is edge-to-edge artwork. A ScrollView otherwise
+                // begins its content below the navigation safe area, leaving
+                // a visible blank band above the poster in portrait and
+                // landscape. Extend the scroll content to the top edge so the
+                // first pixel of the hero starts at the top of the viewport.
+                .ignoresSafeArea(edges: .top)
                 .modifier(ScrollClipModifier())
                 .onPreferenceChange(ScrollOffsetPreferenceKey.self) { newOffset in
                     guard abs(scrollOffset - newOffset) >= scrollOffsetUpdateThreshold else { return }
@@ -2065,7 +2075,7 @@ struct MediaDetailContentView: View {
     private var macDetailHeroBackdrop: some View {
         GeometryReader { geometry in
             let fadeStart = min(max(0.78 - 0.16 * designMetrics.tuning.heroFadeDistanceScale, 0.3), 0.82)
-            let bleed = min(max(theme.scopedBleedStrength(), 0), 1.25)
+            let bleed = 1.0 // Detail-page bleed is controlled only by its orientation-specific settings.
             ZStack {
                 ResilientArtworkImage(
                     urls: ([detailHeroImageURL].compactMap { $0 } + detailHeroFallbackImageURLs),
@@ -2627,9 +2637,17 @@ struct MediaDetailContentView: View {
                 },
                 placeholderColor: shouldAnalyzeAlternatePoster ? .clear : Color.gray.opacity(0.3),
                 fallbackImageURLs: detailHeroFallbackImageURLs,
-                // Fill the reserved hero viewport with one artwork image;
-                // StretchyHeaderView clips the overflow instead of leaving
-                // an aspect-fit gap beneath a short image.
+                // The hero is a banner surface, not an intrinsic poster
+                // canvas. Always fill its measured bounds so portrait/Reader
+                // layouts cannot leave an empty strip when the poster ratio
+                // differs from the hero frame. Keep the artwork single-layered.
+                preservesArtworkComposition: false,
+                artworkScaleX: usesLandscapeDetailComposition
+                    ? CGFloat(min(max(landscapeHeroHorizontalStretch, 0.85), 1.5))
+                    : 1.0,
+                artworkScaleY: usesLandscapeDetailComposition
+                    ? CGFloat(min(max(landscapeHeroVerticalStretch, 0.85), 1.5))
+                    : 1.0
             )
             // StretchyHeaderView can initially report its intrinsic artwork
             // size before the first scroll-layout pass. Give landscape artwork
@@ -2757,8 +2775,16 @@ struct MediaDetailContentView: View {
         // scroll-content background), so apply the dedicated slider here.
         // Normalize against the default landscape strength to preserve the
         // existing appearance at the default value while allowing 0 to disable it.
-        let landscapeBleedScale = min(max(mediaDetailHeroBleedStrength / 1.48, 0), 2.0)
-        let bleedScale = usesLandscapeDetailComposition ? landscapeBleedScale : 1.0
+        let defaultWideScale = usesLandscapeDetailComposition ? 1.48 : 1.18
+        let baselineScale = usesWideDetailLayout ? defaultWideScale : 1.0
+        let configuredBleedScale = min(max(mediaDetailHeroBleedStrength / baselineScale, 0), 2.0)
+        // Experimental portrait mode applies its strength through the
+        // scroll-content bleed modifier; avoid applying it a second time here.
+        // The legacy gradient is rendered locally, so it must use the
+        // portrait slider directly as well.
+        let bleedScale = usesLandscapeDetailComposition || !ExperimentalFeatureState.isEnabledAtLaunch
+            ? configuredBleedScale
+            : 1.0
 
         if ExperimentalFeatureState.isEnabledAtLaunch {
             let bleedColor = mediaDetailHeroBleedColor ?? heroBlendColor

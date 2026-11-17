@@ -82,6 +82,9 @@ struct StretchyHeaderView: View {
     var imageDecodeSize: CGSize? = nil
     var placeholderColor: Color = Color.gray.opacity(0.3)
     var fallbackImageURLs: [String] = []
+    var preservesArtworkComposition: Bool = false
+    var artworkScaleX: CGFloat = 1.0
+    var artworkScaleY: CGFloat = 1.0
 
     @State private var localAmbientColor: Color = Color.black
     @State private var failedImageURLs: Set<String> = []
@@ -153,6 +156,14 @@ struct StretchyHeaderView: View {
                                     width: geometry.size.width,
                                     height: height,
                                     alignment: .top
+                                )
+                                // Independent axes let landscape detail pages
+                                // tune banner coverage without changing poster
+                                // composition in portrait or other callers.
+                                .scaleEffect(
+                                    x: max(0.5, min(2.0, artworkScaleX)),
+                                    y: max(0.5, min(2.0, artworkScaleY)),
+                                    anchor: .center
                                 )
                         } else {
                             Rectangle().fill(placeholderColor)

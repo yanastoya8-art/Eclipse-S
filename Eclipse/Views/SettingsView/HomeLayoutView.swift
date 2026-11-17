@@ -163,8 +163,8 @@ struct HomeLayoutView: View {
     private var heroSection: some View {
         Section {
             sliderRow(
-                title: "Hero Color Bleed Intensity",
-                description: "Adjust how strongly the home hero banner color extends into the content below. This setting is independent of detail-page color bleed.",
+                title: "Hero Banner Color Bleed Intensity",
+                description: "Control only how strongly the home hero banner color extends into the content below. Detail-page bleed has separate portrait and landscape controls.",
                 value: $homeHeroBannerBleedIntensity,
                 range: 0...3.5,
                 step: 0.05

@@ -18,7 +18,6 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
     case backgroundStyle
     case solidColorSource
     case customBackgroundColor
-    case colorBleed
     case backgroundIntensity
     case interface
     case globalAppearance
@@ -44,6 +43,8 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
     case landscapeTitleLogoWeight
     case landscapeHeroActionPosition
     case landscapeHeroSynopsisPosition
+    case landscapeHeroHorizontalStretch
+    case landscapeHeroVerticalStretch
     case landscapeContentHorizontalPosition
     case tmdbTitleArt
     case dataSaver
@@ -58,13 +59,13 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
 
     var sectionKey: String {
         switch self {
-        case .palette, .backgroundStyle, .solidColorSource, .customBackgroundColor, .colorBleed, .backgroundIntensity:
+        case .palette, .backgroundStyle, .solidColorSource, .customBackgroundColor, .backgroundIntensity:
             return "theme"
         case .interface, .globalAppearance, .accentColor:
             return "interface"
         case .switchModeAnimation, .animatedBackground, .animationQuality, .animationColor, .customAnimationColor, .animationFrameRate, .appPerformanceOverlay, .hideSplashScreen:
             return "motion"
-        case .alternativeSeasonMenu, .horizontalEpisodeList, .showUnairedEpisodes, .titleLogoPosition, .titleLogoSize, .titleLogoWeight, .heroActionPosition, .heroSynopsisPosition, .landscapeTitleLogoPosition, .landscapeTitleLogoSize, .landscapeTitleLogoWeight, .landscapeHeroActionPosition, .landscapeHeroSynopsisPosition, .landscapeContentHorizontalPosition, .tmdbTitleArt, .dataSaver, .ageRating, .similarTitles:
+        case .alternativeSeasonMenu, .horizontalEpisodeList, .showUnairedEpisodes, .titleLogoPosition, .titleLogoSize, .titleLogoWeight, .heroActionPosition, .heroSynopsisPosition, .landscapeTitleLogoPosition, .landscapeTitleLogoSize, .landscapeTitleLogoWeight, .landscapeHeroActionPosition, .landscapeHeroSynopsisPosition, .landscapeHeroHorizontalStretch, .landscapeHeroVerticalStretch, .landscapeContentHorizontalPosition, .tmdbTitleArt, .dataSaver, .ageRating, .similarTitles:
             return "details"
         case .libraryBookmarks, .libraryCollectionLayout:
             return "library"
@@ -93,6 +94,8 @@ struct AlternativeUIView: View {
     @AppStorage(LandscapeMediaDetailAppearanceSettings.contentHorizontalOffsetKey) private var landscapeContentHorizontalOffset = LandscapeMediaDetailAppearanceSettings.defaultContentHorizontalOffset
     @AppStorage("mediaDetailPortraitHeroBleedIntensity") private var portraitHeroBleedIntensity = 1.0
     @AppStorage("mediaDetailLandscapeHeroBleedIntensity") private var landscapeHeroBleedIntensity = 1.0
+    @AppStorage("mediaDetailLandscapeHeroHorizontalStretch") private var landscapeHeroHorizontalStretch = 1.0
+    @AppStorage("mediaDetailLandscapeHeroVerticalStretch") private var landscapeHeroVerticalStretch = 1.0
     @AppStorage(ImageDataSaverSettings.enabledKey, store: .standard) private var imageDataSaverEnabled = false
     @AppStorage(MediaDetailAgeRatingSettings.enabledKey) private var mediaDetailAgeRatingEnabled = MediaDetailAgeRatingSettings.defaultEnabled
     @AppStorage(MediaDetailSimilarTitlesSettings.enabledKey) private var mediaDetailSimilarTitlesEnabled = MediaDetailSimilarTitlesSettings.defaultEnabled
@@ -405,15 +408,6 @@ struct AlternativeUIView: View {
 
             if theme.atmosphereStyle != .solid {
                 sliderRow(
-                    title: "Color Bleed",
-                    description: "How strongly the banner color washes down the page.",
-                    value: $theme.bleedStrength,
-                    range: AppearanceConfig.bleedRange,
-                    step: 0.05
-                )
-                .id(AppearanceSettingsSearchTarget.colorBleed.anchorID)
-
-                sliderRow(
                     title: "Background Intensity",
                     description: "Lighten or deepen the overall background.",
                     value: $theme.backgroundIntensity,
@@ -695,6 +689,22 @@ struct AlternativeUIView: View {
                 .id(AppearanceSettingsSearchTarget.landscapeHeroSynopsisPosition.anchorID)
             sliderRow(title: "Landscape Content Horizontal Position", description: "Move the genre, action buttons, ratings, notes and episode content left or right on landscape detail pages.", value: $landscapeContentHorizontalOffset, range: LandscapeMediaDetailAppearanceSettings.contentHorizontalOffsetRange, step: LandscapeMediaDetailAppearanceSettings.contentHorizontalOffsetStep)
                 .id(AppearanceSettingsSearchTarget.landscapeContentHorizontalPosition.anchorID)
+            sliderRow(
+                title: "Landscape Hero Horizontal Stretch",
+                description: "Stretch or narrow the detail-page hero artwork from left to right. This affects landscape only.",
+                value: $landscapeHeroHorizontalStretch,
+                range: 0.85...1.5,
+                step: 0.05
+            )
+            .id(AppearanceSettingsSearchTarget.landscapeHeroHorizontalStretch.anchorID)
+            sliderRow(
+                title: "Landscape Hero Vertical Stretch",
+                description: "Stretch or compress the detail-page hero artwork from top to bottom. This affects landscape only.",
+                value: $landscapeHeroVerticalStretch,
+                range: 0.85...1.5,
+                step: 0.05
+            )
+            .id(AppearanceSettingsSearchTarget.landscapeHeroVerticalStretch.anchorID)
             sliderRow(
                 title: "Landscape Ratings & Notes Position",
                 description: "Adjust the Ratings & Notes section independently in landscape detail pages.",

@@ -24,6 +24,8 @@ concurrency:
 
 permissions:
   contents: read
+  pages: write
+  id-token: write
 
 jobs:
   build-unsigned-ipa:
@@ -499,3 +501,104 @@ jobs:
           path: ${{ env.IPA_PATH }}
           if-no-files-found: error
           retention-days: 1
+
+      # Publish the IPA and feed as a GitHub Pages site. This does not
+      # create a GitHub Release or prerelease; only successful builds reach
+      # this step and replace the current downloadable build.
+      - name: Prepare SideStore source website
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
+          COMMIT_SHA: ${{ github.sha }}
+          IPA_PATH: ${{ env.IPA_PATH }}
+        run: |
+          set -euo pipefail
+
+          SITE_DIR="$RUNNER_TEMP/sidestore-site"
+          mkdir -p "$SITE_DIR/ipa"
+          cp "$IPA_PATH" "$SITE_DIR/ipa/Eclipse-latest.ipa"
+          cp "Eclipse/Assets.xcassets/AppIcon.appiconset/Default.png" "$SITE_DIR/app-icon.png"
+
+          INFO_DIR="$RUNNER_TEMP/sidestore-app"
+          mkdir -p "$INFO_DIR"
+          unzip -q "$IPA_PATH" 'Payload/*.app/Info.plist' -d "$INFO_DIR"
+          INFO_PLIST="$(find "$INFO_DIR/Payload" -maxdepth 2 -name Info.plist -print -quit)"
+          test -f "$INFO_PLIST"
+
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$INFO_PLIST")
+          SHORT_VERSION=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$INFO_PLIST")
+          BUILD_VERSION=$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$INFO_PLIST")
+          MIN_OS_VERSION=$(/usr/libexec/PlistBuddy -c 'Print MinimumOSVersion' "$INFO_PLIST" 2>/dev/null || echo "15.0")
+          IPA_SIZE="$(stat -f%z "$IPA_PATH")"
+          DOWNLOAD_URL="https://yanastoya8-art.github.io/Eclipse-S/ipa/Eclipse-latest.ipa"
+
+          python3 - "$SITE_DIR/alt-source.json" "$BUNDLE_ID" "$SHORT_VERSION" "$BUILD_VERSION" "$MIN_OS_VERSION" "$IPA_SIZE" "$DOWNLOAD_URL" "$COMMIT_SHA" <<'PY'
+          import datetime
+          import json
+          import pathlib
+          import sys
+
+          path = pathlib.Path(sys.argv[1])
+          bundle_id, version, build, min_os, size, download_url, commit = sys.argv[2:]
+          release_date = datetime.datetime.now(datetime.timezone.utc).date().isoformat()
+          app = {
+              "name": "Eclipse",
+              "bundleIdentifier": bundle_id,
+              "developerName": "yanastoya8-art",
+              "subtitle": "Movies, series and anime in one place",
+              "localizedDescription": "Eclipse is a media discovery and streaming app. This source automatically tracks the latest successful unsigned iOS build.",
+              "iconURL": "https://yanastoya8-art.github.io/Eclipse-S/app-icon.png",
+              "tintColor": "#7C4DFF",
+              "versions": [{
+                  "version": version,
+                  "date": release_date,
+                  "downloadURL": download_url,
+                  "size": int(size),
+                  "minOSVersion": min_os,
+                  "localizedDescription": f"Successful build {build} from commit {commit[:7]}."
+              }]
+          }
+          feed = {
+              "name": "Eclipse SideStore Source",
+              "identifier": "app.eclipse.soupy.sidestore-source",
+              "sourceURL": "https://yanastoya8-art.github.io/Eclipse-S/alt-source.json",
+              "apps": [app]
+          }
+
+          # Validate against SideStore's strict source shape before publishing.
+          required_source = {"name", "identifier", "apps"}
+          allowed_source = required_source | {"news", "sourceURL"}
+          required_app = {"name", "bundleIdentifier", "developerName", "localizedDescription", "iconURL", "versions"}
+          allowed_app = required_app | {"beta", "downloadURL", "permissions", "screenshotURLs", "size", "subtitle", "tintColor", "version", "versionDate", "versionDescription"}
+          required_version = {"version", "date", "downloadURL", "size"}
+          allowed_version = required_version | {"localizedDescription", "minOSVersion", "maxOSVersion"}
+          if not required_source.issubset(feed) or not set(feed).issubset(allowed_source):
+              raise SystemExit("Invalid SideStore source keys")
+          if len(feed["apps"]) != 1:
+              raise SystemExit("SideStore source must contain exactly one Eclipse app")
+          app_entry = feed["apps"][0]
+          if not required_app.issubset(app_entry) or not set(app_entry).issubset(allowed_app):
+              raise SystemExit("Invalid SideStore app keys")
+          if not app_entry["versions"]:
+              raise SystemExit("SideStore app must include at least one version")
+          for version_entry in app_entry["versions"]:
+              if not required_version.issubset(version_entry) or not set(version_entry).issubset(allowed_version):
+                  raise SystemExit("Invalid SideStore version keys")
+          path.write_text(json.dumps(feed, indent=2, ensure_ascii=False) + "\n")
+          parsed = json.loads(path.read_text())
+          if parsed != feed:
+              raise SystemExit("SideStore source JSON round-trip validation failed")
+          PY
+
+          cat > "$SITE_DIR/index.html" <<'HTML'
+          <!doctype html><html><head><meta charset="utf-8"><title>Eclipse SideStore</title></head>
+          <body><h1>Eclipse SideStore feed</h1><p><a href="sidestore://source?url=https%3A%2F%2Fyanastoya8-art.github.io%2FEclipse-S%2Falt-source.json">Add Eclipse to SideStore</a></p><p><a href="./alt-source.json">View source JSON</a></p></body></html>
+          HTML
+
+      - name: Upload SideStore website
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ runner.temp }}/sidestore-site
+
+      - name: Deploy SideStore website
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1060,7 +1060,7 @@ struct HomeView: View {
                 color: ExperimentalFeatureState.isEnabledAtLaunch ? heroBleedColor : nil,
                 heroHeight: heroHeight,
                 tail: heroHeight * 0.62,
-                strength: min(max(theme.scopedBleedStrength() * homeHeroBannerBleedIntensity, 0), 4)
+                strength: min(max(homeHeroBannerBleedIntensity, 0), 4)
             )
         }
         .coordinateSpace(name: "homeScroll")
@@ -1107,7 +1107,7 @@ struct HomeView: View {
     }
 
     private func macHeroBleed(color: Color, layout: MacHomeHeroLayout) -> some View {
-        let strength = min(max(theme.scopedBleedStrength() * designMetrics.heroWashStrength * homeHeroBannerBleedIntensity, 0), 4)
+        let strength = min(max(designMetrics.heroWashStrength * homeHeroBannerBleedIntensity, 0), 4)
         let height = layout.height + layout.bleedTail
         let boundary = layout.height / height
         return LinearGradient(
