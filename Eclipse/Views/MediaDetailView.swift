@@ -685,10 +685,11 @@ struct MediaDetailContentView: View {
         let orientationIntensity = usesLandscapeDetailComposition
             ? landscapeHeroBleedIntensity
             : portraitHeroBleedIntensity
-        let configuredStrength = theme.scopedBleedStrength() * min(max(orientationIntensity, 0), 2)
+        let maximumIntensity = usesLandscapeDetailComposition ? 3.5 : 2.0
+        let configuredStrength = theme.scopedBleedStrength() * min(max(orientationIntensity, 0), maximumIntensity)
         guard usesWideDetailLayout, configuredStrength > 0.001 else { return configuredStrength }
         return usesLandscapeDetailComposition
-            ? min(max(configuredStrength * 1.48, 0), 2.8)
+            ? min(max(configuredStrength * 1.48, 0), 4.2)
             : min(max(configuredStrength * 1.18, 0), 2.4)
     }
 
