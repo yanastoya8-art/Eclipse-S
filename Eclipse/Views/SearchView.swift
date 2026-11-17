@@ -1622,23 +1622,6 @@ private struct BrowseMediaView: View {
             }
             .padding()
         }
-        .overlay(alignment: .topTrailing) {
-            if isLoading && !results.isEmpty {
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text("Updating")
-                        .font(.caption.weight(.medium))
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(.ultraThinMaterial, in: Capsule())
-                .padding(.top, 8)
-                .padding(.trailing, 12)
-                .allowsHitTesting(false)
-                .accessibilityLabel("Updating browse results")
-            }
-        }
         .navigationTitle("Browse")
 #if os(iOS)
         .navigationBarTitleDisplayMode(.large)
