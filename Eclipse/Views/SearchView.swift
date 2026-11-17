@@ -2602,7 +2602,6 @@ private struct BrowseMediaView: View {
 
         let candidates = results.enumerated().compactMap { index, result -> (Int, TMDBSearchResult, Bool)? in
             let hasTaizenPoster = result.animeArtworkURL?.contains("taizen.moe") == true
-            if hasTaizenPoster, result.animeLogoURL != nil { return nil }
 
             let originalLanguage = result.originalLanguage?.lowercased() ?? ""
             let baseLanguage = originalLanguage.split(separator: "-").first.map(String.init) ?? originalLanguage
@@ -2611,6 +2610,14 @@ private struct BrowseMediaView: View {
             }
             let needsDubIdentity = !selectedDubLanguageCodes.isEmpty && !nativeAudioMatchesDubFilter
             let needsAudioIdentity = originalAudioFilterEnabled && !["en", "es"].contains(baseLanguage)
+            // Existing clean artwork must not short-circuit identity resolution
+            // when a selected dub/audio filter still needs AniList metadata.
+            // Otherwise an anime with a Taizen poster and logo is incorrectly
+            // discarded before the strict language filter can inspect it.
+            if hasTaizenPoster, result.animeLogoURL != nil,
+               !needsDubIdentity, !needsAudioIdentity {
+                return nil
+            }
             let likelyAnime = result.isAnimeHint == true
                 || (result.genreIds?.contains(16) == true
                     && (["ja", "zh", "ko"].contains(baseLanguage)
