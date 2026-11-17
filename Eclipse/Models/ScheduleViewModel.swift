@@ -1007,11 +1007,14 @@ final class ScheduleViewModel: ObservableObject {
                 }
                 entries = earliestByEpisode.values.sorted { $0.airingAt < $1.airingAt }
                 try Task.checkCancellation()
-                // Keep the calendar focused on airing entries. The provider
-                // verification workflow is an implementation detail and should
-                // not occupy the schedule UI; real provider failures are still
-                // surfaced by the existing error state.
-                let notice = requiresDubSchedule ? nil : result.notice
+                // Hide the routine language-verification explanation. Keep a
+                // concise outage notice only when every selected-language source
+                // failed and the calendar consequently has no entries.
+                let hasProviderOutage = result.notice?
+                    .localizedCaseInsensitiveContains("temporarily unavailable") == true
+                let notice = requiresDubSchedule
+                    ? (entries.isEmpty && hasProviderOutage ? result.notice : nil)
+                    : result.notice
                 let loadResult = AnimeScheduleLoadResult(
                     entries: entries,
                     isAuthoritativeForNotifications: result.isAuthoritativeForNotifications,
