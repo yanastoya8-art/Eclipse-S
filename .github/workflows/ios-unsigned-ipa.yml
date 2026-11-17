@@ -579,7 +579,7 @@ jobs:
           app["versions"] = [entry] + versions[:9]
           app["version"] = version
 
-          path.write_text(json.dumps(feed, indent=2, ensure_ascii=False) + "\\n")
+          path.write_text(json.dumps(feed, indent=2, ensure_ascii=False) + "\n")
           PY
 
           git config user.name "github-actions[bot]"
