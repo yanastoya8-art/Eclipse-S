@@ -11,6 +11,84 @@ import SwiftUI
 import UIKit
 #endif
 
+
+enum HomeCatalogLoadPolicy {
+    static func hasLoadedContent(
+        tmdbCatalogCount: Int,
+        animeCatalogCount: Int,
+        stremioCatalogCount: Int,
+        traktCatalogCount: Int,
+        widgetCatalogCount: Int,
+        permitsEmptyResults: Bool
+    ) -> Bool {
+        permitsEmptyResults
+            || tmdbCatalogCount > 0
+            || animeCatalogCount > 0
+            || stremioCatalogCount > 0
+            || traktCatalogCount > 0
+            || widgetCatalogCount > 0
+    }
+}
+
+enum HomeCatalogFailurePresentation {
+    static func message(for error: Error) -> String {
+        let diagnostic = "\(error.localizedDescription) \(String(reflecting: error))"
+        let normalized = diagnostic.lowercased()
+        let nsError = error as NSError
+
+        if normalized.contains("missingapikey") || normalized.contains("missing api key") {
+            return "TMDB API key is missing from this app build. Add the TMDB_API_KEY repository secret and rebuild the app."
+        }
+
+        if normalized.contains("invalid api key")
+            || normalized.contains("statuscode: 401")
+            || normalized.contains("statuscode: 403")
+            || normalized.contains("http 401")
+            || normalized.contains("http 403") {
+            return "TMDB rejected the API key (HTTP 401/403). Verify that TMDB_API_KEY is a valid v3 API key, then rebuild the app."
+        }
+
+        if normalized.contains("statuscode: 429")
+            || normalized.contains("http 429")
+            || normalized.contains("rate limit") {
+            return "TMDB rate-limited the Home requests (HTTP 429). Wait briefly, then tap Retry."
+        }
+
+        if (500...599).contains(where: {
+            normalized.contains("statuscode: \($0)")
+                || normalized.contains("http \($0)")
+        }) {
+            return "TMDB is temporarily unavailable. Wait a moment, then tap Retry."
+        }
+
+        if nsError.domain == NSURLErrorDomain {
+            switch URLError.Code(rawValue: nsError.code) {
+            case .timedOut:
+                return "TMDB took too long to respond. Check your connection, then tap Retry."
+            case .notConnectedToInternet, .networkConnectionLost, .cannotConnectToHost,
+                 .cannotFindHost, .dnsLookupFailed, .resourceUnavailable:
+                return "Eclipse could not reach TMDB. Check your internet connection, then tap Retry."
+            default:
+                break
+            }
+        }
+
+        if normalized.contains("timedout")
+            || normalized.contains("notconnectedtointernet")
+            || normalized.contains("networkconnectionlost")
+            || normalized.contains("cannotconnecttohost")
+            || normalized.contains("cannotfindhost")
+            || normalized.contains("dnslookupfailed") {
+            return "Eclipse could not reach TMDB. Check your internet connection, then tap Retry."
+        }
+
+        let message = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        return message.isEmpty
+            ? "TMDB did not return Home catalog data. Check the API configuration and tap Retry."
+            : "TMDB request failed: \(message.prefix(180))"
+    }
+}
+
 private actor HomeCatalogFailureRecorder {
     private var firstFailure: String?
 
@@ -502,18 +580,25 @@ final class HomeViewModel: ObservableObject {
 
                 let finalLoadedCount = self.catalogResults.values.filter { !$0.isEmpty }.count
                     + self.widgetData.values.filter { !$0.isEmpty }.count
-                let rawLoadedCount = rawTMDBLoadedCatalogs.values.filter { !$0.isEmpty }.count
-                    + loadedStremioCatalogs.values.filter { !$0.isEmpty }.count
-                    + loadedTraktCatalogs.values.filter { !$0.isEmpty }.count
-                    + self.unfilteredWidgetData.values.filter { !$0.isEmpty }.count
+                let tmdbCatalogCount = rawTMDBLoadedCatalogs.values.filter { !$0.isEmpty }.count
+                let animeCatalogCount = rawAnimeCatalogs.values.filter { !$0.isEmpty }.count
+                let stremioCatalogCount = loadedStremioCatalogs.values.filter { !$0.isEmpty }.count
+                let traktCatalogCount = loadedTraktCatalogs.values.filter { !$0.isEmpty }.count
+                let widgetCatalogCount = self.unfilteredWidgetData.values.filter { !$0.isEmpty }.count
                 self.applyHeroBannerSelection()
                 self.isLoading = false
                 let permitsEmptyResults = enabledCatalogSnapshot.allSatisfy { $0.source == .local }
-                // Audio-language eligibility is resolved asynchronously by
-                // JustWatch. Treat fetched raw catalogs as loaded even when the
-                // first synchronous filter pass hides every non-native title;
-                // the metadata completion notification will reapply filters.
-                self.hasLoadedContent = rawLoadedCount > 0 || permitsEmptyResults
+                // Count every provider that can render Home content. In particular,
+                // AniList-only profiles must not be treated as an unsuccessful load
+                // just because their TMDB catalog snapshot is empty.
+                self.hasLoadedContent = HomeCatalogLoadPolicy.hasLoadedContent(
+                    tmdbCatalogCount: tmdbCatalogCount,
+                    animeCatalogCount: animeCatalogCount,
+                    stremioCatalogCount: stremioCatalogCount,
+                    traktCatalogCount: traktCatalogCount,
+                    widgetCatalogCount: widgetCatalogCount,
+                    permitsEmptyResults: permitsEmptyResults
+                )
                 if self.hasLoadedContent && self.pendingCatalogFilterRefresh {
                     self.pendingCatalogFilterRefresh = false
                     Task { @MainActor [weak self] in
@@ -524,7 +609,7 @@ final class HomeViewModel: ObservableObject {
                 self.hasRenderableStartupContent = finalLoadedCount > 0
                 if finalLoadedCount == 0 && !permitsEmptyResults {
                     if let firstCatalogFailure {
-                        self.errorMessage = "Home catalogs could not be loaded: \(firstCatalogFailure)"
+                        self.errorMessage = "Home data could not be loaded. \(firstCatalogFailure)"
                     } else {
                         self.errorMessage = "No results were returned by the enabled catalogs. Check your content filters and catalog selections."
                     }
@@ -597,7 +682,7 @@ final class HomeViewModel: ObservableObject {
                         return (kind.catalogID, items)
                     } catch {
                         await self.catalogFailureRecorder.record(
-                            "Catalog \(kind.catalogID): \(error.localizedDescription)"
+                            "Catalog \(kind.catalogID): \(HomeCatalogFailurePresentation.message(for: error))"
                         )
                         return (kind.catalogID, [])
                     }
@@ -630,7 +715,7 @@ final class HomeViewModel: ObservableObject {
                 return items
             } catch {
                 lastError = error
-                await catalogFailureRecorder.record("Catalog \(id): \(error.localizedDescription)")
+                await catalogFailureRecorder.record("Catalog \(id): \(HomeCatalogFailurePresentation.message(for: error))")
                 guard attempt < retryDelays.count,
                       Self.shouldRetryHomeCatalogRequest(after: error),
                       !Task.isCancelled else {

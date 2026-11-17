@@ -660,6 +660,7 @@
 		891822EA561A4CFA9037B72C /* SimklAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C457B1373844E498074EA0E /* SimklAPITests.swift */; };
 		8BFBAD99F2CE4A8E9922DC33 /* SimklAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C457B1373844E498074EA0E /* SimklAPITests.swift */; };
 		70F4C4CB054F4F97A6B29132 /* SimklAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BE4A6651E3841FE821D23A0 /* SimklAPI.swift */; };
+		B5A0C0DE0000000000000001 /* HomeCatalogLoadPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A0C0DE0000000000000002 /* HomeCatalogLoadPolicyTests.swift */; };
 /* Begin PBXCopyFilesBuildPhase section */
 		12F745372EB539F000889684 /* Embed Frameworks */ = {
 			isa = PBXCopyFilesBuildPhase;
@@ -1036,6 +1037,7 @@
 		38BB8D8DF2714C61B5C6BF00 /* SimklTrackerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/SimklTrackerTests.swift"; sourceTree = SOURCE_ROOT; };
 		48DBDCF68C044118955BA1F5 /* MediaLanguageCatalog.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MediaLanguageCatalog.swift; sourceTree = "<group>"; };
 		XCTESTFR0000000000000001 /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = System/Library/Frameworks/XCTest.framework; sourceTree = SDKROOT; };
+		B5A0C0DE0000000000000002 /* HomeCatalogLoadPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeCatalogLoadPolicyTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1104,6 +1106,7 @@
 				ALTPOSTFR000000000000001 /* TMDBAlternatePosterTests.swift */,
 				RXCTSTFR0000000000000001 /* ReaderExtensionCoreTests.swift */,
 				RXCMPTSTFR00000000000001 /* ReaderExtensionCompatibilityTests.swift */,
+				B5A0C0DE0000000000000002 /* HomeCatalogLoadPolicyTests.swift */,
 				12F7451A2EB52DFC00889684 /* Fixtures */,
 			);
 			path = Tests;
@@ -2082,6 +2085,7 @@
 				ALTPOSTBF000000000000001 /* TMDBAlternatePosterTests.swift in Sources */,
 				RXCTSTBF0000000000000001 /* ReaderExtensionCoreTests.swift in Sources */,
 				RXCMPTSTBF00000000000001 /* ReaderExtensionCompatibilityTests.swift in Sources */,
+				B5A0C0DE0000000000000001 /* HomeCatalogLoadPolicyTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
