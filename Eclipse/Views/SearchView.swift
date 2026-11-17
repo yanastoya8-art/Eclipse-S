@@ -1644,8 +1644,20 @@ private struct BrowseMediaView: View {
             cancelBrowseLoad()
         }
         .onChangeComp(of: mediaType) { _, newMediaType in
+            // A category change must never leave cards from the previous
+            // category visible while the new discover request is running.
+            loadTask?.cancel()
+            filterRefreshTask?.cancel()
+            filterRefreshTask = nil
+            filterRefreshPending = false
+            results.removeAll(keepingCapacity: true)
+            unfilteredResults.removeAll(keepingCapacity: true)
+            currentPage = 1
+            hasMorePages = true
+            errorMessage = nil
             if profileAppliedMediaType == newMediaType {
                 profileAppliedMediaType = nil
+                reloadResults()
                 return
             }
             persistFilters(filterConfigurations)
@@ -2255,16 +2267,13 @@ private struct BrowseMediaView: View {
                 // filtering. Without those filters, show the TMDB page immediately
                 // and enrich posters/logos in the background so Anime Browse is not
                 // blocked by AniList/AniMap artwork lookups.
-                let identityResolvedResults: [TMDBSearchResult]
-                if requiresAnimeIdentityBeforeFiltering {
-                    identityResolvedResults = await resolveAnimeBrowseIdentities(pageResult.results)
-                } else {
-                    identityResolvedResults = pageResult.results
-                }
-                try Task.checkCancellation()
+                // Let the filtering pipeline resolve anime identity once.
+                // Previously Browse performed the same provider lookup here
+                // and again while applying the age/dub filters, delaying the
+                // first usable Anime grid by a second round of network calls.
                 let combinedRawResults = replacing
-                    ? identityResolvedResults
-                    : existingRawResults + identityResolvedResults
+                    ? pageResult.results
+                    : existingRawResults + pageResult.results
                 let browseTypeFiltered = await filterResultsForBrowseType(
                     combinedRawResults,
                     mediaType: browseMediaType,
