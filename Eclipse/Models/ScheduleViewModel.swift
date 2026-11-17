@@ -862,6 +862,13 @@ final class ScheduleViewModel: ObservableObject {
 
     @MainActor
     private func animeEntries(dayCount: Int, forceRefresh: Bool) async throws -> AnimeScheduleLoadResult {
+        // The schedule can be opened directly without the Home/Browse
+        // language-filter pipeline ever running. Refresh the selected-language
+        // dub index here as well, so the AniList identity fallback is not
+        // filtered against an unhydrated or stale MyDubList snapshot.
+        if !MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement.isEmpty {
+            await MyDubListDubFilter.shared.refresh()
+        }
         let policyKey = currentAnimeSchedulePolicyKey()
         if animeScheduleLoadTask != nil, animeScheduleLoadPolicyKey != policyKey {
             // A language-filter change invalidates an in-flight request too;
