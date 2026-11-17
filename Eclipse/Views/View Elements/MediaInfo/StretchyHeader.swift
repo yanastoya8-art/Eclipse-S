@@ -125,6 +125,11 @@ struct StretchyHeaderView: View {
                                         .setProcessor(DownsamplingImageProcessor(size: resolvedImageDecodeSize))
                                         .resizable()
                                         .aspectRatio(contentMode: .fill)
+                                        .frame(
+                                            width: geometry.size.width,
+                                            height: height
+                                        )
+                                        .clipped()
                                         .blur(radius: 26)
                                         .overlay(Color.black.opacity(0.22))
 
