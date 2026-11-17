@@ -82,7 +82,6 @@ struct StretchyHeaderView: View {
     var imageDecodeSize: CGSize? = nil
     var placeholderColor: Color = Color.gray.opacity(0.3)
     var fallbackImageURLs: [String] = []
-    var preservesArtworkComposition: Bool = false
 
     @State private var localAmbientColor: Color = Color.black
     @State private var failedImageURLs: Set<String> = []
