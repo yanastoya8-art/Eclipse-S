@@ -487,6 +487,10 @@ struct MediaDetailContentView: View {
     private var portraitHeroBleedIntensity = 1.0
     @AppStorage("mediaDetailLandscapeHeroBleedIntensity")
     private var landscapeHeroBleedIntensity = 1.0
+    @AppStorage("mediaDetailLandscapeHeroHorizontalStretch")
+    private var landscapeHeroHorizontalStretch = 1.0
+    @AppStorage("mediaDetailLandscapeHeroVerticalStretch")
+    private var landscapeHeroVerticalStretch = 1.0
 
     private var activeTitleLogoPosition: Double {
         usesLandscapeDetailComposition ? landscapeTitleLogoVerticalPosition : titleLogoVerticalPosition
@@ -2635,7 +2639,13 @@ struct MediaDetailContentView: View {
                 // canvas. Always fill its measured bounds so portrait/Reader
                 // layouts cannot leave an empty strip when the poster ratio
                 // differs from the hero frame. Keep the artwork single-layered.
-                preservesArtworkComposition: false
+                preservesArtworkComposition: false,
+                artworkScaleX: usesLandscapeDetailComposition
+                    ? CGFloat(min(max(landscapeHeroHorizontalStretch, 0.85), 1.5))
+                    : 1.0,
+                artworkScaleY: usesLandscapeDetailComposition
+                    ? CGFloat(min(max(landscapeHeroVerticalStretch, 0.85), 1.5))
+                    : 1.0
             )
             // StretchyHeaderView can initially report its intrinsic artwork
             // size before the first scroll-layout pass. Give landscape artwork
