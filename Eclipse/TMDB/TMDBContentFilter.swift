@@ -589,16 +589,60 @@ class TMDBContentFilter: ObservableObject {
         }
     }
 
+    func prepareScheduleAgeRatings(for entries: [ScheduleEntry]) async {
+        let defaults = UserDefaults.standard
+        let animeEntries = defaults.bool(forKey: "catalogHideAllAgesAnime")
+            ? entries.filter { $0.source == .anime }
+            : []
+        if !animeEntries.isEmpty {
+            await resolveAnimeAgeRatings(
+                identities: animeEntries.map { ($0.sourceMediaId, $0.animeMALID) }
+            )
+        }
+
+        let tmdbEntries = entries.compactMap { entry -> (isMovie: Bool, id: Int)? in
+            guard let id = entry.tmdbId, id > 0 else { return nil }
+            let enabled = entry.isMovie
+                ? defaults.bool(forKey: "catalogHideAllAgesMovies")
+                : defaults.bool(forKey: "catalogHideAllAgesSeries")
+            return enabled ? (entry.isMovie, id) : nil
+        }
+        if !tmdbEntries.isEmpty {
+            await TMDBMaturityRatingStore.shared.resolve(tmdbEntries)
+        }
+    }
+
+    func scheduleEntryIsAllAges(_ entry: ScheduleEntry) -> Bool {
+        let defaults = UserDefaults.standard
+        if entry.source == .anime {
+            guard defaults.bool(forKey: "catalogHideAllAgesAnime") else { return false }
+            let id = entry.sourceMediaId
+            guard id > 0 else { return false }
+            animeEligibilityLock.lock()
+            let rating = animeAgeRatingsByID[id]
+            animeEligibilityLock.unlock()
+            return rating == .general
+        }
+
+        let key = entry.isMovie ? "catalogHideAllAgesMovies" : "catalogHideAllAgesSeries"
+        guard defaults.bool(forKey: key), let id = entry.tmdbId, id > 0 else { return false }
+        return TMDBMaturityRatingStore.shared.rating(isMovie: entry.isMovie, id: id) == .general
+    }
+
     private func resolveAnimeAgeRatings(for results: [TMDBSearchResult]) async {
-        let uniqueResults = Dictionary(
-            results.compactMap { result -> (Int, TMDBSearchResult)? in
-                guard let id = result.animeIdentitySeed?.anilistId, id > 0 else { return nil }
-                return (id, result)
-            },
-            uniquingKeysWith: { first, _ in first }
-        )
-        let unresolved = uniqueResults.values.filter { result in
-            guard let id = result.animeIdentitySeed?.anilistId else { return false }
+        let identities = results.compactMap { result -> (Int, Int?)? in
+            guard let id = result.animeIdentitySeed?.anilistId, id > 0 else { return nil }
+            return (id, result.animeIdentitySeed?.malId)
+        }
+        await resolveAnimeAgeRatings(identities: identities)
+    }
+
+    private func resolveAnimeAgeRatings(identities: [(Int, Int?)]) async {
+        var unique: [Int: Int?] = [:]
+        for (id, malID) in identities where id > 0 {
+            if unique[id] == nil { unique[id] = malID }
+        }
+        let unresolvedIDs = unique.keys.filter { id in
             animeEligibilityLock.lock()
             defer { animeEligibilityLock.unlock() }
             guard !animeAgeCheckedIDs.contains(id),
@@ -607,27 +651,16 @@ class TMDBContentFilter: ObservableObject {
             animeAgeLoadingIDs.insert(id)
             return true
         }
-        guard !unresolved.isEmpty else { return }
+        guard !unresolvedIDs.isEmpty else { return }
 
-        let identifiers = unresolved.compactMap { $0.animeIdentitySeed?.anilistId }
-        var ratings = (try? await TaizenAnimeAgeRatingService.shared.ratings(anilistIDs: identifiers)) ?? [:]
-        let missingResults = unresolved.filter { result in
-            guard let id = result.animeIdentitySeed?.anilistId else { return false }
-            return ratings[id] == nil || ratings[id] == .unknown
-        }
-
-        // Taizen does not have complete age-rating coverage. When a MAL client
-        // ID is configured, use MyAnimeList's official PG/R/R+ classification
-        // as a second source instead of permanently marking the title unrated.
-        if MALMetadataService.shared.isConfigured, !missingResults.isEmpty {
+        var ratings = (try? await TaizenAnimeAgeRatingService.shared.ratings(anilistIDs: unresolvedIDs)) ?? [:]
+        let missingIDs = unresolvedIDs.filter { ratings[$0] == nil || ratings[$0] == .unknown }
+        if MALMetadataService.shared.isConfigured, !missingIDs.isEmpty {
             await withTaskGroup(of: (Int, MaturityRating?).self) { group in
-                for result in missingResults {
-                    guard let anilistID = result.animeIdentitySeed?.anilistId,
-                          let malID = result.animeIdentitySeed?.malId,
-                          malID > 0 else { continue }
+                for id in missingIDs {
+                    guard let malID = unique[id] ?? nil, malID > 0 else { continue }
                     group.addTask {
-                        let rating = await MALMetadataService.shared.fetchMaturityRating(malID: malID)
-                        return (anilistID, rating)
+                        (id, await MALMetadataService.shared.fetchMaturityRating(malID: malID))
                     }
                 }
                 while let (id, rating) = await group.next() {
@@ -637,8 +670,7 @@ class TMDBContentFilter: ObservableObject {
         }
 
         var didResolveAny = false
-        for result in unresolved {
-            guard let id = result.animeIdentitySeed?.anilistId else { continue }
+        for id in unresolvedIDs {
             if let rating = ratings[id], rating != .unknown {
                 storeAnimeAgeRating(rating, for: id)
                 didResolveAny = true
@@ -649,7 +681,6 @@ class TMDBContentFilter: ObservableObject {
                 animeEligibilityLock.unlock()
             }
         }
-
         if didResolveAny {
             NotificationCenter.default.post(
                 name: TMDBContentFilter.catalogFiltersDidChangeNotification,
@@ -1274,13 +1305,18 @@ class TMDBContentFilter: ObservableObject {
     }
 
     private func shouldIncludeTMDBAgeRating(isMovie: Bool, id: Int, enabled: Bool) -> Bool {
-        guard enabled else { return true }
-        guard let rating = TMDBMaturityRatingStore.shared.rating(isMovie: isMovie, id: id),
-              rating != .unknown else {
-            // A 13+ catalog must not silently admit unrated titles.
-            return false
+        let hideAllAges = UserDefaults.standard.bool(
+            forKey: isMovie ? "catalogHideAllAgesMovies" : "catalogHideAllAgesSeries"
+        )
+        guard enabled || hideAllAges else { return true }
+        guard let rating = TMDBMaturityRatingStore.shared.rating(isMovie: isMovie, id: id) else {
+            // A minimum-age filter fails closed for unresolved ratings. The
+            // all-ages-only filter leaves unknown ratings visible.
+            return !enabled
         }
-        return rating >= .teen
+        if hideAllAges && rating == .general { return false }
+        guard enabled else { return true }
+        return rating != .unknown && rating >= .teen
     }
 
     private func runtimeCacheKey(for result: TMDBSearchResult) -> String {
