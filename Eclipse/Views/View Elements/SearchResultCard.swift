@@ -301,12 +301,17 @@ struct SearchResultCard: View {
                 )
             }
 
-            CenteredPosterTitleOverlay(
-                title: result.displayTitle,
-                logoURL: resolvedTitleLogoURL,
-                fontSize: isTvOS ? 25 : (isIPad ? 18 : 14),
-                verticalPosition: MediaDetailTitleLogoPositionSettings.defaultVerticalPosition
-            )
+            // A logo over a placeholder looks like a broken poster. Wait
+            // until at least one clean artwork provider has supplied a real
+            // image; the logo then appears together with the poster.
+            if !PosterArtworkURLResolver.candidates(for: result).isEmpty {
+                CenteredPosterTitleOverlay(
+                    title: result.displayTitle,
+                    logoURL: resolvedTitleLogoURL,
+                    fontSize: isTvOS ? 25 : (isIPad ? 18 : 14),
+                    verticalPosition: MediaDetailTitleLogoPositionSettings.defaultVerticalPosition
+                )
+            }
         }
         .aspectRatio(2/3, contentMode: .fill)
     }
