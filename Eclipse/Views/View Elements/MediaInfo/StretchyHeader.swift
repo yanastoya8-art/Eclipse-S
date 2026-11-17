@@ -119,58 +119,30 @@ struct StretchyHeaderView: View {
                 Color.clear
                     .overlay {
                         if let imageURL = resolvedBackdropURL {
-                            if preservesArtworkComposition {
-                                ZStack {
-                                    KFImage(URL(string: imageURL))
-                                        .setProcessor(DownsamplingImageProcessor(size: resolvedImageDecodeSize))
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                        .frame(
-                                            width: geometry.size.width,
-                                            height: height
-                                        )
-                                        .clipped()
-                                        .blur(radius: 26)
-                                        .overlay(Color.black.opacity(0.22))
-
-                                    KFImage(URL(string: imageURL))
-                                        .setProcessor(DownsamplingImageProcessor(size: resolvedImageDecodeSize))
-                                        .placeholder { Rectangle().fill(placeholderColor) }
-                                        .onSuccess { result in
-                                            guard resolvedBackdropURL == imageURL else { return }
-                                            updateAmbientColor(from: result.image, url: imageURL)
-                                        }
-                                        .onFailure { _ in
-                                            guard resolvedBackdropURL == imageURL else { return }
-                                            failedImageURLs.insert(imageURL)
-                                        }
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fit)
-                                        // Give the poster a real, finite drawing canvas.
-                                        // Without this, SwiftUI can centre its intrinsic
-                                        // image inside the hero's flexible geometry and
-                                        // leave an empty strip above the visible artwork.
-                                        .frame(
-                                            width: geometry.size.width,
-                                            height: height,
-                                            alignment: .top
-                                        )
+                            // Render the artwork exactly once. A previous version
+                            // placed a blurred, enlarged copy behind the original
+                            // poster, which made the detail hero look like Reader
+                            // mode and obscured the intended colour-bleed treatment.
+                            KFImage(URL(string: imageURL))
+                                .setProcessor(DownsamplingImageProcessor(size: resolvedImageDecodeSize))
+                                .placeholder { Rectangle().fill(placeholderColor) }
+                                .onSuccess { result in
+                                    guard resolvedBackdropURL == imageURL else { return }
+                                    updateAmbientColor(from: result.image, url: imageURL)
                                 }
-                            } else {
-                                KFImage(URL(string: imageURL))
-                                    .setProcessor(DownsamplingImageProcessor(size: resolvedImageDecodeSize))
-                                    .placeholder { Rectangle().fill(placeholderColor) }
-                                    .onSuccess { result in
-                                        guard resolvedBackdropURL == imageURL else { return }
-                                        updateAmbientColor(from: result.image, url: imageURL)
-                                    }
-                                    .onFailure { _ in
-                                        guard resolvedBackdropURL == imageURL else { return }
-                                        failedImageURLs.insert(imageURL)
-                                    }
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                            }
+                                .onFailure { _ in
+                                    guard resolvedBackdropURL == imageURL else { return }
+                                    failedImageURLs.insert(imageURL)
+                                }
+                                .resizable()
+                                .aspectRatio(
+                                    contentMode: preservesArtworkComposition ? .fit : .fill
+                                )
+                                .frame(
+                                    width: geometry.size.width,
+                                    height: height,
+                                    alignment: preservesArtworkComposition ? .top : .center
+                                )
                         } else {
                             Rectangle().fill(placeholderColor)
                         }
