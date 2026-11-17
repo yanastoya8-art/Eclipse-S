@@ -264,9 +264,9 @@ struct FallbackImageView: View {
 
     private var gradientColors: [Color] {
         if isMovie {
-            return [Color.blue.opacity(0.8), Color.purple.opacity(0.8)]
+            return [Color.blue, Color.purple]
         } else {
-            return [Color.green.opacity(0.8), Color.teal.opacity(0.8)]
+            return [Color.green, Color.teal]
         }
     }
 
