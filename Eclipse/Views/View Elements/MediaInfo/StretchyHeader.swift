@@ -116,7 +116,21 @@ struct StretchyHeaderView: View {
             let offset = min(0, -deltaY)
 
             ZStack(alignment: .bottom) {
-                Color.clear
+                // Fill the landscape side gutters with a restrained wash
+                // of the poster's extracted colour. This is a colour field,
+                // not a second/blurred copy of the artwork.
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            gradient: Gradient(stops: [
+                                .init(color: localAmbientColor.opacity(0.30), location: 0.0),
+                                .init(color: localAmbientColor.opacity(0.58), location: 0.5),
+                                .init(color: localAmbientColor.opacity(0.30), location: 1.0)
+                            ]),
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
                     .overlay {
                         if let imageURL = resolvedBackdropURL {
                             // Render the artwork exactly once. A previous version
