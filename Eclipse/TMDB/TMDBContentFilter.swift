@@ -638,11 +638,15 @@ class TMDBContentFilter: ObservableObject {
     }
 
     private func resolveAnimeAgeRatings(identities: [(Int, Int?)]) async {
-        var unique: [Int: Int?] = [:]
+        var malIDsByAnimeID: [Int: Int] = [:]
+        var uniqueIDs = Set<Int>()
         for (id, malID) in identities where id > 0 {
-            if unique[id] == nil { unique[id] = malID }
+            uniqueIDs.insert(id)
+            if let malID, malID > 0, malIDsByAnimeID[id] == nil {
+                malIDsByAnimeID[id] = malID
+            }
         }
-        let unresolvedIDs = unique.keys.filter { id in
+        let unresolvedIDs = uniqueIDs.filter { id in
             animeEligibilityLock.lock()
             defer { animeEligibilityLock.unlock() }
             guard !animeAgeCheckedIDs.contains(id),
@@ -658,7 +662,7 @@ class TMDBContentFilter: ObservableObject {
         if MALMetadataService.shared.isConfigured, !missingIDs.isEmpty {
             await withTaskGroup(of: (Int, MaturityRating?).self) { group in
                 for id in missingIDs {
-                    guard let malID = unique[id] ?? nil, malID > 0 else { continue }
+                    guard let malID = malIDsByAnimeID[id], malID > 0 else { continue }
                     group.addTask {
                         (id, await MALMetadataService.shared.fetchMaturityRating(malID: malID))
                     }
