@@ -483,6 +483,8 @@ struct MediaDetailContentView: View {
     private var landscapeHeroActionsVerticalOffset = LandscapeMediaDetailAppearanceSettings.defaultOffset
     @AppStorage(LandscapeMediaDetailAppearanceSettings.synopsisOffsetKey)
     private var landscapeHeroSynopsisVerticalOffset = LandscapeMediaDetailAppearanceSettings.defaultOffset
+    @AppStorage(LandscapeMediaDetailAppearanceSettings.contentHorizontalOffsetKey)
+    private var landscapeContentHorizontalOffset = LandscapeMediaDetailAppearanceSettings.defaultContentHorizontalOffset
     @AppStorage("mediaDetailPortraitHeroBleedIntensity")
     private var portraitHeroBleedIntensity = 1.0
     @AppStorage("mediaDetailLandscapeHeroBleedIntensity")
@@ -2935,6 +2937,7 @@ struct MediaDetailContentView: View {
             alignment: .center
         )
         .frame(maxWidth: .infinity, alignment: .center)
+        .offset(x: usesLandscapeDetailComposition ? CGFloat(landscapeContentHorizontalOffset) : 0)
         .padding(.top, usesWideDetailLayout ? 52 : 64)
         .padding(.bottom, isTvOS ? 60 : (usesWideDetailLayout ? 30 : 42))
         .background {
@@ -3660,6 +3663,7 @@ struct MediaDetailContentView: View {
 
     @ViewBuilder
     private func mediaDetailElementView(_ element: MediaDetailElement) -> some View {
+        Group {
         switch element {
         case .actions:
             playAndBookmarkSection
@@ -3707,6 +3711,8 @@ struct MediaDetailContentView: View {
         case .trailers:
             experimentalTrailersSection
         }
+        }
+        .offset(x: usesLandscapeDetailComposition ? CGFloat(landscapeContentHorizontalOffset) : 0)
     }
 
     private func originalTitleForSearchSheet(_ episode: TMDBEpisode?) -> String? {
