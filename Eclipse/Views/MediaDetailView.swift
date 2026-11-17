@@ -2627,10 +2627,9 @@ struct MediaDetailContentView: View {
                 },
                 placeholderColor: shouldAnalyzeAlternatePoster ? .clear : Color.gray.opacity(0.3),
                 fallbackImageURLs: detailHeroFallbackImageURLs,
-                // Keep the full poster visible in portrait. In landscape,
-                // fill the banner with the single poster image and pin it to
-                // the top so the important upper artwork is never cropped.
-                preservesArtworkComposition: !usesLandscapeDetailComposition
+                // Fill the reserved hero viewport with one artwork image;
+                // StretchyHeaderView clips the overflow instead of leaving
+                // an aspect-fit gap beneath a short image.
             )
             // StretchyHeaderView can initially report its intrinsic artwork
             // size before the first scroll-layout pass. Give landscape artwork
