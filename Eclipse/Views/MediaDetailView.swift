@@ -2754,9 +2754,7 @@ struct MediaDetailContentView: View {
         // scroll-content background), so apply the dedicated slider here.
         // Normalize against the default landscape strength to preserve the
         // existing appearance at the default value while allowing 0 to disable it.
-        let landscapeBleedScale = CGFloat(
-            min(max(mediaDetailHeroBleedStrength / 1.48, 0), 2.0)
-        )
+        let landscapeBleedScale = min(max(mediaDetailHeroBleedStrength / 1.48, 0), 2.0)
         let bleedScale = usesLandscapeDetailComposition ? landscapeBleedScale : 1.0
 
         if ExperimentalFeatureState.isEnabledAtLaunch {
