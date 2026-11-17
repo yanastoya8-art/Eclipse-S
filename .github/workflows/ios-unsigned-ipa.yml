@@ -516,6 +516,7 @@ jobs:
           SITE_DIR="$RUNNER_TEMP/sidestore-site"
           mkdir -p "$SITE_DIR/ipa"
           cp "$IPA_PATH" "$SITE_DIR/ipa/Eclipse-latest.ipa"
+          cp "Eclipse/Assets.xcassets/AppIcon.appiconset/Default.png" "$SITE_DIR/app-icon.png"
 
           INFO_DIR="$RUNNER_TEMP/sidestore-app"
           mkdir -p "$INFO_DIR"
@@ -538,19 +539,18 @@ jobs:
 
           path = pathlib.Path(sys.argv[1])
           bundle_id, version, build, min_os, size, download_url, commit = sys.argv[2:]
+          release_date = datetime.datetime.now(datetime.timezone.utc).date().isoformat()
           app = {
               "name": "Eclipse",
               "bundleIdentifier": bundle_id,
               "developerName": "yanastoya8-art",
-              "subtitle": "Latest successful unsigned build",
-              "localizedDescription": "Automatically updated after a successful GitHub Actions IPA build. Not a public stable release.",
+              "subtitle": "Movies, series and anime in one place",
+              "localizedDescription": "Eclipse is a media discovery and streaming app. This source automatically tracks the latest successful unsigned iOS build.",
+              "iconURL": "https://yanastoya8-art.github.io/Eclipse-S/app-icon.png",
               "tintColor": "#7C4DFF",
-              "category": "entertainment",
-              "version": version,
               "versions": [{
                   "version": version,
-                  "buildVersion": build,
-                  "date": datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+                  "date": release_date,
                   "downloadURL": download_url,
                   "size": int(size),
                   "minOSVersion": min_os,
@@ -559,18 +559,39 @@ jobs:
           }
           feed = {
               "name": "Eclipse SideStore Source",
-              "subtitle": "Latest successful Eclipse builds",
-              "description": "The latest successful unsigned IPA build, hosted without creating a GitHub Release.",
-              "website": "https://github.com/yanastoya8-art/Eclipse-S",
-              "tintColor": "#7C4DFF",
+              "identifier": "app.eclipse.soupy.sidestore-source",
+              "sourceURL": "https://yanastoya8-art.github.io/Eclipse-S/alt-source.json",
               "apps": [app]
           }
-          path.write_text(json.dumps(feed, indent=2, ensure_ascii=False) + "\n")
+
+          # Validate against SideStore's strict source shape before publishing.
+          required_source = {"name", "identifier", "apps"}
+          allowed_source = required_source | {"news", "sourceURL"}
+          required_app = {"name", "bundleIdentifier", "developerName", "localizedDescription", "iconURL", "versions"}
+          allowed_app = required_app | {"beta", "downloadURL", "permissions", "screenshotURLs", "size", "subtitle", "tintColor", "version", "versionDate", "versionDescription"}
+          required_version = {"version", "date", "downloadURL", "size"}
+          allowed_version = required_version | {"localizedDescription", "minOSVersion", "maxOSVersion"}
+          if not required_source.issubset(feed) or not set(feed).issubset(allowed_source):
+              raise SystemExit("Invalid SideStore source keys")
+          if len(feed["apps"]) != 1:
+              raise SystemExit("SideStore source must contain exactly one Eclipse app")
+          app_entry = feed["apps"][0]
+          if not required_app.issubset(app_entry) or not set(app_entry).issubset(allowed_app):
+              raise SystemExit("Invalid SideStore app keys")
+          if not app_entry["versions"]:
+              raise SystemExit("SideStore app must include at least one version")
+          for version_entry in app_entry["versions"]:
+              if not required_version.issubset(version_entry) or not set(version_entry).issubset(allowed_version):
+                  raise SystemExit("Invalid SideStore version keys")
+          path.write_text(json.dumps(feed, indent=2, ensure_ascii=False) + "\\n")
+          parsed = json.loads(path.read_text())
+          if parsed != feed:
+              raise SystemExit("SideStore source JSON round-trip validation failed")
           PY
 
           cat > "$SITE_DIR/index.html" <<'HTML'
           <!doctype html><html><head><meta charset="utf-8"><title>Eclipse SideStore</title></head>
-          <body><h1>Eclipse SideStore feed</h1><p>Add <a href="./alt-source.json">this AltSource feed</a> to SideStore.</p></body></html>
+          <body><h1>Eclipse SideStore feed</h1><p><a href="sidestore://source?url=https%3A%2F%2Fyanastoya8-art.github.io%2FEclipse-S%2Falt-source.json">Add Eclipse to SideStore</a></p><p><a href="./alt-source.json">View source JSON</a></p></body></html>
           HTML
 
       - name: Upload SideStore website
