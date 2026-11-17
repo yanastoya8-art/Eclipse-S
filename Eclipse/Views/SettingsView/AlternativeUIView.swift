@@ -82,6 +82,8 @@ struct AlternativeUIView: View {
     @AppStorage(MediaDetailTitleLogoAppearanceSettings.weightKey) private var titleLogoWeight = MediaDetailTitleLogoAppearanceSettings.defaultWeight
     @AppStorage(MediaDetailHeroContentPositionSettings.actionsOffsetKey) private var heroActionsOffset = MediaDetailHeroContentPositionSettings.defaultOffset
     @AppStorage(MediaDetailHeroContentPositionSettings.synopsisOffsetKey) private var heroSynopsisOffset = MediaDetailHeroContentPositionSettings.defaultOffset
+    @AppStorage(MediaDetailRatingNotesPositionSettings.portraitOffsetKey) private var portraitRatingNotesOffset = MediaDetailRatingNotesPositionSettings.defaultOffset
+    @AppStorage(MediaDetailRatingNotesPositionSettings.landscapeOffsetKey) private var landscapeRatingNotesOffset = MediaDetailRatingNotesPositionSettings.defaultOffset
     @AppStorage(LandscapeMediaDetailAppearanceSettings.logoPositionKey) private var landscapeTitleLogoPosition = LandscapeMediaDetailAppearanceSettings.defaultLogoPosition
     @AppStorage(LandscapeMediaDetailAppearanceSettings.logoSizeKey) private var landscapeTitleLogoSize = LandscapeMediaDetailAppearanceSettings.defaultLogoSize
     @AppStorage(LandscapeMediaDetailAppearanceSettings.logoWeightKey) private var landscapeTitleLogoWeight = LandscapeMediaDetailAppearanceSettings.defaultLogoWeight
@@ -663,6 +665,13 @@ struct AlternativeUIView: View {
             )
             .id(AppearanceSettingsSearchTarget.heroSynopsisPosition.anchorID)
             sliderRow(
+                title: "Portrait Ratings & Notes Position",
+                description: "Adjust the Ratings & Notes section independently in portrait detail pages.",
+                value: $portraitRatingNotesOffset,
+                range: MediaDetailRatingNotesPositionSettings.supportedRange,
+                step: MediaDetailRatingNotesPositionSettings.step
+            )
+            sliderRow(
                 title: "Portrait Hero Color Bleed Intensity",
                 description: "Set how strongly the detail-page hero color extends down the page in portrait mode.",
                 value: $portraitHeroBleedIntensity,
@@ -682,6 +691,13 @@ struct AlternativeUIView: View {
                 .id(AppearanceSettingsSearchTarget.landscapeHeroActionPosition.anchorID)
             sliderRow(title: "Landscape Synopsis Vertical Position", description: "Move the synopsis independently in landscape detail pages.", value: $landscapeHeroSynopsisOffset, range: LandscapeMediaDetailAppearanceSettings.offsetRange, step: LandscapeMediaDetailAppearanceSettings.offsetStep)
                 .id(AppearanceSettingsSearchTarget.landscapeHeroSynopsisPosition.anchorID)
+            sliderRow(
+                title: "Landscape Ratings & Notes Position",
+                description: "Adjust the Ratings & Notes section independently in landscape detail pages.",
+                value: $landscapeRatingNotesOffset,
+                range: MediaDetailRatingNotesPositionSettings.supportedRange,
+                step: MediaDetailRatingNotesPositionSettings.step
+            )
             sliderRow(
                 title: "Landscape Hero Color Bleed Intensity",
                 description: "Set how strongly the detail-page hero color extends down the page in landscape mode.",
