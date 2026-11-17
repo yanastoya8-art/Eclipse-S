@@ -232,10 +232,16 @@ enum PinnedProviderImageLoader {
 struct FallbackImageView: View {
     let isMovie: Bool
     let size: CGSize
+    private let expandsToFillContainer: Bool
 
-    init(isMovie: Bool, size: CGSize = CGSize(width: 120, height: 180)) {
+    init(
+        isMovie: Bool,
+        size: CGSize = CGSize(width: 120, height: 180),
+        expandsToFillContainer: Bool = false
+    ) {
         self.isMovie = isMovie
         self.size = size
+        self.expandsToFillContainer = expandsToFillContainer
     }
 
     var body: some View {
@@ -258,7 +264,10 @@ struct FallbackImageView: View {
                         .foregroundColor(.white.opacity(0.9))
                 }
             )
-            .frame(width: size.width, height: size.height)
+            .frame(
+                maxWidth: expandsToFillContainer ? .infinity : size.width,
+                maxHeight: expandsToFillContainer ? .infinity : size.height
+            )
             .aspectRatio(2/3, contentMode: .fill)
     }
 
