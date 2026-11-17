@@ -978,11 +978,11 @@ struct HomeView: View {
     @ViewBuilder
     private func errorView(_ message: String) -> some View {
         VStack(spacing: 16) {
-            Image(systemName: "wifi.slash")
+            Image(systemName: "exclamationmark.triangle")
                 .font(.system(size: 50))
                 .foregroundColor(.orange)
 
-            Text("Connection Error")
+            Text("Home data unavailable")
                 .font(.title2)
                 .fontWeight(.semibold)
 
