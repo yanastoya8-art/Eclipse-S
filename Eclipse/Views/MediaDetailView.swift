@@ -1938,6 +1938,12 @@ struct MediaDetailContentView: View {
                     )
                 }
                 .coordinateSpace(name: "mediaDetailScroll")
+                // The hero is edge-to-edge artwork. A ScrollView otherwise
+                // begins its content below the navigation safe area, leaving
+                // a visible blank band above the poster in portrait and
+                // landscape. Extend the scroll content to the top edge so the
+                // first pixel of the hero starts at the top of the viewport.
+                .ignoresSafeArea(edges: .top)
                 .modifier(ScrollClipModifier())
                 .onPreferenceChange(ScrollOffsetPreferenceKey.self) { newOffset in
                     guard abs(scrollOffset - newOffset) >= scrollOffsetUpdateThreshold else { return }
