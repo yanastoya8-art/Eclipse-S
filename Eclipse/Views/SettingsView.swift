@@ -5446,14 +5446,6 @@ private struct LanguageFiltersSettingsView: View {
 
 
 
-            Section {
-                VStack(alignment: .leading, spacing: 10) {
-                    Link("Powered by MyDubList", destination: URL(string: "https://mydublist.com")!)
-                    Link("Taizen episode metadata & API", destination: URL(string: "https://taizen.moe/api-docs")!)
-                    Link("anidub regional dub API & methodology", destination: URL(string: "https://www.anidub.moe/api-docs")!)
-                    Link("Dataset license: CC BY 4.0", destination: URL(string: "https://creativecommons.org/licenses/by/4.0/")!)
-                }
-            }
         }
 
         .eclipsePageTitle("Language Filters")
