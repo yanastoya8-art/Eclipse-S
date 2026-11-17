@@ -996,7 +996,10 @@ struct SettingsView: View {
             return AnyView(settingsSearchableContent(AgeFiltersSettingsView(
                 hideBelowPG13Movies: $hideBelowPG13Movies,
                 hideBelowTV14Shows: $hideBelowTV14Shows,
-                hideBelowPG13Anime: $hideBelowPG13Anime
+                hideBelowPG13Anime: $hideBelowPG13Anime,
+                hideAllAgesMovies: $hideAllAgesMovies,
+                hideAllAgesSeries: $hideAllAgesSeries,
+                hideAllAgesAnime: $hideAllAgesAnime
             )))
         case .schedule:
             return AnyView(settingsSearchableContent(ScheduleSettingsView()))
