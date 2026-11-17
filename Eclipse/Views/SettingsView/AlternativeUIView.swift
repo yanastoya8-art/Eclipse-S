@@ -700,7 +700,7 @@ struct AlternativeUIView: View {
             )
             sliderRow(
                 title: "Landscape Hero Color Bleed Intensity",
-                description: "Set how strongly the detail-page hero color extends down the page in landscape mode.",
+                description: "Adjust the strength of the artwork color fade at the bottom of the landscape detail hero.",
                 value: $landscapeHeroBleedIntensity,
                 range: 0...3.5,
                 step: 0.05
