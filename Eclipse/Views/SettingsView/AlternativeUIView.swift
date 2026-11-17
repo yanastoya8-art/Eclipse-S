@@ -18,7 +18,6 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
     case backgroundStyle
     case solidColorSource
     case customBackgroundColor
-    case colorBleed
     case backgroundIntensity
     case interface
     case globalAppearance
@@ -57,7 +56,7 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
 
     var sectionKey: String {
         switch self {
-        case .palette, .backgroundStyle, .solidColorSource, .customBackgroundColor, .colorBleed, .backgroundIntensity:
+        case .palette, .backgroundStyle, .solidColorSource, .customBackgroundColor, .backgroundIntensity:
             return "theme"
         case .interface, .globalAppearance, .accentColor:
             return "interface"
@@ -402,15 +401,6 @@ struct AlternativeUIView: View {
             }
 
             if theme.atmosphereStyle != .solid {
-                sliderRow(
-                    title: "Color Bleed",
-                    description: "How strongly the banner color washes down the page.",
-                    value: $theme.bleedStrength,
-                    range: AppearanceConfig.bleedRange,
-                    step: 0.05
-                )
-                .id(AppearanceSettingsSearchTarget.colorBleed.anchorID)
-
                 sliderRow(
                     title: "Background Intensity",
                     description: "Lighten or deepen the overall background.",
