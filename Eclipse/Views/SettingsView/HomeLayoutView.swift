@@ -38,6 +38,7 @@ struct HomeLayoutView: View {
     @AppStorage("heroBannerBehavior") private var heroBannerBehavior = HeroBannerBehavior.defaultValue.rawValue
     @AppStorage(HomeHeroTitleLogoPositionSettings.verticalPositionKey) private var homeHeroTitleLogoVerticalPosition = HomeHeroTitleLogoPositionSettings.defaultVerticalPosition
     @AppStorage("homeHeroTitleLogoSize") private var homeHeroTitleLogoSize = 1.0
+    @AppStorage("homeHeroBannerBleedIntensity") private var homeHeroBannerBleedIntensity = 1.0
 
     @StateObject private var catalogManager = CatalogManager.shared
     @StateObject private var layoutStore = HomeCatalogLayoutStore.shared
@@ -161,6 +162,15 @@ struct HomeLayoutView: View {
 
     private var heroSection: some View {
         Section {
+            sliderRow(
+                title: "Hero Color Bleed Intensity",
+                description: "Adjust how strongly the home hero banner color extends into the content below. This setting is independent of detail-page color bleed.",
+                value: $homeHeroBannerBleedIntensity,
+                range: 0...3.5,
+                step: 0.05
+            )
+            .accessibilityIdentifier("settings.appearance.homeHeroColorBleedIntensity")
+
             sliderRow(
                 title: "Hero Size",
                 description: "Scale the large banner artwork.",
