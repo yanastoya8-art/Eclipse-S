@@ -2882,12 +2882,21 @@ private struct BrowseMediaView: View {
             }
         }
 
-        guard ageRating != .all else {
+        let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguages
+        let requiresAnimeIdentity = mediaType.isAnime && (
+            !selectedDubLanguages.isEmpty
+                || UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
+        )
+        guard ageRating != .all || requiresAnimeIdentity else {
             return typeFiltered
         }
         guard !Task.isCancelled else { return [] }
 
-        // Resolve missing anime identities before age filtering. Otherwise
+        // Resolve missing anime identities before age filtering and language
+        // filtering. Previously this entire resolver was skipped when age rating
+        // was set to All, so dub-filtered anime could never obtain AniList IDs
+        // and were incorrectly removed as unverified.
+        //
         // AniList/Taizen cannot supply the rating for TMDB discover rows with
         // incomplete metadata and those titles are incorrectly treated as unrated.
         let ratingCandidates = mediaType.isAnime
