@@ -1783,13 +1783,14 @@ struct MediaDetailContentView: View {
         if ExperimentalFeatureState.isEnabledAtLaunch {
             AtmosphereBackdrop(
                 input: theme.atmosphereInput(
-                    dominant: ambientColor,
-                    // Landscape leaves horizontal space beyond the inset
-                    // content column. Extend the hero's extracted colour into
-                    // that area instead of reverting to the flat base backdrop.
-                    hasHeroBleed: usesLandscapeDetailComposition,
-                    heroHeight: headerHeight,
-                    fadeDistance: headerHeight * 0.62
+                    // Keep the page surface independent from artwork colour.
+                    // The landscape hero owns its own clipped gradient; allowing
+                    // AtmosphereBackdrop to consume the extracted colour here
+                    // tints the entire scrolling page, including episode rows.
+                    dominant: usesLandscapeDetailComposition ? nil : ambientColor,
+                    hasHeroBleed: false,
+                    heroHeight: usesLandscapeDetailComposition ? 0 : headerHeight,
+                    fadeDistance: usesLandscapeDetailComposition ? 0 : headerHeight * 0.62
                 ),
                 scrollOffset: backgroundScrollOffset
             )
@@ -1923,7 +1924,12 @@ struct MediaDetailContentView: View {
                         }
                     )
                     .heroBannerBleed(
-                        color: ExperimentalFeatureState.isEnabledAtLaunch ? mediaDetailHeroBleedColor : nil,
+                        // Landscape colour is composited inside heroBackdrop.
+                        // Do not attach a bleed layer to the full scroll content:
+                        // its tail otherwise follows the page into the episodes.
+                        color: ExperimentalFeatureState.isEnabledAtLaunch && !usesLandscapeDetailComposition
+                            ? mediaDetailHeroBleedColor
+                            : nil,
                         heroHeight: headerHeight,
                         tail: mediaDetailHeroBleedTail,
                         strength: mediaDetailHeroBleedStrength
@@ -2619,6 +2625,17 @@ struct MediaDetailContentView: View {
                 // leave empty bands around the artwork.
                 preservesArtworkComposition: !usesWideDetailLayout
             )
+            // StretchyHeaderView can initially report its intrinsic artwork
+            // size before the first scroll-layout pass. Give landscape artwork
+            // the final full-screen banner bounds immediately, not only after
+            // the scroll view recalculates its stretchy geometry.
+            .frame(
+                width: usesLandscapeDetailComposition
+                    ? max(detailViewportWidth, EclipseViewport.bounds.width)
+                    : nil,
+                height: usesLandscapeDetailComposition ? headerHeight : nil
+            )
+            .clipped()
 #if DEBUG
             if ProcessInfo.processInfo.environment["ECLIPSE_UI_POSTER_AUDIT"] == "1" {
                 let state = alternatePosterWasResolved ? "resolved" : posterAuditSelectorIsPending ? "pending" : "loading"
