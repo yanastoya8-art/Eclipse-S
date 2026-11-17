@@ -179,7 +179,7 @@ struct DownloadedShowDetailView: View {
         VStack(alignment: .leading, spacing: 10) {
             // Always show the season label, including when only one season
             // has downloaded episodes in this show folder.
-            Text("Season \\(season.seasonNumber)")
+            Text("Season \(season.seasonNumber)")
                 .font(.headline)
                 .fontWeight(.bold)
                 .foregroundColor(.white)
