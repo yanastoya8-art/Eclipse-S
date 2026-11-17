@@ -54,6 +54,13 @@ enum PosterArtworkURLResolver {
         if !isAnime, let anime = result.animeArtworkURL, !anime.isEmpty {
             candidates.append(anime)
         }
+        if isAnime, candidates.isEmpty,
+           let titlelessBackdrop = result.fullBackdropURL,
+           !titlelessBackdrop.isEmpty {
+            // A clean backdrop is preferable to a title-bearing cover scan.
+            // It is cropped to the poster card by the image container.
+            candidates.append(titlelessBackdrop)
+        }
 
         var seen = Set<String>()
         return candidates.filter { seen.insert($0).inserted }
