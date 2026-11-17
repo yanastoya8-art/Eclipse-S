@@ -86,3 +86,12 @@ enum LandscapeMediaDetailAppearanceSettings {
     static let offsetRange: ClosedRange<Double> = -100...100
     static let offsetStep = 5.0
 }
+
+
+enum MediaDetailRatingNotesPositionSettings {
+    static let portraitOffsetKey = "mediaDetailPortraitRatingNotesOffset"
+    static let landscapeOffsetKey = "mediaDetailLandscapeRatingNotesOffset"
+    static let defaultOffset = 0.0
+    static let supportedRange: ClosedRange<Double> = -100...100
+    static let step = 5.0
+}
