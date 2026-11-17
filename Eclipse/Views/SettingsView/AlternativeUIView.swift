@@ -698,8 +698,7 @@ struct AlternativeUIView: View {
                 description: "Stretch or compress the detail-page hero artwork from top to bottom. This affects landscape only.",
                 value: $landscapeHeroVerticalStretch,
                 range: 0.85...1.5,
-                step: 0.05,
-                format: "%.2f×"
+                step: 0.05
             )
             .id(AppearanceSettingsSearchTarget.landscapeHeroVerticalStretch.anchorID)
             sliderRow(
