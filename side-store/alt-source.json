@@ -1,0 +1,9 @@
+{
+  "name": "Eclipse SideStore Source",
+  "subtitle": "Automatic successful iOS builds of Eclipse",
+  "description": "Installs the latest successful unsigned Eclipse IPA. Each successful manual IPA build is published as a prerelease asset and added here automatically; this is separate from a public stable release.",
+  "iconURL": "https://raw.githubusercontent.com/yanastoya8-art/Eclipse-S/main/Assets.xcassets/AppIcon.appiconset/AppIcon.png",
+  "website": "https://github.com/yanastoya8-art/Eclipse-S",
+  "tintColor": "#7C4DFF",
+  "apps": []
+}
