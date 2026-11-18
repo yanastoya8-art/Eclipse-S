@@ -5588,6 +5588,17 @@ final class AniListService {
         )
     }
 
+    // JustWatch needs AniList's original airing identities even when the
+    // visible calendar is restricted to selected dubbed/native audio languages.
+    // Do not route this through fetchAiringScheduleResult(), which deliberately
+    // returns only dub-provider entries while the strict dub filter is enabled.
+    func fetchNativeAiringScheduleForLanguageVerification(
+        daysAhead: Int = 7,
+        perPage: Int = 50
+    ) async throws -> [AniListAiringScheduleEntry] {
+        try await fetchAiringScheduleFromAniList(daysAhead: daysAhead, perPage: perPage).entries
+    }
+
     private func fetchAiringScheduleFromAniList(
         daysAhead: Int = 7,
         perPage: Int = 50
