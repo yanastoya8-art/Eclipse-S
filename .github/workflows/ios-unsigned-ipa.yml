@@ -19,7 +19,8 @@ on:
 # Never cancel an in-progress IPA build just because another manual build
 # was queued. Each dispatch is an independent, auditable build attempt.
 concurrency:
-  group: ios-unsigned-ipa-${{ github.run_id }}
+  # Serialize deployments so an older, slower build cannot overwrite a newer feed.
+  group: ios-unsigned-ipa
   cancel-in-progress: false
 
 permissions:
@@ -208,6 +209,20 @@ jobs:
           BUNDLE_IDENTIFIER="${INPUT_BUNDLE_IDENTIFIER:-${VARIABLE_BUNDLE_IDENTIFIER:-app.Eclipse.Soupy}}"
           DEVELOPMENT_TEAM="${VARIABLE_DEVELOPMENT_TEAM:-ANMK3Y568U}"
           RELEASE_VERSION="${INPUT_RELEASE_VERSION:-}"
+          BASE_MARKETING_VERSION="$(sed -n 's/^[[:space:]]*MARKETING_VERSION = \([^;]*\);.*/\1/p' Eclipse.xcodeproj/project.pbxproj | head -n 1 | tr -d '"' )"
+          SIDESTORE_MARKETING_VERSION="$(python3 - "$BASE_MARKETING_VERSION" "$GITHUB_RUN_NUMBER" <<'PY'
+          import re
+          import sys
+          base, run_number = sys.argv[1:]
+          if not re.fullmatch(r"\d+(\.\d+){0,2}", base):
+              raise SystemExit(f"Invalid base MARKETING_VERSION for SideStore build numbering: {base!r}")
+          parts = [int(part) for part in base.split(".")]
+          while len(parts) < 3:
+              parts.append(0)
+          parts[-1] += int(run_number)
+          print(".".join(map(str, parts)))
+          PY
+          )"
 
           if ! [[ "$BUNDLE_IDENTIFIER" =~ ^[A-Za-z0-9][A-Za-z0-9-]*(\.[A-Za-z0-9][A-Za-z0-9-]*)+$ ]]; then
             echo "::error::Bundle identifier '$BUNDLE_IDENTIFIER' does not look valid. Example: com.yourname.eclipse"
@@ -224,6 +239,7 @@ jobs:
             echo "BUNDLE_IDENTIFIER=$BUNDLE_IDENTIFIER"
             echo "DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM"
             echo "RELEASE_VERSION=$RELEASE_VERSION"
+            echo "SIDESTORE_MARKETING_VERSION=$SIDESTORE_MARKETING_VERSION"
           } >> "$GITHUB_ENV"
 
       - name: Create local build config
@@ -376,6 +392,7 @@ jobs:
 
       - name: Build unsigned archive
         env:
+          BUILD_NUMBER: ${{ github.run_number }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
@@ -407,11 +424,16 @@ jobs:
             AD_HOC_CODE_SIGNING_ALLOWED=NO \
             ECLIPSE_SOURCE_REVISION="$GITHUB_SHA" \
             ECLIPSE_MPVKIT_SOURCE_REVISION="$MPVKIT_SOURCE_REVISION" \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            MARKETING_VERSION="$SIDESTORE_MARKETING_VERSION" \
             'SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) ECLIPSE_UNSIGNED_BUILD' \
             ENABLE_USER_SCRIPT_SANDBOXING=NO
 
           APP_PATH="$(find "$ARCHIVE_PATH/Products/Applications" -maxdepth 1 -type d -name '*.app' -print -quit)"
 
+          test "$( /usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP_PATH/Info.plist" )" = "$BUNDLE_IDENTIFIER"
+          test "$( /usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP_PATH/Info.plist" )" = "$SIDESTORE_MARKETING_VERSION"
+          test "$( /usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$APP_PATH/Info.plist" )" = "$BUILD_NUMBER"
           test -f "$APP_PATH/OpenSourceLicenses/THIRD-PARTY-NOTICES.txt"
           test "$(/usr/libexec/PlistBuddy -c 'Print EclipseSourceRevision' "$APP_PATH/Info.plist")" = "$GITHUB_SHA"
           test "$(/usr/libexec/PlistBuddy -c 'Print EclipseMPVKitSourceRevision' "$APP_PATH/Info.plist")" = "$MPVKIT_SOURCE_REVISION"
@@ -515,6 +537,9 @@ jobs:
 
           SITE_DIR="$RUNNER_TEMP/sidestore-site"
           mkdir -p "$SITE_DIR/ipa"
+          UNIQUE_IPA_NAME="Eclipse-${RUN_NUMBER}-${COMMIT_SHA:0:7}.ipa"
+          cp "$IPA_PATH" "$SITE_DIR/ipa/$UNIQUE_IPA_NAME"
+          # The feed uses this immutable URL to avoid stale CDN/client cache responses.
           cp "$IPA_PATH" "$SITE_DIR/ipa/Eclipse-latest.ipa"
           cp "Eclipse/Assets.xcassets/AppIcon.appiconset/Default.png" "$SITE_DIR/app-icon.png"
 
@@ -529,7 +554,7 @@ jobs:
           BUILD_VERSION=$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$INFO_PLIST")
           MIN_OS_VERSION=$(/usr/libexec/PlistBuddy -c 'Print MinimumOSVersion' "$INFO_PLIST" 2>/dev/null || echo "15.0")
           IPA_SIZE="$(stat -f%z "$IPA_PATH")"
-          DOWNLOAD_URL="https://yanastoya8-art.github.io/Eclipse-S/ipa/Eclipse-latest.ipa"
+          DOWNLOAD_URL="https://yanastoya8-art.github.io/Eclipse-S/ipa/$UNIQUE_IPA_NAME"
 
           python3 - "$SITE_DIR/alt-source.json" "$BUNDLE_ID" "$SHORT_VERSION" "$BUILD_VERSION" "$MIN_OS_VERSION" "$IPA_SIZE" "$DOWNLOAD_URL" "$COMMIT_SHA" <<'PY'
           import datetime
