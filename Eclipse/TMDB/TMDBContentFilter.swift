@@ -8,6 +8,18 @@
 import Combine
 import Foundation
 
+enum DubLanguageSelectionPolicy {
+    static func effectiveLanguages(
+        selectedLanguages: Set<String>,
+        requiresEnglishSpanishAudio: Bool
+    ) -> Set<String> {
+        guard selectedLanguages.isEmpty, requiresEnglishSpanishAudio else {
+            return selectedLanguages
+        }
+        return [MyDubListLanguage.english.rawValue, MyDubListLanguage.spanish.rawValue]
+    }
+}
+
 enum MyDubListLanguage: String, CaseIterable, Identifiable, Sendable {
     case english, spanish, german, french, italian, chinese, portuguese, korean
     case tagalog, arabic, polish, hindi, hungarian, hebrew, swedish, norwegian
@@ -147,19 +159,10 @@ final class MyDubListDubFilter: @unchecked Sendable {
     }
 
     var selectedLanguagesIncludingCatalogAudioRequirement: Set<String> {
-        var languages = selectedLanguages
-        // The global English/Spanish audio requirement supplies a default
-        // OR-selection only when the user has not chosen a specific dub
-        // language. Never broaden an explicit Spanish-only or English-only
-        // selection into the other language.
-        if languages.isEmpty,
-           UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
-            languages.formUnion([
-                MyDubListLanguage.english.rawValue,
-                MyDubListLanguage.spanish.rawValue
-            ])
-        }
-        return languages
+        DubLanguageSelectionPolicy.effectiveLanguages(
+            selectedLanguages: selectedLanguages,
+            requiresEnglishSpanishAudio: UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
+        )
     }
 
     private func notifyRefreshObservers() {
