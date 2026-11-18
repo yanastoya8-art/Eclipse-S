@@ -83,6 +83,29 @@ final class AnimeScheduleFallbackTests: XCTestCase {
         XCTAssertEqual(MyDubListLanguage.spanish.displayName, "Spanish (Castellano o Latino)")
     }
 
+    func testDubbedEpisodeListShowsLoadingUntilSelectedLanguageCountsResolve() {
+        XCTAssertTrue(AnimeDubEpisodeMetadataLoadingPolicy.shouldShowLoading(
+            isAnime: true,
+            hasSelectedLanguages: true,
+            hasResolvedCounts: false
+        ))
+        XCTAssertFalse(AnimeDubEpisodeMetadataLoadingPolicy.shouldShowLoading(
+            isAnime: true,
+            hasSelectedLanguages: true,
+            hasResolvedCounts: true
+        ), "An empty but resolved provider response should show the genuine no-dub state.")
+        XCTAssertFalse(AnimeDubEpisodeMetadataLoadingPolicy.shouldShowLoading(
+            isAnime: true,
+            hasSelectedLanguages: false,
+            hasResolvedCounts: false
+        ))
+        XCTAssertFalse(AnimeDubEpisodeMetadataLoadingPolicy.shouldShowLoading(
+            isAnime: false,
+            hasSelectedLanguages: true,
+            hasResolvedCounts: false
+        ))
+    }
+
     func testJustWatchScheduleCacheExpiresAndRejectsFutureTimestamps() {
         let now = Date(timeIntervalSince1970: 2_000_000_000)
         let lifetime: TimeInterval = 12 * 60 * 60
