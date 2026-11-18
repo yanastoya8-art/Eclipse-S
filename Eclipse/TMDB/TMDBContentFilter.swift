@@ -1275,7 +1275,7 @@ class TMDBContentFilter: ObservableObject {
                     guard let result = iterator.next() else { continue }
                     let key = self.catalogAudioAvailabilityKey(for: result)
                     group.addTask {
-                        let available = ScheduleAudioLanguagePolicy.hasAudioLanguageOffer(
+                        let available = ScheduleAudioLanguagePolicy.hasNativeLanguageMatch(
                             originalLanguage: result.originalLanguage,
                             selectedLanguages: selectedLanguages
                         )
@@ -1302,7 +1302,7 @@ class TMDBContentFilter: ObservableObject {
                     if let result = iterator.next() {
                         let nextKey = self.catalogAudioAvailabilityKey(for: result)
                         group.addTask {
-                            let available = ScheduleAudioLanguagePolicy.hasAudioLanguageOffer(
+                            let available = ScheduleAudioLanguagePolicy.hasNativeLanguageMatch(
                                 originalLanguage: result.originalLanguage,
                                 selectedLanguages: selectedLanguages
                             )
