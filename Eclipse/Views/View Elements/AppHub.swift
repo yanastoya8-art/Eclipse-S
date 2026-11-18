@@ -124,14 +124,10 @@ private enum AppHubDragIntent {
 struct AppHubOverlay: View {
     @Binding var showingSettings: Bool
 
-    @AppStorage("showKanzen", store: .standard) private var showKanzen: Bool = false
-    @AppStorage(ModeSwitchAnimationSettings.enabledKey) private var modeSwitchAnimationEnabled = ModeSwitchAnimationSettings.defaultEnabled
     @AppStorage(AppHubMetrics.positionKey, store: .standard) private var storedPosition: Double = AppHubMetrics.defaultPosition
     @AppStorage(OnboardingState.appHubHintPendingKey, store: .standard) private var onboardingHintPending = false
 
-    @EnvironmentObject private var modeSwitchTransitionCoordinator: ModeSwitchTransitionCoordinator
     @Environment(\.layoutDirection) private var layoutDirection
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @StateObject private var accentColorManager = AccentColorManager.shared
 
@@ -160,13 +156,8 @@ struct AppHubOverlay: View {
 
     private var actions: [AppHubAction] {
         [
-            AppHubAction(
-                id: "reader",
-                systemImage: "book.fill",
-                label: "Switch to Reader Mode",
-                pulseTint: .orange,
-                activate: { origin in switchToReaderMode(origin: origin) }
-            ),
+            // Reader Mode has been retired. Keep the Settings shortcut as the
+            // sole App Hub action without changing its placement or behavior.
             AppHubAction(
                 id: "settings",
                 systemImage: "gear",
@@ -304,7 +295,7 @@ struct AppHubOverlay: View {
                     .font(.system(.headline, design: .rounded))
                     .foregroundColor(.white)
 
-                Text("Tap the glowing capsule for Settings and Reader Mode.")
+                Text("Tap the glowing capsule to open Settings.")
                     .font(.subheadline)
                     .foregroundColor(.white.opacity(0.75))
                     .fixedSize(horizontal: false, vertical: true)
@@ -540,35 +531,6 @@ struct AppHubOverlay: View {
         action.activate(origin)
     }
 
-    private func switchToReaderMode(origin: CGPoint) {
-        guard !showKanzen else { return }
-
-        // The settings description promises that Reduce Motion disables this
-        // transition. Respect the system accessibility preference as well as
-        // the in-app toggle so the delayed burst cannot run unexpectedly.
-        guard modeSwitchAnimationEnabled, !reduceMotion else {
-            showKanzen = true
-            return
-        }
-
-        if origin != .zero {
-            modeSwitchTransitionCoordinator.record(origin: origin)
-        }
-        modeSwitchTransitionCoordinator.beginBurst(toReaderMode: true)
-
-#if os(iOS)
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-#endif
-
-        // Keep the mode hand-off short: the previous 0.82s transition
-        // kept both home trees alive through most of the animation and made
-        // the switch feel stalled on older iPhones.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) {
-            withAnimation(.timingCurve(0.2, 0.75, 0.25, 1, duration: 0.48)) {
-                showKanzen = true
-            }
-        }
-    }
 }
 
 private struct AppHubHintArrow: Shape {
