@@ -192,11 +192,14 @@ private struct AnimeScheduleLoadResult {
 
 private enum ScheduleSourceLoadError: LocalizedError {
     case retryDeferred(String)
+    case languageMetadataUnavailable
 
     var errorDescription: String? {
         switch self {
         case .retryDeferred(let sourceName):
             return "\(sourceName) schedule refresh is waiting briefly after a provider failure."
+        case .languageMetadataUnavailable:
+            return "The selected dub-language data could not be verified. Check your connection and try again."
         }
     }
 }
@@ -941,12 +944,13 @@ final class ScheduleViewModel: ObservableObject {
         // filtered against an unhydrated or stale MyDubList snapshot.
         if !MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement.isEmpty,
            !MyDubListDubFilter.shared.prepareCachedSnapshot() {
-            // The three MyDubList downloads can take many seconds on a cold
-            // connection. Keep the schedule responsive and fail closed against
-            // the missing snapshot; the refresh notification reloads the
-            // calendar as soon as verified dub identities are available.
-            Task(priority: .utility) {
-                await MyDubListDubFilter.shared.refresh()
+            // Do not publish an empty calendar while the selected-language
+            // identity index is still downloading. Wait inside this load so the
+            // first visible schedule is already filtered correctly.
+            let refreshed = await MyDubListDubFilter.shared.refresh()
+            try Task.checkCancellation()
+            guard refreshed || MyDubListDubFilter.shared.prepareCachedSnapshot() else {
+                throw ScheduleSourceLoadError.languageMetadataUnavailable
             }
         }
         let policyKey = currentAnimeSchedulePolicyKey()
