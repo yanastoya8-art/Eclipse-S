@@ -1042,11 +1042,11 @@ final class ScheduleViewModel: ObservableObject {
                         selectedLanguages: selectedDubLanguages
                     )
                     if needsJustWatchLanguageDates {
-                        let broadcast = try? await self.retryOnceAfterTransientCancellation(operationName: "AniList anime identity schedule for JustWatch") {
-                            try await AniListService.shared.fetchAiringScheduleResult(daysAhead: dayCount)
+                        let nativeSchedule = try? await self.retryOnceAfterTransientCancellation(operationName: "AniList native airing identities for JustWatch") {
+                            try await AniListService.shared.fetchNativeAiringScheduleForLanguageVerification(daysAhead: dayCount)
                         }
-                        if let broadcast {
-                            let identityEntries = broadcast.entries.map(ScheduleEntry.init(animeEntry:))
+                        if let nativeSchedule {
+                            let identityEntries = nativeSchedule.map(ScheduleEntry.init(animeEntry:))
                             let languageMatches = await JustWatchScheduleService.shared.filter(
                                 entries: identityEntries,
                                 selectedLanguages: selectedDubLanguages
