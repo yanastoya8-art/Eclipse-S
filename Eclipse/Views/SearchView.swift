@@ -2286,7 +2286,7 @@ private struct BrowseMediaView: View {
                     ageRating: ageRating
                 )
                 try Task.checkCancellation()
-                let fetchedPageIDs = Set(pageResult.results.map(\\.id))
+                let fetchedPageIDs = Set(pageResult.results.map(\.id))
                 let fetchedPageBrowseResults = browseTypeFiltered.filter {
                     fetchedPageIDs.contains($0.id)
                 }
