@@ -239,7 +239,7 @@ final class MyDubListDubFilter: @unchecked Sendable {
             var englishMALIDs = Set<Int>()
             for language in languages.sorted() {
                 try Task.checkCancellation()
-                let url = URL(string: "https://raw.githubusercontent.com/Joelis57/MyDubList/main/dubs/confidence/low/dubbed_\\(language).json")!
+                let url = URL(string: "https://raw.githubusercontent.com/Joelis57/MyDubList/main/dubs/confidence/low/dubbed_\(language).json")!
                 let data = try await Self.download(url, maximumBytes: 1_000_000)
                 let dataset = try JSONDecoder().decode(DubDataset.self, from: data)
                 guard dataset.dubbed.count <= 250_000 else { throw URLError(.dataLengthExceedsMaximum) }
@@ -260,7 +260,7 @@ final class MyDubListDubFilter: @unchecked Sendable {
             var aniListIDs = Set<Int>()
             var englishAniListIDs = Set<Int>()
             let decoder = JSONDecoder()
-            for line in mappingText.split(whereSeparator: \\.isNewline) {
+            for line in mappingText.split(whereSeparator: \.isNewline) {
                 guard let row = try? decoder.decode(AniListMapping.self, from: Data(line.utf8)),
                       malIDs.contains(row.malID), row.aniListID > 0 else { continue }
                 aniListIDs.insert(row.aniListID)
@@ -286,11 +286,11 @@ final class MyDubListDubFilter: @unchecked Sendable {
             defaults.set(englishMALIDs.sorted(), forKey: Self.cachedEnglishMALIDsKey)
             defaults.set(englishAniListIDs.sorted(), forKey: Self.cachedEnglishAniListIDsKey)
             notifyRefreshObservers()
-            Logger.shared.log("MyDubList: loaded languages=\\(languages.sorted().joined(separator: ",")) MAL=\\(malIDs.count) AniList=\\(aniListIDs.count)", type: "Anime")
+            Logger.shared.log("MyDubList: loaded languages=\(languages.sorted().joined(separator: ",")) MAL=\(malIDs.count) AniList=\(aniListIDs.count)", type: "Anime")
             return true
         } catch {
             if !Task.isCancelled {
-                Logger.shared.log("MyDubList: dub filter refresh failed: \\(error.localizedDescription)", type: "Anime")
+                Logger.shared.log("MyDubList: dub filter refresh failed: \(error.localizedDescription)", type: "Anime")
             }
             // A failed refresh has not changed the available snapshot. Do not
             // broadcast a filter-change event here: Browse and Schedule respond
