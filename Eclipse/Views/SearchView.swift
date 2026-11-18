@@ -2286,6 +2286,10 @@ private struct BrowseMediaView: View {
                     ageRating: ageRating
                 )
                 try Task.checkCancellation()
+                let fetchedPageIDs = Set(pageResult.results.map(\\.id))
+                let fetchedPageBrowseResults = browseTypeFiltered.filter {
+                    fetchedPageIDs.contains($0.id)
+                }
                 let contentFiltered = await contentFilter.filterSearchResultsResolvingRatings(
                     filterExcludedResults(
                         browseTypeFiltered,
@@ -2304,7 +2308,10 @@ private struct BrowseMediaView: View {
                     guard serial == requestSerial else { return }
                     loadTask = nil
 
-                    unfilteredResults = sortedDeduplicatedResults(combinedRawResults, by: sort)
+                    // Retain type/age-filtered rows with their resolved
+                    // anime identities. Filter refreshes can now reuse the
+                    // identity seed instead of repeating TMDB→AniList lookups.
+                    unfilteredResults = sortedDeduplicatedResults(browseTypeFiltered, by: sort)
                     results = sortedDeduplicatedResults(filtered, by: sort)
 
                     // Warm the shared logo cache as soon as a page arrives.
@@ -2335,7 +2342,7 @@ private struct BrowseMediaView: View {
                         // Resolve clean covers/logos after the filtered grid is
                         // interactive so the first page is not held behind image APIs.
                         Task {
-                            let enriched = await resolveAnimeBrowseIdentities(pageResult.results, resolveArtwork: true)
+                            let enriched = await resolveAnimeBrowseIdentities(fetchedPageBrowseResults, resolveArtwork: true)
                             guard queryGeneration == browseQueryGeneration,
                                   mediaType == browseMediaType.tmdbValue else { return }
                             var enrichedByID: [Int: TMDBSearchResult] = [:]
