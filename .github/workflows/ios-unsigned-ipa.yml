@@ -376,6 +376,7 @@ jobs:
 
       - name: Build unsigned archive
         env:
+          BUILD_NUMBER: ${{ github.run_number }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
@@ -407,6 +408,7 @@ jobs:
             AD_HOC_CODE_SIGNING_ALLOWED=NO \
             ECLIPSE_SOURCE_REVISION="$GITHUB_SHA" \
             ECLIPSE_MPVKIT_SOURCE_REVISION="$MPVKIT_SOURCE_REVISION" \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
             'SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) ECLIPSE_UNSIGNED_BUILD' \
             ENABLE_USER_SCRIPT_SANDBOXING=NO
 
@@ -515,6 +517,9 @@ jobs:
 
           SITE_DIR="$RUNNER_TEMP/sidestore-site"
           mkdir -p "$SITE_DIR/ipa"
+          UNIQUE_IPA_NAME="Eclipse-${RUN_NUMBER}-${COMMIT_SHA:0:7}.ipa"
+          cp "$IPA_PATH" "$SITE_DIR/ipa/$UNIQUE_IPA_NAME"
+          # The feed uses this immutable URL to avoid stale CDN/client cache responses.
           cp "$IPA_PATH" "$SITE_DIR/ipa/Eclipse-latest.ipa"
           cp "Eclipse/Assets.xcassets/AppIcon.appiconset/Default.png" "$SITE_DIR/app-icon.png"
 
@@ -529,7 +534,7 @@ jobs:
           BUILD_VERSION=$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$INFO_PLIST")
           MIN_OS_VERSION=$(/usr/libexec/PlistBuddy -c 'Print MinimumOSVersion' "$INFO_PLIST" 2>/dev/null || echo "15.0")
           IPA_SIZE="$(stat -f%z "$IPA_PATH")"
-          DOWNLOAD_URL="https://yanastoya8-art.github.io/Eclipse-S/ipa/Eclipse-latest.ipa"
+          DOWNLOAD_URL="https://yanastoya8-art.github.io/Eclipse-S/ipa/$UNIQUE_IPA_NAME"
 
           python3 - "$SITE_DIR/alt-source.json" "$BUNDLE_ID" "$SHORT_VERSION" "$BUILD_VERSION" "$MIN_OS_VERSION" "$IPA_SIZE" "$DOWNLOAD_URL" "$COMMIT_SHA" <<'PY'
           import datetime
@@ -550,6 +555,7 @@ jobs:
               "tintColor": "#7C4DFF",
               "versions": [{
                   "version": version,
+                  "buildVersion": build,
                   "date": release_date,
                   "downloadURL": download_url,
                   "size": int(size),
@@ -570,7 +576,7 @@ jobs:
           required_app = {"name", "bundleIdentifier", "developerName", "localizedDescription", "iconURL", "versions"}
           allowed_app = required_app | {"beta", "downloadURL", "permissions", "screenshotURLs", "size", "subtitle", "tintColor", "version", "versionDate", "versionDescription"}
           required_version = {"version", "date", "downloadURL", "size"}
-          allowed_version = required_version | {"localizedDescription", "minOSVersion", "maxOSVersion"}
+          allowed_version = required_version | {"buildVersion", "localizedDescription", "minOSVersion", "maxOSVersion"}
           if not required_source.issubset(feed) or not set(feed).issubset(allowed_source):
               raise SystemExit("Invalid SideStore source keys")
           if len(feed["apps"]) != 1:
@@ -589,8 +595,8 @@ jobs:
               raise SystemExit("SideStore source JSON round-trip validation failed")
           parsed_app = parsed["apps"][0]
           parsed_version = parsed_app["versions"][0]
-          if not parsed_app["bundleIdentifier"] or not parsed_version["downloadURL"].endswith(".ipa"):
-              raise SystemExit("SideStore app is missing its bundle identifier or IPA download URL")
+          if not parsed_app["bundleIdentifier"] or not parsed_version["downloadURL"].endswith(".ipa") or not parsed_version.get("buildVersion"):
+              raise SystemExit("SideStore app is missing its bundle identifier, build number, or IPA download URL")
           datetime.datetime.fromisoformat(parsed_version["date"].replace("Z", "+00:00"))
 
           # Publish the exact same validated feed at both supported paths so an
