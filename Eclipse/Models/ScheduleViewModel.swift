@@ -7,6 +7,15 @@
 
 import Foundation
 
+enum AnimeScheduleLanguageLookupPolicy {
+    // DubOnly/Tsuzuki provide dubbed timetables, not every native English
+    // or Spanish release. Query JustWatch for every selected language so the
+    // schedule can compare native and dubbed dates and keep the earliest.
+    static func shouldQueryJustWatch(selectedLanguages: Set<String>) -> Bool {
+        !selectedLanguages.isEmpty
+    }
+}
+
 enum ScheduleMode: String, CaseIterable, Identifiable, Sendable {
     case anime
     case western
@@ -1008,9 +1017,9 @@ final class ScheduleViewModel: ObservableObject {
                         )
                     }
 
-                    let needsJustWatchLanguageDates = selectedDubLanguages.contains(MyDubListLanguage.spanish.rawValue)
-                        || !permitsEnglishDubSchedule
-                        || (dubOnlyUnavailable(result) && permitsEnglishDubSchedule)
+                    let needsJustWatchLanguageDates = AnimeScheduleLanguageLookupPolicy.shouldQueryJustWatch(
+                        selectedLanguages: selectedDubLanguages
+                    )
                     if needsJustWatchLanguageDates {
                         let broadcast = try? await self.retryOnceAfterTransientCancellation(operationName: "AniList anime identity schedule for JustWatch") {
                             try await AniListService.shared.fetchAiringScheduleResult(daysAhead: dayCount)
