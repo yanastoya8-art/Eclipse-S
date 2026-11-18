@@ -2277,16 +2277,22 @@ private struct BrowseMediaView: View {
                     : existingRawResults + pageResult.results
                 // The browse-type filter owns anime identity resolution. Running
                 // the resolver here as well repeated provider lookups on every page.
-                let browseTypeFiltered = await filterResultsForBrowseType(
-                    combinedRawResults,
+                // Resolve only the newly fetched page. Existing pages already carry
+                // their anime identity seeds in unfilteredResults; resolving the
+                // entire accumulated catalog on every pagination step caused the
+                // same AniMap/AniList work to be repeated and made Browse appear
+                // stuck as the result set grew.
+                let fetchedPageBrowseResults = await filterResultsForBrowseType(
+                    pageResult.results,
                     mediaType: browseMediaType,
                     ageRating: ageRating
                 )
                 try Task.checkCancellation()
-                let fetchedPageIDs = Set(pageResult.results.map(\.id))
-                let fetchedPageBrowseResults = browseTypeFiltered.filter {
-                    fetchedPageIDs.contains($0.id)
-                }
+                let browseTypeFiltered = sortedDeduplicatedResults(
+                    existingRawResults + fetchedPageBrowseResults,
+                    by: sort
+                )
+                try Task.checkCancellation()
                 let contentFiltered = await contentFilter.filterSearchResultsResolvingRatings(
                     filterExcludedResults(
                         browseTypeFiltered,
