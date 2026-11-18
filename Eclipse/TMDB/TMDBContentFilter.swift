@@ -1277,11 +1277,7 @@ class TMDBContentFilter: ObservableObject {
                     group.addTask {
                         let rawDate = result.isMovie ? result.releaseDate : result.firstAirDate
                         let year = rawDate.flatMap { Int($0.prefix(4)) }
-                        let available = await JustWatchScheduleService.shared.hasAudioLanguageOffer(
-                            tmdbID: result.id,
-                            title: result.displayTitle,
-                            releaseYear: year,
-                            isMovie: result.isMovie,
+                        let available = ScheduleAudioLanguagePolicy.hasAudioLanguageOffer(
                             originalLanguage: result.originalLanguage,
                             selectedLanguages: selectedLanguages
                         )
@@ -1303,9 +1299,8 @@ class TMDBContentFilter: ObservableObject {
                         }
                         didResolveAny = true
                     } else {
-                        // A provider outage is not proof that a title has no dub.
-                        // Keep it hidden until verified, then retry after a cooldown.
-                        catalogAudioRetryAfterByKey[key] = Date().addingTimeInterval(10 * 60)
+                        // The selected language is not the title's known original
+                        // language. No third-party audio-offer provider is queried.
                     }
                     animeEligibilityLock.unlock()
 
@@ -1314,11 +1309,7 @@ class TMDBContentFilter: ObservableObject {
                         group.addTask {
                             let rawDate = result.isMovie ? result.releaseDate : result.firstAirDate
                             let year = rawDate.flatMap { Int($0.prefix(4)) }
-                            let available = await JustWatchScheduleService.shared.hasAudioLanguageOffer(
-                                tmdbID: result.id,
-                                title: result.displayTitle,
-                                releaseYear: year,
-                                isMovie: result.isMovie,
+                            let available = ScheduleAudioLanguagePolicy.hasAudioLanguageOffer(
                                 originalLanguage: result.originalLanguage,
                                 selectedLanguages: selectedLanguages
                             )
