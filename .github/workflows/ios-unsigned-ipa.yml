@@ -431,6 +431,9 @@ jobs:
 
           APP_PATH="$(find "$ARCHIVE_PATH/Products/Applications" -maxdepth 1 -type d -name '*.app' -print -quit)"
 
+          test "$( /usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP_PATH/Info.plist" )" = "$BUNDLE_IDENTIFIER"
+          test "$( /usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP_PATH/Info.plist" )" = "$SIDESTORE_MARKETING_VERSION"
+          test "$( /usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$APP_PATH/Info.plist" )" = "$BUILD_NUMBER"
           test -f "$APP_PATH/OpenSourceLicenses/THIRD-PARTY-NOTICES.txt"
           test "$(/usr/libexec/PlistBuddy -c 'Print EclipseSourceRevision' "$APP_PATH/Info.plist")" = "$GITHUB_SHA"
           test "$(/usr/libexec/PlistBuddy -c 'Print EclipseMPVKitSourceRevision' "$APP_PATH/Info.plist")" = "$MPVKIT_SOURCE_REVISION"
