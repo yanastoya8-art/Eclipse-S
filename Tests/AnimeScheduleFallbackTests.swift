@@ -867,7 +867,8 @@ final class ScheduleReleaseDatePolicyTests: XCTestCase {
         let entry = ScheduleEntry(animeEntry: airing).markedAsNativeLanguageMatch()
         XCTAssertEqual(entry.provider, .nativeLanguage)
         XCTAssertFalse(entry.isStreamingRelease)
-    }}
+    }
+}
 
 
 final class NonAnimeMovieSchedulePolicyTests: XCTestCase {
