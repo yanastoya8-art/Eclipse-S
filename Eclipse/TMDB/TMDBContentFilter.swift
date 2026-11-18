@@ -188,46 +188,53 @@ final class MyDubListDubFilter: @unchecked Sendable {
         notifyRefreshObservers()
     }
 
+    private func cancelRefreshTask() {
+        lock.lock()
+        refreshTask?.cancel()
+        refreshTask = nil
+        refreshTaskLanguages = nil
+        refreshTaskID = nil
+        lock.unlock()
+    }
+
+    private func refreshTask(for languages: Set<String>) -> (Task<Bool, Never>, UUID) {
+        lock.lock()
+        defer { lock.unlock() }
+        if let existingTask = refreshTask,
+           refreshTaskLanguages == languages {
+            return (existingTask, refreshTaskID ?? UUID())
+        }
+
+        refreshTask?.cancel()
+        let taskID = UUID()
+        refreshTaskLanguages = languages
+        let createdTask = Task { await self.performRefresh(for: languages) }
+        refreshTask = createdTask
+        refreshTaskID = taskID
+        return (createdTask, taskID)
+    }
+
+    private func finishRefreshTask(id: UUID) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard refreshTaskID == id else { return }
+        refreshTask = nil
+        refreshTaskLanguages = nil
+        refreshTaskID = nil
+    }
+
     func refresh() async -> Bool {
         let languages = selectedLanguages
         guard !languages.isEmpty else {
-            lock.lock()
-            refreshTask?.cancel()
-            refreshTask = nil
-            refreshTaskLanguages = nil
-            refreshTaskID = nil
-            lock.unlock()
+            cancelRefreshTask()
             clearSnapshot()
             notifyRefreshObservers()
             return true
         }
 
-        let task: Task<Bool, Never>
-        let taskID: UUID
-        lock.lock()
-        if let existingTask = refreshTask,
-           refreshTaskLanguages == languages {
-            task = existingTask
-            taskID = refreshTaskID ?? UUID()
-        } else {
-            refreshTask?.cancel()
-            taskID = UUID()
-            refreshTaskLanguages = languages
-            let createdTask = Task { await self.performRefresh(for: languages) }
-            refreshTask = createdTask
-            refreshTaskID = taskID
-            task = createdTask
-        }
-        lock.unlock()
-
+        let (task, taskID) = refreshTask(for: languages)
         let result = await task.value
-        lock.lock()
-        if refreshTaskID == taskID {
-            refreshTask = nil
-            refreshTaskLanguages = nil
-            refreshTaskID = nil
-        }
-        lock.unlock()
+        finishRefreshTask(id: taskID)
         return result
     }
 
