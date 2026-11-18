@@ -2759,17 +2759,11 @@ struct MediaDetailContentView: View {
             tail: mediaDetailHeroBleedTail,
             strength: mediaDetailHeroBleedStrength
         )
-        // Landscape detail content is inset by the device's horizontal safe
-        // areas. The hero artwork should not inherit those insets: extend only
-        // this backdrop layer to the physical screen edges. Foreground controls
-        // and the portrait composition keep their existing safe-area layout.
+        // The containing ScrollView is the single owner of the edge-to-edge
+        // safe-area extension. Extending this child again shifts the artwork
+        // relative to its measured viewport (down in portrait and sideways in
+        // landscape), which creates the persistent top/side gutters.
         .frame(maxWidth: .infinity)
-        // The poster starts at the physical top edge in both orientations.
-        // Landscape additionally extends through both horizontal safe areas.
-        .ignoresSafeArea(
-            .container,
-            edges: usesLandscapeDetailComposition ? [.top, .horizontal] : .top
-        )
     }
 
     @ViewBuilder
