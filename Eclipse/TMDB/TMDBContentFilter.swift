@@ -148,7 +148,12 @@ final class MyDubListDubFilter: @unchecked Sendable {
 
     var selectedLanguagesIncludingCatalogAudioRequirement: Set<String> {
         var languages = selectedLanguages
-        if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
+        // The global English/Spanish audio requirement supplies a default
+        // OR-selection only when the user has not chosen a specific dub
+        // language. Never broaden an explicit Spanish-only or English-only
+        // selection into the other language.
+        if languages.isEmpty,
+           UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
             languages.formUnion([
                 MyDubListLanguage.english.rawValue,
                 MyDubListLanguage.spanish.rawValue
