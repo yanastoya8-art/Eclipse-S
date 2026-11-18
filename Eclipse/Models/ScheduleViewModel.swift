@@ -2770,39 +2770,54 @@ actor JustWatchScheduleService {
             return persisted
         }
 
-        var components = URLComponents(url: baseURL.appendingPathComponent("search"), resolvingAgainstBaseURL: false)
-        components?.queryItems = [
-            URLQueryItem(name: "q", value: entry.title),
-            URLQueryItem(name: "country", value: "BG"),
-            URLQueryItem(name: "type", value: "show"),
-            URLQueryItem(name: "limit", value: "40")
-        ]
-        guard let url = components?.url else { throw JustWatchScheduleError.invalidURL }
-        let payload = try await requestJSON(url: url, apiKey: apiKey)
-        guard let titles = payload["titles"] as? [[String: Any]] else {
-            throw JustWatchScheduleError.invalidResponse
+        // AniList's display title is not guaranteed to be the English title.
+        // Search and match every known alias so a Japanese/romaji display title
+        // does not prevent a valid JustWatch dub timetable from being found.
+        let aliases = [entry.englishTitle, entry.title, entry.romajiTitle, entry.nativeTitle]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        var seenAliases = Set<String>()
+        let searchAliases = aliases.filter { seenAliases.insert(Self.normalizedTitle($0)).inserted }
+        let exactTMDB = entry.tmdbId.map(String.init)
+        let normalizedAliases = Set(searchAliases.map(Self.normalizedTitle))
+        var resolvedID: String?
+
+        for query in searchAliases {
+            var components = URLComponents(url: baseURL.appendingPathComponent("search"), resolvingAgainstBaseURL: false)
+            components?.queryItems = [
+                URLQueryItem(name: "q", value: query),
+                URLQueryItem(name: "country", value: "BG"),
+                URLQueryItem(name: "type", value: "show"),
+                URLQueryItem(name: "limit", value: "40")
+            ]
+            guard let url = components?.url else { throw JustWatchScheduleError.invalidURL }
+            let payload = try await requestJSON(url: url, apiKey: apiKey)
+            guard let titles = payload["titles"] as? [[String: Any]] else {
+                throw JustWatchScheduleError.invalidResponse
+            }
+
+            let candidates = titles.filter { title in
+                guard (title["type"] as? String)?.uppercased() == "SHOW" else { return false }
+                if let exactTMDB {
+                    return Self.stringValue(title["tmdb_id"]) == exactTMDB
+                }
+                let candidateTitles = [
+                    title["title"] as? String,
+                    title["original_title"] as? String
+                ].compactMap { $0 }.map(Self.normalizedTitle)
+                guard candidateTitles.contains(where: { normalizedAliases.contains($0) }) else { return false }
+                if let year = entry.releaseYear, let candidateYear = Self.intValue(title["year"]) {
+                    return abs(candidateYear - year) <= 1
+                }
+                return true
+            }
+            if let id = candidates.first?["id"] as? String, id.hasPrefix("ts") {
+                resolvedID = id
+                break
+            }
         }
 
-        let exactTMDB = entry.tmdbId.map(String.init)
-        let normalizedTitle = Self.normalizedTitle(entry.title)
-        let candidates = titles.filter { title in
-            guard (title["type"] as? String)?.uppercased() == "SHOW" else { return false }
-            if let exactTMDB {
-                return Self.stringValue(title["tmdb_id"]) == exactTMDB
-            }
-            let candidateTitles = [
-                title["title"] as? String,
-                title["original_title"] as? String
-            ].compactMap { $0 }.map(Self.normalizedTitle)
-            guard candidateTitles.contains(normalizedTitle) else { return false }
-            if let year = entry.releaseYear, let candidateYear = Self.intValue(title["year"]) {
-                return abs(candidateYear - year) <= 1
-            }
-            return true
-        }
-        guard let id = candidates.first?["id"] as? String, id.hasPrefix("ts") else {
-            throw JustWatchScheduleError.titleNotFound
-        }
+        guard let id = resolvedID else { throw JustWatchScheduleError.titleNotFound }
         showIDCache[cacheKey] = id
         UserDefaults.standard.set(id, forKey: "justWatchShowIDV1.\(cacheKey)")
         return id
