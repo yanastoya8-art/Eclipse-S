@@ -1275,8 +1275,6 @@ class TMDBContentFilter: ObservableObject {
                     guard let result = iterator.next() else { continue }
                     let key = self.catalogAudioAvailabilityKey(for: result)
                     group.addTask {
-                        let rawDate = result.isMovie ? result.releaseDate : result.firstAirDate
-                        let year = rawDate.flatMap { Int($0.prefix(4)) }
                         let available = ScheduleAudioLanguagePolicy.hasAudioLanguageOffer(
                             originalLanguage: result.originalLanguage,
                             selectedLanguages: selectedLanguages
@@ -1298,17 +1296,12 @@ class TMDBContentFilter: ObservableObject {
                             catalogAudioEligibleKeys.remove(key)
                         }
                         didResolveAny = true
-                    } else {
-                        // The selected language is not the title's known original
-                        // language. No third-party audio-offer provider is queried.
                     }
                     animeEligibilityLock.unlock()
 
                     if let result = iterator.next() {
                         let nextKey = self.catalogAudioAvailabilityKey(for: result)
                         group.addTask {
-                            let rawDate = result.isMovie ? result.releaseDate : result.firstAirDate
-                            let year = rawDate.flatMap { Int($0.prefix(4)) }
                             let available = ScheduleAudioLanguagePolicy.hasAudioLanguageOffer(
                                 originalLanguage: result.originalLanguage,
                                 selectedLanguages: selectedLanguages
