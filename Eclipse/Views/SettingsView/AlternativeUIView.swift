@@ -476,9 +476,6 @@ struct AlternativeUIView: View {
 
     private var appExperienceSection: some View {
         Section {
-#if !os(tvOS)
-#endif
-
             toggleRow(
                 title: "Animated Background",
                 description: "Show ambient motion behind broad app surfaces.",
