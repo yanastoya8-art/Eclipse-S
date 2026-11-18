@@ -14,6 +14,10 @@ enum AnimeScheduleLanguageLookupPolicy {
     static func shouldQueryJustWatch(selectedLanguages: Set<String>) -> Bool {
         !selectedLanguages.isEmpty
     }
+
+    static func markVerifiedJustWatchMatches(_ entries: [ScheduleEntry]) -> [ScheduleEntry] {
+        entries.map { $0.markedAsVerifiedJustWatchLanguageMatch() }
+    }
 }
 
 enum ScheduleMode: String, CaseIterable, Identifiable, Sendable {
@@ -1038,8 +1042,8 @@ final class ScheduleViewModel: ObservableObject {
                             // English/Spanish release is intentionally not marked as a
                             // streaming/dub date, so filtering on `isStreamingRelease`
                             // here incorrectly removed valid native-language schedule rows.
-                            verifiedJustWatchEntries = languageMatches
-                                .map { $0.markedAsVerifiedJustWatchLanguageMatch() }
+                            verifiedJustWatchEntries = AnimeScheduleLanguageLookupPolicy
+                                .markVerifiedJustWatchMatches(languageMatches)
 
                             // AI research is a sequential fallback for Spanish only:
                             // it compares all upcoming AniList episodes against JustWatch and only
