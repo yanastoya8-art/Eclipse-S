@@ -2242,11 +2242,6 @@ private struct BrowseMediaView: View {
         let existingRawResults = replacing ? [] : unfilteredResults
         if replacing { browseQueryGeneration = UUID() }
         let queryGeneration = browseQueryGeneration
-        let requiresAnimeIdentityBeforeFiltering = browseMediaType.isAnime && (
-            !MyDubListDubFilter.shared.selectedLanguages.isEmpty
-                || UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
-        )
-
         filterRefreshGeneration += 1
         filterRefreshTask?.cancel()
         filterRefreshTask = nil
@@ -2280,16 +2275,10 @@ private struct BrowseMediaView: View {
                 let combinedRawResults = replacing
                     ? pageResult.results
                     : existingRawResults + pageResult.results
-                // A strict dub/native-audio filter needs AniList identity before
-                // `filterSearchResultsResolvingRatings` runs. Previously the
-                // identity enrichment happened only after publishing the filtered
-                // page, so MyDubList saw unresolved IDs and discarded valid anime.
-                let identityResolvedResults = requiresAnimeIdentityBeforeFiltering
-                    ? await resolveAnimeBrowseIdentities(combinedRawResults, resolveArtwork: false)
-                    : combinedRawResults
-                try Task.checkCancellation()
+                // The browse-type filter owns anime identity resolution. Running
+                // the resolver here as well repeated provider lookups on every page.
                 let browseTypeFiltered = await filterResultsForBrowseType(
-                    identityResolvedResults,
+                    combinedRawResults,
                     mediaType: browseMediaType,
                     ageRating: ageRating
                 )
@@ -2935,13 +2924,12 @@ private struct BrowseMediaView: View {
         // when no matching cached language snapshot exists.
         if mediaType.isAnime, !selectedDubLanguages.isEmpty,
            !MyDubListDubFilter.shared.prepareCachedSnapshot() {
-            // Do not keep the Browse grid behind sequential MyDubList
-            // downloads. The filter remains fail-closed until the cached
-            // identity set is ready; its refresh notification re-filters the
-            // retained first page without another discover request.
-            Task(priority: .utility) {
-                await MyDubListDubFilter.shared.refresh()
-            }
+            // Keep the page in its loading state until the selected-language
+            // identity snapshot is ready. Publishing an empty grid first and
+            // replacing it after a background refresh caused a visible empty
+            // state/flicker and repeated filtering work.
+            _ = await MyDubListDubFilter.shared.refresh()
+            guard !Task.isCancelled else { return [] }
         }
         guard ageRating != .all || requiresAnimeIdentity else {
             return typeFiltered
