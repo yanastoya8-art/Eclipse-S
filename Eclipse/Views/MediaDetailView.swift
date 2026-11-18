@@ -641,21 +641,6 @@ struct MediaDetailContentView: View {
         detailViewportSize.width > 0 ? detailViewportSize.width : EclipseViewport.bounds.width
     }
 
-    // GeometryReader reports the safe-area viewport inside NavigationStack.
-    // The detail scroll view is edge-to-edge, so its layout measurements must
-    // include the safe-area insets as well; otherwise the hero is sized to the
-    // narrower/shorter inset rectangle and exposes gutters above or beside it.
-    private func fullBleedViewportSize(for geometry: GeometryProxy) -> CGSize {
-        CGSize(
-            width: geometry.size.width
-                + max(0, geometry.safeAreaInsets.leading)
-                + max(0, geometry.safeAreaInsets.trailing),
-            height: geometry.size.height
-                + max(0, geometry.safeAreaInsets.top)
-                + max(0, geometry.safeAreaInsets.bottom)
-        )
-    }
-
     private var usesLandscapeDetailComposition: Bool {
 #if os(macOS)
         false
@@ -1190,7 +1175,7 @@ struct MediaDetailContentView: View {
             navigationOverlay
 #endif
         }
-        .onAppear { detailViewportSize = fullBleedViewportSize(for: geometry) }
+        .onAppear { detailViewportSize = geometry.size }
         .task(id: exactAnimeNavigationSeedAniListId) {
             await loadAnimeAgeCertificationIfNeeded()
         }
@@ -1204,8 +1189,8 @@ struct MediaDetailContentView: View {
                 await loadAnimeAgeCertificationIfNeeded(preferredAniListID: animeMetadata?.id)
             }
         }
-        .onChangeComp(of: geometry.size) { _, _ in
-            detailViewportSize = fullBleedViewportSize(for: geometry)
+        .onChangeComp(of: geometry.size) { _, newSize in
+            detailViewportSize = newSize
         }
         }
 #if os(tvOS)
@@ -1947,12 +1932,12 @@ struct MediaDetailContentView: View {
                         }
                     )
                     .heroBannerBleed(
-                        // Landscape colour is composited inside heroBackdrop.
-                        // Do not attach a bleed layer to the full scroll content:
-                        // its tail otherwise follows the page into the episodes.
-                        color: ExperimentalFeatureState.isEnabledAtLaunch && !usesLandscapeDetailComposition
+                        // Match Home: keep the colour field behind the complete
+                        // scroll content so its tail fades beneath the overview.
+                        // Portrait retains its existing experimental behaviour.
+                        color: usesLandscapeDetailComposition
                             ? mediaDetailHeroBleedColor
-                            : nil,
+                            : (ExperimentalFeatureState.isEnabledAtLaunch ? mediaDetailHeroBleedColor : nil),
                         heroHeight: headerHeight,
                         tail: mediaDetailHeroBleedTail,
                         strength: mediaDetailHeroBleedStrength
@@ -1960,6 +1945,10 @@ struct MediaDetailContentView: View {
                 }
                 .coordinateSpace(name: "mediaDetailScroll")
                 .modifier(ScrollClipModifier())
+                // Apply edge-to-edge layout to the actual ScrollView, not only
+                // its ScrollViewReader wrapper. This is the same arrangement
+                // used by Home and removes the landscape content safe-area gutters.
+                .ignoresSafeArea(edges: usesLandscapeDetailComposition ? [.top, .leading, .trailing] : .top)
                 .onPreferenceChange(ScrollOffsetPreferenceKey.self) { newOffset in
                     guard abs(scrollOffset - newOffset) >= scrollOffsetUpdateThreshold else { return }
                     scrollOffset = newOffset
@@ -1977,13 +1966,9 @@ struct MediaDetailContentView: View {
                     }
                 }
             }
-            // Apply the safe-area extension to the reader as well as its
-            // scroll view. On the first navigation frame SwiftUI can size the
-            // inner ScrollView to the safe-area viewport before its own
-            // ignoresSafeArea modifier is resolved, leaving a blank band above
-            // the poster. Extending the reader prevents that initial inset;
-            // the home hero already uses an edge-to-edge scroll container.
-            .ignoresSafeArea(edges: usesLandscapeDetailComposition ? [.top, .horizontal] : .top)
+            // Keep the ScrollViewReader wrapper aligned with the edge-to-edge
+            // scroll view during the first navigation frame and rotation.
+            .ignoresSafeArea(edges: usesLandscapeDetailComposition ? [.top, .leading, .trailing] : .top)
         }
 #endif
     }
@@ -2753,7 +2738,10 @@ struct MediaDetailContentView: View {
         // Keeping it behind the hero lets the content below blend smoothly
         // without painting an opaque strip over the artwork itself.
         .heroBannerBleed(
-            color: mediaDetailHeroBleedColor,
+            // Landscape uses the single bleed layer attached to the whole
+            // scroll-content stack. Keeping a second layer on the artwork
+            // creates an abrupt overlap at the poster/content boundary.
+            color: usesLandscapeDetailComposition ? nil : mediaDetailHeroBleedColor,
             heroHeight: headerHeight,
             tail: mediaDetailHeroBleedTail,
             strength: mediaDetailHeroBleedStrength
@@ -2796,7 +2784,9 @@ struct MediaDetailContentView: View {
 
     @ViewBuilder
     private var detailContentBackground: some View {
-        if ExperimentalFeatureState.isEnabledAtLaunch {
+        if usesLandscapeDetailComposition || ExperimentalFeatureState.isEnabledAtLaunch {
+            // The landscape HeroBannerBleed behind the ScrollView owns the
+            // transition; an opaque local background here would create a seam.
             Color.clear
         } else if theme.atmosphereStyle == .solid {
             atmosphereColor
