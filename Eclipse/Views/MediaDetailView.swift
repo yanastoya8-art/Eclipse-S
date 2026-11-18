@@ -2827,17 +2827,16 @@ struct MediaDetailContentView: View {
                 startPoint: .top,
                 endPoint: .bottom
             )
-            // In landscape the fade begins exactly at the hero's lower edge
-            // and extends behind the first detail rows. It belongs to this
-            // hero only, so it cannot tint the full page or episode list.
+            // Anchor the fade to the bottom of the poster/hero so the extracted
+            // colour sits behind the hero metadata without spilling into the
+            // independently scrolling episode list.
             .frame(height: gradientHeight)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             .allowsHitTesting(false)
         } else {
-            // Keep the legacy detail composition's landscape bleed tied to the
-            // extracted poster colour as well. The previous fixed 120pt theme
-            // gradient was too short to reach the content area on a landscape
-            // viewport, making the landscape bleed control appear ineffective.
+            // Keep the legacy landscape fade tied to the extracted poster
+            // colour and scale it to the hero height instead of using the
+            // portrait-sized fixed 120pt gradient.
             let legacyBleedColor = usesLandscapeDetailComposition
                 ? (mediaDetailHeroBleedColor ?? atmosphereColor)
                 : atmosphereColor
