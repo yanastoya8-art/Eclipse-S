@@ -649,7 +649,7 @@ struct MediaDetailContentView: View {
         // GeometryReader is centred inside the asymmetric landscape safe area.
         // Shift the full-width artwork back to the physical screen centre so a
         // notch-side inset cannot leave a narrow strip on the opposite edge.
-        return (window.safeAreaInsets.trailing - window.safeAreaInsets.leading) / 2
+        return (window.safeAreaInsets.right - window.safeAreaInsets.left) / 2
 #else
         return 0
 #endif
