@@ -2661,7 +2661,8 @@ struct MediaDetailContentView: View {
                 artworkScaleY: usesLandscapeDetailComposition
                     ? CGFloat(min(max(landscapeHeroVerticalStretch, 0.85), 1.5))
                     : 1.0,
-                showsBottomFade: !usesLandscapeDetailComposition
+                showsBottomFade: !usesLandscapeDetailComposition,
+                scrollCoordinateSpaceName: "mediaDetailScroll"
             )
             // StretchyHeaderView can initially report its intrinsic artwork
             // size before the first scroll-layout pass. Give landscape artwork
