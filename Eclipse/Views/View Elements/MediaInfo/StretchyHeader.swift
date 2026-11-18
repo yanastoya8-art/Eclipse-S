@@ -89,6 +89,9 @@ struct StretchyHeaderView: View {
     // view. Suppress this local 100pt fade there to avoid a stacked gradient
     // that can read as a hard seam at the poster/content boundary.
     var showsBottomFade: Bool = true
+    // Detail pages measure stretching relative to their ScrollView so the
+    // safe-area origin and initial rotation layout do not shift the artwork.
+    var scrollCoordinateSpaceName: String? = nil
 
     @State private var localAmbientColor: Color = Color.black
     @State private var failedImageURLs: Set<String> = []
@@ -116,7 +119,9 @@ struct StretchyHeaderView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let frame = geometry.frame(in: .global)
+            let frame = scrollCoordinateSpaceName.map {
+                geometry.frame(in: .named($0))
+            } ?? geometry.frame(in: .global)
             let deltaY = frame.minY
             let height = headerHeight + max(0, deltaY)
             let offset = min(0, -deltaY)
