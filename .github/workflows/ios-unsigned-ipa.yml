@@ -19,7 +19,8 @@ on:
 # Never cancel an in-progress IPA build just because another manual build
 # was queued. Each dispatch is an independent, auditable build attempt.
 concurrency:
-  group: ios-unsigned-ipa-${{ github.run_id }}
+  # Serialize deployments so an older, slower build cannot overwrite a newer feed.
+  group: ios-unsigned-ipa
   cancel-in-progress: false
 
 permissions:
