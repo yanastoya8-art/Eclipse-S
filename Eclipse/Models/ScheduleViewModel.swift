@@ -1024,8 +1024,12 @@ final class ScheduleViewModel: ObservableObject {
                             // Only verified streaming/dub dates are allowed here.
                             // AniList's Japanese broadcast date is never a fallback
                             // for a selected English/Spanish dub filter.
+                            // `filter` already enforces the selected audio languages and
+                            // chooses the earliest qualifying native-or-dub date. A native
+                            // English/Spanish release is intentionally not marked as a
+                            // streaming/dub date, so filtering on `isStreamingRelease`
+                            // here incorrectly removed valid native-language schedule rows.
                             verifiedJustWatchEntries = languageMatches
-                                .filter(\.isStreamingRelease)
                                 .map { $0.markedAsVerifiedJustWatchDub() }
 
                             // AI research is a sequential fallback for Spanish only:
