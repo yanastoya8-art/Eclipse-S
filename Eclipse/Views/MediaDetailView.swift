@@ -2772,6 +2772,7 @@ struct MediaDetailContentView: View {
             .padding(.top, ExperimentalFeatureState.isEnabledAtLaunch ? max(18, designMetrics.sectionSpacing * 0.45) : 0)
             .padding(.bottom, ExperimentalFeatureState.isEnabledAtLaunch ? 28 : 0)
         }
+        .frame(maxWidth: .infinity)
         // Continue the landscape poster colour only into the first detail
         // section. Keeping this fade on the content container (rather than
         // the ScrollView background) prevents it from following the user down
