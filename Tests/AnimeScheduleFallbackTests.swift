@@ -852,6 +852,32 @@ final class ScheduleReleaseDatePolicyTests: XCTestCase {
         XCTAssertNil(ScheduleReleaseDatePolicy.earliest(native: nil, dubbed: nil))
         XCTAssertFalse(ScheduleReleaseDatePolicy.usesDubbedDate(native: nil, dubbed: nil))
     }
+
+    func testNativeLanguageMatchIsKeptEvenWhenItIsNotMarkedAsStreamingRelease() {
+        let airing = AniListAiringScheduleEntry(
+            id: 1,
+            mediaId: 101,
+            title: "Example Anime",
+            airingAt: Date(timeIntervalSince1970: 100),
+            episode: 1,
+            coverImage: nil,
+            englishTitle: "Example Anime",
+            romajiTitle: nil,
+            nativeTitle: nil,
+            format: "TV",
+            hasKnownAiringTime: true,
+            scheduleProvider: .aniList,
+            malID: nil,
+            airingTimeWithdrawn: false
+        )
+        let nativeMatch = ScheduleEntry(animeEntry: airing)
+            .withAiringAt(airing.airingAt, isStreamingRelease: false)
+            .markedAsVerifiedJustWatchDub()
+
+        XCTAssertFalse(nativeMatch.isStreamingRelease)
+        XCTAssertEqual(nativeMatch.provider, .justWatch)
+        XCTAssertEqual(nativeMatch.airingAt, airing.airingAt)
+    }
 }
 
 
