@@ -872,7 +872,7 @@ final class ScheduleReleaseDatePolicyTests: XCTestCase {
         )
         let nativeMatch = ScheduleEntry(animeEntry: airing)
             .withAiringAt(airing.airingAt, isStreamingRelease: false)
-            .markedAsVerifiedJustWatchDub()
+            .markedAsVerifiedJustWatchLanguageMatch()
 
         XCTAssertFalse(nativeMatch.isStreamingRelease)
         XCTAssertEqual(nativeMatch.provider, .justWatch)
