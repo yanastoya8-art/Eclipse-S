@@ -2677,7 +2677,13 @@ struct MediaDetailContentView: View {
             image
 #endif
 
-            gradientOverlay
+            // Portrait keeps its existing artwork-local fade. Landscape
+            // uses the same extended HeroBannerBleed treatment as Home so the
+            // colour continues naturally beyond the poster edge instead of
+            // ending in an opaque, clipped horizontal line.
+            if !usesLandscapeDetailComposition {
+                gradientOverlay
+            }
 
             // Use only transparent title artwork. Never synthesize ordinary
             // title text over a poster when a provider has no logo asset.
@@ -2725,6 +2731,17 @@ struct MediaDetailContentView: View {
                 .accessibilityHidden(true)
             }
         }
+        // Match Home's full-bleed colour transition. The gradient is anchored
+        // to the hero's top edge, holds the extracted artwork colour through
+        // the poster, then fades it out over a separate tail below the poster.
+        // Keeping it behind the hero lets the content below blend smoothly
+        // without painting an opaque strip over the artwork itself.
+        .heroBannerBleed(
+            color: mediaDetailHeroBleedColor,
+            heroHeight: headerHeight,
+            tail: mediaDetailHeroBleedTail,
+            strength: mediaDetailHeroBleedStrength
+        )
         // Landscape detail content is inset by the device's horizontal safe
         // areas. The hero artwork should not inherit those insets: extend only
         // this backdrop layer to the physical screen edges. Foreground controls
