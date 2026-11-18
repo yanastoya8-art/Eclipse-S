@@ -388,6 +388,7 @@ final class ScheduleViewModel: ObservableObject {
     private var animeScheduleLastAttemptAt: Date?
     private var animeScheduleLastFailureAt: Date?
     private var animeScheduleLoadTask: Task<AnimeScheduleLoadResult, Error>?
+    private var spanishDubResearchTask: Task<Void, Never>?
     private var animeScheduleLoadID: UUID?
     private var animeScheduleCachedPolicyKey: String?
     private var animeScheduleLoadPolicyKey: String?
@@ -849,6 +850,43 @@ final class ScheduleViewModel: ObservableObject {
         )
     }
 
+    @MainActor
+    private func mergeSpanishDubResearchEntries(
+        _ additions: [ScheduleEntry],
+        into currentResult: AnimeScheduleLoadResult,
+        dayCount: Int
+    ) {
+        guard !additions.isEmpty else { return }
+
+        var earliestByEpisode: [String: ScheduleEntry] = [:]
+        for entry in currentResult.entries + additions {
+            let key = entry.source == .anime
+                ? "anime|\(entry.sourceMediaId)|\(entry.episode)"
+                : "\(entry.title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current))|\(entry.season ?? 0)|\(entry.episode)"
+            if let existing = earliestByEpisode[key], existing.airingAt <= entry.airingAt {
+                continue
+            }
+            earliestByEpisode[key] = entry
+        }
+
+        let mergedEntries = earliestByEpisode.values.sorted { $0.airingAt < $1.airingAt }
+        let mergedResult = AnimeScheduleLoadResult(
+            entries: mergedEntries,
+            isAuthoritativeForNotifications: currentResult.isAuthoritativeForNotifications,
+            notice: currentResult.notice
+        )
+        animeScheduleResult = mergedResult
+
+        guard loadedScheduleMode == .anime || loadedScheduleMode == .combined else { return }
+        let nonAnimeEntries = scheduleEntries.filter { $0.source != .anime }
+        scheduleEntries = (mergedEntries + nonAnimeEntries).sorted { $0.airingAt < $1.airingAt }
+        updateBuckets(
+            with: scheduleEntries,
+            localTimeZone: currentLocalTimeZone,
+            dayCount: dayCount
+        )
+    }
+
     private func dubOnlyUnavailable(_ result: AnimeAiringScheduleResult) -> Bool {
         result.entries.isEmpty
     }
@@ -987,13 +1025,30 @@ final class ScheduleViewModel: ObservableObject {
                             // it compares all upcoming AniList episodes against JustWatch and only
                             // accepts future dates backed by returned web citations.
                             if selectedDubLanguages.contains(MyDubListLanguage.spanish.rawValue) {
-                                // Research even episodes with a JustWatch date so the
-                                // final merge can keep the earliest verified Spanish release.
-                                let researched = await SpanishDubAIResearchService.shared.research(entries: broadcast.entries)
-                                let scheduleWindow = ScheduleDateWindow.envelope(dayCount: dayCount)
-                                verifiedJustWatchEntries.append(contentsOf: researched
-                                    .filter { $0.airingAt >= scheduleWindow.start && $0.airingAt < scheduleWindow.end }
-                                    .map(ScheduleEntry.init(animeEntry:)))
+                                // AI-backed Spanish-date research can take 18 seconds
+                                // per configured provider. Do not hold the first
+                                // Schedule render behind this optional enrichment:
+                                // publish verified JustWatch/AniList results first,
+                                // then merge confirmed Spanish dates in the background.
+                                let researchCandidates = broadcast.entries
+                                self.spanishDubResearchTask?.cancel()
+                                self.spanishDubResearchTask = Task(priority: .utility) { @MainActor [weak self] in
+                                    let researched = await SpanishDubAIResearchService.shared.research(entries: researchCandidates)
+                                    guard !Task.isCancelled,
+                                          let self,
+                                          self.animeScheduleCachedPolicyKey == policyKey,
+                                          self.animeScheduleDayCount == dayCount,
+                                          let currentResult = self.animeScheduleResult else { return }
+                                    let scheduleWindow = ScheduleDateWindow.envelope(dayCount: dayCount)
+                                    let confirmedEntries = researched
+                                        .filter { $0.airingAt >= scheduleWindow.start && $0.airingAt < scheduleWindow.end }
+                                        .map(ScheduleEntry.init(animeEntry:))
+                                    self.mergeSpanishDubResearchEntries(
+                                        confirmedEntries,
+                                        into: currentResult,
+                                        dayCount: dayCount
+                                    )
+                                }
                             }
                         }
                     }
