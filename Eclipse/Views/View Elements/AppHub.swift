@@ -128,6 +128,7 @@ struct AppHubOverlay: View {
     @AppStorage(OnboardingState.appHubHintPendingKey, store: .standard) private var onboardingHintPending = false
 
     @Environment(\.layoutDirection) private var layoutDirection
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @StateObject private var accentColorManager = AccentColorManager.shared
 
