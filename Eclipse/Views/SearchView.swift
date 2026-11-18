@@ -2280,8 +2280,16 @@ private struct BrowseMediaView: View {
                 let combinedRawResults = replacing
                     ? pageResult.results
                     : existingRawResults + pageResult.results
+                // A strict dub/native-audio filter needs AniList identity before
+                // `filterSearchResultsResolvingRatings` runs. Previously the
+                // identity enrichment happened only after publishing the filtered
+                // page, so MyDubList saw unresolved IDs and discarded valid anime.
+                let identityResolvedResults = requiresAnimeIdentityBeforeFiltering
+                    ? await resolveAnimeBrowseIdentities(combinedRawResults, resolveArtwork: false)
+                    : combinedRawResults
+                try Task.checkCancellation()
                 let browseTypeFiltered = await filterResultsForBrowseType(
-                    combinedRawResults,
+                    identityResolvedResults,
                     mediaType: browseMediaType,
                     ageRating: ageRating
                 )
