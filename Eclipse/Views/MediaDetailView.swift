@@ -2729,7 +2729,12 @@ struct MediaDetailContentView: View {
         // this backdrop layer to the physical screen edges. Foreground controls
         // and the portrait composition keep their existing safe-area layout.
         .frame(maxWidth: .infinity)
-        .ignoresSafeArea(.container, edges: usesLandscapeDetailComposition ? .horizontal : [])
+        // The poster starts at the physical top edge in both orientations.
+        // Landscape additionally extends through both horizontal safe areas.
+        .ignoresSafeArea(
+            .container,
+            edges: usesLandscapeDetailComposition ? [.top, .horizontal] : .top
+        )
     }
 
     @ViewBuilder
@@ -2816,18 +2821,31 @@ struct MediaDetailContentView: View {
             .offset(y: landscapeTail)
             .allowsHitTesting(false)
         } else {
+            // Keep the legacy detail composition's landscape bleed tied to the
+            // extracted poster colour as well. The previous fixed 120pt theme
+            // gradient was too short to reach the content area on a landscape
+            // viewport, making the landscape bleed control appear ineffective.
+            let legacyBleedColor = usesLandscapeDetailComposition
+                ? (mediaDetailHeroBleedColor ?? atmosphereColor)
+                : atmosphereColor
+            let legacyGradientHeight = usesLandscapeDetailComposition
+                ? headerHeight * 0.72 + mediaDetailHeroBleedTail
+                : 120
+
             LinearGradient(
                 gradient: Gradient(stops: [
-                    .init(color: atmosphereColor.opacity(0.0), location: 0.0),
-                    .init(color: atmosphereColor.opacity(0.16 * bleedScale), location: 0.20),
-                    .init(color: atmosphereColor.opacity(0.42 * bleedScale), location: 0.62),
-                    .init(color: atmosphereColor.opacity(1.0 * bleedScale), location: 1.0)
+                    .init(color: legacyBleedColor.opacity(0.0), location: 0.0),
+                    .init(color: legacyBleedColor.opacity(0.16 * bleedScale), location: 0.20),
+                    .init(color: legacyBleedColor.opacity(0.42 * bleedScale), location: 0.62),
+                    .init(color: legacyBleedColor.opacity(1.0 * bleedScale), location: 1.0)
                 ]),
                 startPoint: .top,
                 endPoint: .bottom
             )
-            .frame(height: 120)
-            .clipShape(RoundedRectangle(cornerRadius: 0))
+            .frame(height: legacyGradientHeight)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            .offset(y: usesLandscapeDetailComposition ? mediaDetailHeroBleedTail : 0)
+            .allowsHitTesting(false)
         }
     }
 
