@@ -1944,17 +1944,6 @@ struct MediaDetailContentView: View {
                     )
                 }
                 .coordinateSpace(name: "mediaDetailScroll")
-                // The hero is edge-to-edge artwork. A ScrollView otherwise
-                // begins its content below the navigation safe area, leaving
-                // a visible blank band above the poster in portrait and
-                // landscape. Extend the scroll content to the top edge so the
-                // first pixel of the hero starts at the top of the viewport.
-                // Landscape detail must use the physical screen width, not the
-                // inset safe-area width. Keeping the ScrollView clipped to the
-                // safe-area viewport was the source of the persistent narrow
-                // poster gutters in landscape; the hero and its colour fade
-                // need the same edge-to-edge viewport.
-                .ignoresSafeArea(edges: usesLandscapeDetailComposition ? [.top, .horizontal] : .top)
                 .modifier(ScrollClipModifier())
                 .onPreferenceChange(ScrollOffsetPreferenceKey.self) { newOffset in
                     guard abs(scrollOffset - newOffset) >= scrollOffsetUpdateThreshold else { return }
@@ -1973,6 +1962,13 @@ struct MediaDetailContentView: View {
                     }
                 }
             }
+            // Apply the safe-area extension to the reader as well as its
+            // scroll view. On the first navigation frame SwiftUI can size the
+            // inner ScrollView to the safe-area viewport before its own
+            // ignoresSafeArea modifier is resolved, leaving a blank band above
+            // the poster. Extending the reader prevents that initial inset;
+            // the home hero already uses an edge-to-edge scroll container.
+            .ignoresSafeArea(edges: usesLandscapeDetailComposition ? [.top, .horizontal] : .top)
         }
 #endif
     }
