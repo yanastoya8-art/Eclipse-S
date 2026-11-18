@@ -2807,7 +2807,18 @@ struct MediaDetailContentView: View {
                 : max(designMetrics.heroBottomFadeHeight + 90, usesWideDetailLayout ? 560 : 430)
 
             LinearGradient(
-                gradient: Gradient(stops: [
+                gradient: Gradient(stops: usesLandscapeDetailComposition ? [
+                    // Blend the poster into the page in stages: first pick up
+                    // the artwork colour, then gently desaturate it into the
+                    // actual page surface. Ending on an opaque base-colour stop
+                    // prevents a visible horizontal seam at the hero boundary.
+                    .init(color: .clear, location: 0.0),
+                    .init(color: bleedColor.opacity(0.10 * bleedScale), location: 0.18),
+                    .init(color: bleedColor.opacity(0.24 * bleedScale), location: 0.42),
+                    .init(color: bleedColor.opacity(0.26 * bleedScale), location: 0.64),
+                    .init(color: bleedColor.opacity(0.14 * bleedScale), location: 0.84),
+                    .init(color: EclipseTheme.shared.backgroundBase, location: 1.0)
+                ] : [
                     .init(color: .clear, location: 0.0),
                     .init(color: bleedColor.opacity(0.08 * bleedScale), location: 0.20),
                     .init(color: bleedColor.opacity(0.28 * bleedScale), location: 0.48),
@@ -2835,7 +2846,14 @@ struct MediaDetailContentView: View {
                 : 120
 
             LinearGradient(
-                gradient: Gradient(stops: [
+                gradient: Gradient(stops: usesLandscapeDetailComposition ? [
+                    .init(color: legacyBleedColor.opacity(0.0), location: 0.0),
+                    .init(color: legacyBleedColor.opacity(0.12 * bleedScale), location: 0.20),
+                    .init(color: legacyBleedColor.opacity(0.28 * bleedScale), location: 0.44),
+                    .init(color: legacyBleedColor.opacity(0.24 * bleedScale), location: 0.66),
+                    .init(color: legacyBleedColor.opacity(0.10 * bleedScale), location: 0.86),
+                    .init(color: EclipseTheme.shared.backgroundBase, location: 1.0)
+                ] : [
                     .init(color: legacyBleedColor.opacity(0.0), location: 0.0),
                     .init(color: legacyBleedColor.opacity(0.16 * bleedScale), location: 0.20),
                     .init(color: legacyBleedColor.opacity(0.42 * bleedScale), location: 0.62),
