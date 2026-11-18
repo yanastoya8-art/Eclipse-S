@@ -904,8 +904,36 @@ final class ScheduleReleaseDatePolicyTests: XCTestCase {
         XCTAssertEqual(nativeEntry.originalLanguage, "en")
         XCTAssertEqual(verifiedMatches.count, 1)
         XCTAssertFalse(verifiedMatches[0].isStreamingRelease)
-        XCTAssertEqual(verifiedMatches[0].provider, .justWatch)
+        XCTAssertEqual(verifiedMatches[0].provider, .aniList)
         XCTAssertEqual(verifiedMatches[0].airingAt, airing.airingAt)
+    }
+
+    func testEarlierDubbedReleaseIsAttributedToJustWatch() {
+        let airing = AniListAiringScheduleEntry(
+            id: 2,
+            mediaId: 102,
+            title: "Dubbed Anime",
+            airingAt: Date(timeIntervalSince1970: 200),
+            episode: 1,
+            coverImage: nil,
+            englishTitle: "Dubbed Anime",
+            romajiTitle: nil,
+            nativeTitle: nil,
+            format: "TV",
+            hasKnownAiringTime: true,
+            scheduleProvider: .aniList,
+            malID: nil,
+            airingTimeWithdrawn: false,
+            originalLanguage: "ja"
+        )
+        let dubbedEntry = ScheduleEntry(animeEntry: airing)
+            .withAiringAt(Date(timeIntervalSince1970: 150), isStreamingRelease: true)
+        let verifiedMatches = AnimeScheduleLanguageLookupPolicy.markVerifiedJustWatchMatches([dubbedEntry])
+
+        XCTAssertEqual(verifiedMatches.count, 1)
+        XCTAssertTrue(verifiedMatches[0].isStreamingRelease)
+        XCTAssertEqual(verifiedMatches[0].provider, .justWatch)
+        XCTAssertEqual(verifiedMatches[0].airingAt, Date(timeIntervalSince1970: 150))
     }
 }
 
