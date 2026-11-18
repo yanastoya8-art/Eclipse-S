@@ -904,8 +904,15 @@ final class ScheduleViewModel: ObservableObject {
         // language-filter pipeline ever running. Refresh the selected-language
         // dub index here as well, so the AniList identity fallback is not
         // filtered against an unhydrated or stale MyDubList snapshot.
-        if !MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement.isEmpty {
-            await MyDubListDubFilter.shared.refresh()
+        if !MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement.isEmpty,
+           !MyDubListDubFilter.shared.prepareCachedSnapshot() {
+            // The three MyDubList downloads can take many seconds on a cold
+            // connection. Keep the schedule responsive and fail closed against
+            // the missing snapshot; the refresh notification reloads the
+            // calendar as soon as verified dub identities are available.
+            Task(priority: .utility) {
+                await MyDubListDubFilter.shared.refresh()
+            }
         }
         let policyKey = currentAnimeSchedulePolicyKey()
         if animeScheduleLoadTask != nil, animeScheduleLoadPolicyKey != policyKey {
