@@ -2772,32 +2772,7 @@ struct MediaDetailContentView: View {
             .padding(.top, ExperimentalFeatureState.isEnabledAtLaunch ? max(18, designMetrics.sectionSpacing * 0.45) : 0)
             .padding(.bottom, ExperimentalFeatureState.isEnabledAtLaunch ? 28 : 0)
         }
-        .frame(maxWidth: .infinity)
-        // Continue the landscape poster colour only into the first detail
-        // section. Keeping this fade on the content container (rather than
-        // the ScrollView background) prevents it from following the user down
-        // through the episode list.
-        .background(alignment: .top) {
-            if usesLandscapeDetailComposition {
-                let defaultWideScale = 1.48
-                let baselineScale = usesWideDetailLayout ? defaultWideScale : 1.0
-                let bleedScale = min(max(mediaDetailHeroBleedStrength / baselineScale, 0), 2.0)
-                let bleedColor = mediaDetailHeroBleedColor ?? heroBlendColor
-                LinearGradient(
-                    gradient: Gradient(stops: [
-                        .init(color: bleedColor.opacity(0.82 * bleedScale), location: 0.0),
-                        .init(color: bleedColor.opacity(0.56 * bleedScale), location: 0.28),
-                        .init(color: bleedColor.opacity(0.24 * bleedScale), location: 0.62),
-                        .init(color: bleedColor.opacity(0.06 * bleedScale), location: 0.88),
-                        .init(color: .clear, location: 1.0)
-                    ]),
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: min(max(detailViewportHeight * 0.55, 180), 280))
-                .allowsHitTesting(false)
-            }
-        }
+
     }
 
     @ViewBuilder
@@ -2834,9 +2809,9 @@ struct MediaDetailContentView: View {
 
         if ExperimentalFeatureState.isEnabledAtLaunch {
             let bleedColor = mediaDetailHeroBleedColor ?? heroBlendColor
-            // The poster itself receives the fade here. Landscape continuation
-            // into the first detail rows is drawn by contentContainer so it is
-            // not clipped by the hero frame or carried down the episode list.
+            // Keep the landscape fade on the poster/hero surface. It is
+            // deliberately clipped to the hero bounds so it never follows
+            // the scroll into the episode list.
             let gradientHeight = usesLandscapeDetailComposition
                 ? headerHeight * 0.72
                 : max(designMetrics.heroBottomFadeHeight + 90, usesWideDetailLayout ? 560 : 430)
