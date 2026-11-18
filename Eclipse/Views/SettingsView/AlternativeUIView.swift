@@ -22,7 +22,6 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
     case interface
     case globalAppearance
     case accentColor
-    case switchModeAnimation
     case animatedBackground
     case animationQuality
     case animationColor
@@ -63,7 +62,7 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
             return "theme"
         case .interface, .globalAppearance, .accentColor:
             return "interface"
-        case .switchModeAnimation, .animatedBackground, .animationQuality, .animationColor, .customAnimationColor, .animationFrameRate, .appPerformanceOverlay, .hideSplashScreen:
+        case .animatedBackground, .animationQuality, .animationColor, .customAnimationColor, .animationFrameRate, .appPerformanceOverlay, .hideSplashScreen:
             return "motion"
         case .alternativeSeasonMenu, .horizontalEpisodeList, .showUnairedEpisodes, .titleLogoPosition, .titleLogoSize, .titleLogoWeight, .heroActionPosition, .heroSynopsisPosition, .landscapeTitleLogoPosition, .landscapeTitleLogoSize, .landscapeTitleLogoWeight, .landscapeHeroActionPosition, .landscapeHeroSynopsisPosition, .landscapeHeroHorizontalStretch, .landscapeHeroVerticalStretch, .landscapeContentHorizontalPosition, .tmdbTitleArt, .dataSaver, .ageRating, .similarTitles:
             return "details"
@@ -116,7 +115,6 @@ struct AlternativeUIView: View {
     @AppStorage(HomeAnimatedBackgroundParticleColor.customColorDataKey) private var customAnimationParticleColorData = Data()
     @AppStorage(AppPerformanceOverlaySettings.enabledKey) private var appPerformanceOverlayEnabled = AppPerformanceOverlaySettings.defaultEnabled
 #if !os(tvOS)
-    @AppStorage(ModeSwitchAnimationSettings.enabledKey) private var modeSwitchAnimationEnabled = ModeSwitchAnimationSettings.defaultEnabled
     @AppStorage("hideSplashScreen", store: ProfileSettingsStore.device) private var hideSplashScreen = false
 #endif
 
@@ -479,12 +477,6 @@ struct AlternativeUIView: View {
     private var appExperienceSection: some View {
         Section {
 #if !os(tvOS)
-            toggleRow(
-                title: "Switch Mode Animation",
-                description: PlatformCapabilities.current.platform == .macOS ? "Fade between Media and Reader. Reduce Motion turns this off." : "Animate the top-right Media and Reader mode switch.",
-                isOn: $modeSwitchAnimationEnabled
-            )
-            .id(AppearanceSettingsSearchTarget.switchModeAnimation.anchorID)
 #endif
 
             toggleRow(
@@ -1236,7 +1228,6 @@ struct AlternativeUIView: View {
         homeAnimatedBackgroundParticleColor = HomeAnimatedBackgroundParticleColor.defaultValue.rawValue
         appPerformanceOverlayEnabled = AppPerformanceOverlaySettings.defaultEnabled
 #if !os(tvOS)
-        modeSwitchAnimationEnabled = ModeSwitchAnimationSettings.defaultEnabled
         hideSplashScreen = false
 #endif
         mediaDetailAgeRatingEnabled = MediaDetailAgeRatingSettings.defaultEnabled
