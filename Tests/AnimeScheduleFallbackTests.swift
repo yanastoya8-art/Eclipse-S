@@ -831,6 +831,7 @@ final class AnimeScheduleLanguageLookupPolicyTests: XCTestCase {
         XCTAssertEqual(AnimeOriginalLanguagePolicy.languageCode(forCountry: "US"), "en")
         XCTAssertEqual(AnimeOriginalLanguagePolicy.languageCode(forCountry: "ES"), "es")
         XCTAssertNil(AnimeOriginalLanguagePolicy.languageCode(forCountry: "JP"))
+        XCTAssertNil(AnimeOriginalLanguagePolicy.languageCode(forCountry: "CA"))
         XCTAssertNil(AnimeOriginalLanguagePolicy.languageCode(forCountry: nil))
     }
 
