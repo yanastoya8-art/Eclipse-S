@@ -417,6 +417,11 @@ class TMDBService: ObservableObject {
         }
 
         var configuredRequest = URLRequest(url: url)
+        // URLSession's default request timeout is long enough to leave Browse
+        // showing its loading state for close to a minute on a stalled TMDB
+        // connection. Fail discover/keyword requests promptly so the UI can
+        // show its retry state instead of appearing permanently stuck.
+        configuredRequest.timeoutInterval = 15
         configuredRequest.setValue("application/json", forHTTPHeaderField: "Accept")
         configuredRequest.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
 #if DEBUG
