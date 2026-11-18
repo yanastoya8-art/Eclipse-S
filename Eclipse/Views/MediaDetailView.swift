@@ -1979,9 +1979,8 @@ struct MediaDetailContentView: View {
                     }
                 }
             }
-            // Keep the ScrollViewReader wrapper aligned with the edge-to-edge
-            // scroll view during the first navigation frame and rotation.
-            .ignoresSafeArea(edges: usesLandscapeDetailComposition ? [.top, .leading, .trailing] : .top)
+            // The ScrollView above is the sole owner of the edge-to-edge
+            // safe-area expansion; the reader wrapper stays layout-neutral.
         }
 #endif
     }
