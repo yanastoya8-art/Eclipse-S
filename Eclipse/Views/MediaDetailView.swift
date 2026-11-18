@@ -641,20 +641,6 @@ struct MediaDetailContentView: View {
         detailViewportSize.width > 0 ? detailViewportSize.width : EclipseViewport.bounds.width
     }
 
-    private var landscapeHeroHorizontalSafeAreaOffset: CGFloat {
-#if os(iOS) || os(tvOS)
-        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-        let window = scenes.flatMap(\.windows).first(where: \.isKeyWindow) ?? scenes.first?.windows.first
-        guard let window else { return 0 }
-        // GeometryReader is centred inside the asymmetric landscape safe area.
-        // Shift the full-width artwork back to the physical screen centre so a
-        // notch-side inset cannot leave a narrow strip on the opposite edge.
-        return (window.safeAreaInsets.right - window.safeAreaInsets.left) / 2
-#else
-        return 0
-#endif
-    }
-
     private var usesLandscapeDetailComposition: Bool {
 #if os(macOS)
         false
@@ -1963,7 +1949,12 @@ struct MediaDetailContentView: View {
                 // a visible blank band above the poster in portrait and
                 // landscape. Extend the scroll content to the top edge so the
                 // first pixel of the hero starts at the top of the viewport.
-                .ignoresSafeArea(edges: .top)
+                // Landscape detail must use the physical screen width, not the
+                // inset safe-area width. Keeping the ScrollView clipped to the
+                // safe-area viewport was the source of the persistent narrow
+                // poster gutters in landscape; the hero and its colour fade
+                // need the same edge-to-edge viewport.
+                .ignoresSafeArea(edges: usesLandscapeDetailComposition ? [.top, .horizontal] : .top)
                 .modifier(ScrollClipModifier())
                 .onPreferenceChange(ScrollOffsetPreferenceKey.self) { newOffset in
                     guard abs(scrollOffset - newOffset) >= scrollOffsetUpdateThreshold else { return }
@@ -2749,7 +2740,6 @@ struct MediaDetailContentView: View {
             .container,
             edges: usesLandscapeDetailComposition ? [.top, .horizontal] : .top
         )
-        .offset(x: usesLandscapeDetailComposition ? landscapeHeroHorizontalSafeAreaOffset : 0)
     }
 
     @ViewBuilder
@@ -2817,7 +2807,18 @@ struct MediaDetailContentView: View {
                 : max(designMetrics.heroBottomFadeHeight + 90, usesWideDetailLayout ? 560 : 430)
 
             LinearGradient(
-                gradient: Gradient(stops: [
+                gradient: Gradient(stops: usesLandscapeDetailComposition ? [
+                    // Blend the poster into the page in stages: first pick up
+                    // the artwork colour, then gently desaturate it into the
+                    // actual page surface. Ending on an opaque base-colour stop
+                    // prevents a visible horizontal seam at the hero boundary.
+                    .init(color: .clear, location: 0.0),
+                    .init(color: bleedColor.opacity(0.10 * bleedScale), location: 0.18),
+                    .init(color: bleedColor.opacity(0.24 * bleedScale), location: 0.42),
+                    .init(color: bleedColor.opacity(0.26 * bleedScale), location: 0.64),
+                    .init(color: bleedColor.opacity(0.14 * bleedScale), location: 0.84),
+                    .init(color: EclipseTheme.shared.backgroundBase, location: 1.0)
+                ] : [
                     .init(color: .clear, location: 0.0),
                     .init(color: bleedColor.opacity(0.08 * bleedScale), location: 0.20),
                     .init(color: bleedColor.opacity(0.28 * bleedScale), location: 0.48),
@@ -2845,7 +2846,14 @@ struct MediaDetailContentView: View {
                 : 120
 
             LinearGradient(
-                gradient: Gradient(stops: [
+                gradient: Gradient(stops: usesLandscapeDetailComposition ? [
+                    .init(color: legacyBleedColor.opacity(0.0), location: 0.0),
+                    .init(color: legacyBleedColor.opacity(0.12 * bleedScale), location: 0.20),
+                    .init(color: legacyBleedColor.opacity(0.28 * bleedScale), location: 0.44),
+                    .init(color: legacyBleedColor.opacity(0.24 * bleedScale), location: 0.66),
+                    .init(color: legacyBleedColor.opacity(0.10 * bleedScale), location: 0.86),
+                    .init(color: EclipseTheme.shared.backgroundBase, location: 1.0)
+                ] : [
                     .init(color: legacyBleedColor.opacity(0.0), location: 0.0),
                     .init(color: legacyBleedColor.opacity(0.16 * bleedScale), location: 0.20),
                     .init(color: legacyBleedColor.opacity(0.42 * bleedScale), location: 0.62),
