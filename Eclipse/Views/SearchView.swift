@@ -2940,6 +2940,12 @@ private struct BrowseMediaView: View {
             : typeFiltered
         guard !Task.isCancelled else { return [] }
 
+        // When Browse's age selector is set to All, the identity seed is all
+        // that the dub-language gate needs. Avoid fetching TMDB certifications
+        // and Taizen/MAL age ratings for every row; the shared catalog filter
+        // still resolves any separately enabled global age restrictions.
+        guard ageRating != .all else { return ratingCandidates }
+
         // Resolve both sources concurrently: anime age classifications come
         // from Taizen/MAL, while TMDB supplies national movie/TV certifications.
         async let tmdbRatingResolution: Void = TMDBMaturityRatingStore.shared.resolve(
