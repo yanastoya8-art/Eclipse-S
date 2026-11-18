@@ -106,6 +106,36 @@ final class AnimeScheduleFallbackTests: XCTestCase {
         ))
     }
 
+    func testGlobalAudioRequirementDoesNotBroadenAnExplicitDubLanguageSelection() {
+        XCTAssertEqual(
+            DubLanguageSelectionPolicy.effectiveLanguages(
+                selectedLanguages: [MyDubListLanguage.spanish.rawValue],
+                requiresEnglishSpanishAudio: true
+            ),
+            [MyDubListLanguage.spanish.rawValue]
+        )
+        XCTAssertEqual(
+            DubLanguageSelectionPolicy.effectiveLanguages(
+                selectedLanguages: [MyDubListLanguage.english.rawValue],
+                requiresEnglishSpanishAudio: true
+            ),
+            [MyDubListLanguage.english.rawValue]
+        )
+        XCTAssertEqual(
+            DubLanguageSelectionPolicy.effectiveLanguages(
+                selectedLanguages: [],
+                requiresEnglishSpanishAudio: true
+            ),
+            [MyDubListLanguage.english.rawValue, MyDubListLanguage.spanish.rawValue]
+        )
+        XCTAssertTrue(
+            DubLanguageSelectionPolicy.effectiveLanguages(
+                selectedLanguages: [],
+                requiresEnglishSpanishAudio: false
+            ).isEmpty
+        )
+    }
+
     func testJustWatchScheduleCacheExpiresAndRejectsFutureTimestamps() {
         let now = Date(timeIntervalSince1970: 2_000_000_000)
         let lifetime: TimeInterval = 12 * 60 * 60
