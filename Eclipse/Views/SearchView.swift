@@ -2242,11 +2242,6 @@ private struct BrowseMediaView: View {
         let existingRawResults = replacing ? [] : unfilteredResults
         if replacing { browseQueryGeneration = UUID() }
         let queryGeneration = browseQueryGeneration
-        let requiresAnimeIdentityBeforeFiltering = browseMediaType.isAnime && (
-            !MyDubListDubFilter.shared.selectedLanguages.isEmpty
-                || UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
-        )
-
         filterRefreshGeneration += 1
         filterRefreshTask?.cancel()
         filterRefreshTask = nil
@@ -2280,16 +2275,24 @@ private struct BrowseMediaView: View {
                 let combinedRawResults = replacing
                     ? pageResult.results
                     : existingRawResults + pageResult.results
-                let browseTypeFiltered = await filterResultsForBrowseType(
-                    combinedRawResults,
+                // The browse-type filter owns anime identity resolution. Running
+                // the resolver here as well repeated provider lookups on every page.
+                // Resolve only the newly fetched page. Existing pages already carry
+                // their anime identity seeds in unfilteredResults; resolving the
+                // entire accumulated catalog on every pagination step caused the
+                // same AniMap/AniList work to be repeated and made Browse appear
+                // stuck as the result set grew.
+                let fetchedPageBrowseResults = await filterResultsForBrowseType(
+                    pageResult.results,
                     mediaType: browseMediaType,
                     ageRating: ageRating
                 )
                 try Task.checkCancellation()
-                let fetchedPageIDs = Set(pageResult.results.map(\.id))
-                let fetchedPageBrowseResults = browseTypeFiltered.filter {
-                    fetchedPageIDs.contains($0.id)
-                }
+                let browseTypeFiltered = sortedDeduplicatedResults(
+                    existingRawResults + fetchedPageBrowseResults,
+                    by: sort
+                )
+                try Task.checkCancellation()
                 let contentFiltered = await contentFilter.filterSearchResultsResolvingRatings(
                     filterExcludedResults(
                         browseTypeFiltered,
@@ -2927,12 +2930,17 @@ private struct BrowseMediaView: View {
         // when no matching cached language snapshot exists.
         if mediaType.isAnime, !selectedDubLanguages.isEmpty,
            !MyDubListDubFilter.shared.prepareCachedSnapshot() {
-            // Do not keep the Browse grid behind sequential MyDubList
-            // downloads. The filter remains fail-closed until the cached
-            // identity set is ready; its refresh notification re-filters the
-            // retained first page without another discover request.
-            Task(priority: .utility) {
-                await MyDubListDubFilter.shared.refresh()
+            // Keep the page in its loading state until the selected-language
+            // identity snapshot is ready. Publishing an empty grid first and
+            // replacing it after a background refresh caused a visible empty
+            // state/flicker and repeated filtering work.
+            let refreshed = await MyDubListDubFilter.shared.refresh()
+            guard !Task.isCancelled else { return [] }
+            guard refreshed || MyDubListDubFilter.shared.prepareCachedSnapshot() else {
+                await MainActor.run {
+                    errorMessage = "Unable to verify the selected dub-language data. Check your connection and try again."
+                }
+                return []
             }
         }
         guard ageRating != .all || requiresAnimeIdentity else {

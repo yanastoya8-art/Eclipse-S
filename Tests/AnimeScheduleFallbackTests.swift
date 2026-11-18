@@ -826,6 +826,32 @@ final class UnifiedSpanishAndDubSchedulePolicyTests: XCTestCase {
 }
 
 
+final class AnimeScheduleLanguageLookupPolicyTests: XCTestCase {
+    func testAniListOriginCountryMapsOnlyEnglishAndSpanishNativeLanguages() {
+        XCTAssertEqual(AnimeOriginalLanguagePolicy.languageCode(forCountry: "US"), "en")
+        XCTAssertEqual(AnimeOriginalLanguagePolicy.languageCode(forCountry: "ES"), "es")
+        XCTAssertNil(AnimeOriginalLanguagePolicy.languageCode(forCountry: "JP"))
+        XCTAssertNil(AnimeOriginalLanguagePolicy.languageCode(forCountry: "CA"))
+        XCTAssertNil(AnimeOriginalLanguagePolicy.languageCode(forCountry: nil))
+    }
+
+    func testEnglishSelectionChecksJustWatchForNativeEnglishDates() {
+        XCTAssertTrue(
+            AnimeScheduleLanguageLookupPolicy.shouldQueryJustWatch(selectedLanguages: [MyDubListLanguage.english.rawValue])
+        )
+    }
+
+    func testSpanishSelectionChecksJustWatchForNativeSpanishDates() {
+        XCTAssertTrue(
+            AnimeScheduleLanguageLookupPolicy.shouldQueryJustWatch(selectedLanguages: [MyDubListLanguage.spanish.rawValue])
+        )
+    }
+
+    func testNoSelectedLanguageDoesNotQueryJustWatch() {
+        XCTAssertFalse(AnimeScheduleLanguageLookupPolicy.shouldQueryJustWatch(selectedLanguages: []))
+    }
+}
+
 final class ScheduleReleaseDatePolicyTests: XCTestCase {
     func testEarlierNativeReleaseWinsOverLaterDub() {
         let native = Date(timeIntervalSince1970: 100)
@@ -851,6 +877,63 @@ final class ScheduleReleaseDatePolicyTests: XCTestCase {
     func testNoQualifyingLanguageDateIsExcluded() {
         XCTAssertNil(ScheduleReleaseDatePolicy.earliest(native: nil, dubbed: nil))
         XCTAssertFalse(ScheduleReleaseDatePolicy.usesDubbedDate(native: nil, dubbed: nil))
+    }
+
+    func testNativeLanguageMatchIsKeptEvenWhenItIsNotMarkedAsStreamingRelease() {
+        let airing = AniListAiringScheduleEntry(
+            id: 1,
+            mediaId: 101,
+            title: "Example Anime",
+            airingAt: Date(timeIntervalSince1970: 100),
+            episode: 1,
+            coverImage: nil,
+            englishTitle: "Example Anime",
+            romajiTitle: nil,
+            nativeTitle: nil,
+            format: "TV",
+            hasKnownAiringTime: true,
+            scheduleProvider: .aniList,
+            malID: nil,
+            airingTimeWithdrawn: false,
+            originalLanguage: "en"
+        )
+        let nativeEntry = ScheduleEntry(animeEntry: airing)
+            .withAiringAt(airing.airingAt, isStreamingRelease: false)
+        let verifiedMatches = AnimeScheduleLanguageLookupPolicy.markVerifiedJustWatchMatches([nativeEntry])
+
+        XCTAssertEqual(nativeEntry.originalLanguage, "en")
+        XCTAssertEqual(verifiedMatches.count, 1)
+        XCTAssertFalse(verifiedMatches[0].isStreamingRelease)
+        XCTAssertEqual(verifiedMatches[0].provider, .aniList)
+        XCTAssertEqual(verifiedMatches[0].airingAt, airing.airingAt)
+    }
+
+    func testEarlierDubbedReleaseIsAttributedToJustWatch() {
+        let airing = AniListAiringScheduleEntry(
+            id: 2,
+            mediaId: 102,
+            title: "Dubbed Anime",
+            airingAt: Date(timeIntervalSince1970: 200),
+            episode: 1,
+            coverImage: nil,
+            englishTitle: "Dubbed Anime",
+            romajiTitle: nil,
+            nativeTitle: nil,
+            format: "TV",
+            hasKnownAiringTime: true,
+            scheduleProvider: .aniList,
+            malID: nil,
+            airingTimeWithdrawn: false,
+            originalLanguage: "ja"
+        )
+        let dubbedEntry = ScheduleEntry(animeEntry: airing)
+            .withAiringAt(Date(timeIntervalSince1970: 150), isStreamingRelease: true)
+        let verifiedMatches = AnimeScheduleLanguageLookupPolicy.markVerifiedJustWatchMatches([dubbedEntry])
+
+        XCTAssertEqual(verifiedMatches.count, 1)
+        XCTAssertTrue(verifiedMatches[0].isStreamingRelease)
+        XCTAssertEqual(verifiedMatches[0].provider, .justWatch)
+        XCTAssertEqual(verifiedMatches[0].airingAt, Date(timeIntervalSince1970: 150))
     }
 }
 

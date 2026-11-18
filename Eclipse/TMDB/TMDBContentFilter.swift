@@ -127,6 +127,11 @@ final class MyDubListDubFilter: @unchecked Sendable {
     }
 
     private let lock = NSLock()
+    // Coalesce concurrent Home, Browse, and Schedule requests into one
+    // language-index refresh instead of downloading the same datasets repeatedly.
+    private var refreshTask: Task<Bool, Never>?
+    private var refreshTaskLanguages: Set<String>?
+    private var refreshTaskID: UUID?
     private var allowedMALIDs: Set<Int> = []
     private var allowedAniListIDs: Set<Int> = []
     private var allowedEnglishMALIDs: Set<Int> = []
@@ -174,25 +179,73 @@ final class MyDubListDubFilter: @unchecked Sendable {
         let valid = languages.filter { Self.supportedLanguages.contains($0) }
         ProfileSettingsStore.active.set(valid.sorted(), forKey: Self.selectedLanguagesKey)
         lock.lock()
+        refreshTask?.cancel()
+        refreshTask = nil
+        refreshTaskLanguages = nil
+        refreshTaskID = nil
         isLoaded = false
         lock.unlock()
         notifyRefreshObservers()
     }
 
+    private func cancelRefreshTask() {
+        lock.lock()
+        refreshTask?.cancel()
+        refreshTask = nil
+        refreshTaskLanguages = nil
+        refreshTaskID = nil
+        lock.unlock()
+    }
+
+    private func refreshTask(for languages: Set<String>) -> (Task<Bool, Never>, UUID) {
+        lock.lock()
+        defer { lock.unlock() }
+        if let existingTask = refreshTask,
+           refreshTaskLanguages == languages {
+            return (existingTask, refreshTaskID ?? UUID())
+        }
+
+        refreshTask?.cancel()
+        let taskID = UUID()
+        refreshTaskLanguages = languages
+        let createdTask = Task { await self.performRefresh(for: languages) }
+        refreshTask = createdTask
+        refreshTaskID = taskID
+        return (createdTask, taskID)
+    }
+
+    private func finishRefreshTask(id: UUID) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard refreshTaskID == id else { return }
+        refreshTask = nil
+        refreshTaskLanguages = nil
+        refreshTaskID = nil
+    }
+
     func refresh() async -> Bool {
         let languages = selectedLanguages
         guard !languages.isEmpty else {
+            cancelRefreshTask()
             clearSnapshot()
             notifyRefreshObservers()
             return true
         }
 
+        let (task, taskID) = refreshTask(for: languages)
+        let result = await task.value
+        finishRefreshTask(id: taskID)
+        return result
+    }
+
+    private func performRefresh(for languages: Set<String>) async -> Bool {
         loadCachedSnapshot(for: languages)
 
         do {
             var malIDs = Set<Int>()
             var englishMALIDs = Set<Int>()
             for language in languages.sorted() {
+                try Task.checkCancellation()
                 let url = URL(string: "https://raw.githubusercontent.com/Joelis57/MyDubList/main/dubs/confidence/low/dubbed_\(language).json")!
                 let data = try await Self.download(url, maximumBytes: 1_000_000)
                 let dataset = try JSONDecoder().decode(DubDataset.self, from: data)
@@ -204,6 +257,7 @@ final class MyDubListDubFilter: @unchecked Sendable {
                 }
             }
 
+            try Task.checkCancellation()
             let mappingURL = URL(string: "https://raw.githubusercontent.com/Joelis57/MyDubList/main/dubs/mappings/mappings_anilist.jsonl")!
             let mappingData = try await Self.download(mappingURL, maximumBytes: 4_000_000)
             guard let mappingText = String(data: mappingData, encoding: .utf8) else {
@@ -222,7 +276,9 @@ final class MyDubListDubFilter: @unchecked Sendable {
                 }
             }
 
-            guard languages == selectedLanguages else { return hasSnapshot(for: selectedLanguages) }
+            guard !Task.isCancelled, languages == selectedLanguages else {
+                return hasSnapshot(for: selectedLanguages)
+            }
             publishSnapshot(
                 malIDs: malIDs,
                 aniListIDs: aniListIDs,
@@ -240,8 +296,12 @@ final class MyDubListDubFilter: @unchecked Sendable {
             Logger.shared.log("MyDubList: loaded languages=\(languages.sorted().joined(separator: ",")) MAL=\(malIDs.count) AniList=\(aniListIDs.count)", type: "Anime")
             return true
         } catch {
-            Logger.shared.log("MyDubList: dub filter refresh failed: \(error.localizedDescription)", type: "Anime")
-            notifyRefreshObservers()
+            if !Task.isCancelled {
+                Logger.shared.log("MyDubList: dub filter refresh failed: \(error.localizedDescription)", type: "Anime")
+            }
+            // A failed refresh has not changed the available snapshot. Do not
+            // broadcast a filter-change event here: Browse and Schedule respond
+            // to that event by retrying, which used to create a refresh loop.
             return hasSnapshot(for: languages)
         }
     }

@@ -7,6 +7,41 @@
 
 import Foundation
 
+enum AnimeOriginalLanguagePolicy {
+    // AniList exposes countryOfOrigin rather than an audio-language field.
+    // Use only unambiguous English/Spanish origin countries for native-airing
+    // dates; other countries must be verified through JustWatch audio offers.
+    static func languageCode(forCountry country: String?) -> String? {
+        switch country?.uppercased() {
+        case "US", "GB", "AU", "NZ", "IE":
+            return "en"
+        case "ES", "MX", "AR", "CL", "CO", "PE", "VE", "UY", "BO", "PY",
+             "CR", "PA", "GT", "HN", "SV", "NI", "DO", "CU", "EC", "PR":
+            return "es"
+        default:
+            return nil
+        }
+    }
+}
+
+enum AnimeScheduleLanguageLookupPolicy {
+    // DubOnly/Tsuzuki provide dubbed timetables, not every native English
+    // or Spanish release. Query JustWatch for every selected language so the
+    // schedule can compare native and dubbed dates and keep the earliest.
+    static func shouldQueryJustWatch(selectedLanguages: Set<String>) -> Bool {
+        !selectedLanguages.isEmpty
+    }
+
+    static func markVerifiedJustWatchMatches(_ entries: [ScheduleEntry]) -> [ScheduleEntry] {
+        entries.map { entry in
+            // Native release dates remain attributed to AniList. Only entries
+            // whose selected-language streaming date won the comparison are
+            // labelled as JustWatch-provided releases.
+            entry.isStreamingRelease ? entry.markedAsVerifiedJustWatchLanguageMatch() : entry
+        }
+    }
+}
+
 enum ScheduleMode: String, CaseIterable, Identifiable, Sendable {
     case anime
     case western
@@ -227,7 +262,7 @@ struct ScheduleEntry: Identifiable, Sendable {
         tmdbId = nil
         animeMALID = animeEntry.malID
         airingTimeWithdrawn = animeEntry.airingTimeWithdrawn == true
-        originalLanguage = nil
+        originalLanguage = animeEntry.originalLanguage
         releaseYear = animeEntry.releaseYear
         runtimeMinutes = animeEntry.runtimeMinutes
         scheduleSourceURL = animeEntry.sourceURL
@@ -356,7 +391,7 @@ struct ScheduleEntry: Identifiable, Sendable {
         return copy
     }
 
-    func markedAsVerifiedJustWatchDub() -> ScheduleEntry {
+    func markedAsVerifiedJustWatchLanguageMatch() -> ScheduleEntry {
         var copy = self
         copy.provider = .justWatch
         return copy
@@ -1008,25 +1043,29 @@ final class ScheduleViewModel: ObservableObject {
                         )
                     }
 
-                    let needsJustWatchLanguageDates = selectedDubLanguages.contains(MyDubListLanguage.spanish.rawValue)
-                        || !permitsEnglishDubSchedule
-                        || (dubOnlyUnavailable(result) && permitsEnglishDubSchedule)
+                    let needsJustWatchLanguageDates = AnimeScheduleLanguageLookupPolicy.shouldQueryJustWatch(
+                        selectedLanguages: selectedDubLanguages
+                    )
                     if needsJustWatchLanguageDates {
-                        let broadcast = try? await self.retryOnceAfterTransientCancellation(operationName: "AniList anime identity schedule for JustWatch") {
-                            try await AniListService.shared.fetchAiringScheduleResult(daysAhead: dayCount)
+                        let nativeSchedule = try? await self.retryOnceAfterTransientCancellation(operationName: "AniList native airing identities for JustWatch") {
+                            try await AniListService.shared.fetchNativeAiringScheduleForLanguageVerification(daysAhead: dayCount)
                         }
-                        if let broadcast {
-                            let identityEntries = broadcast.entries.map(ScheduleEntry.init(animeEntry:))
+                        if let nativeSchedule {
+                            let identityEntries = nativeSchedule.map(ScheduleEntry.init(animeEntry:))
                             let languageMatches = await JustWatchScheduleService.shared.filter(
                                 entries: identityEntries,
                                 selectedLanguages: selectedDubLanguages
                             )
-                            // Only verified streaming/dub dates are allowed here.
-                            // AniList's Japanese broadcast date is never a fallback
-                            // for a selected English/Spanish dub filter.
-                            verifiedJustWatchEntries = languageMatches
-                                .filter(\.isStreamingRelease)
-                                .map { $0.markedAsVerifiedJustWatchDub() }
+                            // Only JustWatch-confirmed dates matching the selected audio
+                            // languages are allowed here. AniList's Japanese broadcast
+                            // date is never a fallback for a selected English/Spanish filter.
+                            // `filter` already enforces the selected audio languages and
+                            // chooses the earliest qualifying native-or-dub date. A native
+                            // English/Spanish release is intentionally not marked as a
+                            // streaming/dub date, so filtering on `isStreamingRelease`
+                            // here incorrectly removed valid native-language schedule rows.
+                            verifiedJustWatchEntries = AnimeScheduleLanguageLookupPolicy
+                                .markVerifiedJustWatchMatches(languageMatches)
 
                             // AI research is a sequential fallback for Spanish only:
                             // it compares all upcoming AniList episodes against JustWatch and only
