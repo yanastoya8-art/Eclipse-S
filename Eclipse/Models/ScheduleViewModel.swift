@@ -2763,21 +2763,23 @@ actor JustWatchScheduleService {
     }
 
     private func resolveShowID(for entry: ScheduleEntry, apiKey: String) async throws -> String {
-        let cacheKey = "\(entry.tmdbId.map(String.init) ?? "title")|\(entry.title.lowercased())|\(entry.releaseYear.map(String.init) ?? "0")"
-        if let cached = showIDCache[cacheKey] { return cached }
-        if let persisted = UserDefaults.standard.string(forKey: "justWatchShowIDV1.\(cacheKey)"), persisted.hasPrefix("ts") {
-            showIDCache[cacheKey] = persisted
-            return persisted
-        }
-
         // AniList's display title is not guaranteed to be the English title.
-        // Search and match every known alias so a Japanese/romaji display title
-        // does not prevent a valid JustWatch dub timetable from being found.
+        // Include every known alias in the cache identity so a previous
+        // title-only lookup cannot mask a better match.
         let aliases = [entry.englishTitle, entry.title, entry.romajiTitle, entry.nativeTitle]
             .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         var seenAliases = Set<String>()
         let searchAliases = aliases.filter { seenAliases.insert(Self.normalizedTitle($0)).inserted }
+        let aliasCacheKey = searchAliases.map(Self.normalizedTitle).sorted().joined(separator: ",")
+        let cacheKey = "\(entry.tmdbId.map(String.init) ?? "title")|\(aliasCacheKey)|\(entry.releaseYear.map(String.init) ?? "0")"
+        if let cached = showIDCache[cacheKey] { return cached }
+        // V2 deliberately bypasses show IDs persisted by the old title-only matcher.
+        if let persisted = UserDefaults.standard.string(forKey: "justWatchShowIDV2.\(cacheKey)"), persisted.hasPrefix("ts") {
+            showIDCache[cacheKey] = persisted
+            return persisted
+        }
+
         let exactTMDB = entry.tmdbId.map(String.init)
         let normalizedAliases = Set(searchAliases.map(Self.normalizedTitle))
         var resolvedID: String?
