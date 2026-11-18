@@ -888,13 +888,14 @@ final class ScheduleReleaseDatePolicyTests: XCTestCase {
             malID: nil,
             airingTimeWithdrawn: false
         )
-        let nativeMatch = ScheduleEntry(animeEntry: airing)
+        let nativeEntry = ScheduleEntry(animeEntry: airing)
             .withAiringAt(airing.airingAt, isStreamingRelease: false)
-            .markedAsVerifiedJustWatchLanguageMatch()
+        let verifiedMatches = AnimeScheduleLanguageLookupPolicy.markVerifiedJustWatchMatches([nativeEntry])
 
-        XCTAssertFalse(nativeMatch.isStreamingRelease)
-        XCTAssertEqual(nativeMatch.provider, .justWatch)
-        XCTAssertEqual(nativeMatch.airingAt, airing.airingAt)
+        XCTAssertEqual(verifiedMatches.count, 1)
+        XCTAssertFalse(verifiedMatches[0].isStreamingRelease)
+        XCTAssertEqual(verifiedMatches[0].provider, .justWatch)
+        XCTAssertEqual(verifiedMatches[0].airingAt, airing.airingAt)
     }
 }
 
