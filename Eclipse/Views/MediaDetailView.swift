@@ -641,6 +641,19 @@ struct MediaDetailContentView: View {
         detailViewportSize.width > 0 ? detailViewportSize.width : EclipseViewport.bounds.width
     }
 
+    /// GeometryReader is hosted inside NavigationStack's safe-area layout,
+    /// while the detail ScrollView deliberately extends under the status bar
+    /// and across the landscape side insets. Measure the full container bounds
+    /// so hero sizing and poster decoding use the same bounds as that
+    /// edge-to-edge ScrollView.
+    private func fullBleedViewportSize(for geometry: GeometryProxy) -> CGSize {
+        let insets = geometry.safeAreaInsets
+        return CGSize(
+            width: geometry.size.width + insets.leading + insets.trailing,
+            height: geometry.size.height + insets.top + insets.bottom
+        )
+    }
+
     private var usesLandscapeDetailComposition: Bool {
 #if os(macOS)
         false
@@ -1175,7 +1188,7 @@ struct MediaDetailContentView: View {
             navigationOverlay
 #endif
         }
-        .onAppear { detailViewportSize = geometry.size }
+        .onAppear { detailViewportSize = fullBleedViewportSize(for: geometry) }
         .task(id: exactAnimeNavigationSeedAniListId) {
             await loadAnimeAgeCertificationIfNeeded()
         }
@@ -1190,7 +1203,7 @@ struct MediaDetailContentView: View {
             }
         }
         .onChangeComp(of: geometry.size) { _, newSize in
-            detailViewportSize = newSize
+            detailViewportSize = fullBleedViewportSize(for: geometry)
         }
         }
 #if os(tvOS)
