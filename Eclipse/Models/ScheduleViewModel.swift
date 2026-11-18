@@ -9,8 +9,7 @@ import Foundation
 
 enum AnimeOriginalLanguagePolicy {
     // AniList exposes countryOfOrigin rather than an audio-language field.
-    // Use only unambiguous English/Spanish origin countries for native-airing
-    // dates; other countries must be verified through JustWatch audio offers.
+    // Only map countries with a strong English/Spanish production-language signal.
     static func languageCode(forCountry country: String?) -> String? {
         switch country?.uppercased() {
         case "US", "GB", "AU", "NZ", "IE":
@@ -25,20 +24,20 @@ enum AnimeOriginalLanguagePolicy {
 }
 
 enum AnimeScheduleLanguageLookupPolicy {
-    // DubOnly/Tsuzuki provide dubbed timetables, not every native English
-    // or Spanish release. Query JustWatch for every selected language so the
-    // schedule can compare native and dubbed dates and keep the earliest.
-    static func shouldQueryJustWatch(selectedLanguages: Set<String>) -> Bool {
+    static func shouldFetchNativeLanguageSchedule(selectedLanguages: Set<String>) -> Bool {
         !selectedLanguages.isEmpty
     }
 
-    static func markVerifiedJustWatchMatches(_ entries: [ScheduleEntry]) -> [ScheduleEntry] {
-        entries.map { entry in
-            // Native release dates remain attributed to AniList. Only entries
-            // whose selected-language streaming date won the comparison are
-            // labelled as JustWatch-provided releases.
-            entry.isStreamingRelease ? entry.markedAsVerifiedJustWatchLanguageMatch() : entry
-        }
+    static func nativeLanguageEntries(
+        _ entries: [ScheduleEntry],
+        selectedLanguages: Set<String>
+    ) -> [ScheduleEntry] {
+        entries.filter {
+            ScheduleAudioLanguagePolicy.matches(
+                originalLanguage: $0.originalLanguage,
+                selectedLanguages: selectedLanguages
+            )
+        }.map { $0.markedAsNativeLanguageMatch() }
     }
 }
 
@@ -143,7 +142,7 @@ enum ScheduleProvider: String, Codable, Sendable {
     case animeSchedule
     case dubOnly
     case tsuzuki
-    case justWatch
+    case nativeLanguage
     case trakt
     case traktMovie
     case tvMaze
@@ -394,9 +393,9 @@ struct ScheduleEntry: Identifiable, Sendable {
         return copy
     }
 
-    func markedAsVerifiedJustWatchLanguageMatch() -> ScheduleEntry {
+    func markedAsNativeLanguageMatch() -> ScheduleEntry {
         var copy = self
-        copy.provider = .justWatch
+        copy.provider = .nativeLanguage
         return copy
     }
 }
@@ -860,9 +859,9 @@ final class ScheduleViewModel: ObservableObject {
             guard !selectedLanguages.isEmpty else { return true }
             // DubOnly entries are already verified English-dub timetable rows;
             // do not require a second, unrelated MyDubList lookup to retain them.
-            if entry.provider == .justWatch || entry.provider == .aiSpanishDub {
-                // JustWatch has already verified the selected audio language;
-                // do not require a second MyDubList lookup for the same title.
+            if entry.provider == .nativeLanguage || entry.provider == .aiSpanishDub {
+                // Native-language metadata or cited Spanish-dub research already
+                // verified the selected language; no MyDubList lookup is needed.
                 return true
             }
             if entry.provider == .dubOnly || entry.provider == .tsuzuki {
@@ -1006,16 +1005,14 @@ final class ScheduleViewModel: ObservableObject {
                     englishSpanishAudioFilterEnabled: englishSpanishAudioFilterEnabled
                 )
                 let result: AnimeAiringScheduleResult
-                var verifiedJustWatchEntries: [ScheduleEntry] = []
+                var verifiedNativeLanguageEntries: [ScheduleEntry] = []
                 let permitsEnglishDubSchedule = AnimeScheduleFallback.permitsEnglishDubSchedule(
                     selectedDubLanguages: selectedDubLanguages,
                     englishSpanishAudioFilterEnabled: englishSpanishAudioFilterEnabled
                 )
                 if requiresDubSchedule {
                     if permitsEnglishDubSchedule {
-                        // Fetch both independent English-dub timetables concurrently.
-                        // DubOnly may be unavailable when its free/API quota is exhausted;
-                        // Tsuzuki is a no-key fallback and can also correct/supplement dates.
+                        // Independent, no-key English dub timetable providers.
                         async let dubOnlyResult: AnimeAiringScheduleResult? = try? await self.retryOnceAfterTransientCancellation(operationName: "DubOnly English-dub schedule") {
                             try await AnimeScheduleService.shared.fetchSchedule(daysAhead: dayCount)
                         }
@@ -1037,9 +1034,6 @@ final class ScheduleViewModel: ObservableObject {
                             )
                         }
                     } else {
-                        // DubOnly and Tsuzuki are English-only. Do not return an
-                        // empty Spanish calendar without trying the configured
-                        // JustWatch audio-language release lookup.
                         result = AnimeAiringScheduleResult(
                             entries: [],
                             isAuthoritativeForNotifications: false,
@@ -1047,43 +1041,29 @@ final class ScheduleViewModel: ObservableObject {
                         )
                     }
 
-                    let needsJustWatchLanguageDates = AnimeScheduleLanguageLookupPolicy.shouldQueryJustWatch(
+                    if AnimeScheduleLanguageLookupPolicy.shouldFetchNativeLanguageSchedule(
                         selectedLanguages: selectedDubLanguages
-                    )
-                    if needsJustWatchLanguageDates {
-                        let nativeSchedule = try? await self.retryOnceAfterTransientCancellation(operationName: "AniList native airing identities for JustWatch") {
+                    ) {
+                        let nativeSchedule = try? await self.retryOnceAfterTransientCancellation(
+                            operationName: "AniList native-language airing identities"
+                        ) {
                             try await AniListService.shared.fetchNativeAiringScheduleForLanguageVerification(daysAhead: dayCount)
                         }
                         if let nativeSchedule {
-                            let identityEntries = nativeSchedule.map(ScheduleEntry.init(animeEntry:))
-                            let languageMatches = await JustWatchScheduleService.shared.filter(
-                                entries: identityEntries,
+                            let nativeEntries = nativeSchedule.map(ScheduleEntry.init(animeEntry:))
+                            verifiedNativeLanguageEntries = AnimeScheduleLanguageLookupPolicy.nativeLanguageEntries(
+                                nativeEntries,
                                 selectedLanguages: selectedDubLanguages
                             )
-                            // Only JustWatch-confirmed dates matching the selected audio
-                            // languages are allowed here. AniList's Japanese broadcast
-                            // date is never a fallback for a selected English/Spanish filter.
-                            // `filter` already enforces the selected audio languages and
-                            // chooses the earliest qualifying native-or-dub date. A native
-                            // English/Spanish release is intentionally not marked as a
-                            // streaming/dub date, so filtering on `isStreamingRelease`
-                            // here incorrectly removed valid native-language schedule rows.
-                            verifiedJustWatchEntries = AnimeScheduleLanguageLookupPolicy
-                                .markVerifiedJustWatchMatches(languageMatches)
 
-                            // AI research is a sequential fallback for Spanish only:
-                            // it compares all upcoming AniList episodes against JustWatch and only
-                            // accepts future dates backed by returned web citations.
+                            // Spanish dubbed dates are researched only from official/reputable
+                            // web citations. If no configured research key succeeds, no
+                            // Japanese broadcast date is substituted.
                             if selectedDubLanguages.contains(MyDubListLanguage.spanish.rawValue) {
-                                // AI-backed Spanish-date research can take 18 seconds
-                                // per configured provider. Do not hold the first
-                                // Schedule render behind this optional enrichment:
-                                // publish verified JustWatch/AniList results first,
-                                // then merge confirmed Spanish dates in the background.
-                                let researchCandidates = broadcast.entries
                                 self.spanishDubResearchTask?.cancel()
                                 self.spanishDubResearchTask = Task(priority: .utility) { @MainActor [weak self] in
-                                    let researched = await SpanishDubAIResearchService.shared.research(entries: researchCandidates)
+                                    let candidates = nativeSchedule
+                                    let researched = await SpanishDubAIResearchService.shared.research(entries: candidates)
                                     guard !Task.isCancelled,
                                           let self,
                                           self.animeScheduleCachedPolicyKey == policyKey,
@@ -1107,7 +1087,7 @@ final class ScheduleViewModel: ObservableObject {
                         try await AniListService.shared.fetchAiringScheduleResult(daysAhead: dayCount)
                     }
                 }
-                var entries = result.entries.map(ScheduleEntry.init(animeEntry:)) + verifiedJustWatchEntries
+                var entries = result.entries.map(ScheduleEntry.init(animeEntry:)) + verifiedNativeLanguageEntries
                 var earliestByEpisode: [String: ScheduleEntry] = [:]
                 for entry in entries {
                     let key = entry.source == .anime
@@ -1208,9 +1188,9 @@ final class ScheduleViewModel: ObservableObject {
                 // air dates without requiring a Trakt client ID or OAuth setup.
                 let rawEntries = try await TVMazeService.shared.fetchSchedule(dayCount: dayCount)
                 try Task.checkCancellation()
-                let languageFiltered = await JustWatchScheduleService.shared.filter(
+                let languageFiltered = ScheduleAudioLanguagePolicy.filter(
                     entries: rawEntries,
-                    selectedLanguages: MyDubListDubFilter.shared.selectedLanguages
+                    selectedLanguages: MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
                 )
                 let entries = await self.applyShortRuntimeScheduleFilter(languageFiltered)
                 try Task.checkCancellation()
@@ -1266,9 +1246,9 @@ final class ScheduleViewModel: ObservableObject {
             // client ID and is available with the app's existing TMDB configuration.
             let rawEntries = try await tmdbUpcomingMovieEntries(in: window)
             try Task.checkCancellation()
-            let languageFiltered = await JustWatchScheduleService.shared.filterMovies(
+            let languageFiltered = ScheduleAudioLanguagePolicy.filter(
                 entries: rawEntries,
-                selectedLanguages: MyDubListDubFilter.shared.selectedLanguages
+                selectedLanguages: MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
             )
             let filteredEntries = await applyShortRuntimeScheduleFilter(languageFiltered)
             try Task.checkCancellation()
@@ -2489,653 +2469,44 @@ fileprivate struct TVMazeCountry: Decodable {
 }
 
 
-enum JustWatchScheduleCachePolicy {
-    static func isFresh(fetchedAt: Date, now: Date, lifetime: TimeInterval) -> Bool {
-        let age = now.timeIntervalSince(fetchedAt)
-        return age >= 0 && age < lifetime
-    }
-}
-
-enum ScheduleReleaseDatePolicy {
-    static func earliest(native: Date?, dubbed: Date?) -> Date? {
-        [native, dubbed].compactMap { $0 }.min()
-    }
-
-    static func usesDubbedDate(native: Date?, dubbed: Date?) -> Bool {
-        guard let dubbed else { return false }
-        return native.map { dubbed < $0 } ?? true
-    }
-}
-
-actor JustWatchScheduleService {
-    static let shared = JustWatchScheduleService()
-
-    private struct CachedEpisodeDates: Codable {
-        let fetchedAt: Date
-        let datesByEpisode: [String: String]
-    }
-    private struct CachedMovieDates: Codable {
-        let fetchedAt: Date
-        let dates: [Date]
-    }
-    private struct CachedAudioAvailability: Codable {
-        let fetchedAt: Date
-        let isAvailable: Bool
-    }
-
-    private let baseURL = URL(string: "https://api.api.sh/justwatch/v1")!
-    private let cacheLifetime: TimeInterval = 12 * 60 * 60
-    private var showIDCache: [String: String] = [:]
-    private var seasonDateCache: [String: CachedEpisodeDates] = [:]
-    private var movieIDCache: [String: String] = [:]
-    private var movieDateCache: [String: CachedMovieDates] = [:]
-    private var audioAvailabilityCache: [String: CachedAudioAvailability] = [:]
-
-    private static func effectiveScheduleLanguageCodes(_ selectedLanguages: Set<String>) -> Set<String>? {
-        let languageFilterEnabled = !selectedLanguages.isEmpty
+enum ScheduleAudioLanguagePolicy {
+    static func effectiveLanguageCodes(_ selectedLanguages: Set<String>) -> Set<String>? {
+        let enabled = !selectedLanguages.isEmpty
             || UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
-        guard languageFilterEnabled else { return nil }
-
-        let effectiveLanguages = DubLanguageSelectionPolicy.effectiveLanguages(
+        guard enabled else { return nil }
+        let effective = DubLanguageSelectionPolicy.effectiveLanguages(
             selectedLanguages: selectedLanguages,
             requiresEnglishSpanishAudio: UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
         )
-        let configuredCodes = Set(effectiveLanguages.flatMap { raw in
+        let codes = Set(effective.flatMap { raw in
             MyDubListLanguage(rawValue: raw)?.episodeMetadataLanguageCodes.map { $0.lowercased() } ?? []
         })
-        // The global content-language switch means English or Spanish native
-        // audio / dubbed availability even when the separate language picker
-        // has no explicit selections. Never interpret an enabled filter as
-        // "show every language".
-        return configuredCodes.isEmpty ? ["en", "es"] : configuredCodes
+        return codes.isEmpty ? ["en", "es"] : codes
     }
 
-    func hasAudioLanguageOffer(
-        tmdbID: Int,
-        title: String,
-        releaseYear: Int?,
-        isMovie: Bool,
+    static func matches(originalLanguage: String?, selectedLanguages: Set<String>) -> Bool {
+        guard let codes = effectiveLanguageCodes(selectedLanguages) else { return true }
+        guard let raw = originalLanguage?.lowercased(), !raw.isEmpty else { return false }
+        let code = raw.replacingOccurrences(of: "_", with: "-")
+        return codes.contains(code)
+            || codes.contains(where: { code.hasPrefix($0 + "-") })
+            || ((code == "es" || code.hasPrefix("es-"))
+                && codes.contains(where: { $0 == "es" || $0.hasPrefix("es-") }))
+    }
+
+    // No external audio-offer API is called. Unknown/non-native audio is
+    // deliberately false so a missing provider never becomes a false positive.
+    static func hasAudioLanguageOffer(
         originalLanguage: String?,
         selectedLanguages: Set<String>
-    ) async -> Bool? {
-        guard let selectedCodes = Self.effectiveScheduleLanguageCodes(selectedLanguages) else {
-            return true
-        }
-        if Self.language(originalLanguage, matches: selectedCodes) { return true }
-        guard tmdbID > 0,
-              let apiKey = JustWatchAPIKeyStore.load(),
-              !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return nil
-        }
-
-        let cacheKey = "\(isMovie ? "movie" : "show")|\(tmdbID)|BG|\(selectedCodes.sorted().joined(separator: ","))"
-        let now = Date()
-        if let cached = audioAvailabilityCache[cacheKey],
-           JustWatchScheduleCachePolicy.isFresh(fetchedAt: cached.fetchedAt, now: now, lifetime: cacheLifetime) {
-            return cached.isAvailable
-        }
-        let persistedKey = "justWatchCatalogAudioV1.\(cacheKey)"
-        if let data = UserDefaults.standard.data(forKey: persistedKey),
-           let cached = try? JSONDecoder().decode(CachedAudioAvailability.self, from: data),
-           JustWatchScheduleCachePolicy.isFresh(fetchedAt: cached.fetchedAt, now: now, lifetime: cacheLifetime) {
-            audioAvailabilityCache[cacheKey] = cached
-            return cached.isAvailable
-        }
-
-        do {
-            let justWatchID = try await resolveCatalogTitleID(
-                tmdbID: tmdbID,
-                title: title,
-                releaseYear: releaseYear,
-                isMovie: isMovie,
-                apiKey: apiKey
-            )
-            var components = URLComponents(
-                url: baseURL.appendingPathComponent("title"),
-                resolvingAgainstBaseURL: false
-            )
-            components?.queryItems = [
-                URLQueryItem(name: "id", value: justWatchID),
-                URLQueryItem(name: "countries", value: "BG"),
-                URLQueryItem(name: "language", value: "en")
-            ]
-            guard let url = components?.url else { return nil }
-            let payload = try await requestJSON(url: url, apiKey: apiKey)
-            let offersByCountry = payload["offers"] as? [String: [[String: Any]]] ?? [:]
-            let offers = offersByCountry["BG"] ?? offersByCountry.values.flatMap { $0 }
-            let isAvailable = offers.contains {
-                Self.languages($0["audio_languages"], match: selectedCodes)
-            }
-            let cached = CachedAudioAvailability(fetchedAt: Date(), isAvailable: isAvailable)
-            audioAvailabilityCache[cacheKey] = cached
-            if let data = try? JSONEncoder().encode(cached) {
-                UserDefaults.standard.set(data, forKey: persistedKey)
-            }
-            return isAvailable
-        } catch {
-            Logger.shared.log(
-                "JustWatch catalog audio lookup failed for \(tmdbID): \(error.localizedDescription)",
-                type: "TMDB"
-            )
-            return nil
-        }
+    ) -> Bool? {
+        matches(originalLanguage: originalLanguage, selectedLanguages: selectedLanguages)
     }
 
-    private func resolveCatalogTitleID(
-        tmdbID: Int,
-        title: String,
-        releaseYear: Int?,
-        isMovie: Bool,
-        apiKey: String
-    ) async throws -> String {
-        let cacheKey = "\(tmdbID)|\(title.lowercased())|\(releaseYear ?? 0)"
-        let memoryCache = isMovie ? movieIDCache[cacheKey] : showIDCache[cacheKey]
-        if let memoryCache { return memoryCache }
-        let persistedPrefix = isMovie ? "justWatchMovieIDV1." : "justWatchShowIDV1."
-        if let persisted = UserDefaults.standard.string(forKey: persistedPrefix + cacheKey),
-           persisted.hasPrefix(isMovie ? "tm" : "ts") {
-            if isMovie { movieIDCache[cacheKey] = persisted }
-            else { showIDCache[cacheKey] = persisted }
-            return persisted
-        }
-
-        var components = URLComponents(
-            url: baseURL.appendingPathComponent("search"),
-            resolvingAgainstBaseURL: false
-        )
-        components?.queryItems = [
-            URLQueryItem(name: "q", value: title),
-            URLQueryItem(name: "country", value: "BG"),
-            URLQueryItem(name: "type", value: isMovie ? "movie" : "show"),
-            URLQueryItem(name: "limit", value: "40")
-        ]
-        guard let url = components?.url else { throw JustWatchScheduleError.invalidURL }
-        let payload = try await requestJSON(url: url, apiKey: apiKey)
-        guard let titles = payload["titles"] as? [[String: Any]] else {
-            throw JustWatchScheduleError.invalidResponse
-        }
-        let expectedType = isMovie ? "MOVIE" : "SHOW"
-        let normalized = Self.normalizedTitle(title)
-        let candidates = titles.filter { candidate in
-            guard (candidate["type"] as? String)?.uppercased() == expectedType else { return false }
-            if Self.stringValue(candidate["tmdb_id"]) == String(tmdbID) { return true }
-            let names = [
-                candidate["title"] as? String,
-                candidate["original_title"] as? String
-            ].compactMap { $0 }.map(Self.normalizedTitle)
-            guard names.contains(normalized) else { return false }
-            if let releaseYear, let candidateYear = Self.intValue(candidate["year"]) {
-                return abs(candidateYear - releaseYear) <= 1
-            }
-            return true
-        }
-        guard let id = candidates.first?["id"] as? String,
-              id.hasPrefix(isMovie ? "tm" : "ts") else {
-            throw JustWatchScheduleError.titleNotFound
-        }
-        if isMovie { movieIDCache[cacheKey] = id }
-        else { showIDCache[cacheKey] = id }
-        UserDefaults.standard.set(id, forKey: persistedPrefix + cacheKey)
-        return id
-    }
-
-    func filterMovies(
-        entries: [ScheduleEntry],
-        selectedLanguages: Set<String>
-    ) async -> [ScheduleEntry] {
-        guard let selectedCodes = Self.effectiveScheduleLanguageCodes(selectedLanguages) else {
-            return entries
-        }
-        var filtered: [ScheduleEntry] = []
-        for entry in entries {
-            let nativeDate = Self.language(entry.originalLanguage, matches: selectedCodes) ? entry.airingAt : nil
-            guard let apiKey = JustWatchAPIKeyStore.load(),
-                  !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                  let movieID = try? await resolveMovieID(for: entry, apiKey: apiKey),
-                  let dubbedDates = try? await movieReleaseDates(
-                    movieID: movieID,
-                    selectedCodes: selectedCodes,
-                    apiKey: apiKey
-                  ) else {
-                if let nativeDate {
-                    filtered.append(entry.withAiringAt(nativeDate, isStreamingRelease: false))
-                }
-                continue
-            }
-            let dubbedDate = dubbedDates.min()
-            guard let earliest = ScheduleReleaseDatePolicy.earliest(native: nativeDate, dubbed: dubbedDate) else {
-                continue
-            }
-            filtered.append(entry.withAiringAt(
-                earliest,
-                isStreamingRelease: ScheduleReleaseDatePolicy.usesDubbedDate(
-                    native: nativeDate,
-                    dubbed: dubbedDate
-                )
-            ))
-        }
-        return filtered.sorted { $0.airingAt < $1.airingAt }
-    }
-
-    private func resolveMovieID(for entry: ScheduleEntry, apiKey: String) async throws -> String {
-        let cacheKey = "\(entry.tmdbId.map(String.init) ?? "title")|\(entry.title.lowercased())|\(entry.releaseYear.map(String.init) ?? "0")"
-        if let cached = movieIDCache[cacheKey] { return cached }
-        if let persisted = UserDefaults.standard.string(forKey: "justWatchMovieIDV1.\(cacheKey)"),
-           persisted.hasPrefix("tm") {
-            movieIDCache[cacheKey] = persisted
-            return persisted
-        }
-        var components = URLComponents(url: baseURL.appendingPathComponent("search"), resolvingAgainstBaseURL: false)
-        components?.queryItems = [
-            URLQueryItem(name: "q", value: entry.title),
-            URLQueryItem(name: "country", value: "BG"),
-            URLQueryItem(name: "type", value: "movie"),
-            URLQueryItem(name: "limit", value: "40")
-        ]
-        guard let url = components?.url else { throw JustWatchScheduleError.invalidURL }
-        let payload = try await requestJSON(url: url, apiKey: apiKey)
-        guard let titles = payload["titles"] as? [[String: Any]] else {
-            throw JustWatchScheduleError.invalidResponse
-        }
-        let exactTMDB = entry.tmdbId.map(String.init)
-        let normalized = Self.normalizedTitle(entry.title)
-        let candidates = titles.filter { title in
-            guard (title["type"] as? String)?.uppercased() == "MOVIE" else { return false }
-            if let exactTMDB { return Self.stringValue(title["tmdb_id"]) == exactTMDB }
-            let names = [title["title"] as? String, title["original_title"] as? String]
-                .compactMap { $0 }.map(Self.normalizedTitle)
-            guard names.contains(normalized) else { return false }
-            if let year = entry.releaseYear, let candidateYear = Self.intValue(title["year"]) {
-                return abs(candidateYear - year) <= 1
-            }
-            return true
-        }
-        guard let id = candidates.first?["id"] as? String, id.hasPrefix("tm") else {
-            throw JustWatchScheduleError.titleNotFound
-        }
-        movieIDCache[cacheKey] = id
-        UserDefaults.standard.set(id, forKey: "justWatchMovieIDV1.\(cacheKey)")
-        return id
-    }
-
-    private func movieReleaseDates(
-        movieID: String,
-        selectedCodes: Set<String>,
-        apiKey: String
-    ) async throws -> [Date] {
-        let languageKey = selectedCodes.sorted().joined(separator: ",")
-        let cacheKey = "\(movieID)|BG|\(languageKey)"
-        let now = Date()
-        if let cached = movieDateCache[cacheKey],
-           JustWatchScheduleCachePolicy.isFresh(fetchedAt: cached.fetchedAt, now: now, lifetime: cacheLifetime) {
-            return cached.dates
-        }
-        if let data = UserDefaults.standard.data(forKey: "justWatchMovieReleaseDatesV1.\(cacheKey)"),
-           let cached = try? JSONDecoder().decode(CachedMovieDates.self, from: data),
-           JustWatchScheduleCachePolicy.isFresh(fetchedAt: cached.fetchedAt, now: now, lifetime: cacheLifetime) {
-            movieDateCache[cacheKey] = cached
-            return cached.dates
-        }
-        var components = URLComponents(url: baseURL.appendingPathComponent("title"), resolvingAgainstBaseURL: false)
-        components?.queryItems = [
-            URLQueryItem(name: "id", value: movieID),
-            URLQueryItem(name: "countries", value: "BG"),
-            URLQueryItem(name: "language", value: "en")
-        ]
-        guard let url = components?.url else { throw JustWatchScheduleError.invalidURL }
-        let payload = try await requestJSON(url: url, apiKey: apiKey)
-        var dates = Self.matchingReleaseDates(in: payload, selectedCodes: selectedCodes)
-        if let offersByCountry = payload["offers"] as? [String: [[String: Any]]] {
-            for offers in offersByCountry.values {
-                for offer in offers where Self.languages(offer["audio_languages"], match: selectedCodes) {
-                    if let date = Self.date(in: offer) { dates.append(date) }
-                }
-            }
-        }
-        let uniqueDates = Array(Set(dates)).sorted()
-        let cached = CachedMovieDates(fetchedAt: Date(), dates: uniqueDates)
-        movieDateCache[cacheKey] = cached
-        if let data = try? JSONEncoder().encode(cached) {
-            UserDefaults.standard.set(data, forKey: "justWatchMovieReleaseDatesV1.\(cacheKey)")
-        }
-        return uniqueDates
-    }
-
-    func filter(
-        entries: [ScheduleEntry],
-        selectedLanguages: Set<String>
-    ) async -> [ScheduleEntry] {
-        guard let selectedCodes = Self.effectiveScheduleLanguageCodes(selectedLanguages) else {
-            return entries
-        }
-
-        let groups = Dictionary(grouping: entries, by: { entry in
-            "\(entry.tmdbId.map(String.init) ?? "title")|\(entry.title.lowercased())|\(entry.releaseYear.map(String.init) ?? "0")"
-        })
-        var filtered: [ScheduleEntry] = []
-
-        for group in groups.values {
-            guard let first = group.first else { continue }
-            // A native-language airing is a valid candidate, but it must not
-            // short-circuit provider lookup: a selected dub can arrive earlier.
-            // Compare both dates per episode and keep the earliest qualifying one.
-            let hasNativeRelease = Self.language(first.originalLanguage, matches: selectedCodes)
-
-            guard let apiKey = JustWatchAPIKeyStore.load(),
-                  !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                  let showID = try? await resolveShowID(for: first, apiKey: apiKey) else {
-                if hasNativeRelease { filtered.append(contentsOf: group) }
-                continue
-            }
-
-            // AniList airing entries do not carry a season number. JustWatch
-            // indexes ordinary single-cour anime under season 1; querying
-            // season 0 silently returned no Spanish/English episode dates.
-            let bySeason = Dictionary(grouping: group, by: { max($0.season ?? 1, 1) })
-            for (season, seasonEntries) in bySeason {
-                guard let dates = try? await episodeDates(
-                    showID: showID,
-                    season: season,
-                    selectedCodes: selectedCodes,
-                    apiKey: apiKey
-                ) else {
-                    if hasNativeRelease { filtered.append(contentsOf: seasonEntries) }
-                    continue
-                }
-
-                for entry in seasonEntries {
-                    let dubbedDate = dates[entry.episode]
-                    let nativeDate = hasNativeRelease ? entry.airingAt : nil
-                    guard let earliestDate = ScheduleReleaseDatePolicy.earliest(
-                        native: nativeDate,
-                        dubbed: dubbedDate
-                    ) else {
-                        continue
-                    }
-                    let isDubbedReleaseEarlier = ScheduleReleaseDatePolicy.usesDubbedDate(
-                        native: nativeDate,
-                        dubbed: dubbedDate
-                    )
-                    filtered.append(entry.withAiringAt(
-                        earliestDate,
-                        isStreamingRelease: isDubbedReleaseEarlier || entry.isStreamingRelease
-                    ))
-                }
-            }
-        }
-
-        return filtered.sorted { $0.airingAt < $1.airingAt }
-    }
-
-    private func resolveShowID(for entry: ScheduleEntry, apiKey: String) async throws -> String {
-        // AniList's display title is not guaranteed to be the English title.
-        // Include every known alias in the cache identity so a previous
-        // title-only lookup cannot mask a better match.
-        let aliases = [entry.englishTitle, entry.title, entry.romajiTitle, entry.nativeTitle]
-            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        var seenAliases = Set<String>()
-        let searchAliases = aliases.filter { seenAliases.insert(Self.normalizedTitle($0)).inserted }
-        let aliasCacheKey = searchAliases.map(Self.normalizedTitle).sorted().joined(separator: ",")
-        let cacheKey = "\(entry.tmdbId.map(String.init) ?? "title")|\(aliasCacheKey)|\(entry.releaseYear.map(String.init) ?? "0")"
-        if let cached = showIDCache[cacheKey] { return cached }
-        // V2 deliberately bypasses show IDs persisted by the old title-only matcher.
-        if let persisted = UserDefaults.standard.string(forKey: "justWatchShowIDV2.\(cacheKey)"), persisted.hasPrefix("ts") {
-            showIDCache[cacheKey] = persisted
-            return persisted
-        }
-
-        let exactTMDB = entry.tmdbId.map(String.init)
-        let normalizedAliases = Set(searchAliases.map(Self.normalizedTitle))
-        var resolvedID: String?
-
-        for query in searchAliases {
-            var components = URLComponents(url: baseURL.appendingPathComponent("search"), resolvingAgainstBaseURL: false)
-            components?.queryItems = [
-                URLQueryItem(name: "q", value: query),
-                URLQueryItem(name: "country", value: "BG"),
-                URLQueryItem(name: "type", value: "show"),
-                URLQueryItem(name: "limit", value: "40")
-            ]
-            guard let url = components?.url else { throw JustWatchScheduleError.invalidURL }
-            let payload = try await requestJSON(url: url, apiKey: apiKey)
-            guard let titles = payload["titles"] as? [[String: Any]] else {
-                throw JustWatchScheduleError.invalidResponse
-            }
-
-            let candidates = titles.filter { title in
-                guard (title["type"] as? String)?.uppercased() == "SHOW" else { return false }
-                if let exactTMDB {
-                    return Self.stringValue(title["tmdb_id"]) == exactTMDB
-                }
-                let candidateTitles = [
-                    title["title"] as? String,
-                    title["original_title"] as? String
-                ].compactMap { $0 }.map(Self.normalizedTitle)
-                guard candidateTitles.contains(where: { normalizedAliases.contains($0) }) else { return false }
-                if let year = entry.releaseYear, let candidateYear = Self.intValue(title["year"]) {
-                    return abs(candidateYear - year) <= 1
-                }
-                return true
-            }
-            if let id = candidates.first?["id"] as? String, id.hasPrefix("ts") {
-                resolvedID = id
-                break
-            }
-        }
-
-        guard let id = resolvedID else { throw JustWatchScheduleError.titleNotFound }
-        showIDCache[cacheKey] = id
-        UserDefaults.standard.set(id, forKey: "justWatchShowIDV2.\(cacheKey)")
-        return id
-    }
-
-    private func episodeDates(
-        showID: String,
-        season: Int,
-        selectedCodes: Set<String>,
-        apiKey: String
-    ) async throws -> [Int: Date] {
-        let languageKey = selectedCodes.sorted().joined(separator: ",")
-        let cacheKey = "\(showID)|\(season)|BG|\(languageKey)"
-        let now = Date()
-        if let cached = seasonDateCache[cacheKey],
-           JustWatchScheduleCachePolicy.isFresh(fetchedAt: cached.fetchedAt, now: now, lifetime: cacheLifetime) {
-            return Self.episodeDates(from: cached)
-        }
-        if let cachedData = UserDefaults.standard.data(forKey: "justWatchEpisodeDatesV1.\(cacheKey)"),
-           let cached = try? JSONDecoder().decode(CachedEpisodeDates.self, from: cachedData),
-           JustWatchScheduleCachePolicy.isFresh(fetchedAt: cached.fetchedAt, now: now, lifetime: cacheLifetime) {
-            seasonDateCache[cacheKey] = cached
-            return Self.episodeDates(from: cached)
-        }
-
-        var components = URLComponents(url: baseURL.appendingPathComponent("seasons"), resolvingAgainstBaseURL: false)
-        components?.queryItems = [
-            URLQueryItem(name: "id", value: showID),
-            URLQueryItem(name: "season", value: String(season)),
-            URLQueryItem(name: "country", value: "BG"),
-            URLQueryItem(name: "language", value: "en"),
-            URLQueryItem(name: "limit", value: "100")
-        ]
-        guard let url = components?.url else { throw JustWatchScheduleError.invalidURL }
-        let payload = try await requestJSON(url: url, apiKey: apiKey)
-        guard let episodes = payload["episodes"] as? [[String: Any]] else {
-            throw JustWatchScheduleError.invalidResponse
-        }
-
-        var dates: [Int: Date] = [:]
-        for episode in episodes {
-            guard let number = Self.firstInt(episode, keys: ["number", "episode_number", "episodeNumber"]) else {
-                continue
-            }
-            let matchingDates = Self.matchingReleaseDates(in: episode, selectedCodes: selectedCodes)
-            if let earliest = matchingDates.min() {
-                dates[number] = earliest
-            }
-        }
-
-        let persisted = CachedEpisodeDates(
-            fetchedAt: Date(),
-            datesByEpisode: dates.reduce(into: [String: String]()) { result, item in
-                result[String(item.key)] = Self.dateString(item.value)
-            }
-        )
-        if let data = try? JSONEncoder().encode(persisted) {
-            UserDefaults.standard.set(data, forKey: "justWatchEpisodeDatesV1.\(cacheKey)")
-        }
-        seasonDateCache[cacheKey] = persisted
-        return dates
-    }
-
-    private func requestJSON(url: URL, apiKey: String) async throws -> [String: Any] {
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 25
-        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw JustWatchScheduleError.invalidResponse
-        }
-        guard (200..<300).contains(http.statusCode) else {
-            throw JustWatchScheduleError.httpStatus(http.statusCode)
-        }
-        guard data.count <= 8 * 1_024 * 1_024,
-              let payload = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              payload["success"] as? Bool != false else {
-            throw JustWatchScheduleError.invalidResponse
-        }
-        return payload
-    }
-
-    private static func episodeDates(from cached: CachedEpisodeDates) -> [Int: Date] {
-        cached.datesByEpisode.reduce(into: [Int: Date]()) { result, item in
-            if let episode = Int(item.key), episode > 0, let date = parseDate(item.value) {
-                result[episode] = date
-            }
-        }
-    }
-
-    private static func matchingReleaseDates(
-        in episode: [String: Any],
-        selectedCodes: Set<String>
-    ) -> [Date] {
-        var dates: [Date] = []
-        let upcoming = episode["upcoming_releases"] as? [[String: Any]] ?? []
-        for release in upcoming {
-            let nestedOffers: [[String: Any]]
-            if let offers = release["offers"] as? [[String: Any]] {
-                nestedOffers = offers
-            } else if let offersByCountry = release["offers"] as? [String: [[String: Any]]] {
-                nestedOffers = offersByCountry.values.flatMap { $0 }
-            } else {
-                nestedOffers = [release]
-            }
-            for offer in nestedOffers where languages(offer["audio_languages"], match: selectedCodes) {
-                if let date = date(in: offer) ?? date(in: release) {
-                    dates.append(date)
-                }
-            }
-        }
-        let offers = episode["offers"] as? [[String: Any]] ?? []
-        for offer in offers where languages(offer["audio_languages"], match: selectedCodes) {
-            if let date = date(in: offer) {
-                dates.append(date)
-            }
-        }
-        return dates
-    }
-
-    private static func languages(_ raw: Any?, match selectedCodes: Set<String>) -> Bool {
-        guard let values = raw as? [String] else { return false }
-        return values.contains { rawCode in
-            let code = rawCode.lowercased().replacingOccurrences(of: "_", with: "-")
-            return selectedCodes.contains(code)
-                || selectedCodes.contains(where: { code.hasPrefix($0 + "-") })
-                || (isSpanishLanguageCode(code)
-                    && selectedCodes.contains(where: isSpanishLanguageCode))
-        }
-    }
-
-    private static func language(_ raw: String?, matches selectedCodes: Set<String>) -> Bool {
-        guard let raw else { return false }
-        let code = raw.lowercased().replacingOccurrences(of: "_", with: "-")
-        return selectedCodes.contains(code)
-            || selectedCodes.contains(where: { code.hasPrefix($0 + "-") })
-            || (isSpanishLanguageCode(code)
-                && selectedCodes.contains(where: isSpanishLanguageCode))
-    }
-
-    private static func isSpanishLanguageCode(_ code: String) -> Bool {
-        code == "es" || code.hasPrefix("es-")
-    }
-
-    private static func date(in object: [String: Any]) -> Date? {
-        for key in ["release_date", "releaseDate", "date", "available_from", "availableFrom"] {
-            if let raw = object[key] as? String, let parsed = parseDate(raw) {
-                return parsed
-            }
-        }
-        return nil
-    }
-
-    private static func firstInt(_ object: [String: Any], keys: [String]) -> Int? {
-        for key in keys {
-            if let value = intValue(object[key]), value >= 0 { return value }
-        }
-        return nil
-    }
-
-    private static func intValue(_ raw: Any?) -> Int? {
-        if let value = raw as? Int { return value }
-        if let value = raw as? String { return Int(value) }
-        if let value = raw as? NSNumber { return value.intValue }
-        return nil
-    }
-
-    private static func stringValue(_ raw: Any?) -> String? {
-        if let value = raw as? String { return value }
-        if let value = raw as? NSNumber { return value.stringValue }
-        return nil
-    }
-
-    private static func normalizedTitle(_ value: String) -> String {
-        value.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "en_US_POSIX"))
-            .unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) }
-            .map(String.init).joined()
-    }
-
-    private static func parseDate(_ value: String) -> Date? {
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = fractional.date(from: value) { return date }
-        if let date = ISO8601DateFormatter().date(from: value) { return date }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.date(from: value)
-    }
-
-    private static func dateString(_ date: Date) -> String {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.string(from: date)
-    }
-}
-
-private enum JustWatchScheduleError: LocalizedError {
-    case invalidURL
-    case invalidResponse
-    case titleNotFound
-    case httpStatus(Int)
-
-    var errorDescription: String? {
-        switch self {
-        case .invalidURL: return "JustWatch schedule URL is invalid."
-        case .invalidResponse: return "JustWatch returned invalid episode-release metadata."
-        case .titleNotFound: return "JustWatch could not match this series to its TMDB identity."
-        case .httpStatus(let status): return "JustWatch schedule request failed (HTTP \(status))."
-        }
+    static func filter(entries: [ScheduleEntry], selectedLanguages: Set<String>) -> [ScheduleEntry] {
+        guard effectiveLanguageCodes(selectedLanguages) != nil else { return entries }
+        return entries.filter {
+            matches(originalLanguage: $0.originalLanguage, selectedLanguages: selectedLanguages)
+        }.sorted { $0.airingAt < $1.airingAt }
     }
 }
