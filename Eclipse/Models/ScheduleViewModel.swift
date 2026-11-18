@@ -7,6 +7,23 @@
 
 import Foundation
 
+enum AnimeOriginalLanguagePolicy {
+    // AniList exposes countryOfOrigin rather than an audio-language field.
+    // Use only unambiguous English/Spanish origin countries for native-airing
+    // dates; other countries must be verified through JustWatch audio offers.
+    static func languageCode(forCountry country: String?) -> String? {
+        switch country?.uppercased() {
+        case "US", "GB", "CA", "AU", "NZ", "IE", "ZA":
+            return "en"
+        case "ES", "MX", "AR", "CL", "CO", "PE", "VE", "UY", "BO", "PY",
+             "CR", "PA", "GT", "HN", "SV", "NI", "DO", "CU", "EC", "PR":
+            return "es"
+        default:
+            return nil
+        }
+    }
+}
+
 enum AnimeScheduleLanguageLookupPolicy {
     // DubOnly/Tsuzuki provide dubbed timetables, not every native English
     // or Spanish release. Query JustWatch for every selected language so the
@@ -240,7 +257,7 @@ struct ScheduleEntry: Identifiable, Sendable {
         tmdbId = nil
         animeMALID = animeEntry.malID
         airingTimeWithdrawn = animeEntry.airingTimeWithdrawn == true
-        originalLanguage = nil
+        originalLanguage = animeEntry.originalLanguage
         releaseYear = animeEntry.releaseYear
         runtimeMinutes = animeEntry.runtimeMinutes
         scheduleSourceURL = animeEntry.sourceURL
