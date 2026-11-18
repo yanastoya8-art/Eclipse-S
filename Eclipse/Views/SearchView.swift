@@ -2927,8 +2927,13 @@ private struct BrowseMediaView: View {
         // when no matching cached language snapshot exists.
         if mediaType.isAnime, !selectedDubLanguages.isEmpty,
            !MyDubListDubFilter.shared.prepareCachedSnapshot() {
-            _ = await MyDubListDubFilter.shared.refresh()
-            guard !Task.isCancelled else { return [] }
+            // Do not keep the Browse grid behind sequential MyDubList
+            // downloads. The filter remains fail-closed until the cached
+            // identity set is ready; its refresh notification re-filters the
+            // retained first page without another discover request.
+            Task(priority: .utility) {
+                await MyDubListDubFilter.shared.refresh()
+            }
         }
         guard ageRating != .all || requiresAnimeIdentity else {
             return typeFiltered
