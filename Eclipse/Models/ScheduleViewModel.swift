@@ -13,7 +13,7 @@ enum AnimeOriginalLanguagePolicy {
     // dates; other countries must be verified through JustWatch audio offers.
     static func languageCode(forCountry country: String?) -> String? {
         switch country?.uppercased() {
-        case "US", "GB", "CA", "AU", "NZ", "IE", "ZA":
+        case "US", "GB", "AU", "NZ", "IE":
             return "en"
         case "ES", "MX", "AR", "CL", "CO", "PE", "VE", "UY", "BO", "PY",
              "CR", "PA", "GT", "HN", "SV", "NI", "DO", "CU", "EC", "PR":
