@@ -893,3 +893,24 @@ final class NonAnimeMovieSchedulePolicyTests: XCTestCase {
         XCTAssertFalse(MovieSchedulePolicy.isAnime(language: "ko", genres: ["drama", "thriller"]))
     }
 }
+
+final class CatalogNativeAudioPolicyTests: XCTestCase {
+    func testNativeEnglishDoesNotNeedDubLookup() {
+        XCTAssertTrue(CatalogNativeAudioPolicy.hasEnglishOrSpanishAudio("en"))
+        XCTAssertTrue(CatalogNativeAudioPolicy.hasEnglishOrSpanishAudio("EN-US"))
+    }
+
+    func testNativeSpanishDoesNotNeedDubLookup() {
+        XCTAssertTrue(CatalogNativeAudioPolicy.hasEnglishOrSpanishAudio("es"))
+        XCTAssertTrue(CatalogNativeAudioPolicy.hasEnglishOrSpanishAudio("es-MX"))
+    }
+
+    func testJapaneseStillRequiresVerifiedDubEvidence() {
+        XCTAssertFalse(CatalogNativeAudioPolicy.hasEnglishOrSpanishAudio("ja"))
+    }
+
+    func testUnknownAudioDoesNotQualifyAsNativeEnglishOrSpanish() {
+        XCTAssertFalse(CatalogNativeAudioPolicy.hasEnglishOrSpanishAudio(nil))
+        XCTAssertFalse(CatalogNativeAudioPolicy.hasEnglishOrSpanishAudio(""))
+    }
+}

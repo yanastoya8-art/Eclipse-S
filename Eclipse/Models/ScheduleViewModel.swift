@@ -937,21 +937,10 @@ final class ScheduleViewModel: ObservableObject {
 
     @MainActor
     private func animeEntries(dayCount: Int, forceRefresh: Bool) async throws -> AnimeScheduleLoadResult {
-        // The schedule can be opened directly without the Home/Browse
-        // language-filter pipeline ever running. Refresh the selected-language
-        // dub index here as well, so the AniList identity fallback is not
-        // filtered against an unhydrated or stale MyDubList snapshot.
-        if !MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement.isEmpty,
-           !MyDubListDubFilter.shared.prepareCachedSnapshot() {
-            // Do not publish an empty calendar while the selected-language
-            // identity index is still downloading. Wait inside this load so the
-            // first visible schedule is already filtered correctly.
-            let refreshed = await MyDubListDubFilter.shared.refresh()
-            try Task.checkCancellation()
-            guard refreshed || MyDubListDubFilter.shared.prepareCachedSnapshot() else {
-                throw ScheduleSourceLoadError.languageMetadataUnavailable
-            }
-        }
+        // Verified timetable/native-language rows do not depend on MyDubList.
+        // Never block a cached calendar or healthy independent providers on an
+        // unrelated title index. Unverified rows still fail the language filter.
+        _ = MyDubListDubFilter.shared.prepareCachedSnapshot()
         let policyKey = currentAnimeSchedulePolicyKey()
         if animeScheduleLoadTask != nil, animeScheduleLoadPolicyKey != policyKey {
             // A language-filter change invalidates an in-flight request too;

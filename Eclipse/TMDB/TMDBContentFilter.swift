@@ -8,6 +8,13 @@
 import Combine
 import Foundation
 
+enum CatalogNativeAudioPolicy {
+    static func hasEnglishOrSpanishAudio(_ originalLanguage: String?) -> Bool {
+        let language = originalLanguage?.lowercased() ?? ""
+        return language.hasPrefix("en") || language.hasPrefix("es")
+    }
+}
+
 enum DubLanguageSelectionPolicy {
     static func effectiveLanguages(
         selectedLanguages: Set<String>,
@@ -788,6 +795,7 @@ class TMDBContentFilter: ObservableObject {
 
     private func resolveAnimeAudioMetadata(for results: [TMDBSearchResult]) async {
         let candidates = results.filter { result in
+            guard !CatalogNativeAudioPolicy.hasEnglishOrSpanishAudio(result.originalLanguage) else { return false }
             guard let id = result.animeIdentitySeed?.anilistId, id > 0 else { return false }
             animeEligibilityLock.lock()
             defer { animeEligibilityLock.unlock() }
@@ -814,11 +822,17 @@ class TMDBContentFilter: ObservableObject {
                 }
             }
 
-            var didResolveAny = false
             while let (id, eligible) = await group.next() {
                 if let eligible {
                     storeAnimeAudioEligibility(eligible, for: id)
-                    didResolveAny = true
+                    // Publish each completed lookup: a slow title must not hold
+                    // already-verified rows behind the whole six-title batch.
+                    await MainActor.run {
+                        NotificationCenter.default.post(
+                            name: TMDBContentFilter.catalogFiltersDidChangeNotification,
+                            object: nil
+                        )
+                    }
                 } else {
                     animeEligibilityLock.lock()
                     animeAudioLoadingIDs.remove(id)
@@ -840,13 +854,6 @@ class TMDBContentFilter: ObservableObject {
                     }
                 }
             }
-
-            if didResolveAny {
-                NotificationCenter.default.post(
-                    name: TMDBContentFilter.catalogFiltersDidChangeNotification,
-                    object: nil
-                )
-            }
         }
     }
 
@@ -854,22 +861,15 @@ class TMDBContentFilter: ObservableObject {
         _ results: [TMDBSearchResult],
         allowUpcomingContent: Bool = false
     ) async -> [TMDBSearchResult] {
-        // Resolve dub evidence before prepareMaturityRatings schedules its
-        // background refresh. Otherwise that task can claim the loading IDs
-        // first and make this awaited pass return before metadata is ready.
-        if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
-            let animeResults = results.filter { Self.isAnimeResult($0) }
-            await resolveAnimeAudioMetadata(for: animeResults)
-        }
+        // prepareMaturityRatings starts background audio verification. Return
+        // cached/native matches immediately; notification observers re-filter
+        // the retained snapshot as each unknown title becomes verified.
         await prepareMaturityRatings(for: results)
         return filterSearchResults(results, allowUpcomingContent: allowUpcomingContent)
     }
 
     func filterFastAnimeSearchResultsResolvingRatings(_ results: [TMDBSearchResult]) async -> [TMDBSearchResult] {
         let animeResults = results.map { $0.withAnimeHint(true) }
-        if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
-            await resolveAnimeAudioMetadata(for: animeResults)
-        }
         await prepareMaturityRatings(for: animeResults)
         return filterFastAnimeSearchResults(animeResults)
     }
@@ -1508,7 +1508,7 @@ class TMDBContentFilter: ObservableObject {
 
         if defaults.bool(forKey: "catalogRequireEnglishSpanishAudio") {
             guard let originalLanguage = result.originalLanguage?.lowercased() else { return false }
-            let hasNativeAudio = originalLanguage.hasPrefix("en") || originalLanguage.hasPrefix("es")
+            let hasNativeAudio = CatalogNativeAudioPolicy.hasEnglishOrSpanishAudio(originalLanguage)
             if !hasNativeAudio {
                 if isAnime {
                     guard let anilistID = result.animeIdentitySeed?.anilistId,
