@@ -828,10 +828,10 @@ final class ScheduleViewModel: ObservableObject {
             }
             if entry.provider == .dubOnly || entry.provider == .tsuzuki {
                 // Both schedule providers return verified English-dub dates.
-                // The global audio filter explicitly accepts English alongside
-                // Spanish, even when the anime-specific picker only contains Spanish.
-                if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
-                    || selectedLanguages.contains(MyDubListLanguage.english.rawValue) {
+                // Accept them only when English is part of the effective
+                // language selection. A Spanish-only selection must not be
+                // widened by the global audio requirement.
+                if selectedLanguages.contains(MyDubListLanguage.english.rawValue) {
                     return true
                 }
             }
