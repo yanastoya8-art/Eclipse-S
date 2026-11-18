@@ -2821,7 +2821,7 @@ actor JustWatchScheduleService {
 
         guard let id = resolvedID else { throw JustWatchScheduleError.titleNotFound }
         showIDCache[cacheKey] = id
-        UserDefaults.standard.set(id, forKey: "justWatchShowIDV1.\(cacheKey)")
+        UserDefaults.standard.set(id, forKey: "justWatchShowIDV2.\(cacheKey)")
         return id
     }
 
