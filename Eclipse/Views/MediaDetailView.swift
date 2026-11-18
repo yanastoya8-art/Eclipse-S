@@ -641,6 +641,21 @@ struct MediaDetailContentView: View {
         detailViewportSize.width > 0 ? detailViewportSize.width : EclipseViewport.bounds.width
     }
 
+    // GeometryReader reports the safe-area viewport inside NavigationStack.
+    // The detail scroll view is edge-to-edge, so its layout measurements must
+    // include the safe-area insets as well; otherwise the hero is sized to the
+    // narrower/shorter inset rectangle and exposes gutters above or beside it.
+    private func fullBleedViewportSize(for geometry: GeometryProxy) -> CGSize {
+        CGSize(
+            width: geometry.size.width
+                + max(0, geometry.safeAreaInsets.leading)
+                + max(0, geometry.safeAreaInsets.trailing),
+            height: geometry.size.height
+                + max(0, geometry.safeAreaInsets.top)
+                + max(0, geometry.safeAreaInsets.bottom)
+        )
+    }
+
     private var usesLandscapeDetailComposition: Bool {
 #if os(macOS)
         false
@@ -1175,7 +1190,7 @@ struct MediaDetailContentView: View {
             navigationOverlay
 #endif
         }
-        .onAppear { detailViewportSize = geometry.size }
+        .onAppear { detailViewportSize = fullBleedViewportSize(for: geometry) }
         .task(id: exactAnimeNavigationSeedAniListId) {
             await loadAnimeAgeCertificationIfNeeded()
         }
@@ -1189,8 +1204,8 @@ struct MediaDetailContentView: View {
                 await loadAnimeAgeCertificationIfNeeded(preferredAniListID: animeMetadata?.id)
             }
         }
-        .onChangeComp(of: geometry.size) { _, newSize in
-            detailViewportSize = newSize
+        .onChangeComp(of: geometry.size) { _, _ in
+            detailViewportSize = fullBleedViewportSize(for: geometry)
         }
         }
 #if os(tvOS)
@@ -2648,7 +2663,8 @@ struct MediaDetailContentView: View {
                     : 1.0,
                 artworkScaleY: usesLandscapeDetailComposition
                     ? CGFloat(min(max(landscapeHeroVerticalStretch, 0.85), 1.5))
-                    : 1.0
+                    : 1.0,
+                showsBottomFade: !usesLandscapeDetailComposition
             )
             // StretchyHeaderView can initially report its intrinsic artwork
             // size before the first scroll-layout pass. Give landscape artwork
