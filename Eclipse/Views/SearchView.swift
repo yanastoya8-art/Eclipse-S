@@ -2937,7 +2937,9 @@ private struct BrowseMediaView: View {
             let refreshed = await MyDubListDubFilter.shared.refresh()
             guard !Task.isCancelled else { return [] }
             guard refreshed || MyDubListDubFilter.shared.prepareCachedSnapshot() else {
-                errorMessage = "Unable to verify the selected dub-language data. Check your connection and try again."
+                await MainActor.run {
+                    errorMessage = "Unable to verify the selected dub-language data. Check your connection and try again."
+                }
                 return []
             }
         }
