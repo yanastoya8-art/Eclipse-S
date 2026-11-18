@@ -230,18 +230,7 @@ actor SearchResultTitleLogoCache {
 struct SearchResultCard: View {
     let result: TMDBSearchResult
     @Environment(\.heroNamespace) private var heroNamespace
-    @State private var resolvedTitleLogoURL: String?
     private var heroID: String { "search-\(result.stableIdentity)" }
-
-    private var isAnimeResult: Bool {
-        if result.animeIdentitySeed != nil || result.isAnimeHint == true {
-            return true
-        }
-        guard result.genreIds?.contains(16) == true else { return false }
-        let language = result.originalLanguage?.lowercased() ?? ""
-        return ["ja", "zh", "ko"].contains(where: language.hasPrefix)
-            || result.originCountry?.contains(where: { ["JP", "CN", "KR", "TW"].contains($0) }) == true
-    }
 
     var body: some View {
         NavigationLink(destination: MediaDetailView(searchResult: result)
@@ -262,27 +251,6 @@ struct SearchResultCard: View {
         .buttonStyle(PlainButtonStyle())
         .accessibilityIdentifier("media.search.result.\(result.stableIdentity)")
 #endif
-        .task(id: result.stableIdentity) {
-            // Prefer the anime provider's already-resolved logo when available.
-            // This avoids an unnecessary TMDB images request for every anime
-            // card while retaining TMDB's English-logo fallback for titles
-            // without provider artwork.
-            resolvedTitleLogoURL = nil
-            if isAnimeResult,
-               let animeLogo = result.animeLogoURL?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !animeLogo.isEmpty {
-                resolvedTitleLogoURL = animeLogo
-                return
-            }
-
-            // Resolve missing logos after the poster is visible. The shared
-            // cache deduplicates Home/Browse requests and only accepts English
-            // title artwork, never a Japanese-language logo.
-            resolvedTitleLogoURL = await SearchResultTitleLogoCache.shared.logoURL(
-                mediaType: result.isMovie ? "movie" : "tv",
-                id: result.id
-            )
-        }
     }
 
     @ViewBuilder
@@ -318,17 +286,6 @@ struct SearchResultCard: View {
                 )
             }
 
-            // A logo over a placeholder looks like a broken poster. Wait
-            // until at least one clean artwork provider has supplied a real
-            // image; the logo then appears together with the poster.
-            if !PosterArtworkURLResolver.candidates(for: result).isEmpty {
-                CenteredPosterTitleOverlay(
-                    title: result.displayTitle,
-                    logoURL: resolvedTitleLogoURL,
-                    fontSize: isTvOS ? 25 : (isIPad ? 18 : 14),
-                    verticalPosition: MediaDetailTitleLogoPositionSettings.defaultVerticalPosition
-                )
-            }
         }
         .aspectRatio(2/3, contentMode: .fill)
     }
