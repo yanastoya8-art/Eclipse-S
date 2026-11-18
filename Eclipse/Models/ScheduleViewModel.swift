@@ -2432,7 +2432,11 @@ actor JustWatchScheduleService {
         guard languageFilterEnabled else { return nil }
 
         var effectiveLanguages = selectedLanguages
-        if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
+        // Use English OR Spanish as the default only when the user has not
+        // selected a specific language. An explicit Spanish-only selection
+        // must never pull in English-only timetable rows (and vice versa).
+        if effectiveLanguages.isEmpty,
+           UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
             effectiveLanguages.formUnion([
                 MyDubListLanguage.english.rawValue,
                 MyDubListLanguage.spanish.rawValue
