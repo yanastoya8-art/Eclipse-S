@@ -104,6 +104,16 @@ final class AnimeScheduleFallbackTests: XCTestCase {
             hasSelectedLanguages: true,
             hasResolvedCounts: false
         ))
+        XCTAssertFalse(AnimeDubEpisodeMetadataLoadingPolicy.shouldLoadMetadata(
+            isAnime: true,
+            hasSelectedLanguages: true,
+            hasProviderIdentity: false
+        ), "Do not mark a season empty before its anime provider identity has resolved.")
+        XCTAssertTrue(AnimeDubEpisodeMetadataLoadingPolicy.shouldLoadMetadata(
+            isAnime: true,
+            hasSelectedLanguages: true,
+            hasProviderIdentity: true
+        ))
     }
 
     func testGlobalAudioRequirementDoesNotBroadenAnExplicitDubLanguageSelection() {
