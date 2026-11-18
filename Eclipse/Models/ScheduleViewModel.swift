@@ -33,7 +33,12 @@ enum AnimeScheduleLanguageLookupPolicy {
     }
 
     static func markVerifiedJustWatchMatches(_ entries: [ScheduleEntry]) -> [ScheduleEntry] {
-        entries.map { $0.markedAsVerifiedJustWatchLanguageMatch() }
+        entries.map { entry in
+            // Native release dates remain attributed to AniList. Only entries
+            // whose selected-language streaming date won the comparison are
+            // labelled as JustWatch-provided releases.
+            entry.isStreamingRelease ? entry.markedAsVerifiedJustWatchLanguageMatch() : entry
+        }
     }
 }
 
