@@ -2928,8 +2928,12 @@ private struct BrowseMediaView: View {
             // identity snapshot is ready. Publishing an empty grid first and
             // replacing it after a background refresh caused a visible empty
             // state/flicker and repeated filtering work.
-            _ = await MyDubListDubFilter.shared.refresh()
+            let refreshed = await MyDubListDubFilter.shared.refresh()
             guard !Task.isCancelled else { return [] }
+            guard refreshed || MyDubListDubFilter.shared.prepareCachedSnapshot() else {
+                errorMessage = "Unable to verify the selected dub-language data. Check your connection and try again."
+                return []
+            }
         }
         guard ageRating != .all || requiresAnimeIdentity else {
             return typeFiltered
