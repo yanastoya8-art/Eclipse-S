@@ -826,6 +826,24 @@ final class UnifiedSpanishAndDubSchedulePolicyTests: XCTestCase {
 }
 
 
+final class AnimeScheduleLanguageLookupPolicyTests: XCTestCase {
+    func testEnglishSelectionChecksJustWatchForNativeEnglishDates() {
+        XCTAssertTrue(
+            AnimeScheduleLanguageLookupPolicy.shouldQueryJustWatch(selectedLanguages: [MyDubListLanguage.english.rawValue])
+        )
+    }
+
+    func testSpanishSelectionChecksJustWatchForNativeSpanishDates() {
+        XCTAssertTrue(
+            AnimeScheduleLanguageLookupPolicy.shouldQueryJustWatch(selectedLanguages: [MyDubListLanguage.spanish.rawValue])
+        )
+    }
+
+    func testNoSelectedLanguageDoesNotQueryJustWatch() {
+        XCTAssertFalse(AnimeScheduleLanguageLookupPolicy.shouldQueryJustWatch(selectedLanguages: []))
+    }
+}
+
 final class ScheduleReleaseDatePolicyTests: XCTestCase {
     func testEarlierNativeReleaseWinsOverLaterDub() {
         let native = Date(timeIntervalSince1970: 100)
