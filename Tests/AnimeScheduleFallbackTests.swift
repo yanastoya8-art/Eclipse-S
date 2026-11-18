@@ -141,9 +141,13 @@ final class AnimeScheduleFallbackTests: XCTestCase {
         return AnimeScheduleEntryMapper.entries(from: row, anime: anime, window: ScheduleDateWindow.envelope(dayCount: 7, now: now), preferredLanguageCode: "en", stale: stale)
     }
 
-    private func stub(rows: [[String: Any]]? = nil, missingWeek: Bool = false) throws {
+    private func stub(
+        rows: [[String: Any]]? = nil,
+        missingWeek: Bool = false,
+        catalogTotalAmount: Int = 1
+    ) throws {
         let timetable = try data(rows ?? [row()])
-        let catalog = try data(["page": 1, "totalAmount": 1, "anime": [anime()]])
+        let catalog = try data(["page": 1, "totalAmount": catalogTotalAmount, "anime": [anime()]])
         let firstWeek = AnimeScheduleWeek.covering(ScheduleDateWindow.envelope(dayCount: 7, now: now)).first?.week
         AnimeScheduleURLProtocol.configure { request in
             guard request.value(forHTTPHeaderField: "Authorization") == "Bearer fixture-token" else { return (401, Data(), [:]) }
@@ -378,6 +382,22 @@ final class AnimeScheduleFallbackTests: XCTestCase {
         XCTAssertGreaterThan(count, 1)
         XCTAssertEqual(AnimeScheduleURLProtocol.count, count)
         XCTAssertFalse(first.isAuthoritativeForNotifications)
+    }
+
+    func testOngoingCatalogStopsPagingAfterEveryRequestedAnimeRouteIsFound() async throws {
+        try stub(catalogTotalAmount: 10_000)
+        let session = session()
+        defer { session.invalidateAndCancel() }
+        let service = AnimeScheduleService(session: session, token: "fixture-token", requestSpacing: 0)
+
+        let result = try await service.fetchSchedule(daysAhead: 7, now: now)
+
+        XCTAssertEqual(result.entries.count, 1)
+        XCTAssertEqual(
+            AnimeScheduleURLProtocol.paths.filter { $0 == "/api/v3/anime" }.count,
+            1,
+            "The ongoing catalog should not fetch later pages after finding every route in the schedule window."
+        )
     }
 
     func testMissingWeekRetainsConfirmedEntriesWithoutDeletionAuthority() async throws {
