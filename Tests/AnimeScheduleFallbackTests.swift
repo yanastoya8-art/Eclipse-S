@@ -827,6 +827,13 @@ final class UnifiedSpanishAndDubSchedulePolicyTests: XCTestCase {
 
 
 final class AnimeScheduleLanguageLookupPolicyTests: XCTestCase {
+    func testAniListOriginCountryMapsOnlyEnglishAndSpanishNativeLanguages() {
+        XCTAssertEqual(AnimeOriginalLanguagePolicy.languageCode(forCountry: "US"), "en")
+        XCTAssertEqual(AnimeOriginalLanguagePolicy.languageCode(forCountry: "ES"), "es")
+        XCTAssertNil(AnimeOriginalLanguagePolicy.languageCode(forCountry: "JP"))
+        XCTAssertNil(AnimeOriginalLanguagePolicy.languageCode(forCountry: nil))
+    }
+
     func testEnglishSelectionChecksJustWatchForNativeEnglishDates() {
         XCTAssertTrue(
             AnimeScheduleLanguageLookupPolicy.shouldQueryJustWatch(selectedLanguages: [MyDubListLanguage.english.rawValue])
