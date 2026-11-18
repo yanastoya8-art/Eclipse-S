@@ -356,7 +356,7 @@ struct ScheduleEntry: Identifiable, Sendable {
         return copy
     }
 
-    func markedAsVerifiedJustWatchDub() -> ScheduleEntry {
+    func markedAsVerifiedJustWatchLanguageMatch() -> ScheduleEntry {
         var copy = self
         copy.provider = .justWatch
         return copy
@@ -1021,16 +1021,16 @@ final class ScheduleViewModel: ObservableObject {
                                 entries: identityEntries,
                                 selectedLanguages: selectedDubLanguages
                             )
-                            // Only verified streaming/dub dates are allowed here.
-                            // AniList's Japanese broadcast date is never a fallback
-                            // for a selected English/Spanish dub filter.
+                            // Only JustWatch-confirmed dates matching the selected audio
+                            // languages are allowed here. AniList's Japanese broadcast
+                            // date is never a fallback for a selected English/Spanish filter.
                             // `filter` already enforces the selected audio languages and
                             // chooses the earliest qualifying native-or-dub date. A native
                             // English/Spanish release is intentionally not marked as a
                             // streaming/dub date, so filtering on `isStreamingRelease`
                             // here incorrectly removed valid native-language schedule rows.
                             verifiedJustWatchEntries = languageMatches
-                                .map { $0.markedAsVerifiedJustWatchDub() }
+                                .map { $0.markedAsVerifiedJustWatchLanguageMatch() }
 
                             // AI research is a sequential fallback for Spanish only:
                             // it compares all upcoming AniList episodes against JustWatch and only
