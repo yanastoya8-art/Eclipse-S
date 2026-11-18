@@ -170,6 +170,14 @@ struct AnimeEpisodeContextIndex {
 }
 
 enum AnimeDubEpisodeMetadataLoadingPolicy {
+    static func shouldLoadMetadata(
+        isAnime: Bool,
+        hasSelectedLanguages: Bool,
+        hasProviderIdentity: Bool
+    ) -> Bool {
+        isAnime && hasSelectedLanguages && hasProviderIdentity
+    }
+
     static func shouldShowLoading(
         isAnime: Bool,
         hasSelectedLanguages: Bool,
@@ -1235,12 +1243,14 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
     }
 
     private var animeDubMetadataRequestKey: String {
-        guard isAnime,
-              specialEpisodeContext == nil,
-              let seasonNumber = selectedSeason?.seasonNumber else { return "none" }
+        guard let seasonNumber = selectedSeason?.seasonNumber else { return "none" }
         let languages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement.sorted().joined(separator: ",")
-        guard !languages.isEmpty else { return "none" }
-        let providerID = animeSeasonAniListIds[seasonNumber] ?? 0
+        let providerID = animeSeasonAniListIds[seasonNumber]
+        guard AnimeDubEpisodeMetadataLoadingPolicy.shouldLoadMetadata(
+            isAnime: isAnime && specialEpisodeContext == nil,
+            hasSelectedLanguages: !languages.isEmpty,
+            hasProviderIdentity: providerID != nil
+        ), let providerID else { return "none" }
         return "\(seasonNumber):\(providerID):\(languages):\(animeDubFilterRevision)"
     }
 
@@ -1315,13 +1325,9 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
             }
             return
         }
-        guard let providerID = animeSeasonAniListIds[seasonNumber] else {
-            animeDubEpisodeCountsBySeason[seasonNumber] = [:]
-            animeDubPremiereDatesBySeason[seasonNumber] = nil
-            selectedEpisodeForSearch = nil
-            selectedEpisodePlaybackContext = nil
-            return
-        }
+        // Wait for the anime identity mapping instead of marking a season as
+        // having zero dubbed episodes while its provider ID is still resolving.
+        guard let providerID = animeSeasonAniListIds[seasonNumber] else { return }
 
         // Fail closed immediately when preferences or season identity change; do
         // not keep showing episodes allowed by the previous language selection.
