@@ -2496,7 +2496,7 @@ enum ScheduleAudioLanguagePolicy {
 
     // No external audio-offer API is called. Unknown/non-native audio is
     // deliberately false so a missing provider never becomes a false positive.
-    static func hasAudioLanguageOffer(
+    static func hasNativeLanguageMatch(
         originalLanguage: String?,
         selectedLanguages: Set<String>
     ) -> Bool? {
