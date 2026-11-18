@@ -2506,12 +2506,3 @@ enum ScheduleAudioLanguagePolicy {
         }.sorted { $0.airingAt < $1.airingAt }
     }
 }
-    var errorDescription: String? {
-        switch self {
-        case .invalidURL: return "JustWatch schedule URL is invalid."
-        case .invalidResponse: return "JustWatch returned invalid episode-release metadata."
-        case .titleNotFound: return "JustWatch could not match this series to its TMDB identity."
-        case .httpStatus(let status): return "JustWatch schedule request failed (HTTP \(status))."
-        }
-    }
-}
