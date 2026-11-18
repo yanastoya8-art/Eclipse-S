@@ -1963,7 +1963,12 @@ struct MediaDetailContentView: View {
                 // a visible blank band above the poster in portrait and
                 // landscape. Extend the scroll content to the top edge so the
                 // first pixel of the hero starts at the top of the viewport.
-                .ignoresSafeArea(edges: .top)
+                // Landscape detail must use the physical screen width, not the
+                // inset safe-area width. Keeping the ScrollView clipped to the
+                // safe-area viewport was the source of the persistent narrow
+                // poster gutters in landscape; the hero and its colour fade
+                // need the same edge-to-edge viewport.
+                .ignoresSafeArea(edges: usesLandscapeDetailComposition ? [.top, .horizontal] : .top)
                 .modifier(ScrollClipModifier())
                 .onPreferenceChange(ScrollOffsetPreferenceKey.self) { newOffset in
                     guard abs(scrollOffset - newOffset) >= scrollOffsetUpdateThreshold else { return }
