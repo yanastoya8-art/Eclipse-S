@@ -2911,6 +2911,18 @@ private struct BrowseMediaView: View {
             !selectedDubLanguages.isEmpty
                 || UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
         )
+
+        // A cold launch can reach Browse before the asynchronous MyDubList
+        // refresh in TMDBContentFilter.init has finished. The dub predicate
+        // intentionally fails closed while its snapshot is unavailable, which
+        // previously made the entire Anime page look empty. Hydrate the
+        // persisted snapshot synchronously first; only wait for the network
+        // when no matching cached language snapshot exists.
+        if mediaType.isAnime, !selectedDubLanguages.isEmpty,
+           !MyDubListDubFilter.shared.prepareCachedSnapshot() {
+            _ = await MyDubListDubFilter.shared.refresh()
+            guard !Task.isCancelled else { return [] }
+        }
         guard ageRating != .all || requiresAnimeIdentity else {
             return typeFiltered
         }
