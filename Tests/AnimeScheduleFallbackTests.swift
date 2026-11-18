@@ -146,26 +146,7 @@ final class AnimeScheduleFallbackTests: XCTestCase {
         )
     }
 
-    func testJustWatchScheduleCacheExpiresAndRejectsFutureTimestamps() {
-        let now = Date(timeIntervalSince1970: 2_000_000_000)
-        let lifetime: TimeInterval = 12 * 60 * 60
 
-        XCTAssertTrue(JustWatchScheduleCachePolicy.isFresh(
-            fetchedAt: now.addingTimeInterval(-lifetime + 1),
-            now: now,
-            lifetime: lifetime
-        ))
-        XCTAssertFalse(JustWatchScheduleCachePolicy.isFresh(
-            fetchedAt: now.addingTimeInterval(-lifetime),
-            now: now,
-            lifetime: lifetime
-        ))
-        XCTAssertFalse(JustWatchScheduleCachePolicy.isFresh(
-            fetchedAt: now.addingTimeInterval(1),
-            now: now,
-            lifetime: lifetime
-        ))
-    }
 
     private var now: Date { Date(timeIntervalSince1970: 1_788_998_400) }
 
@@ -835,20 +816,15 @@ final class AnimeScheduleLanguageLookupPolicyTests: XCTestCase {
         XCTAssertNil(AnimeOriginalLanguagePolicy.languageCode(forCountry: nil))
     }
 
-    func testEnglishSelectionChecksJustWatchForNativeEnglishDates() {
-        XCTAssertTrue(
-            AnimeScheduleLanguageLookupPolicy.shouldQueryJustWatch(selectedLanguages: [MyDubListLanguage.english.rawValue])
-        )
+    func testNativeLanguageScheduleOnlyIncludesMatchingLanguages() {
+        XCTAssertTrue(ScheduleAudioLanguagePolicy.matches(originalLanguage: "en", selectedLanguages: ["english"]))
+        XCTAssertTrue(ScheduleAudioLanguagePolicy.matches(originalLanguage: "es-MX", selectedLanguages: ["spanish"]))
+        XCTAssertFalse(ScheduleAudioLanguagePolicy.matches(originalLanguage: "ja", selectedLanguages: ["english"]))
+        XCTAssertFalse(ScheduleAudioLanguagePolicy.matches(originalLanguage: nil, selectedLanguages: ["spanish"]))
     }
 
-    func testSpanishSelectionChecksJustWatchForNativeSpanishDates() {
-        XCTAssertTrue(
-            AnimeScheduleLanguageLookupPolicy.shouldQueryJustWatch(selectedLanguages: [MyDubListLanguage.spanish.rawValue])
-        )
-    }
-
-    func testNoSelectedLanguageDoesNotQueryJustWatch() {
-        XCTAssertFalse(AnimeScheduleLanguageLookupPolicy.shouldQueryJustWatch(selectedLanguages: []))
+    func testNoSelectedLanguageLeavesScheduleUnfiltered() {
+        XCTAssertTrue(ScheduleAudioLanguagePolicy.matches(originalLanguage: "ja", selectedLanguages: []))
     }
 }
 
@@ -879,61 +855,18 @@ final class ScheduleReleaseDatePolicyTests: XCTestCase {
         XCTAssertFalse(ScheduleReleaseDatePolicy.usesDubbedDate(native: nil, dubbed: nil))
     }
 
-    func testNativeLanguageMatchIsKeptEvenWhenItIsNotMarkedAsStreamingRelease() {
+    func testNativeLanguageEntryIsAttributedToNativeLanguageProvider() {
         let airing = AniListAiringScheduleEntry(
-            id: 1,
-            mediaId: 101,
-            title: "Example Anime",
-            airingAt: Date(timeIntervalSince1970: 100),
-            episode: 1,
-            coverImage: nil,
-            englishTitle: "Example Anime",
-            romajiTitle: nil,
-            nativeTitle: nil,
-            format: "TV",
-            hasKnownAiringTime: true,
-            scheduleProvider: .aniList,
-            malID: nil,
-            airingTimeWithdrawn: false,
+            id: 1, mediaId: 101, title: "Example Anime",
+            airingAt: Date(timeIntervalSince1970: 100), episode: 1,
+            coverImage: nil, englishTitle: "Example Anime", romajiTitle: nil,
+            nativeTitle: nil, format: "TV", hasKnownAiringTime: true,
+            scheduleProvider: .aniList, malID: nil, airingTimeWithdrawn: false,
             originalLanguage: "en"
         )
-        let nativeEntry = ScheduleEntry(animeEntry: airing)
-            .withAiringAt(airing.airingAt, isStreamingRelease: false)
-        let verifiedMatches = AnimeScheduleLanguageLookupPolicy.markVerifiedJustWatchMatches([nativeEntry])
-
-        XCTAssertEqual(nativeEntry.originalLanguage, "en")
-        XCTAssertEqual(verifiedMatches.count, 1)
-        XCTAssertFalse(verifiedMatches[0].isStreamingRelease)
-        XCTAssertEqual(verifiedMatches[0].provider, .aniList)
-        XCTAssertEqual(verifiedMatches[0].airingAt, airing.airingAt)
-    }
-
-    func testEarlierDubbedReleaseIsAttributedToJustWatch() {
-        let airing = AniListAiringScheduleEntry(
-            id: 2,
-            mediaId: 102,
-            title: "Dubbed Anime",
-            airingAt: Date(timeIntervalSince1970: 200),
-            episode: 1,
-            coverImage: nil,
-            englishTitle: "Dubbed Anime",
-            romajiTitle: nil,
-            nativeTitle: nil,
-            format: "TV",
-            hasKnownAiringTime: true,
-            scheduleProvider: .aniList,
-            malID: nil,
-            airingTimeWithdrawn: false,
-            originalLanguage: "ja"
-        )
-        let dubbedEntry = ScheduleEntry(animeEntry: airing)
-            .withAiringAt(Date(timeIntervalSince1970: 150), isStreamingRelease: true)
-        let verifiedMatches = AnimeScheduleLanguageLookupPolicy.markVerifiedJustWatchMatches([dubbedEntry])
-
-        XCTAssertEqual(verifiedMatches.count, 1)
-        XCTAssertTrue(verifiedMatches[0].isStreamingRelease)
-        XCTAssertEqual(verifiedMatches[0].provider, .justWatch)
-        XCTAssertEqual(verifiedMatches[0].airingAt, Date(timeIntervalSince1970: 150))
+        let entry = ScheduleEntry(animeEntry: airing).markedAsNativeLanguageMatch()
+        XCTAssertEqual(entry.provider, .nativeLanguage)
+        XCTAssertFalse(entry.isStreamingRelease)
     }
 }
 

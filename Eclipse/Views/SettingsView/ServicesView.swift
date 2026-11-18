@@ -3132,14 +3132,3 @@ private struct ExtraServiceSettingsView: View {
         reloadHiddenStreamLanguagesFromDefaults()
     }
 }
-
-
-enum JustWatchAPIKeyStore {
-    static func load() -> String? {
-        guard let raw = Bundle.main.object(forInfoDictionaryKey: "JustWatchAPIKey") as? String else {
-            return nil
-        }
-        let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? nil : value
-    }
-}
