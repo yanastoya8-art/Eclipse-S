@@ -414,6 +414,15 @@ actor AnimeScheduleService {
             for anime in result.anime where wantedRoutes.contains(anime.route) {
                 cache.anime[anime.route] = CachedAnime(fetchedAt: now, anime: anime)
             }
+
+            // Schedule rows identify the exact anime routes needed for this
+            // window. Stop scanning the global ongoing catalog as soon as all
+            // of those routes are cached; walking every page can add many
+            // rate-limited requests even when page one already has every show.
+            if wantedRoutes.allSatisfy({ cachedAnime($0, now: now) != nil }) {
+                break
+            }
+
             if page * 18 >= result.totalAmount || result.anime.isEmpty {
                 catalogFetchedAt = now
                 break

@@ -641,6 +641,20 @@ struct MediaDetailContentView: View {
         detailViewportSize.width > 0 ? detailViewportSize.width : EclipseViewport.bounds.width
     }
 
+    private var landscapeHeroHorizontalSafeAreaOffset: CGFloat {
+#if os(iOS) || os(tvOS)
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let window = scenes.flatMap(\.windows).first(where: \.isKeyWindow) ?? scenes.first?.windows.first
+        guard let window else { return 0 }
+        // GeometryReader is centred inside the asymmetric landscape safe area.
+        // Shift the full-width artwork back to the physical screen centre so a
+        // notch-side inset cannot leave a narrow strip on the opposite edge.
+        return (window.safeAreaInsets.right - window.safeAreaInsets.left) / 2
+#else
+        return 0
+#endif
+    }
+
     private var usesLandscapeDetailComposition: Bool {
 #if os(macOS)
         false
@@ -2729,7 +2743,13 @@ struct MediaDetailContentView: View {
         // this backdrop layer to the physical screen edges. Foreground controls
         // and the portrait composition keep their existing safe-area layout.
         .frame(maxWidth: .infinity)
-        .ignoresSafeArea(.container, edges: usesLandscapeDetailComposition ? .horizontal : [])
+        // The poster starts at the physical top edge in both orientations.
+        // Landscape additionally extends through both horizontal safe areas.
+        .ignoresSafeArea(
+            .container,
+            edges: usesLandscapeDetailComposition ? [.top, .horizontal] : .top
+        )
+        .offset(x: usesLandscapeDetailComposition ? landscapeHeroHorizontalSafeAreaOffset : 0)
     }
 
     @ViewBuilder
@@ -2752,6 +2772,7 @@ struct MediaDetailContentView: View {
             .padding(.top, ExperimentalFeatureState.isEnabledAtLaunch ? max(18, designMetrics.sectionSpacing * 0.45) : 0)
             .padding(.bottom, ExperimentalFeatureState.isEnabledAtLaunch ? 28 : 0)
         }
+
     }
 
     @ViewBuilder
@@ -2788,13 +2809,11 @@ struct MediaDetailContentView: View {
 
         if ExperimentalFeatureState.isEnabledAtLaunch {
             let bleedColor = mediaDetailHeroBleedColor ?? heroBlendColor
-            let landscapeTail = usesLandscapeDetailComposition ? mediaDetailHeroBleedTail : 0
-            // Keep the gradient over the lower part of the actual poster,
-            // then continue it past the hero edge into the detail content. The
-            // previous landscape sizing started the gradient only after the
-            // poster ended, so the artwork itself never received colour bleed.
+            // Keep the landscape fade on the poster/hero surface. It is
+            // deliberately clipped to the hero bounds so it never follows
+            // the scroll into the episode list.
             let gradientHeight = usesLandscapeDetailComposition
-                ? headerHeight * 0.72 + mediaDetailHeroBleedTail
+                ? headerHeight * 0.72
                 : max(designMetrics.heroBottomFadeHeight + 90, usesWideDetailLayout ? 560 : 430)
 
             LinearGradient(
@@ -2808,26 +2827,36 @@ struct MediaDetailContentView: View {
                 startPoint: .top,
                 endPoint: .bottom
             )
-            // In landscape the fade begins exactly at the hero's lower edge
-            // and extends behind the first detail rows. It belongs to this
-            // hero only, so it cannot tint the full page or episode list.
+            // Anchor the fade to the bottom of the poster/hero so the extracted
+            // colour sits behind the hero metadata without spilling into the
+            // independently scrolling episode list.
             .frame(height: gradientHeight)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-            .offset(y: landscapeTail)
             .allowsHitTesting(false)
         } else {
+            // Keep the legacy landscape fade tied to the extracted poster
+            // colour and scale it to the hero height instead of using the
+            // portrait-sized fixed 120pt gradient.
+            let legacyBleedColor = usesLandscapeDetailComposition
+                ? (mediaDetailHeroBleedColor ?? atmosphereColor)
+                : atmosphereColor
+            let legacyGradientHeight = usesLandscapeDetailComposition
+                ? headerHeight * 0.72
+                : 120
+
             LinearGradient(
                 gradient: Gradient(stops: [
-                    .init(color: atmosphereColor.opacity(0.0), location: 0.0),
-                    .init(color: atmosphereColor.opacity(0.16 * bleedScale), location: 0.20),
-                    .init(color: atmosphereColor.opacity(0.42 * bleedScale), location: 0.62),
-                    .init(color: atmosphereColor.opacity(1.0 * bleedScale), location: 1.0)
+                    .init(color: legacyBleedColor.opacity(0.0), location: 0.0),
+                    .init(color: legacyBleedColor.opacity(0.16 * bleedScale), location: 0.20),
+                    .init(color: legacyBleedColor.opacity(0.42 * bleedScale), location: 0.62),
+                    .init(color: legacyBleedColor.opacity(1.0 * bleedScale), location: 1.0)
                 ]),
                 startPoint: .top,
                 endPoint: .bottom
             )
-            .frame(height: 120)
-            .clipShape(RoundedRectangle(cornerRadius: 0))
+            .frame(height: legacyGradientHeight)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            .allowsHitTesting(false)
         }
     }
 

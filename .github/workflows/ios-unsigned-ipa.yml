@@ -539,7 +539,7 @@ jobs:
 
           path = pathlib.Path(sys.argv[1])
           bundle_id, version, build, min_os, size, download_url, commit = sys.argv[2:]
-          release_date = datetime.datetime.now(datetime.timezone.utc).date().isoformat()
+          release_date = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
           app = {
               "name": "Eclipse",
               "bundleIdentifier": bundle_id,
@@ -587,11 +587,22 @@ jobs:
           parsed = json.loads(path.read_text())
           if parsed != feed:
               raise SystemExit("SideStore source JSON round-trip validation failed")
+          parsed_app = parsed["apps"][0]
+          parsed_version = parsed_app["versions"][0]
+          if not parsed_app["bundleIdentifier"] or not parsed_version["downloadURL"].endswith(".ipa"):
+              raise SystemExit("SideStore app is missing its bundle identifier or IPA download URL")
+          datetime.datetime.fromisoformat(parsed_version["date"].replace("Z", "+00:00"))
+
+          # Publish the exact same validated feed at both supported paths so an
+          # older saved /side-store/alt-source.json URL cannot resolve to an empty stub.
+          mirror = path.parent / "side-store" / "alt-source.json"
+          mirror.parent.mkdir(parents=True, exist_ok=True)
+          mirror.write_text(path.read_text())
           PY
 
           cat > "$SITE_DIR/index.html" <<'HTML'
           <!doctype html><html><head><meta charset="utf-8"><title>Eclipse SideStore</title></head>
-          <body><h1>Eclipse SideStore feed</h1><p><a href="sidestore://source?url=https%3A%2F%2Fyanastoya8-art.github.io%2FEclipse-S%2Falt-source.json">Add Eclipse to SideStore</a></p><p><a href="./alt-source.json">View source JSON</a></p></body></html>
+          <body><h1>Eclipse SideStore feed</h1><p><a href="sidestore://source?url=https%3A%2F%2Fyanastoya8-art.github.io%2FEclipse-S%2Falt-source.json">Add Eclipse to SideStore</a></p><p><a href="./alt-source.json">View source JSON</a></p><p><a href="./side-store/alt-source.json">Alternate source JSON</a></p></body></html>
           HTML
 
       - name: Upload SideStore website

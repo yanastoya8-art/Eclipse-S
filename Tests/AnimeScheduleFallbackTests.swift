@@ -83,6 +83,69 @@ final class AnimeScheduleFallbackTests: XCTestCase {
         XCTAssertEqual(MyDubListLanguage.spanish.displayName, "Spanish (Castellano o Latino)")
     }
 
+    func testDubbedEpisodeListShowsLoadingUntilSelectedLanguageCountsResolve() {
+        XCTAssertTrue(AnimeDubEpisodeMetadataLoadingPolicy.shouldShowLoading(
+            isAnime: true,
+            hasSelectedLanguages: true,
+            hasResolvedCounts: false
+        ))
+        XCTAssertFalse(AnimeDubEpisodeMetadataLoadingPolicy.shouldShowLoading(
+            isAnime: true,
+            hasSelectedLanguages: true,
+            hasResolvedCounts: true
+        ), "An empty but resolved provider response should show the genuine no-dub state.")
+        XCTAssertFalse(AnimeDubEpisodeMetadataLoadingPolicy.shouldShowLoading(
+            isAnime: true,
+            hasSelectedLanguages: false,
+            hasResolvedCounts: false
+        ))
+        XCTAssertFalse(AnimeDubEpisodeMetadataLoadingPolicy.shouldShowLoading(
+            isAnime: false,
+            hasSelectedLanguages: true,
+            hasResolvedCounts: false
+        ))
+        XCTAssertFalse(AnimeDubEpisodeMetadataLoadingPolicy.shouldLoadMetadata(
+            isAnime: true,
+            hasSelectedLanguages: true,
+            hasProviderIdentity: false
+        ), "Do not mark a season empty before its anime provider identity has resolved.")
+        XCTAssertTrue(AnimeDubEpisodeMetadataLoadingPolicy.shouldLoadMetadata(
+            isAnime: true,
+            hasSelectedLanguages: true,
+            hasProviderIdentity: true
+        ))
+    }
+
+    func testGlobalAudioRequirementDoesNotBroadenAnExplicitDubLanguageSelection() {
+        XCTAssertEqual(
+            DubLanguageSelectionPolicy.effectiveLanguages(
+                selectedLanguages: [MyDubListLanguage.spanish.rawValue],
+                requiresEnglishSpanishAudio: true
+            ),
+            [MyDubListLanguage.spanish.rawValue]
+        )
+        XCTAssertEqual(
+            DubLanguageSelectionPolicy.effectiveLanguages(
+                selectedLanguages: [MyDubListLanguage.english.rawValue],
+                requiresEnglishSpanishAudio: true
+            ),
+            [MyDubListLanguage.english.rawValue]
+        )
+        XCTAssertEqual(
+            DubLanguageSelectionPolicy.effectiveLanguages(
+                selectedLanguages: [],
+                requiresEnglishSpanishAudio: true
+            ),
+            [MyDubListLanguage.english.rawValue, MyDubListLanguage.spanish.rawValue]
+        )
+        XCTAssertTrue(
+            DubLanguageSelectionPolicy.effectiveLanguages(
+                selectedLanguages: [],
+                requiresEnglishSpanishAudio: false
+            ).isEmpty
+        )
+    }
+
     func testJustWatchScheduleCacheExpiresAndRejectsFutureTimestamps() {
         let now = Date(timeIntervalSince1970: 2_000_000_000)
         let lifetime: TimeInterval = 12 * 60 * 60
@@ -141,9 +204,13 @@ final class AnimeScheduleFallbackTests: XCTestCase {
         return AnimeScheduleEntryMapper.entries(from: row, anime: anime, window: ScheduleDateWindow.envelope(dayCount: 7, now: now), preferredLanguageCode: "en", stale: stale)
     }
 
-    private func stub(rows: [[String: Any]]? = nil, missingWeek: Bool = false) throws {
+    private func stub(
+        rows: [[String: Any]]? = nil,
+        missingWeek: Bool = false,
+        catalogTotalAmount: Int = 1
+    ) throws {
         let timetable = try data(rows ?? [row()])
-        let catalog = try data(["page": 1, "totalAmount": 1, "anime": [anime()]])
+        let catalog = try data(["page": 1, "totalAmount": catalogTotalAmount, "anime": [anime()]])
         let firstWeek = AnimeScheduleWeek.covering(ScheduleDateWindow.envelope(dayCount: 7, now: now)).first?.week
         AnimeScheduleURLProtocol.configure { request in
             guard request.value(forHTTPHeaderField: "Authorization") == "Bearer fixture-token" else { return (401, Data(), [:]) }
@@ -378,6 +445,22 @@ final class AnimeScheduleFallbackTests: XCTestCase {
         XCTAssertGreaterThan(count, 1)
         XCTAssertEqual(AnimeScheduleURLProtocol.count, count)
         XCTAssertFalse(first.isAuthoritativeForNotifications)
+    }
+
+    func testOngoingCatalogStopsPagingAfterEveryRequestedAnimeRouteIsFound() async throws {
+        try stub(catalogTotalAmount: 10_000)
+        let session = session()
+        defer { session.invalidateAndCancel() }
+        let service = AnimeScheduleService(session: session, token: "fixture-token", requestSpacing: 0)
+
+        let result = try await service.fetchSchedule(daysAhead: 7, now: now)
+
+        XCTAssertEqual(result.entries.count, 1)
+        XCTAssertEqual(
+            AnimeScheduleURLProtocol.paths.filter { $0 == "/api/v3/anime" }.count,
+            1,
+            "The ongoing catalog should not fetch later pages after finding every route in the schedule window."
+        )
     }
 
     func testMissingWeekRetainsConfirmedEntriesWithoutDeletionAuthority() async throws {

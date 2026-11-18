@@ -169,6 +169,24 @@ struct AnimeEpisodeContextIndex {
     }
 }
 
+enum AnimeDubEpisodeMetadataLoadingPolicy {
+    static func shouldLoadMetadata(
+        isAnime: Bool,
+        hasSelectedLanguages: Bool,
+        hasProviderIdentity: Bool
+    ) -> Bool {
+        isAnime && hasSelectedLanguages && hasProviderIdentity
+    }
+
+    static func shouldShowLoading(
+        isAnime: Bool,
+        hasSelectedLanguages: Bool,
+        hasResolvedCounts: Bool
+    ) -> Bool {
+        isAnime && hasSelectedLanguages && !hasResolvedCounts
+    }
+}
+
 struct TVShowSeasonsSection<InsertedContent: View>: View {
     let tvShow: TMDBTVShowWithSeasons?
     let isAnime: Bool
@@ -1080,7 +1098,21 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
             }
             if let detail = activeSeasonDetail {
                 let episodeItems = visibleEpisodeRenderItems(for: detail)
-                if episodeItems.isEmpty {
+                if AnimeDubEpisodeMetadataLoadingPolicy.shouldShowLoading(
+                    isAnime: isAnime && specialEpisodeContext == nil,
+                    hasSelectedLanguages: !MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement.isEmpty,
+                    hasResolvedCounts: animeDubEpisodeCountsBySeason[detail.seasonNumber] != nil
+                ) {
+                    VStack(spacing: 10) {
+                        EclipseLoadingIndicator()
+                        Text("Checking selected-language episodes…")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 28)
+                    .accessibilityIdentifier("mediaDetail.loadingDubEpisodes")
+                } else if episodeItems.isEmpty {
                     VStack(spacing: 8) {
                         Image(systemName: "calendar.badge.clock")
                             .font(.title2)
@@ -1211,12 +1243,14 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
     }
 
     private var animeDubMetadataRequestKey: String {
-        guard isAnime,
-              specialEpisodeContext == nil,
-              let seasonNumber = selectedSeason?.seasonNumber else { return "none" }
+        guard let seasonNumber = selectedSeason?.seasonNumber else { return "none" }
         let languages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement.sorted().joined(separator: ",")
-        guard !languages.isEmpty else { return "none" }
-        let providerID = animeSeasonAniListIds[seasonNumber] ?? 0
+        let providerID = animeSeasonAniListIds[seasonNumber]
+        guard AnimeDubEpisodeMetadataLoadingPolicy.shouldLoadMetadata(
+            isAnime: isAnime && specialEpisodeContext == nil,
+            hasSelectedLanguages: !languages.isEmpty,
+            hasProviderIdentity: providerID != nil
+        ), let providerID else { return "none" }
         return "\(seasonNumber):\(providerID):\(languages):\(animeDubFilterRevision)"
     }
 
@@ -1224,7 +1258,7 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
         guard isAnime, specialEpisodeContext == nil else { return false }
         let selectedLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
         guard !selectedLanguages.isEmpty else { return false }
-        let counts = animeDubEpisodeCountsBySeason[seasonNumber] ?? [:]
+        guard let counts = animeDubEpisodeCountsBySeason[seasonNumber] else { return false }
         return (AnimeDubEpisodeVisibilityPolicy.availableEpisodeLimit(
             selectedLanguages: selectedLanguages,
             dubCountsByLanguage: counts
@@ -1291,17 +1325,15 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
             }
             return
         }
-        guard let providerID = animeSeasonAniListIds[seasonNumber] else {
-            animeDubEpisodeCountsBySeason[seasonNumber] = [:]
-            animeDubPremiereDatesBySeason[seasonNumber] = nil
-            selectedEpisodeForSearch = nil
-            selectedEpisodePlaybackContext = nil
-            return
-        }
+        // Wait for the anime identity mapping instead of marking a season as
+        // having zero dubbed episodes while its provider ID is still resolving.
+        guard let providerID = animeSeasonAniListIds[seasonNumber] else { return }
 
         // Fail closed immediately when preferences or season identity change; do
         // not keep showing episodes allowed by the previous language selection.
-        animeDubEpisodeCountsBySeason[seasonNumber] = [:]
+        // A missing dictionary entry means verification is still in progress;
+        // a stored empty dictionary means the provider finished with no matches.
+        animeDubEpisodeCountsBySeason.removeValue(forKey: seasonNumber)
         animeDubPremiereDatesBySeason[seasonNumber] = nil
         selectedEpisodeForSearch = nil
         selectedEpisodePlaybackContext = nil
@@ -1327,6 +1359,20 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
                 counts.merge(anidubCounts) { max($0, $1) }
             }
             try Task.checkCancellation()
+            guard selectedSeason?.seasonNumber == seasonNumber,
+                  animeSeasonAniListIds[seasonNumber] == providerID else { return }
+
+            // Publish verified episode availability before the optional 30-day
+            // schedule lookup. That lookup can be slow or rate-limited; it must
+            // not hold the actual dubbed episode list behind a false empty state.
+            animeDubEpisodeCountsBySeason[seasonNumber] = counts
+            if let detail = activeSeasonDetail, detail.seasonNumber == seasonNumber {
+                let visible = visibleEpisodes(for: detail)
+                if !visible.contains(where: { $0.id == selectedEpisodeForSearch?.id }) {
+                    selectedEpisodeForSearch = visible.first
+                }
+                selectedEpisodePageStartByKey[episodePageKey(for: detail)] = 0
+            }
 
             var premiereDate: Date?
             if selectedLanguages.contains(MyDubListLanguage.english.rawValue) {
@@ -1346,16 +1392,7 @@ struct TVShowSeasonsSection<InsertedContent: View>: View {
             try Task.checkCancellation()
             guard selectedSeason?.seasonNumber == seasonNumber,
                   animeSeasonAniListIds[seasonNumber] == providerID else { return }
-            animeDubEpisodeCountsBySeason[seasonNumber] = counts
             animeDubPremiereDatesBySeason[seasonNumber] = premiereDate
-
-            if let detail = activeSeasonDetail, detail.seasonNumber == seasonNumber {
-                let visible = visibleEpisodes(for: detail)
-                if !visible.contains(where: { $0.id == selectedEpisodeForSearch?.id }) {
-                    selectedEpisodeForSearch = visible.first
-                }
-                selectedEpisodePageStartByKey[episodePageKey(for: detail)] = 0
-            }
         } catch is CancellationError {
             return
         } catch {

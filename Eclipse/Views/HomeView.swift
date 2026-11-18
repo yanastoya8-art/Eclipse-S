@@ -3195,13 +3195,6 @@ struct ExperimentalMediaCard: View {
                     .frame(width: cardSize.width, height: cardSize.height)
             }
 
-            if resolvedStyle == .poster {
-                CenteredPosterTitleOverlay(
-                    title: result.displayTitle,
-                    logoURL: result.animeLogoURL,
-                    fontSize: usesWideHomeLayout ? 20 : 15
-                )
-            }
         }
         .frame(width: cardSize.width, height: cardSize.height)
         .clipShape(RoundedRectangle(cornerRadius: metrics.cardRadius, style: .continuous))
@@ -3305,11 +3298,6 @@ struct MediaCard: View {
                 }
                 .frame(width: posterWidth, height: posterHeight)
 
-                CenteredPosterTitleOverlay(
-                    title: result.displayTitle,
-                    logoURL: result.animeLogoURL,
-                    fontSize: isTvOS ? 24 : 15
-                )
             }
             .frame(width: posterWidth, height: posterHeight)
             .tvos({ view in
