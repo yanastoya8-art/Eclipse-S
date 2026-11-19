@@ -466,6 +466,7 @@ final class HLSDownloader: @unchecked Sendable {
 
                 try await self.downloadAndConcatenateSegments(
                     segments: segments,
+                    mediaSequenceNumber: mediaSequenceNumber,
                     initSegmentURL: initSegmentURL,
                     encryptionKey: encryptionKey,
                     keyData: keyData,
@@ -946,6 +947,7 @@ final class HLSDownloader: @unchecked Sendable {
 
     private func downloadAndConcatenateSegments(
         segments: [URL],
+        mediaSequenceNumber: UInt64,
         initSegmentURL: URL?,
         encryptionKey: HLSEncryptionKey?,
         keyData: Data?,
