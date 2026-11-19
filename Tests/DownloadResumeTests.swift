@@ -863,6 +863,32 @@ final class DownloadResumeTests: XCTestCase {
         XCTAssertNil(HLSDownloadCompatibility.unsupportedMediaLayout(in: "#EXTM3U\n#EXT-X-MAP:URI=\"init.mp4\"\n#EXTINF:1,\nsegment.m4s\n#EXT-X-ENDLIST"))
     }
 
+    func testHLSRejectsChangingOrMalformedInitializationSections() {
+        let changing = "#EXTM3U\\n#EXT-X-MAP:URI=\\"init-one.mp4\\"\\n#EXTINF:1,\\nfirst.m4s\\n#EXT-X-MAP:URI=\\"init-two.mp4\\"\\n#EXTINF:1,\\nsecond.m4s"
+        let malformed = "#EXTM3U\\n#EXT-X-MAP:BYTERANGE=\\"100@0\\"\\n#EXTINF:1,\\nsegment.m4s"
+        XCTAssertNotNil(HLSDownloadCompatibility.unsupportedMediaLayout(in: changing))
+        XCTAssertNotNil(HLSDownloadCompatibility.unsupportedMediaLayout(in: malformed))
+    }
+
+    func testHLSRejectsInvalidSegmentURLsInsteadOfSilentlySkippingThem() throws {
+        let base = try XCTUnwrap(URL(string: "https://hls-resume.example/playlist.m3u8"))
+        let downloader = HLSDownloader(
+            streamURL: base,
+            headers: [:],
+            destinationURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString),
+            downloadId: UUID().uuidString
+        )
+        XCTAssertThrowsError(try downloader.parseMediaPlaylist(
+            "#EXTM3U\\nvalid.ts\\nfile:///private/segment.ts",
+            baseURL: base
+        ))
+        let segments = try downloader.parseMediaPlaylist(
+            "#EXTM3U\\nfirst.ts\\nsecond.ts",
+            baseURL: base
+        )
+        XCTAssertEqual(segments.map(\\.lastPathComponent), ["first.ts", "second.ts"])
+    }
+
     @MainActor
     func testHLSUnsupportedRangesPreservePartialAndNeverFetchWholeResource() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
