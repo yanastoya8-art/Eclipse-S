@@ -1817,12 +1817,13 @@ class TMDBContentFilter: ObservableObject {
     static func shouldExcludeAnimeCategory(
         title: String,
         overview: String? = nil,
+        tags: [String] = [],
         defaults: UserDefaults = .standard
     ) -> Bool {
         guard defaults.bool(forKey: "catalogHideHentai")
                 || defaults.bool(forKey: "catalogHideYuri")
                 || defaults.bool(forKey: "catalogHideYaoi") else { return false }
-        let metadata = [title, overview ?? ""].joined(separator: " ")
+        let metadata = ([title, overview ?? ""] + tags).joined(separator: " ")
         if defaults.bool(forKey: "catalogHideHentai"),
            containsBlockedCatalogText(metadata, blockedTerms: [
                 "hentai", "ova hentai", "adult anime", "adult animation",
