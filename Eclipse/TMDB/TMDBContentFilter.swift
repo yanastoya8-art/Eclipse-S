@@ -2688,7 +2688,7 @@ actor TaizenAnimeAgeRatingService {
                returnedID.intValue == id,
                let age = anime["ageRating"] as? [String: Any],
                let raw = age["rating"] as? String {
-                rating = MaturityRating.classify(certification: raw)
+                rating = MaturityRating.ratingForFiltering(certification: raw)
             } else {
                 rating = .unknown
             }
