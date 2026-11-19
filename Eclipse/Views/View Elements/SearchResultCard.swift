@@ -265,6 +265,8 @@ struct SearchResultCard: View {
         isTvOS ? 640 : (isIPad ? 480 : 320)
     }
 
+    @State private var titleLogoURL: String?
+
     private var posterImage: some View {
         ZStack {
             ResilientArtworkImage(
@@ -279,7 +281,17 @@ struct SearchResultCard: View {
                 )
             }
 
+            CenteredPosterTitleOverlay(
+                title: result.displayTitle,
+                logoURL: titleLogoURL
+            )
         }
         .aspectRatio(2/3, contentMode: .fill)
+        .task(id: result.stableIdentity) {
+            titleLogoURL = await SearchResultTitleLogoCache.shared.logoURL(
+                mediaType: result.isMovie ? "movie" : "tv",
+                id: result.id
+            )
+        }
     }
 }
