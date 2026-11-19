@@ -373,7 +373,10 @@ final class HomeViewModel: ObservableObject {
             let needsTopRatedMovies = enabledCatalogIds.contains("topRatedMovies") || enabledCatalogIds.contains("bestMovies")
             let needsTopRatedAnime = enabledCatalogIds.contains("topRatedAnime") || enabledCatalogIds.contains("bestAnime")
 
-            async let trending: [TMDBSearchResult] = self.loadHomeCatalogIfNeeded("trending", shouldLoad: enabledCatalogIds.contains("trending") || enabledCatalogIds.contains("forYou")) {
+            async let trending: [TMDBSearchResult] = self.loadHomeCatalogIfNeeded(
+                "trending",
+                shouldLoad: HomeCatalogLoadPolicy.requiresTrendingSeed(enabledCatalogIDs: enabledCatalogIds)
+            ) {
                 try await tmdbService.getTrending()
             }
             async let popularM: [TMDBMovie] = self.loadHomeCatalogIfNeeded("popularMovies", shouldLoad: enabledCatalogIds.contains("popularMovies")) {
@@ -535,6 +538,17 @@ final class HomeViewModel: ObservableObject {
                 }
             }
 
+            // Recommendation catalogs depend on the first provider snapshot.
+            // Start them now instead of waiting for optional widgets and remote
+            // catalogs, so app-provided shelves can render independently.
+            await self.loadRecommendationCatalogs(
+                enabledCatalogs: enabledCatalogSnapshot,
+                tmdbService: tmdbService,
+                contentFilter: contentFilter,
+                generation: generation
+            )
+            guard !Task.isCancelled else { return }
+
             // Resolve clean AniList covers after the first catalog render. This
             // keeps the home screen responsive while replacing TMDB's anime
             // posters as soon as the higher-quality anime artwork is available.
@@ -654,17 +668,6 @@ final class HomeViewModel: ObservableObject {
                 self.unfilteredCatalogResults.merge(loadedTraktCatalogs) { _, raw in raw }
             }
             _ = await widgetsLoaded
-            // Generate app-provided recommendation shelves only after the
-            // enabled provider catalogs have populated catalogResults. Starting
-            // this beside the first-page requests used to snapshot an empty
-            // catalog dictionary, leaving "Just For You" permanently blank.
-            await self.loadRecommendationCatalogs(
-                enabledCatalogs: enabledCatalogSnapshot,
-                tmdbService: tmdbService,
-                contentFilter: contentFilter,
-                generation: generation
-            )
-            guard !Task.isCancelled else { return }
             let firstCatalogFailure = await catalogFailureRecorder.firstFailureMessage()
 
             await MainActor.run {
