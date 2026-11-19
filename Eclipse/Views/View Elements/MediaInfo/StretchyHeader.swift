@@ -123,6 +123,7 @@ struct StretchyHeaderView: View {
                 geometry.frame(in: .named($0))
             } ?? geometry.frame(in: .global)
             let deltaY = frame.minY
+            let artworkWidth = max(geometry.size.width, EclipseViewport.bounds.width)
             let height = headerHeight + max(0, deltaY)
             // The detail ScrollView extends edge-to-edge, but SwiftUI can
             // still place its content origin inside the safe-area insets.
@@ -147,6 +148,7 @@ struct StretchyHeaderView: View {
                             endPoint: .trailing
                         )
                     )
+                    .frame(width: artworkWidth, height: height)
                     .overlay {
                         if let imageURL = resolvedBackdropURL {
                             // Render the artwork exactly once. A previous version
@@ -167,7 +169,7 @@ struct StretchyHeaderView: View {
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
                                 .frame(
-                                    width: geometry.size.width,
+                                    width: artworkWidth,
                                     height: height,
                                     alignment: .top
                                 )
