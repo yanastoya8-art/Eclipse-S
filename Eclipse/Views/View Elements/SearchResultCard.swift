@@ -202,10 +202,36 @@ actor SearchResultTitleLogoCache {
                 return (lhs.voteAverage ?? 0) > (rhs.voteAverage ?? 0)
             }
             // Never choose an unrelated-language logo merely to fill the slot.
-            let url = ranked.first(where: { $0.iso6391?.lowercased() == "en" })?.fullURL
+            if let tmdbLogo = ranked.first(where: { $0.iso6391?.lowercased() == "en" })?.fullURL
                 ?? ranked.first(where: { $0.iso6391?.lowercased() == "es" })?.fullURL
-                ?? ranked.first(where: { $0.iso6391 == nil || $0.iso6391 == "" })?.fullURL
-            return LookupResult(url: url, succeeded: english != nil || spanish != nil)
+                ?? ranked.first(where: { $0.iso6391 == nil || $0.iso6391 == "" })?.fullURL {
+                return LookupResult(url: tmdbLogo, succeeded: true)
+            }
+
+            // Some titles have no TMDB transparent logo. Use the same
+            // language-filtered Fanart.tv fallback as Home and Detail rather
+            // than leaving every Browse/Home poster without title artwork.
+            if mediaType == "movie" {
+                let details = try? await TMDBService.shared.getMovieDetails(id: id)
+                let fanartLogo = await FanartTVLogoService.shared.logoURL(
+                    imdbID: details?.imdbId,
+                    tvdbID: nil
+                )
+                return LookupResult(
+                    url: fanartLogo,
+                    succeeded: english != nil || spanish != nil || details != nil
+                )
+            }
+
+            let details = try? await TMDBService.shared.getTVShowWithSeasons(id: id)
+            let fanartLogo = await FanartTVLogoService.shared.logoURL(
+                imdbID: nil,
+                tvdbID: details?.externalIds?.tvdbId
+            )
+            return LookupResult(
+                url: fanartLogo,
+                succeeded: english != nil || spanish != nil || details != nil
+            )
         }
         pending[key] = task
         let lookup = await task.value
