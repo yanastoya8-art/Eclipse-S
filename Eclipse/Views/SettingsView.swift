@@ -4203,7 +4203,6 @@ private struct OpenSourceLicensesView: View {
         switch group.title {
         case "App Dependency Licenses": return "shippingbox.fill"
         case "Playback Component Licenses": return "play.rectangle.fill"
-        case "Reader & Shader Licenses": return "wand.and.stars"
 #if os(tvOS)
         case "Shader Licenses": return "wand.and.stars"
 #endif
@@ -4215,7 +4214,6 @@ private struct OpenSourceLicensesView: View {
         switch group.title {
         case "App Dependency Licenses": return .blue
         case "Playback Component Licenses": return .purple
-        case "Reader & Shader Licenses": return .orange
 #if os(tvOS)
         case "Shader Licenses": return .orange
 #endif
