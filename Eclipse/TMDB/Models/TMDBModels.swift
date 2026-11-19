@@ -181,12 +181,36 @@ struct AnimeMediaIdentitySeed: Codable, Equatable, Sendable {
     let malId: Int?
     let kitsuId: Int?
     let format: String?
+    let animeTags: [String]?
 
-    init(anilistId: Int, malId: Int? = nil, kitsuId: Int? = nil, format: String? = nil) {
+    init(
+        anilistId: Int,
+        malId: Int? = nil,
+        kitsuId: Int? = nil,
+        format: String? = nil,
+        animeTags: [String]? = nil
+    ) {
         self.anilistId = anilistId
         self.malId = malId
         self.kitsuId = kitsuId
         self.format = format
+        self.animeTags = Self.sanitizedAnimeTags(animeTags ?? animeIdentitySeed?.animeTags)
+    }
+
+    private static func sanitizedAnimeTags(_ values: [String]?) -> [String]? {
+        guard let values, !values.isEmpty else { return nil }
+        var seen = Set<String>()
+        let result = values.prefix(256).compactMap { rawValue -> String? in
+            let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !value.isEmpty, value.utf8.count <= 120 else { return nil }
+            let key = value
+                .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+                .components(separatedBy: CharacterSet.alphanumerics.inverted)
+                .joined()
+            guard !key.isEmpty, seen.insert(key).inserted else { return nil }
+            return value
+        }.prefix(80)
+        return result.isEmpty ? nil : Array(result)
     }
 
     var sanitizedForPersistence: AnimeMediaIdentitySeed? {
@@ -211,7 +235,8 @@ struct AnimeMediaIdentitySeed: Codable, Equatable, Sendable {
             anilistId: anilistId,
             malId: safeMAL,
             kitsuId: safeKitsu,
-            format: safeFormat
+            format: safeFormat,
+            animeTags: animeTags
         )
     }
 
@@ -657,7 +682,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             animeIdentitySeed: seed?.sanitizedForPersistence,
             animeArtworkURL: animeArtworkURL,
             animeLogoURL: animeLogoURL,
-            animeTags: animeTags,
+            animeTags: animeTags ?? seed?.animeTags,
             tvMazePosterURL: tvMazePosterURL,
             fanartTVPosterURL: fanartTVPosterURL
         )
