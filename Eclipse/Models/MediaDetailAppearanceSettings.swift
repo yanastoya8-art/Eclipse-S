@@ -18,13 +18,25 @@ enum MediaDetailTitleArtworkSettings {
     }
 }
 
-// Retained for backup/profile decoding compatibility; alternate-poster selection is disabled.
+// Retained for backup/profile decoding compatibility. The feature is no longer
+// exposed in the UI, but preserve its historical defaults when importing old backups.
 enum MediaDetailAlternatePosterSettings {
     static let enabledKey = "mediaDetailAlternatePosterEnabled"
-    static let defaultEnabled = false
+
+    static var isSupportedOnThisDevice: Bool {
+#if os(iOS)
+        !isIPad
+#else
+        false
+#endif
+    }
+
+    static var defaultEnabled: Bool {
+        isSupportedOnThisDevice
+    }
 
     static func isEnabled(defaults: UserDefaults = ProfileSettingsStore.active) -> Bool {
-        defaults.bool(forKey: enabledKey)
+        defaults.object(forKey: enabledKey) == nil ? defaultEnabled : defaults.bool(forKey: enabledKey)
     }
 }
 
