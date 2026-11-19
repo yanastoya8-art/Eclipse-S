@@ -32,12 +32,31 @@ enum HomeCatalogLoadPolicy {
 
 enum HomeCatalogFailurePresentation {
     static func message(for error: Error) -> String {
+        // Classify the real TMDBError cases before falling back to localized
+        // text. The app wraps URLSession failures in TMDBError.networkError and
+        // exposes HTTP failures as associated status codes, so checking only
+        // NSError descriptions can mislabel real API failures as generic errors.
+        if let tmdbError = error as? TMDBError {
+            switch tmdbError {
+            case .missingAPIKey:
+                return missingAPIKeyMessage
+            case .httpError(let statusCode, _, _):
+                return message(forHTTPStatusCode: statusCode)
+            case .networkError(let underlying):
+                return message(for: underlying)
+            case .invalidURL:
+                return "Eclipse could not build the TMDB request URL. Check the API configuration, then tap Retry."
+            case .decodingError:
+                return "TMDB returned a response Eclipse could not read. Check the API service, then tap Retry."
+            }
+        }
+
+        let nsError = error as NSError
         let diagnostic = "\(error.localizedDescription) \(String(reflecting: error))"
         let normalized = diagnostic.lowercased()
-        let nsError = error as NSError
 
         if normalized.contains("missingapikey") || normalized.contains("missing api key") {
-            return "TMDB API key is missing from this app build. Add the TMDB_API_KEY repository secret and rebuild the app."
+            return missingAPIKeyMessage
         }
 
         if normalized.contains("invalid api key")
@@ -86,6 +105,26 @@ enum HomeCatalogFailurePresentation {
         return message.isEmpty
             ? "TMDB did not return Home catalog data. Check the API configuration and tap Retry."
             : "TMDB request failed: \(message.prefix(180))"
+    }
+
+    private static let missingAPIKeyMessage =
+        "TMDB API key is missing from this app build. Add the TMDB_API_KEY repository secret and rebuild the app."
+
+    private static func message(forHTTPStatusCode statusCode: Int) -> String {
+        switch statusCode {
+        case 401, 403:
+            return "TMDB rejected the API key (HTTP 401/403). Verify that TMDB_API_KEY is a valid v3 API key, then rebuild the app."
+        case 429:
+            return "TMDB rate-limited the Home requests (HTTP 429). Wait briefly, then tap Retry."
+        case 408, 425:
+            return "TMDB could not complete the Home request (HTTP \(statusCode)). Wait briefly, then tap Retry."
+        case 500...599:
+            return "TMDB is temporarily unavailable (HTTP \(statusCode)). Wait a moment, then tap Retry."
+        case 400...499:
+            return "TMDB rejected a Home request (HTTP \(statusCode)). Check the API request, then tap Retry."
+        default:
+            return "TMDB request failed (HTTP \(statusCode)). Check the API service, then tap Retry."
+        }
     }
 }
 
