@@ -328,6 +328,33 @@ final class MaturityRatingRegionTests: XCTestCase {
         XCTAssertFalse(MaturityRating.isExplicitAllAgesCertification(certification: "TV-Y7", region: "US"))
     }
 
+    func testPreferredParentalGuidanceRatingsRemainDistinctFromAllAges() {
+        let movie = TMDBReleaseDates(results: [
+            TMDBReleaseDateResult(iso31661: "US", releaseDates: [
+                TMDBReleaseDate(
+                    certification: "PG",
+                    iso6391: "en",
+                    note: nil,
+                    releaseDate: "2026-01-01",
+                    type: 3
+                )
+            ])
+        ])
+        XCTAssertEqual(movie.preferredCertification?.rating, .general)
+        XCTAssertEqual(movie.filterRating, .age10)
+
+        let television = TMDBContentRatings(results: [
+            TMDBContentRating(descriptors: nil, iso31661: "GB", rating: "TV-PG")
+        ])
+        XCTAssertEqual(television.preferredCertification?.rating, .general)
+        XCTAssertEqual(television.filterRating, .age10)
+
+        let children = TMDBContentRatings(results: [
+            TMDBContentRating(descriptors: nil, iso31661: "GB", rating: "TV-Y7")
+        ])
+        XCTAssertEqual(children.filterRating, .age7)
+    }
+
     func testUSOnlyTVGFeedsAllAgesFilterWithoutReplacingEuropeanRatingPolicy() {
         let usOnlyTVG = TMDBContentRatings(results: [
             TMDBContentRating(descriptors: nil, iso31661: "US", rating: "TV-G")
