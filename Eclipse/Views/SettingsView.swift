@@ -5400,6 +5400,10 @@ private struct LanguageFiltersSettingsView: View {
                     .onChange(of: requireEnglishSpanishAudio) { _ in
                         NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil)
                         NotificationCenter.default.post(name: Notification.Name("scheduleContentFiltersDidChange"), object: nil)
+                        Task {
+                            _ = await MyDubListDubFilter.shared.refresh()
+                            NotificationCenter.default.post(name: MyDubListDubFilter.didRefreshNotification, object: nil)
+                        }
                     }
                     .accessibilityIdentifier("settings.contentFilters.audioLanguages")
             } footer: {
