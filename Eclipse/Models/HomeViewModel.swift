@@ -175,6 +175,7 @@ final class HomeViewModel: ObservableObject {
     private var unfilteredCatalogResults: [String: [TMDBSearchResult]] = [:]
     private var unfilteredWidgetData: [String: [TMDBSearchResult]] = [:]
     private var pendingCatalogFilterRefresh = false
+    private var catalogFilterGeneration = UUID()
     @Published var isLoading = true
     @Published var errorMessage: String?
     @Published var heroContent: TMDBSearchResult?
@@ -233,6 +234,9 @@ final class HomeViewModel: ObservableObject {
             return
         }
         guard let contentFilter = activeContentFilter else { return }
+        let filterGeneration = UUID()
+        catalogFilterGeneration = filterGeneration
+        let loadGenerationSnapshot = loadGeneration
         var catalogSnapshot = unfilteredCatalogResults
         for (key, value) in catalogResults where catalogSnapshot[key] == nil {
             catalogSnapshot[key] = value
@@ -251,6 +255,12 @@ final class HomeViewModel: ObservableObject {
         let allResults = (Array(catalogSnapshot.values.joined()) + Array(widgetSnapshot.values.joined()))
             .filter { seenIdentities.insert($0.stableIdentity).inserted }
         await contentFilter.prepareMaturityRatings(for: allResults)
+
+        // Actor reentrancy allows another filter refresh or catalog load to begin
+        // while rating metadata is fetched. Never publish this stale snapshot.
+        guard catalogFilterGeneration == filterGeneration,
+              loadGeneration == loadGenerationSnapshot,
+              hasLoadedContent else { return }
 
         catalogResults = catalogSnapshot.mapValues { contentFilter.filterSearchResults($0) }
         widgetData = widgetSnapshot.mapValues { contentFilter.filterSearchResults($0) }
