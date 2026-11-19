@@ -60,6 +60,20 @@ enum ScheduleAllAgesPolicy {
     static func shouldExclude(rating: MaturityRating?, enabled: Bool) -> Bool {
         enabled && rating == .general
     }
+
+    /// Apply the same minimum-age gate used by Home and Browse. Unknown ratings
+    /// fail closed only when a minimum age is configured; an All Ages-only
+    /// filter continues to leave unrated entries visible.
+    static func shouldExclude(
+        rating: MaturityRating?,
+        minimum: MaturityRating?,
+        hideAllAges: Bool
+    ) -> Bool {
+        if hideAllAges, rating == .general { return true }
+        guard let minimum else { return false }
+        guard let rating, rating != .unknown else { return true }
+        return rating < minimum
+    }
 }
 
 enum MyDubListLanguage: String, CaseIterable, Identifiable, Sendable {
@@ -708,7 +722,9 @@ class TMDBContentFilter: ObservableObject {
 
     func prepareScheduleAgeRatings(for entries: [ScheduleEntry]) async {
         let defaults = UserDefaults.standard
-        let animeEntries = defaults.bool(forKey: "catalogHideAllAgesAnime")
+        let hideBelowAnime = defaults.bool(forKey: "catalogHideBelowPG13Anime")
+        let hideAllAgesAnime = defaults.bool(forKey: "catalogHideAllAgesAnime")
+        let animeEntries = (hideBelowAnime || hideAllAgesAnime)
             ? entries.filter { $0.source == .anime }
             : []
         if !animeEntries.isEmpty {
@@ -744,10 +760,14 @@ class TMDBContentFilter: ObservableObject {
 
         let tmdbEntries = entries.compactMap { entry -> (isMovie: Bool, id: Int)? in
             guard let id = entry.tmdbId, id > 0 else { return nil }
-            let enabled = entry.isMovie
-                ? defaults.bool(forKey: "catalogHideAllAgesMovies")
-                : defaults.bool(forKey: "catalogHideAllAgesSeries")
-            return enabled ? (entry.isMovie, id) : nil
+            let minimumAgeEnabled = Self.ageFilterEnabled(
+                entry.isMovie ? "catalogHideBelowPG13Movies" : "catalogHideBelowTV14Shows",
+                defaults: defaults
+            )
+            let allAgesEnabled = defaults.bool(
+                forKey: entry.isMovie ? "catalogHideAllAgesMovies" : "catalogHideAllAgesSeries"
+            )
+            return minimumAgeEnabled || allAgesEnabled ? (entry.isMovie, id) : nil
         }
         if !tmdbEntries.isEmpty {
             await TMDBMaturityRatingStore.shared.resolve(tmdbEntries)
@@ -755,7 +775,10 @@ class TMDBContentFilter: ObservableObject {
 
         let seriesWithoutTMDBIDs = entries.filter {
             $0.source == .western && !$0.isMovie && $0.tmdbId == nil
-                && defaults.bool(forKey: "catalogHideAllAgesSeries")
+                && (
+                    Self.ageFilterEnabled("catalogHideBelowTV14Shows", defaults: defaults)
+                        || defaults.bool(forKey: "catalogHideAllAgesSeries")
+                )
         }
         if !seriesWithoutTMDBIDs.isEmpty {
             var uniqueShows: [String: ScheduleEntry] = [:]
@@ -861,6 +884,51 @@ class TMDBContentFilter: ObservableObject {
         let rating = scheduleSeriesAgeRatingsByEntryID[entry.id]
         animeEligibilityLock.unlock()
         return ScheduleAllAgesPolicy.shouldExclude(rating: rating, enabled: true)
+    }
+
+    func scheduleEntryIsBlockedByConfiguredAgeFilter(_ entry: ScheduleEntry) -> Bool {
+        let defaults = UserDefaults.standard
+        if entry.source == .anime {
+            let hideBelowMinimum = defaults.bool(forKey: "catalogHideBelowPG13Anime")
+            let hideAllAges = defaults.bool(forKey: "catalogHideAllAgesAnime")
+            guard hideBelowMinimum || hideAllAges else { return false }
+            let id = entry.sourceMediaId
+            animeEligibilityLock.lock()
+            let rating = scheduleAnimeAgeRatingsByEntryID[entry.id]
+                ?? (id > 0 ? animeAgeRatingsByID[id] : nil)
+            animeEligibilityLock.unlock()
+            return ScheduleAllAgesPolicy.shouldExclude(
+                rating: rating,
+                minimum: hideBelowMinimum ? .teen : nil,
+                hideAllAges: hideAllAges
+            )
+        }
+
+        let hideBelowMinimum = Self.ageFilterEnabled(
+            entry.isMovie ? "catalogHideBelowPG13Movies" : "catalogHideBelowTV14Shows",
+            defaults: defaults
+        )
+        let hideAllAges = defaults.bool(
+            forKey: entry.isMovie ? "catalogHideAllAgesMovies" : "catalogHideAllAgesSeries"
+        )
+        guard hideBelowMinimum || hideAllAges else { return false }
+
+        let rating: MaturityRating?
+        if let id = entry.tmdbId, id > 0 {
+            rating = TMDBMaturityRatingStore.shared.rating(isMovie: entry.isMovie, id: id)
+        } else if !entry.isMovie {
+            animeEligibilityLock.lock()
+            rating = scheduleSeriesAgeRatingsByEntryID[entry.id]
+            animeEligibilityLock.unlock()
+        } else {
+            rating = nil
+        }
+        let minimum = hideBelowMinimum ? (entry.isMovie ? MaturityRating.teen : .age14) : nil
+        return ScheduleAllAgesPolicy.shouldExclude(
+            rating: rating,
+            minimum: minimum,
+            hideAllAges: hideAllAges
+        )
     }
 
     private func resolveAnimeAgeRatings(for results: [TMDBSearchResult]) async {
