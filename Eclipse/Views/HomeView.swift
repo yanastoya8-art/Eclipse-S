@@ -805,11 +805,10 @@ struct HomeView: View {
                 noEnabledCatalogsView
             } else if let errorMessage = homeViewModel.errorMessage,
                       !homeViewModel.hasRenderableStartupContent,
-                      homeViewModel.catalogResults.values.allSatisfy(\.isEmpty),
-                      homeViewModel.widgetData.values.allSatisfy(\.isEmpty) {
-                // A failed optional catalog must not replace already-rendered
-                // shelves with a full-screen connection error. Home catalogs
-                // are independent; keep every successful result visible.
+                      homeViewModel.hasCompletedInitialLoad {
+                // Hidden recommendation/hero seed data is not a visible shelf.
+                // Only show the empty-state error after every enabled catalog
+                // has completed without producing renderable content.
                 errorView(errorMessage)
             } else {
                 mainScrollView
