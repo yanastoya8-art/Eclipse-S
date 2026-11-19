@@ -550,9 +550,9 @@ final class HomeViewModel: ObservableObject {
             }
 
             // Recommendation catalogs depend on the first provider snapshot.
-            // Start them now instead of waiting for optional widgets and remote
-            // catalogs, so app-provided shelves can render independently.
-            await self.loadRecommendationCatalogs(
+            // Start them now, concurrently with widgets and remote catalogs,
+            // so one slow recommendation request cannot hold up other shelves.
+            async let recommendationsLoaded: Void = self.loadRecommendationCatalogs(
                 enabledCatalogs: enabledCatalogSnapshot,
                 tmdbService: tmdbService,
                 contentFilter: contentFilter,
@@ -679,6 +679,8 @@ final class HomeViewModel: ObservableObject {
                 self.unfilteredCatalogResults.merge(loadedTraktCatalogs) { _, raw in raw }
             }
             _ = await widgetsLoaded
+            _ = await recommendationsLoaded
+            guard !Task.isCancelled else { return }
             let firstCatalogFailure = await catalogFailureRecorder.firstFailureMessage()
 
             await MainActor.run {
