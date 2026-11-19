@@ -134,38 +134,65 @@ jobs:
       - name: Build patched MPVKit for iPhone and iPad
         run: |
           set -euo pipefail
-          missing=()
-          for formula in autoconf automake cmake libtool nasm ninja pkg-config; do
-            if ! brew list --versions "$formula" >/dev/null 2>&1; then
-              missing+=("$formula")
+
+          # The cache includes both MPVKit's build tree and the completed
+          # XCFrameworks. Do not rerun the expensive FFmpeg/libmpv toolchain
+          # when every required output is already present and usable.
+          required_frameworks=(
+            Libmpv Libavcodec Libavdevice Libavfilter
+            Libavformat Libavutil Libswresample Libswscale
+          )
+          cache_complete=true
+          test -f MPVKit/dist/release/Package.swift || cache_complete=false
+          for framework in "${required_frameworks[@]}"; do
+            artifact="MPVKit/dist/release/xcframework/${framework}.xcframework"
+            if [ ! -d "$artifact" ] || [ ! -f "$artifact/Info.plist" ]; then
+              echo "Cached MPVKit output is missing: $artifact"
+              cache_complete=false
             fi
           done
-          if [ "${#missing[@]}" -gt 0 ]; then
-            brew install "${missing[@]}"
+
+          if [ "$cache_complete" = true ]; then
+            echo "All patched MPVKit XCFrameworks restored from cache; skipping the full native rebuild."
           else
-            echo "All MPVKit build tools are already installed."
-          fi
-          MPVKIT_BUILD_VENV="$RUNNER_TEMP/mpvkit-build-venv"
-          python3 -m venv "$MPVKIT_BUILD_VENV"
-          "$MPVKIT_BUILD_VENV/bin/python" -m pip install --disable-pip-version-check meson==1.4.2
-          export PATH="$MPVKIT_BUILD_VENV/bin:$PATH"
-          MPVKIT_BUILD_SUCCEEDED=false
-          for attempt in 1 2 3; do
-            if make -C MPVKit build enable-gpl version=0.41.0 platform=ios; then
-              MPVKIT_BUILD_SUCCEEDED=true
-              break
+            missing=()
+            for formula in autoconf automake cmake libtool nasm ninja pkg-config; do
+              if ! brew list --versions "$formula" >/dev/null 2>&1; then
+                missing+=("$formula")
+              fi
+            done
+            if [ "${#missing[@]}" -gt 0 ]; then
+              brew install "${missing[@]}"
+            else
+              echo "All MPVKit build tools are already installed."
             fi
-          
-            echo "::warning::MPVKit build attempt $attempt failed. Retrying transient upstream download failures."
-            # Remove incomplete OpenSSL downloads so the next attempt starts cleanly.
-            rm -rf MPVKit/dist/openssl-3.3.5 MPVKit/dist/openssl-3.3.5.log
-            if [ "$attempt" -lt 3 ]; then sleep "$((attempt * 10))"; fi
-          done
-          if [ "$MPVKIT_BUILD_SUCCEEDED" != true ]; then
-            echo "::error::MPVKit did not build successfully after three attempts."
-            exit 1
+
+            MPVKIT_BUILD_VENV="$RUNNER_TEMP/mpvkit-build-venv"
+            python3 -m venv "$MPVKIT_BUILD_VENV"
+            "$MPVKIT_BUILD_VENV/bin/python" -m pip install --disable-pip-version-check meson==1.4.2
+            export PATH="$MPVKIT_BUILD_VENV/bin:$PATH"
+            MPVKIT_BUILD_SUCCEEDED=false
+            for attempt in 1 2 3; do
+              if make -C MPVKit build enable-gpl version=0.41.0 platform=ios; then
+                MPVKIT_BUILD_SUCCEEDED=true
+                break
+              fi
+
+              echo "::warning::MPVKit build attempt $attempt failed. Retrying transient upstream download failures."
+              # Remove incomplete OpenSSL downloads so the next attempt starts cleanly.
+              rm -rf MPVKit/dist/openssl-3.3.5 MPVKit/dist/openssl-3.3.5.log
+              if [ "$attempt" -lt 3 ]; then sleep "$((attempt * 10))"; fi
+            done
+            if [ "$MPVKIT_BUILD_SUCCEEDED" != true ]; then
+              echo "::error::MPVKit did not build successfully after three attempts."
+              exit 1
+            fi
           fi
+
           test -f MPVKit/dist/release/Package.swift
+          for framework in "${required_frameworks[@]}"; do
+            test -f "MPVKit/dist/release/xcframework/${framework}.xcframework/Info.plist"
+          done
           
       - name: Verify patched MPVKit source and local frameworks
         run: |
