@@ -3233,11 +3233,12 @@ struct ExperimentalMediaCard: View {
             }
         }
         .frame(width: cardSize.width, height: cardSize.height)
-        .task(id: result.stableIdentity) {
+        .task(id: "\(result.stableIdentity):\(resolvedStyle)") {
             guard resolvedStyle == .poster else {
                 posterTitleLogoURL = nil
                 return
             }
+            posterTitleLogoURL = nil
             posterTitleLogoURL = await SearchResultTitleLogoCache.shared.logoURL(
                 mediaType: result.isMovie ? "movie" : "tv",
                 id: result.id
@@ -3352,6 +3353,7 @@ struct MediaCard: View {
             }
             .frame(width: posterWidth, height: posterHeight)
             .task(id: result.stableIdentity) {
+                posterTitleLogoURL = nil
                 posterTitleLogoURL = await SearchResultTitleLogoCache.shared.logoURL(
                     mediaType: result.isMovie ? "movie" : "tv",
                     id: result.id
