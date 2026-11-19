@@ -7,13 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		E6C1E0000000000000000001 /* PortableColorArchive.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62320CD2A5FAC3DC09A3DE91 /* PortableColorArchive.swift */; };
-		E6C1E0000000000000000002 /* EclipseDataDirectories.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8881ADECC7A82AC17F49B09C /* EclipseDataDirectories.swift */; };
-		E6C1E0000000000000000003 /* ImagePipelineConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39E9DB015F0E0D5B96A2EA04 /* ImagePipelineConfiguration.swift */; };
 		E6C1E0000000000000000004 /* PlatformCapabilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6C1F0000000000000000001 /* PlatformCapabilities.swift */; };
-		E6C1E0000000000000000005 /* PlatformPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A76CFB4D993C56CFE8A737C /* PlatformPresentation.swift */; };
-		E6C1E0000000000000000006 /* ProviderPlatformUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4DA952ED491E99CD5B84311 /* ProviderPlatformUI.swift */; };
-		E6C1E0000000000000000007 /* MediaDetailAppearanceSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 259D916F531EA2DD391F08CE /* MediaDetailAppearanceSettings.swift */; };
 		E6C1E0000000000000000008 /* MediaStateModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6C1F0000000000000000002 /* MediaStateModels.swift */; };
 		E6C1E0000000000000000009 /* MediaStateSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6C1F0000000000000000003 /* MediaStateSync.swift */; };
 		E6C1E0000000000000000010 /* AVPlayerResourceLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6C1F0000000000000000004 /* AVPlayerResourceLoader.swift */; };
@@ -23,15 +17,6 @@
 		E6C1E0000000000000000014 /* PlaybackEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6C1F0000000000000000008 /* PlaybackEngine.swift */; };
 		E6C1E0000000000000000015 /* PlaybackLaunchContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6C1F0000000000000000009 /* PlaybackLaunchContext.swift */; };
 		E6C1E0000000000000000016 /* PlaybackRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6C1F0000000000000000010 /* PlaybackRequest.swift */; };
-		E6C1E0000000000000000017 /* PlaybackSubtitleSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90BF2D51A1E5A8DF4E57256A /* PlaybackSubtitleSupport.swift */; };
-		E6C1E0000000000000000018 /* PlayerEpisodeBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84DB5AFFAFF38927E3C43404 /* PlayerEpisodeBrowser.swift */; };
-		E6C1E0000000000000000019 /* PlayerSubtitleAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5897A1DEE07B58F6D29D5D3 /* PlayerSubtitleAppearance.swift */; };
-		E6C1E0000000000000000020 /* AnimeScheduleService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C900010000000000000003 /* AnimeScheduleService.swift */; };
-		E6C1E0000000000000000021 /* TrackerCloudSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C50A0010000000000000005 /* TrackerCloudSync.swift */; };
-		E6C1E0000000000000000022 /* TrackerCollectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81ECB804A2424540A60DFE91 /* TrackerCollectionView.swift */; };
-		E6C1E0000000000000000023 /* KanzenReaderUpscaleModelStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCD67B02EBEF0564A3D0D7F8 /* KanzenReaderUpscaleModelStore.swift */; };
-		E6C1E0000000000000000024 /* KanzenSearchModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFEAB1B0B4307444E9F64051 /* KanzenSearchModels.swift */; };
-		E6C1E0000000000000000025 /* ReaderExtensionBrowserTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B2758602585D0CCD9503675 /* ReaderExtensionBrowserTransport.swift */; };
 		CF673F45A47A705DFED9848B /* ReaderLocalEPUBLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E0CE323DA747526EDA48D66 /* ReaderLocalEPUBLibrary.swift */; };
 		338D0B1850088A4AB118463A /* ReaderNovelNavigationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B60EE14F4840E3FCED3B95A /* ReaderNovelNavigationTests.swift */; };
 		3C6A7D6157A27935CA14BFD6 /* ReaderExtensionEPUBTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3BD7C2A002E8BE4FE706B58 /* ReaderExtensionEPUBTests.swift */; };
