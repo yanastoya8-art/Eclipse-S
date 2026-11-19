@@ -232,6 +232,13 @@ final class PlaybackInputSafetyTests: XCTestCase {
         XCTAssertEqual(cues.map(\.start), [1.0, 3.0])
     }
 
+    func testExternalSubtitleParserPreservesArrowTextInsideCue() {
+        let source = "1\\n00:00:01,000 --> 00:00:02,000\\nLeft --> Right\\n"
+        let cues = TVExternalSubtitleParser.parse(Data(source.utf8))
+        XCTAssertEqual(cues.count, 1)
+        XCTAssertEqual(cues.first?.text, "Left --> Right")
+    }
+
     func testSubtitleDelayPreservesDirectionAndBoundsUntrustedValues() {
         XCTAssertEqual(PlayerSubtitleTiming.cueTime(playbackTime: 10, delay: 2), 8)
         XCTAssertEqual(PlayerSubtitleTiming.cueTime(playbackTime: 10, delay: -2), 12)
