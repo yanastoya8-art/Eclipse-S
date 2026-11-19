@@ -235,6 +235,7 @@
 		F1E000000000000000000033 /* ErrorDefinitions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E1EDAC2ED9E65F00087629 /* ErrorDefinitions.swift */; };
 		F1E000000000000000000034 /* JavaScriptCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E1EDAE2ED9E65F00087629 /* JavaScriptCore.swift */; };
 		F1E000000000000000000035 /* AidokuSourceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD0000122FD9000000AD0012 /* AidokuSourceManager.swift */; };
+		F1E000000000000000000036 /* ReaderNovelNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE5DD9065EB258BF39197DA7 /* ReaderNovelNavigation.swift */; };
 		13E1EDDA2ED9E65F00087629 /* bundle.js in Resources */ = {isa = PBXBuildFile; fileRef = 13E1EDAB2ED9E65F00087629 /* bundle.js */; };
 		13F0725F2E4B2D3300EF90EB /* SoraApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13F0725E2E4B2D3300EF90EB /* SoraApp.swift */; };
 		AD20000B2FE2000000AD200B /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD20000A2FE2000000AD200A /* Localization.swift */; };
@@ -2237,6 +2238,7 @@
 				F1E000000000000000000033 /* ErrorDefinitions.swift in Sources */,
 				F1E000000000000000000034 /* JavaScriptCore.swift in Sources */,
 				F1E000000000000000000035 /* AidokuSourceManager.swift in Sources */,
+				F1E000000000000000000036 /* ReaderNovelNavigation.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
