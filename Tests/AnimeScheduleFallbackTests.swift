@@ -1115,7 +1115,7 @@ final class EnglishDubScheduleMergeTests: XCTestCase {
     private func entry(
         date: TimeInterval,
         known: Bool,
-        provider: AnimeScheduleProvider
+        provider: ScheduleProvider
     ) -> AniListAiringScheduleEntry {
         AniListAiringScheduleEntry(
             id: Int(date),
