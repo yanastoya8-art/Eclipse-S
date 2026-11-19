@@ -1984,8 +1984,12 @@ struct MediaDetailContentView: View {
                         // Match Home: keep the colour field behind the complete
                         // scroll content so its tail fades beneath the overview.
                         // Portrait retains its existing experimental behaviour.
+                        // Landscape uses the single gradient painted over the
+                        // hero artwork below. A second scroll-content bleed layer
+                        // blended a different colour at the hero boundary and made
+                        // the landscape transition look like a horizontal line.
                         color: usesLandscapeDetailComposition
-                            ? mediaDetailHeroBleedColor
+                            ? nil
                             : (ExperimentalFeatureState.isEnabledAtLaunch ? mediaDetailHeroBleedColor : nil),
                         heroHeight: heroSectionHeight,
                         tail: mediaDetailHeroBleedTail,
@@ -2872,7 +2876,7 @@ struct MediaDetailContentView: View {
             // deliberately clipped to the hero bounds so it never follows
             // the scroll into the episode list.
             let gradientHeight = usesLandscapeDetailComposition
-                ? heroSectionHeight * 0.72
+                ? heroSectionHeight
                 : max(designMetrics.heroBottomFadeHeight + 90, usesWideDetailLayout ? 560 : 430)
 
             LinearGradient(
@@ -2911,7 +2915,7 @@ struct MediaDetailContentView: View {
                 ? (mediaDetailHeroBleedColor ?? atmosphereColor)
                 : atmosphereColor
             let legacyGradientHeight = usesLandscapeDetailComposition
-                ? heroSectionHeight * 0.72
+                ? heroSectionHeight
                 : 120
 
             LinearGradient(
