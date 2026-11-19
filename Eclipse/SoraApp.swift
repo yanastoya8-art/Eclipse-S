@@ -238,7 +238,6 @@ struct SoraApp: App {
 
                 if showProfilePicker {
                     ProfilePickerView(
-                        isReaderMode: false,
                         autoUnlockProfile: launchUnlockProfile
                     ) {
                         showProfilePicker = false
