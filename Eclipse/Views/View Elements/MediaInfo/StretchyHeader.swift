@@ -91,6 +91,7 @@ struct StretchyHeaderView: View {
     var showsBottomFade: Bool = true
     var bottomFadeHeight: CGFloat = 100
     var bottomFadeEndOpacity: Double = 0.6
+    var bottomFadeColor: Color?
     // Detail pages measure stretching relative to their ScrollView so the
     // safe-area origin and initial rotation layout do not shift the artwork.
     var scrollCoordinateSpaceName: String? = nil
@@ -192,12 +193,13 @@ struct StretchyHeaderView: View {
 
                 if showsBottomFade {
                     let endOpacity = min(max(bottomFadeEndOpacity, 0), 1)
+                    let fadeColor = bottomFadeColor ?? localAmbientColor
                     LinearGradient(
                         gradient: Gradient(stops: [
-                            .init(color: localAmbientColor.opacity(0.0), location: 0.0),
-                            .init(color: localAmbientColor.opacity(endOpacity / 6), location: 0.2),
-                            .init(color: localAmbientColor.opacity(endOpacity * 0.5), location: 0.7),
-                            .init(color: localAmbientColor.opacity(endOpacity), location: 1.0)
+                            .init(color: fadeColor.opacity(0.0), location: 0.0),
+                            .init(color: fadeColor.opacity(endOpacity / 6), location: 0.2),
+                            .init(color: fadeColor.opacity(endOpacity * 0.5), location: 0.7),
+                            .init(color: fadeColor.opacity(endOpacity), location: 1.0)
                         ]),
                         startPoint: .top,
                         endPoint: .bottom
