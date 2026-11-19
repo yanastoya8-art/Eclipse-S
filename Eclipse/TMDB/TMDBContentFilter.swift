@@ -27,6 +27,25 @@ enum DubLanguageSelectionPolicy {
     }
 }
 
+enum AnimeDubAudioSelectionPolicy {
+    /// A title qualifies only when at least one of the user's selected
+    /// languages has a confirmed dub. Spanish regional tags are one language.
+    static func hasSelectedAudio(
+        selectedLanguages: Set<String>,
+        dubCountsByLanguage: [String: Int]
+    ) -> Bool {
+        if selectedLanguages.contains(MyDubListLanguage.english.rawValue),
+           (dubCountsByLanguage["en"] ?? 0) > 0 {
+            return true
+        }
+        if selectedLanguages.contains(MyDubListLanguage.spanish.rawValue),
+           ["es", "es-419", "es-es"].contains(where: { (dubCountsByLanguage[$0] ?? 0) > 0 }) {
+            return true
+        }
+        return false
+    }
+}
+
 enum ScheduleAllAgesPolicy {
     /// Only an explicit general-audience classification is excluded. Missing
     /// or unknown ratings are not silently treated as All Ages.
@@ -901,7 +920,11 @@ class TMDBContentFilter: ObservableObject {
         }
     }
 
-    private static func resolveAnimeDubEligibility(anilistID: Int, malID: Int?) async -> Bool? {
+    private static func resolveAnimeDubEligibility(
+        anilistID: Int,
+        malID: Int?,
+        selectedLanguages: Set<String>
+    ) async -> Bool? {
         var counts = (try? await TaizenAnimeDubMetadataService.shared.episodeDubCounts(
             anilistID: anilistID,
             malID: malID
@@ -911,7 +934,10 @@ class TMDBContentFilter: ObservableObject {
         // app's combined Latino/Castellano filter. Query Anidub only when that
         // confirmation is missing, avoiding one anonymous API request per title
         // when Taizen has already supplied the needed language metadata.
-        if AnimeDubMetadataFallbackPolicy.shouldQueryAnidub(taizenCounts: counts) {
+        if AnimeDubMetadataFallbackPolicy.shouldQueryAnidub(
+            taizenCounts: counts,
+            selectedLanguages: selectedLanguages
+        ) {
             if let anidubCounts = try? await AnidubAnimeDubMetadataService.shared.episodeDubCounts(anilistID: anilistID) {
                 for (language, count) in anidubCounts {
                     counts[language] = max(counts[language] ?? 0, count)
@@ -920,10 +946,10 @@ class TMDBContentFilter: ObservableObject {
         }
 
         guard !counts.isEmpty else { return nil }
-        return (counts["en"] ?? 0) > 0
-            || (counts["es"] ?? 0) > 0
-            || (counts["es-419"] ?? 0) > 0
-            || (counts["es-es"] ?? 0) > 0
+        return AnimeDubAudioSelectionPolicy.hasSelectedAudio(
+            selectedLanguages: selectedLanguages,
+            dubCountsByLanguage: counts
+        )
     }
 
     private func resolveAnimeAudioMetadata(for results: [TMDBSearchResult]) async {
@@ -940,6 +966,7 @@ class TMDBContentFilter: ObservableObject {
         }
         guard !candidates.isEmpty else { return }
 
+        let selectedLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
         await withTaskGroup(of: (Int, Bool?).self) { group in
             var iterator = candidates.makeIterator()
             let concurrencyLimit = 6
@@ -949,7 +976,8 @@ class TMDBContentFilter: ObservableObject {
                 group.addTask {
                     let eligible = await Self.resolveAnimeDubEligibility(
                         anilistID: id,
-                        malID: result.animeIdentitySeed?.malId
+                        malID: result.animeIdentitySeed?.malId,
+                        selectedLanguages: selectedLanguages
                     )
                     return (id, eligible)
                 }
@@ -981,7 +1009,8 @@ class TMDBContentFilter: ObservableObject {
                     group.addTask {
                         let eligible = await Self.resolveAnimeDubEligibility(
                             anilistID: nextID,
-                            malID: result.animeIdentitySeed?.malId
+                            malID: result.animeIdentitySeed?.malId,
+                            selectedLanguages: selectedLanguages
                         )
                         return (nextID, eligible)
                     }
@@ -2367,12 +2396,18 @@ enum AnimeDubEpisodeVisibilityPolicy {
 
 
 enum AnimeDubMetadataFallbackPolicy {
-    static func shouldQueryAnidub(taizenCounts: [String: Int]) -> Bool {
-        let hasEnglishOrSpanish = (taizenCounts["en"] ?? 0) > 0
-            || (taizenCounts["es"] ?? 0) > 0
-            || (taizenCounts["es-419"] ?? 0) > 0
-            || (taizenCounts["es-es"] ?? 0) > 0
-        return !hasEnglishOrSpanish
+    static func shouldQueryAnidub(
+        taizenCounts: [String: Int],
+        selectedLanguages: Set<String> = [
+            MyDubListLanguage.english.rawValue,
+            MyDubListLanguage.spanish.rawValue
+        ]
+    ) -> Bool {
+        guard !selectedLanguages.isEmpty else { return false }
+        return !AnimeDubAudioSelectionPolicy.hasSelectedAudio(
+            selectedLanguages: selectedLanguages,
+            dubCountsByLanguage: taizenCounts
+        )
     }
 }
 
