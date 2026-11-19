@@ -67,8 +67,6 @@
 	<string>$(TMDB_API_KEY)</string>
 	<key>FanartTVAPIKey</key>
 	<string>$(FANART_TV_API_KEY)</string>
-	<key>JustWatchAPIKey</key>
-	<string>$(JUSTWATCH_API_KEY)</string>
 	<key>AniListClientID</key>
 	<string>$(ANILIST_CLIENT_ID)</string>
 	<key>AniListClientSecret</key>
