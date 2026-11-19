@@ -419,9 +419,6 @@ struct SoraApp: App {
 
                 MediaStateSyncBootstrap.syncOnActivation()
             }
-            .onReceive(NotificationCenter.default.publisher(for: .openScheduleFromLocalNotification)) { _ in
-                // ContentView handles schedule navigation in the sole Watch mode.
-            }
 #endif
     }
 
