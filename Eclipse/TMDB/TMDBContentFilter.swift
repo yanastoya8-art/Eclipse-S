@@ -27,6 +27,14 @@ enum DubLanguageSelectionPolicy {
     }
 }
 
+enum ScheduleAllAgesPolicy {
+    /// Only an explicit general-audience classification is excluded. Missing
+    /// or unknown ratings are not silently treated as All Ages.
+    static func shouldExclude(rating: MaturityRating?, enabled: Bool) -> Bool {
+        enabled && rating == .general
+    }
+}
+
 enum MyDubListLanguage: String, CaseIterable, Identifiable, Sendable {
     case english, spanish, german, french, italian, chinese, portuguese, korean
     case tagalog, arabic, polish, hindi, hungarian, hebrew, swedish, norwegian
@@ -696,12 +704,15 @@ class TMDBContentFilter: ObservableObject {
             animeEligibilityLock.lock()
             let rating = animeAgeRatingsByID[id]
             animeEligibilityLock.unlock()
-            return rating == .general
+            return ScheduleAllAgesPolicy.shouldExclude(rating: rating, enabled: true)
         }
 
         let key = entry.isMovie ? "catalogHideAllAgesMovies" : "catalogHideAllAgesSeries"
         guard defaults.bool(forKey: key), let id = entry.tmdbId, id > 0 else { return false }
-        return TMDBMaturityRatingStore.shared.rating(isMovie: entry.isMovie, id: id) == .general
+        return ScheduleAllAgesPolicy.shouldExclude(
+            rating: TMDBMaturityRatingStore.shared.rating(isMovie: entry.isMovie, id: id),
+            enabled: true
+        )
     }
 
     private func resolveAnimeAgeRatings(for results: [TMDBSearchResult]) async {
