@@ -7,44 +7,6 @@
 
 import Foundation
 
-/// Stable route metadata retained for manga library, progress and download
-/// records. The Reader presentation can be removed without discarding the
-/// source identity needed to restore or migrate existing records.
-enum MangaContentRoute: Codable, Hashable, Sendable {
-    case readerExtension(source: ReaderExtensionSourceID, itemKey: String, legacyStableKey: String?)
-    case aidoku(sourceID: String, mangaKey: String)
-    case legacyModule(moduleUUID: String, contentParams: String, isNovel: Bool)
-
-    var readerExtensionSourceID: ReaderExtensionSourceID? {
-        guard case .readerExtension(let sourceID, _, _) = self else { return nil }
-        return sourceID
-    }
-
-    var stableKey: String {
-        switch self {
-        case .readerExtension(let sourceID, let itemKey, let legacyStableKey):
-            return legacyStableKey
-                ?? "reader-extension:\(sourceID.rawValue):\(itemKey)"
-        case .aidoku(let sourceID, let mangaKey):
-            return ReaderExtensionAidokuMigration.legacyStableKey(
-                sourceID: sourceID,
-                itemKey: mangaKey
-            )
-        case .legacyModule(let moduleUUID, let contentParams, _):
-            return "\(moduleUUID):\(contentParams)"
-        }
-    }
-
-    /// Deterministic negative IDs keep source-only titles distinct from
-    /// positive AniList IDs and stable across launches and profile restores.
-    var stableNegativeId: Int {
-        let hash = stableKey.utf8.reduce(into: 5381) { value, byte in
-            value = ((value &<< 5) &+ value) &+ Int(byte)
-        }
-        return hash < 0 ? hash : -hash - 1
-    }
-}
-
 struct MangaLibraryItem: Codable, Identifiable, Equatable, Sendable {
     var id: Int { aniListId }
 
