@@ -1403,8 +1403,6 @@ private struct ProfilePhotoPickerRow: View {
 #endif
 
 struct ProfilePickerView: View {
-    var isReaderMode: Bool = false
-
     var autoUnlockProfile: Profile?
     let onFinished: () -> Void
 
@@ -1420,7 +1418,7 @@ struct ProfilePickerView: View {
             SettingsGradientBackground().ignoresSafeArea()
 
             VStack(spacing: 28) {
-                Text(isReaderMode ? "Who's reading?" : "Who's watching?")
+                Text("Who's watching?")
                     .font(.system(size: 28, weight: .semibold))
                     .foregroundColor(.white)
 
