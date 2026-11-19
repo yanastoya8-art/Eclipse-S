@@ -1033,23 +1033,27 @@ final class ScheduleViewModel: ObservableObject {
         // duplicate an episode merely because the providers use different IDs.
         let mergedEntries = ScheduleEntryMergePolicy.earliestByEpisode(currentResult.entries + additions)
 
-        // Spanish research runs after the first calendar paint. Resolve ratings
-        // for the complete merged snapshot, then reapply every schedule filter
-        // before publishing; otherwise this late merge can reintroduce excluded
-        // All Ages or unofficial entries from the cached raw schedule.
-        await TMDBContentFilter.shared.prepareScheduleAgeRatings(for: mergedEntries)
-        let visibleAnimeEntries = mergedEntries.filter {
-            scheduleEntryPassesConfiguredFilters($0)
-        }
+        // Spanish research runs after the first calendar paint. Re-run the
+        // complete anime policy (language, specials/OVAs, categories, era and
+        // runtime) against the merged raw snapshot, then resolve ratings and
+        // reapply age/unofficial filters before publishing. Otherwise this
+        // late merge can reintroduce entries excluded by the initial load.
         let mergedResult = AnimeScheduleLoadResult(
             entries: mergedEntries,
             isAuthoritativeForNotifications: currentResult.isAuthoritativeForNotifications,
             notice: currentResult.notice
         )
+        let filteredResult = filteredAnimeScheduleResult(mergedResult)
+        await TMDBContentFilter.shared.prepareScheduleAgeRatings(for: filteredResult.entries)
+        let visibleAnimeEntries = filteredResult.entries.filter {
+            scheduleEntryPassesConfiguredFilters($0)
+        }
         animeScheduleResult = mergedResult
 
         guard loadedScheduleMode == .anime || loadedScheduleMode == .combined else { return }
-        let nonAnimeEntries = scheduleEntries.filter { $0.source != .anime }
+        let nonAnimeEntries = scheduleEntries.filter {
+            $0.source != .anime && scheduleEntryPassesConfiguredFilters($0)
+        }
         scheduleEntries = (visibleAnimeEntries + nonAnimeEntries).sorted { $0.airingAt < $1.airingAt }
         updateBuckets(
             with: scheduleEntries,
