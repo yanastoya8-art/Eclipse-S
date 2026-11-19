@@ -684,9 +684,13 @@ final class ScheduleViewModel: ObservableObject {
             await TMDBContentFilter.shared.prepareScheduleAgeRatings(for: loadResult.entries)
             let hideUnofficialContent = UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent")
             let entries = loadResult.entries.filter { entry in
-                // All-ages exclusions are preference-driven and are applied by
-                // the configured age-filter policy in ScheduleView. Do not
-                // remove every all-ages title here unconditionally.
+                // Enforce age exclusions before publishing the new schedule
+                // snapshot. ScheduleView also refreshes its visible filter state,
+                // but doing the policy here prevents a new page of all-ages or
+                // below-minimum entries from appearing during that async refresh.
+                guard !TMDBContentFilter.shared.scheduleEntryIsBlockedByConfiguredAgeFilter(entry) else {
+                    return false
+                }
                 guard hideUnofficialContent else { return true }
                 // Anime schedule providers include production/category tags.
                 // Include them (and the episode's format/overview) in the same
