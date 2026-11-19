@@ -316,8 +316,9 @@ jobs:
             ${{ runner.temp }}/SourcePackages/repositories
             ${{ runner.temp }}/SourcePackages/artifacts
             ${{ runner.temp }}/SourcePackages/checkouts
-          key: swiftpm-${{ runner.os }}-${{ hashFiles('**/Package.resolved') }}-${{ hashFiles('Eclipse.xcodeproj/project.pbxproj') }}
+          key: swiftpm-v2-${{ runner.os }}-${{ hashFiles('**/Package.resolved') }}-${{ hashFiles('Eclipse.xcodeproj/project.pbxproj') }}
           restore-keys: |
+            swiftpm-v2-${{ runner.os }}-
             swiftpm-${{ runner.os }}-
 
       - name: Resolve Swift packages
@@ -411,8 +412,9 @@ jobs:
             ${{ runner.temp }}/DerivedData/Build/Intermediates.noindex
             ${{ runner.temp }}/DerivedData/Build/Products
             ${{ runner.temp }}/DerivedData/ModuleCache.noindex
-          key: xcode-derived-${{ runner.os }}-${{ steps.apple-sdk.outputs.cache-key }}-${{ github.sha }}-${{ hashFiles('Eclipse.xcodeproj/project.pbxproj', '**/Package.resolved') }}
+          key: xcode-derived-v2-${{ runner.os }}-${{ steps.apple-sdk.outputs.cache-key }}-${{ github.sha }}-${{ hashFiles('Eclipse.xcodeproj/project.pbxproj', '**/Package.resolved') }}
           restore-keys: |
+            xcode-derived-v2-${{ runner.os }}-${{ steps.apple-sdk.outputs.cache-key }}-
             xcode-derived-${{ runner.os }}-${{ steps.apple-sdk.outputs.cache-key }}-
 
       - name: Build unsigned archive
