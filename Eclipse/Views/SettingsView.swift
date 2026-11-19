@@ -4380,6 +4380,7 @@ private struct ThirdPartyAcknowledgementsView: View {
 #else
     private static let iOSOnlyLineage: [ThirdPartyAcknowledgement] = [
         .init("Nuvio", detail: "Defined the plugin format and behavior supported by Eclipse's Nuvio compatibility layer. Nuvio plugins are independent projects and are not bundled with Eclipse.", project: "https://github.com/NuvioMedia/NuvioMobile"),
+        .init("Mangayomi Anime Source Runtime", detail: "Eclipse's anime-source runtime adapts Apache-2.0 interface and runtime behavior from Mangayomi revision 4eec7aca and generic anime extractor families from the archived official Mangayomi Extensions revision 6004f1f8. Eclipse bundles no provider catalog, provider scripts, provider logos, or site-specific parser configuration.", project: "https://github.com/kodjodevf/mangayomi/tree/4eec7aca6f1c8bd563d0bc79bcf895f46bb30b74", licenseName: "Apache 2.0", license: "https://github.com/kodjodevf/mangayomi/blob/4eec7aca6f1c8bd563d0bc79bcf895f46bb30b74/LICENSE", source: "https://github.com/kodjodevf/mangayomi-extensions/tree/6004f1f8d1a56f882dadb734ce26f50c626a3850"),
 
     ]
 #endif
