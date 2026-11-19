@@ -1,6 +1,21 @@
 import Foundation
 import Security
 
+/// Selects the earliest confirmed release date among the user's qualifying
+/// native-language and dubbed release dates. Missing dates never become
+/// synthetic broadcast dates.
+enum ScheduleReleaseDatePolicy {
+    static func earliest(native: Date?, dubbed: Date?) -> Date? {
+        [native, dubbed].compactMap { $0 }.min()
+    }
+
+    static func usesDubbedDate(native: Date?, dubbed: Date?) -> Bool {
+        guard let dubbed else { return false }
+        guard let native else { return true }
+        return dubbed < native
+    }
+}
+
 enum AnimeScheduleError: Error, LocalizedError {
     case unconfigured
     case invalidResponse
