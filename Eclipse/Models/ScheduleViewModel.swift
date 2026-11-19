@@ -41,6 +41,30 @@ enum AnimeScheduleLanguageLookupPolicy {
     }
 }
 
+enum AnimeScheduleProviderLanguagePolicy {
+    /// Returns nil for providers whose eligibility is decided by the verified
+    /// title-level dub index instead of a provider-specific language timetable.
+    static func includes(
+        provider: ScheduleProvider,
+        originalLanguage: String?,
+        selectedLanguages: Set<String>
+    ) -> Bool? {
+        switch provider {
+        case .nativeLanguage:
+            return ScheduleAudioLanguagePolicy.matches(
+                originalLanguage: originalLanguage,
+                selectedLanguages: selectedLanguages
+            )
+        case .aiSpanishDub:
+            return selectedLanguages.contains(MyDubListLanguage.spanish.rawValue)
+        case .dubOnly, .tsuzuki:
+            return selectedLanguages.contains(MyDubListLanguage.english.rawValue)
+        default:
+            return nil
+        }
+    }
+}
+
 enum ScheduleMode: String, CaseIterable, Identifiable, Sendable {
     case anime
     case western
@@ -863,21 +887,15 @@ final class ScheduleViewModel: ObservableObject {
             // schedule behavior while still applying the independent
             // specials/OVAs preference above.
             guard !selectedLanguages.isEmpty else { return true }
-            // DubOnly entries are already verified English-dub timetable rows;
-            // do not require a second, unrelated MyDubList lookup to retain them.
-            if entry.provider == .nativeLanguage || entry.provider == .aiSpanishDub {
-                // Native-language metadata or cited Spanish-dub research already
-                // verified the selected language; no MyDubList lookup is needed.
-                return true
-            }
-            if entry.provider == .dubOnly || entry.provider == .tsuzuki {
-                // Both schedule providers return verified English-dub dates.
-                // Accept them only when English is part of the effective
-                // language selection. A Spanish-only selection must not be
-                // widened by the global audio requirement.
-                if selectedLanguages.contains(MyDubListLanguage.english.rawValue) {
-                    return true
-                }
+            // Provider-specific timetable rows must match the selected
+            // language themselves. In particular, a Spanish AI/native row
+            // must never leak into an English-only calendar (or vice versa).
+            if let providerMatch = AnimeScheduleProviderLanguagePolicy.includes(
+                provider: entry.provider,
+                originalLanguage: entry.originalLanguage,
+                selectedLanguages: selectedLanguages
+            ) {
+                return providerMatch
             }
             let anilistID = entry.sourceMediaId > 0 ? entry.sourceMediaId : nil
             let malID = entry.animeMALID ?? (entry.sourceMediaId < 0 ? -entry.sourceMediaId : nil)
