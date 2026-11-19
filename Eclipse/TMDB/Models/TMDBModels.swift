@@ -434,8 +434,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
                     || host == "fanart.tv" || host.hasSuffix(".fanart.tv") {
                 return animeArtworkURL
             }
-            // A titleless backdrop is preferable to a title-bearing cover.
-            return fullBackdropURL
+            return nil
         }
 
         if isMovie {
