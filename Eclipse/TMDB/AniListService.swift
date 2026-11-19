@@ -9957,7 +9957,7 @@ final class AniListService {
                             kitsuId: anime.kitsuId,
                             format: anime.format
                         )
-                    ).withAnimeArtworkURL(anime.coverImage?.preferredURL()).withAnimeTags(anime.tags?.filter { $0.isMediaSpoiler != true }.map(\.name))
+                    ).withAnimeArtworkURL(anime.coverImage?.preferredURL()).withAnimeTags(anime.tags?.map(\.name))
                 }
             }
 
@@ -10008,7 +10008,7 @@ final class AniListService {
                         kitsuId: anime.kitsuId,
                         format: anime.format
                     )
-                ).withAnimeArtworkURL(anime.coverImage?.preferredURL()).withAnimeTags(anime.tags?.filter { $0.isMediaSpoiler != true }.map(\.name))
+                ).withAnimeArtworkURL(anime.coverImage?.preferredURL()).withAnimeTags(anime.tags?.map(\.name))
                 return (anime.id, seededResult, nil)
             }
 
@@ -10093,7 +10093,7 @@ final class AniListService {
                     kitsuId: anime.kitsuId,
                     format: anime.format
                 )
-            ).withAnimeArtworkURL(anime.coverImage?.preferredURL()).withAnimeTags(anime.tags?.filter { $0.isMediaSpoiler != true }.map(\.name))
+            ).withAnimeArtworkURL(anime.coverImage?.preferredURL()).withAnimeTags(anime.tags?.map(\.name))
             let cacheRecord = result != nil || lookupCompleted
                 ? AnimeTMDBMatchCacheRecord(key: cacheKey, result: result)
                 : nil
