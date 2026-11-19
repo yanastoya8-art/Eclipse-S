@@ -713,6 +713,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             animeIdentitySeed: animeIdentitySeed,
             animeArtworkURL: animeArtworkURL,
             animeLogoURL: animeLogoURL,
+            animeTags: animeTags,
             tvMazePosterURL: url
         )
     }
