@@ -2178,9 +2178,12 @@ struct MediaDetailContentView: View {
 
     private func macDetailPoster(width: CGFloat) -> some View {
         let bestPoster = PosterArtworkURLResolver.bestPosterURL(for: searchResult)
+        // Do not use TMDB detail.posterPath as a fallback: it can contain
+        // a baked-in title. A clean provider poster or titleless backdrop is
+        // the only acceptable artwork source here.
         let candidates: [String?] = searchResult.isMovie
-            ? [bestPoster, movieDetail?.fullPosterURL, movieDetail?.fullBackdropURL, searchResult.fullBackdropURL]
-            : [bestPoster, tvShowDetail?.fullPosterURL, tvShowDetail?.fullBackdropURL, searchResult.fullBackdropURL]
+            ? [bestPoster, movieDetail?.fullBackdropURL, searchResult.fullBackdropURL]
+            : [bestPoster, tvShowDetail?.fullBackdropURL, searchResult.fullBackdropURL]
         return ResilientArtworkImage(
             urls: candidates.compactMap { $0 },
             decodeSize: homeImageDecodeSize(width: width, height: width * 1.5),
