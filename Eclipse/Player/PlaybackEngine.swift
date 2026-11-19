@@ -60,7 +60,7 @@ enum CastMediaPolicy {
 }
 
 @MainActor
-final class EclipseCastCoordinator: NSObject, GCKSessionManagerListener, GCKRequestDelegate {
+final class EclipseCastCoordinator: NSObject, @preconcurrency GCKSessionManagerListener, @preconcurrency GCKRequestDelegate {
     static let shared = EclipseCastCoordinator()
     static let didLoadMediaNotification = Notification.Name("EclipseCastDidLoadMedia")
     static let didEndSessionNotification = Notification.Name("EclipseCastDidEndSession")
