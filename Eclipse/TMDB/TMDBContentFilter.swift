@@ -9,9 +9,17 @@ import Combine
 import Foundation
 
 enum CatalogNativeAudioPolicy {
-    static func hasEnglishOrSpanishAudio(_ originalLanguage: String?) -> Bool {
-        let language = originalLanguage?.lowercased() ?? ""
-        return language.hasPrefix("en") || language.hasPrefix("es")
+    /// Only skip a dub lookup when the title's native language already
+    /// satisfies the user's selected audio languages. An English or Spanish
+    /// original must still be checked for the other selected language's dub.
+    static func requiresDubVerification(
+        originalLanguage: String?,
+        selectedLanguages: Set<String>
+    ) -> Bool {
+        !ScheduleAudioLanguagePolicy.matches(
+            originalLanguage: originalLanguage,
+            selectedLanguages: selectedLanguages
+        )
     }
 }
 
@@ -956,7 +964,10 @@ class TMDBContentFilter: ObservableObject {
         selectedLanguages: Set<String>
     ) async {
         let candidates = results.filter { result in
-            guard !CatalogNativeAudioPolicy.hasEnglishOrSpanishAudio(result.originalLanguage) else { return false }
+            guard CatalogNativeAudioPolicy.requiresDubVerification(
+                originalLanguage: result.originalLanguage,
+                selectedLanguages: selectedLanguages
+            ) else { return false }
             guard let id = result.animeIdentitySeed?.anilistId, id > 0 else { return false }
             animeEligibilityLock.lock()
             defer { animeEligibilityLock.unlock() }
