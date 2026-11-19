@@ -1904,15 +1904,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				7B47A809CEF9DEFADE620BB1 /* MangayomiMediaSettingsView.swift in Sources */,
-				F4003ED083FDD39F257A7554 /* MangayomiMediaAdapter.swift in Sources */,
-				09D0C6E5DAFEE0114889DB9F /* MangayomiMediaRuntime.swift in Sources */,
-				C6A4FC40BDD8B25B2A258951 /* MangayomiMediaManager.swift in Sources */,
-				0EF9321023FCD3C5CDB671C7 /* MangayomiMediaModels.swift in Sources */,
-				509D75504728493EADA9A47E /* MangayomiMediaRuntimeTests.swift in Sources */,
-				18A0C0FE05E44E69B364ECC6 /* MangayomiDartRuntime.LICENSE.txt in Resources */,
-				80E0BF85F92F582EE6171EB2 /* MangayomiDartRuntime.js in Resources */,
-				EAD0FBECD20C22D7B0CDDBC6 /* MangayomiMediaHost.js in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1926,6 +1917,9 @@
 				OSSLEGALIOSBUILD000000001 /* OpenSourceLicenses in Resources */,
 				SHDRDIRIOSBUILD000000001 /* Shaders in Resources */,
 				IOSPRIVBF000000000000001 /* PrivacyInfo.xcprivacy in Resources */,
+				18A0C0FE05E44E69B364ECC6 /* MangayomiDartRuntime.LICENSE.txt in Resources */,
+				80E0BF85F92F582EE6171EB2 /* MangayomiDartRuntime.js in Resources */,
+				EAD0FBECD20C22D7B0CDDBC6 /* MangayomiMediaHost.js in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1985,6 +1979,7 @@
 				9C50A0010000000000000003,
 				ALTPOSTBF000000000000001 /* TMDBAlternatePosterTests.swift in Sources */,
 				B5A0C0DE0000000000000001 /* HomeCatalogLoadPolicyTests.swift in Sources */,
+				509D75504728493EADA9A47E /* MangayomiMediaRuntimeTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2203,6 +2198,11 @@
 				E6C1E0000000000000000014 /* PlaybackEngine.swift in Sources */,
 				E6C1E0000000000000000015 /* PlaybackLaunchContext.swift in Sources */,
 				E6C1E0000000000000000016 /* PlaybackRequest.swift in Sources */,
+				7B47A809CEF9DEFADE620BB1 /* MangayomiMediaSettingsView.swift in Sources */,
+				F4003ED083FDD39F257A7554 /* MangayomiMediaAdapter.swift in Sources */,
+				09D0C6E5DAFEE0114889DB9F /* MangayomiMediaRuntime.swift in Sources */,
+				C6A4FC40BDD8B25B2A258951 /* MangayomiMediaManager.swift in Sources */,
+				0EF9321023FCD3C5CDB671C7 /* MangayomiMediaModels.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
