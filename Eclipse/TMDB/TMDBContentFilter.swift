@@ -1320,7 +1320,11 @@ class TMDBContentFilter: ObservableObject {
     ) -> Bool {
         guard !shouldExcludeAnimeSpecialOrOVA(result) else { return false }
         guard !UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent")
-            || !Self.isUnofficialCreatorContent(title: result.displayTitle, overview: result.overview) else {
+            || !Self.isUnofficialCreatorContent(
+                title: result.displayTitle,
+                overview: result.overview,
+                tags: result.animeTags ?? []
+            ) else {
             return false
         }
         guard MyDubListDubFilter.shared.shouldInclude(result) else { return false }
@@ -1894,8 +1898,12 @@ class TMDBContentFilter: ObservableObject {
             && calendar.startOfDay(for: releaseDate) > calendar.startOfDay(for: Date())
     }
 
-    static func isUnofficialCreatorContent(title: String, overview: String?) -> Bool {
-        let text = normalizedCatalogText([title, overview ?? ""].joined(separator: " "))
+    static func isUnofficialCreatorContent(
+        title: String,
+        overview: String?,
+        tags: [String] = []
+    ) -> Bool {
+        let text = normalizedCatalogText(([title, overview ?? ""] + tags).joined(separator: " "))
         let indicators = [
             "fan made", "fanmade", "fan film", "fan films", "fan fiction", "fanfiction",
             "fan work", "fan works", "fan production", "fan productions", "fan project", "fan projects",
