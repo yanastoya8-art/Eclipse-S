@@ -2715,6 +2715,7 @@ struct MediaDetailContentView: View {
                 bottomFadeEndOpacity: usesLandscapeDetailComposition
                     ? min(max(mediaDetailHeroBleedStrength, 0), 1)
                     : 0.6,
+                bottomFadeColor: usesLandscapeDetailComposition ? mediaDetailHeroBleedColor : nil,
                 scrollCoordinateSpaceName: "mediaDetailScroll"
             )
             // StretchyHeaderView can initially report its intrinsic artwork
