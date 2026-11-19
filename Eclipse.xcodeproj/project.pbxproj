@@ -287,7 +287,6 @@
 		13E1EDE52ED9E66000087629 /* webToonViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E1EDBE2ED9E65F00087629 /* webToonViewController.swift */; };
 		13E1EDE62ED9E66000087629 /* kanzenSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E1EDC02ED9E65F00087629 /* kanzenSettings.swift */; };
 		13E1EDE72ED9E66000087629 /* kanzenGeneralSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E1EDC22ED9E65F00087629 /* kanzenGeneralSettings.swift */; };
-		13E1EDE82ED9E66000087629 /* MainMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E1EDC32ED9E65F00087629 /* MainMenu.swift */; };
 		13E1EDEB2ED9E66000087629 /* contentCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E1EDC72ED9E65F00087629 /* contentCell.swift */; };
 		13E1EDEC2ED9E66000087629 /* circularLoading.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E1EDC82ED9E65F00087629 /* circularLoading.swift */; };
 		13E1EDED2ED9E66000087629 /* contentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E1EDC92ED9E65F00087629 /* contentView.swift */; };
@@ -835,7 +834,6 @@
 		13E1EDBE2ED9E65F00087629 /* webToonViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = webToonViewController.swift; sourceTree = "<group>"; };
 		13E1EDC02ED9E65F00087629 /* kanzenSettings.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = kanzenSettings.swift; sourceTree = "<group>"; };
 		13E1EDC22ED9E65F00087629 /* kanzenGeneralSettings.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = kanzenGeneralSettings.swift; sourceTree = "<group>"; };
-		13E1EDC32ED9E65F00087629 /* MainMenu.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MainMenu.swift; sourceTree = "<group>"; };
 		13E1EDC72ED9E65F00087629 /* contentCell.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = contentCell.swift; sourceTree = "<group>"; };
 		13E1EDC82ED9E65F00087629 /* circularLoading.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = circularLoading.swift; sourceTree = "<group>"; };
 		13E1EDC92ED9E65F00087629 /* contentView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = contentView.swift; sourceTree = "<group>"; };
@@ -1361,7 +1359,6 @@
 				KMG0000000000000000GRP1 /* Migration */,
 				13E1EDB62ED9E65F00087629 /* Reader */,
 				13E1EDBF2ED9E65F00087629 /* Settings */,
-				13E1EDC32ED9E65F00087629 /* MainMenu.swift */,
 				13E1EDC42ED9E65F00087629 /* Util */,
 				13E1EDCA2ED9E65F00087629 /* Library */,
 				13E1EDCC2ED9E65F00087629 /* Search */,
@@ -2194,7 +2191,6 @@
 				14CC00040000000000CC0004 /* HomeLayoutView.swift in Sources */,
 				13F072BA2E4B2D9200EF90EB /* TMDBService.swift in Sources */,
 				13F072C22E4B2D9200EF90EB /* AniListService.swift in Sources */,
-				13E1EDE82ED9E66000087629 /* MainMenu.swift in Sources */,
 				13E1EDE32ED9E66000087629 /* readerSettingsView.swift in Sources */,
 				13F0725F2E4B2D3300EF90EB /* SoraApp.swift in Sources */,
 				AD20000B2FE2000000AD200B /* Localization.swift in Sources */,
