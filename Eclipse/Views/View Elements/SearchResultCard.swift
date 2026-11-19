@@ -51,9 +51,6 @@ enum PosterArtworkURLResolver {
         if !isAnime, let tvMaze = result.tvMazePosterURL, !tvMaze.isEmpty {
             candidates.append(tvMaze)
         }
-        if !isAnime, let anime = result.animeArtworkURL, !anime.isEmpty {
-            candidates.append(anime)
-        }
         var seen = Set<String>()
         return candidates.filter { seen.insert($0).inserted }
     }
