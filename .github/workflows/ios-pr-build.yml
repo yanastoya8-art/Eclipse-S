@@ -15,7 +15,9 @@ permissions:
 # queued or in-progress runs instead of accumulating hours of stale builds.
 concurrency:
   group: ios-pr-build-${{ github.event.pull_request.number || github.ref_name }}
-  cancel-in-progress: true
+  # Do not cancel an active validation run when GitHub emits a duplicate PR event.
+  # A completed build is more valuable than saving a few runner minutes.
+  cancel-in-progress: false
 
 jobs:
   prune-stale-ios-builds:
