@@ -991,6 +991,40 @@ final class AnimeDubAudioSelectionPolicyTests: XCTestCase {
     }
 }
 
+final class CatalogNativeAudioDubVerificationTests: XCTestCase {
+    func testSpanishOriginalStillChecksForEnglishDubWhenEnglishIsSelected() {
+        XCTAssertTrue(CatalogNativeAudioPolicy.requiresDubVerification(
+            originalLanguage: "es-ES",
+            selectedLanguages: ["english"]
+        ))
+    }
+
+    func testEnglishOriginalStillChecksForSpanishDubWhenSpanishIsSelected() {
+        XCTAssertTrue(CatalogNativeAudioPolicy.requiresDubVerification(
+            originalLanguage: "en-US",
+            selectedLanguages: ["spanish"]
+        ))
+    }
+
+    func testNativeAudioSkipsDubLookupWhenItMatchesSelection() {
+        XCTAssertFalse(CatalogNativeAudioPolicy.requiresDubVerification(
+            originalLanguage: "en-GB",
+            selectedLanguages: ["english"]
+        ))
+        XCTAssertFalse(CatalogNativeAudioPolicy.requiresDubVerification(
+            originalLanguage: "es-MX",
+            selectedLanguages: ["spanish"]
+        ))
+    }
+
+    func testForeignOriginalAlwaysRequiresSelectedDubVerification() {
+        XCTAssertTrue(CatalogNativeAudioPolicy.requiresDubVerification(
+            originalLanguage: "ja",
+            selectedLanguages: ["english", "spanish"]
+        ))
+    }
+}
+
 final class CatalogNativeAudioSelectionTests: XCTestCase {
     func testEnglishNativeAudioDoesNotSatisfySpanishOnlySelection() {
         XCTAssertFalse(ScheduleAudioLanguagePolicy.matches(
