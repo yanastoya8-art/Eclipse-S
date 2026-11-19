@@ -682,8 +682,12 @@ enum AnimeScheduleFallback {
                 // Prefer a confirmed timetable over a withdrawn/estimated one.
                 // When both providers have confirmed dates, keep the earliest
                 // qualifying dub release instead of always trusting the primary.
-                if candidate.hasKnownAiringTime,
-                   (!existing.hasKnownAiringTime || candidate.airingAt < existing.airingAt) {
+                if ScheduleReleaseDatePolicy.shouldPrefer(
+                    candidateDate: candidate.airingAt,
+                    candidateIsConfirmed: candidate.hasKnownAiringTime,
+                    over: existing.airingAt,
+                    existingIsConfirmed: existing.hasKnownAiringTime
+                ) {
                     entriesByEpisode[key] = candidate
                 }
             } else {
