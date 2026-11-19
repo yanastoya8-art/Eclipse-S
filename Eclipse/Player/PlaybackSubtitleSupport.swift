@@ -130,20 +130,24 @@ enum TVExternalSubtitleParser {
             guard cues.count < maximumCueCount else { break }
             let line = String(rawLine)
             if line.contains("-->") {
-                finishCue()
                 let timingParts = line.components(separatedBy: "-->")
-                guard timingParts.count >= 2,
-                      let start = parseTimestamp(timingParts[0]),
-                      let end = parseTimestamp(
+                if timingParts.count >= 2,
+                   let start = parseTimestamp(timingParts[0]) {
+                    finishCue()
+                    guard let end = parseTimestamp(
                         timingParts[1].trimmingCharacters(in: .whitespacesAndNewlines)
                             .split(whereSeparator: { $0.isWhitespace }).first.map(String.init) ?? ""
-                      ),
-                      end > start else {
+                    ), end > start else {
+                        continue
+                    }
+                    currentStart = start
+                    currentEnd = end
                     continue
                 }
-                currentStart = start
-                currentEnd = end
-            } else if line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                // Subtitle text may legitimately contain an arrow. Treat it as
+                // cue text unless the left side is a valid timestamp.
+            }
+            if line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 finishCue()
             } else if currentStart != nil {
                 currentText.append(line)
