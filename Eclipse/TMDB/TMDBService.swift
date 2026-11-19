@@ -2107,19 +2107,22 @@ class TMDBService: ObservableObject {
     func getBestLogo(from images: TMDBImagesResponse, preferredLanguage: String? = nil) -> TMDBImage? {
         guard let logos = images.logos, !logos.isEmpty else { return nil }
 
-        // Transparent title artwork should remain readable in the app's
-        // English-first presentation even when the catalogue/UI locale differs.
-        // Prefer English, then language-neutral artwork, then the requested
-        // locale, and only then other language-specific variants.
-        let langCode = (preferredLanguage ?? currentLanguage).components(separatedBy: "-").first?.lowercased() ?? "en"
-        func languageRank(_ logo: TMDBImage) -> Int {
-            let language = logo.iso6391?.lowercased()
-            if language == "en" { return 0 }
-            if language == nil || language?.isEmpty == true { return 1 }
-            if language == langCode { return 2 }
-            return 3
+        // Only use logos that match the app's supported title languages.
+        // Never silently select a Japanese or other unrelated-language logo.
+        let eligible = logos.filter { logo in
+            guard let language = logo.iso6391?.lowercased(), !language.isEmpty else { return true }
+            return language == "en" || language == "es"
         }
-        return logos.sorted { lhs, rhs in
+        guard !eligible.isEmpty else { return nil }
+
+        func languageRank(_ logo: TMDBImage) -> Int {
+            switch logo.iso6391?.lowercased() {
+            case "en": return 0
+            case "es": return 1
+            default: return 2
+            }
+        }
+        return eligible.sorted { lhs, rhs in
             let lhsRank = languageRank(lhs)
             let rhsRank = languageRank(rhs)
             if lhsRank != rhsRank { return lhsRank < rhsRank }
