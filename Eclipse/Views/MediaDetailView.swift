@@ -2690,48 +2690,50 @@ struct MediaDetailContentView: View {
 
     private var heroBackdrop: some View {
         ZStack(alignment: .bottom) {
-            let image = StretchyHeaderView(
-                backdropURL: detailHeroImageURL,
-                isMovie: searchResult.isMovie,
-                headerHeight: heroSectionHeight,
-                minHeaderHeight: minHeaderHeight,
-                onAmbientColorExtracted: { color in
-                    ambientColor = color
-                },
-                placeholderColor: shouldAnalyzeAlternatePoster ? .clear : Color.gray.opacity(0.3),
-                fallbackImageURLs: detailHeroFallbackImageURLs,
-                // The hero is a banner surface, not an intrinsic poster
-                // canvas. Always fill its measured bounds so portrait/Reader
-                // layouts cannot leave an empty strip when the poster ratio
-                // differs from the hero frame. Keep the artwork single-layered.
-                preservesArtworkComposition: false,
-                artworkScaleX: usesLandscapeDetailComposition
-                    ? CGFloat(min(max(landscapeHeroHorizontalStretch, 0.85), 1.5))
-                    : 1.0,
-                artworkScaleY: usesLandscapeDetailComposition
-                    ? CGFloat(min(max(landscapeHeroVerticalStretch, 0.85), 1.5))
-                    : 1.0,
-                showsBottomFade: true,
-                bottomFadeHeight: usesLandscapeDetailComposition
-                    ? min(max(heroSectionHeight * 0.30, 120), 200)
-                    : 100,
-                bottomFadeEndOpacity: usesLandscapeDetailComposition
-                    ? min(max(mediaDetailHeroBleedStrength, 0), 1)
-                    : 0.6,
-                bottomFadeColor: usesLandscapeDetailComposition ? mediaDetailHeroBleedColor : nil,
-                scrollCoordinateSpaceName: "mediaDetailScroll"
-            )
-            // StretchyHeaderView can initially report its intrinsic artwork
-            // size before the first scroll-layout pass. Give landscape artwork
-            // the final full-screen banner bounds immediately, not only after
-            // the scroll view recalculates its stretchy geometry.
-            .frame(
-                width: usesLandscapeDetailComposition
-                    ? max(detailViewportWidth, EclipseViewport.bounds.width)
-                    : nil,
-                height: usesLandscapeDetailComposition ? heroSectionHeight : nil
-            )
-            .clipped()
+            let image = Group {
+                if usesLandscapeDetailComposition {
+                    // Landscape detail is a fixed, full-bleed banner rather
+                    // than a stretchy poster. Render it directly at the
+                    // measured viewport size: StretchyHeaderView's nested
+                    // GeometryReader and scroll offsets could leave a top or
+                    // leading strip on rotation/safe-area changes.
+                    ResilientArtworkImage(
+                        urls: ([detailHeroImageURL].compactMap { $0 } + detailHeroFallbackImageURLs),
+                        decodeSize: CGSize(
+                            width: max(detailViewportWidth * EclipseViewport.scale, 1),
+                            height: max(heroSectionHeight * EclipseViewport.scale, 1)
+                        ),
+                        contentMode: .fill,
+                        onImageLoaded: { color in ambientColor = color }
+                    ) {
+                        Rectangle().fill(shouldAnalyzeAlternatePoster ? .clear : Color.gray.opacity(0.3))
+                    }
+                    .frame(
+                        width: max(detailViewportWidth, EclipseViewport.bounds.width),
+                        height: heroSectionHeight
+                    )
+                    .clipped()
+                } else {
+                    StretchyHeaderView(
+                        backdropURL: detailHeroImageURL,
+                        isMovie: searchResult.isMovie,
+                        headerHeight: heroSectionHeight,
+                        minHeaderHeight: minHeaderHeight,
+                        onAmbientColorExtracted: { color in
+                            ambientColor = color
+                        },
+                        placeholderColor: shouldAnalyzeAlternatePoster ? .clear : Color.gray.opacity(0.3),
+                        fallbackImageURLs: detailHeroFallbackImageURLs,
+                        preservesArtworkComposition: false,
+                        showsBottomFade: true,
+                        bottomFadeHeight: 100,
+                        bottomFadeEndOpacity: 0.6,
+                        scrollCoordinateSpaceName: "mediaDetailScroll"
+                    )
+                    .frame(maxWidth: .infinity)
+                    .clipped()
+                }
+            }
 #if DEBUG
             if ProcessInfo.processInfo.environment["ECLIPSE_UI_POSTER_AUDIT"] == "1" {
                 let state = alternatePosterWasResolved ? "resolved" : posterAuditSelectorIsPending ? "pending" : "loading"
@@ -2748,11 +2750,12 @@ struct MediaDetailContentView: View {
             image
 #endif
 
-            // Portrait retains its existing lower artwork overlay.
-            // Landscape fades the artwork itself into the extracted-colour
-            // bleed behind it, so the transition is visible before the image
-            // ends instead of appearing as a hard horizontal seam.
-            if !usesLandscapeDetailComposition {
+            // Fade both orientations into the same extracted-colour field.
+            // Landscape uses a longer, stronger fade so the full-bleed banner
+            // blends into the overview instead of ending at a hard line.
+            if usesLandscapeDetailComposition {
+                landscapeHeroFadeOverlay
+            } else {
                 gradientOverlay
             }
 
@@ -2862,6 +2865,25 @@ struct MediaDetailContentView: View {
                 endPoint: UnitPoint(x: 0.5, y: 0.34)
             )
         }
+    }
+
+    private var landscapeHeroFadeOverlay: some View {
+        let bleedColor = mediaDetailHeroBleedColor ?? heroBlendColor
+        let strength = min(max(mediaDetailHeroBleedStrength, 0), 1)
+        return LinearGradient(
+            gradient: Gradient(stops: [
+                .init(color: .clear, location: 0.0),
+                .init(color: bleedColor.opacity(0.10 * strength), location: 0.18),
+                .init(color: bleedColor.opacity(0.28 * strength), location: 0.42),
+                .init(color: bleedColor.opacity(0.62 * strength), location: 0.72),
+                .init(color: bleedColor.opacity(1.0 * strength), location: 1.0)
+            ]),
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .frame(height: min(max(heroSectionHeight * 0.42, 150), 260))
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .allowsHitTesting(false)
     }
 
     @ViewBuilder
