@@ -2936,7 +2936,10 @@ private struct BrowseMediaView: View {
         // languages. The global English/Spanish audio requirement implicitly
         // selects both languages and must warm the same dub index on cold Browse.
         let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
-        let requiresAnimeIdentity = mediaType.isAnime && !selectedDubLanguages.isEmpty
+        let requiresGlobalAnimeAgeRating = UserDefaults.standard.bool(forKey: "catalogHideBelowPG13Anime")
+            || UserDefaults.standard.bool(forKey: "catalogHideAllAgesAnime")
+        let requiresAnimeIdentity = mediaType.isAnime
+            && (!selectedDubLanguages.isEmpty || requiresGlobalAnimeAgeRating)
 
         // A cold launch can reach Browse before the asynchronous MyDubList
         // refresh in TMDBContentFilter.init has finished. The dub predicate
@@ -2976,11 +2979,17 @@ private struct BrowseMediaView: View {
             : typeFiltered
         guard !Task.isCancelled else { return [] }
 
-        // When Browse's age selector is set to All, the identity seed is all
-        // that the dub-language gate needs. Avoid fetching TMDB certifications
-        // and Taizen/MAL age ratings for every row; the shared catalog filter
-        // still resolves any separately enabled global age restrictions.
-        guard ageRating != .all else { return ratingCandidates }
+        // The global anime age filters are independent of Browse's own age
+        // selector. Resolve their Taizen/MAL ratings before publishing the page;
+        // otherwise the shared catalog filter sees missing ratings, fails closed,
+        // and can leave Anime Browse empty until a later refresh.
+        if ageRating == .all {
+            if requiresGlobalAnimeAgeRating {
+                await contentFilter.resolveAnimeAgeRatings(for: ratingCandidates)
+                guard !Task.isCancelled else { return [] }
+            }
+            return ratingCandidates
+        }
 
         // Resolve both sources concurrently: anime age classifications come
         // from Taizen/MAL, while TMDB supplies national movie/TV certifications.
