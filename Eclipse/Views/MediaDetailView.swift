@@ -2804,12 +2804,10 @@ struct MediaDetailContentView: View {
         // Keeping it behind the hero lets the content below blend smoothly
         // without painting an opaque strip over the artwork itself.
         .heroBannerBleed(
-            // Landscape uses the single bleed layer attached to the whole
-            // scroll-content stack. Keeping a second layer on the artwork
-            // creates an abrupt overlap at the poster/content boundary.
-            // This is the sole bleed layer for landscape. The ScrollView-level
-            // modifier intentionally disables its own layer in that orientation,
-            // so disabling this one as well removes the colour transition entirely.
+            // Landscape keeps one extended bleed background attached to the
+            // hero artwork. The ScrollView-level modifier is disabled in this
+            // orientation so the colour wash is not doubled. The separate
+            // bottom fade above blends the image into this background.
             color: mediaDetailHeroBleedColor,
             heroHeight: heroSectionHeight,
             tail: mediaDetailHeroBleedTail,
