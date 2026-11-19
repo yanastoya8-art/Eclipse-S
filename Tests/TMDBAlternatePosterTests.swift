@@ -151,7 +151,45 @@ final class TMDBAlternatePosterTests: XCTestCase {
             fanartTVPosterURL: "https://evil.example/fake.jpg"
         )
 
-        XCTAssertEqual(result.fullPosterURL, "https://image.tmdb.org/t/p/original/tmdb-poster.jpg")
+        XCTAssertNil(result.fullPosterURL)
+    }
+
+    func testTMDBPosterIsNeverUsedAsTitlelessPosterFallback() {
+        let movie = TMDBSearchResult(
+            id: 550,
+            mediaType: "movie",
+            title: "Fight Club",
+            name: nil,
+            overview: nil,
+            posterPath: "/title-bearing-tmdb-poster.jpg",
+            backdropPath: nil,
+            releaseDate: "1999-10-15",
+            firstAirDate: nil,
+            voteAverage: 8.4,
+            popularity: 100,
+            adult: false,
+            genreIds: [18]
+        )
+        let show = TMDBSearchResult(
+            id: 1399,
+            mediaType: "tv",
+            title: nil,
+            name: "Game of Thrones",
+            overview: nil,
+            posterPath: "/title-bearing-tmdb-poster.jpg",
+            backdropPath: nil,
+            releaseDate: nil,
+            firstAirDate: "2011-04-17",
+            voteAverage: 8.4,
+            popularity: 100,
+            adult: false,
+            genreIds: [18]
+        )
+
+        XCTAssertNil(movie.fullPosterURL)
+        XCTAssertNil(show.fullPosterURL)
+        XCTAssertNil(PosterArtworkURLResolver.bestPosterURL(for: movie))
+        XCTAssertNil(PosterArtworkURLResolver.bestPosterURL(for: show))
     }
 
     func testRejectsDownvotedLanguageNeutralPoster() {
