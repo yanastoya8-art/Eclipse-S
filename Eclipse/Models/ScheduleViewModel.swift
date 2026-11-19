@@ -924,13 +924,15 @@ final class ScheduleViewModel: ObservableObject {
                 ? "anime|\(entry.sourceMediaId)|\(entry.episode)"
                 : "\(entry.title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current))|\(entry.season ?? 0)|\(entry.episode)"
             if let existing = earliestByEpisode[key],
-               ScheduleReleaseDatePolicy.earliest(
-                    native: existing.airingAt,
-                    dubbed: entry.airingAt
-               ) == existing.airingAt {
-                // Keep the existing row when its native/provider date is
-                // already earlier (or ties the candidate). A confirmed
-                // dubbed-language date replaces it only when it is earlier.
+               !ScheduleReleaseDatePolicy.shouldPrefer(
+                    candidateDate: entry.airingAt,
+                    candidateIsConfirmed: entry.hasKnownAiringTime,
+                    over: existing.airingAt,
+                    existingIsConfirmed: existing.hasKnownAiringTime
+               ) {
+                // Keep an existing confirmed date ahead of withdrawn or
+                // estimated metadata. When both are confirmed, use the earlier
+                // qualifying native-language or Spanish-dub release.
                 continue
             }
             earliestByEpisode[key] = entry
