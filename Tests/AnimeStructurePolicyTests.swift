@@ -6710,6 +6710,11 @@ final class AnimeUnofficialTagFilterTests: XCTestCase {
             overview: "An ordinary synopsis.",
             tags: ["Fan Made", "Doujin"]
         ))
+        XCTAssertTrue(TMDBContentFilter.isUnofficialCreatorContent(
+            title: "Example Series",
+            overview: "An ordinary synopsis.",
+            tags: ["Doujinshi"]
+        ))
         XCTAssertFalse(TMDBContentFilter.isUnofficialCreatorContent(
             title: "Example Series",
             overview: "An ordinary synopsis.",
