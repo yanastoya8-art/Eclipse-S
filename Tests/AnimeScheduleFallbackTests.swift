@@ -213,6 +213,25 @@ final class AnimeScheduleFallbackTests: XCTestCase {
         XCTAssertTrue(AnimeDubMetadataFallbackPolicy.shouldQueryAnidub(taizenCounts: [:]))
     }
 
+    func testAnidubFallbackChecksTheSelectedLanguageRatherThanAnyDub() {
+        XCTAssertTrue(AnimeDubMetadataFallbackPolicy.shouldQueryAnidub(
+            taizenCounts: ["en": 12],
+            selectedLanguages: ["spanish"]
+        ))
+        XCTAssertFalse(AnimeDubMetadataFallbackPolicy.shouldQueryAnidub(
+            taizenCounts: ["es-419": 12],
+            selectedLanguages: ["spanish"]
+        ))
+        XCTAssertTrue(AnimeDubMetadataFallbackPolicy.shouldQueryAnidub(
+            taizenCounts: ["es": 12],
+            selectedLanguages: ["english"]
+        ))
+        XCTAssertFalse(AnimeDubMetadataFallbackPolicy.shouldQueryAnidub(
+            taizenCounts: ["en": 12],
+            selectedLanguages: ["english"]
+        ))
+    }
+
     func testSpanishSelectionExplainsMissingSpanishEpisodeDatesWithoutSubstitutingBroadcasts() {
         let notice = AnimeScheduleLanguageNoticePolicy.notice(
             selectedLanguages: ["english", "spanish"],
@@ -937,6 +956,40 @@ final class ScheduleAllAgesFilterPolicyTests: XCTestCase {
     }
 }
 
+
+final class AnimeDubAudioSelectionPolicyTests: XCTestCase {
+    func testSpanishOnlySelectionDoesNotAcceptEnglishOnlyDub() {
+        XCTAssertFalse(AnimeDubAudioSelectionPolicy.hasSelectedAudio(
+            selectedLanguages: ["spanish"],
+            dubCountsByLanguage: ["en": 12]
+        ))
+    }
+
+    func testEnglishOnlySelectionDoesNotAcceptSpanishOnlyDub() {
+        XCTAssertFalse(AnimeDubAudioSelectionPolicy.hasSelectedAudio(
+            selectedLanguages: ["english"],
+            dubCountsByLanguage: ["es": 12]
+        ))
+    }
+
+    func testCombinedSelectionUsesOrLogic() {
+        XCTAssertTrue(AnimeDubAudioSelectionPolicy.hasSelectedAudio(
+            selectedLanguages: ["english", "spanish"],
+            dubCountsByLanguage: ["en": 1]
+        ))
+        XCTAssertTrue(AnimeDubAudioSelectionPolicy.hasSelectedAudio(
+            selectedLanguages: ["english", "spanish"],
+            dubCountsByLanguage: ["es-419": 1]
+        ))
+    }
+
+    func testSpanishRegionalVariantsAreEquivalent() {
+        XCTAssertTrue(AnimeDubAudioSelectionPolicy.hasSelectedAudio(
+            selectedLanguages: ["spanish"],
+            dubCountsByLanguage: ["es-es": 4]
+        ))
+    }
+}
 
 final class CatalogNativeAudioSelectionTests: XCTestCase {
     func testEnglishNativeAudioDoesNotSatisfySpanishOnlySelection() {
