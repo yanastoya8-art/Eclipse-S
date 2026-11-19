@@ -47,7 +47,6 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
     case landscapeHeroHorizontalStretch
     case landscapeHeroVerticalStretch
     case landscapeContentHorizontalPosition
-    case tmdbTitleArt
     case dataSaver
     case ageRating
     case similarTitles
@@ -66,7 +65,7 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
             return "interface"
         case .animatedBackground, .animationQuality, .animationColor, .customAnimationColor, .animationFrameRate, .appPerformanceOverlay, .hideSplashScreen:
             return "motion"
-        case .alternativeSeasonMenu, .horizontalEpisodeList, .showUnairedEpisodes, .titleLogoPosition, .titleLogoSize, .titleLogoWeight, .heroActionPosition, .heroSynopsisPosition, .portraitHeroBleedIntensity, .landscapeHeroBleedIntensity, .landscapeTitleLogoPosition, .landscapeTitleLogoSize, .landscapeTitleLogoWeight, .landscapeHeroActionPosition, .landscapeHeroSynopsisPosition, .landscapeHeroHorizontalStretch, .landscapeHeroVerticalStretch, .landscapeContentHorizontalPosition, .tmdbTitleArt, .dataSaver, .ageRating, .similarTitles:
+        case .alternativeSeasonMenu, .horizontalEpisodeList, .showUnairedEpisodes, .titleLogoPosition, .titleLogoSize, .titleLogoWeight, .heroActionPosition, .heroSynopsisPosition, .portraitHeroBleedIntensity, .landscapeHeroBleedIntensity, .landscapeTitleLogoPosition, .landscapeTitleLogoSize, .landscapeTitleLogoWeight, .landscapeHeroActionPosition, .landscapeHeroSynopsisPosition, .landscapeHeroHorizontalStretch, .landscapeHeroVerticalStretch, .landscapeContentHorizontalPosition, .dataSaver, .ageRating, .similarTitles:
             return "details"
         case .libraryBookmarks, .libraryCollectionLayout:
             return "library"
@@ -793,7 +792,12 @@ struct AlternativeUIView: View {
             }
 #else
             ForEach(mediaDetailElements) { element in
-                mediaDetailElementRow(element)
+                if element == .similarTitles {
+                    mediaDetailElementRow(element)
+                        .id(AppearanceSettingsSearchTarget.similarTitles.anchorID)
+                } else {
+                    mediaDetailElementRow(element)
+                }
             }
             .onMove(perform: moveMediaDetailElements)
 #endif
