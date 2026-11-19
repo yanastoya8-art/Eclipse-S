@@ -445,7 +445,7 @@ struct AlternativeUIView: View {
 #endif
             toggleRow(
                 title: "Global Appearance",
-                description: "Share appearance changes between media and reader mode.",
+                description: "Apply the same appearance settings across the entire Watch interface.",
                 isOn: $theme.globalAppearanceEnabled
             )
             .id(AppearanceSettingsSearchTarget.globalAppearance.anchorID)
@@ -499,7 +499,7 @@ struct AlternativeUIView: View {
 
             settingRow(
                 title: "Animation Color",
-                description: "Choose the particle color used by the animated rings, stars, and circles in Streaming and Reader mode."
+                description: "Choose the particle color used by animated backgrounds throughout the Watch interface."
             ) {
                 Picker("", selection: $homeAnimatedBackgroundParticleColor) {
                     ForEach(HomeAnimatedBackgroundParticleColor.allCases) { color in
@@ -587,7 +587,7 @@ struct AlternativeUIView: View {
         Section {
             toggleRow(
                 title: "Image Data Saver",
-                description: "Load smaller TMDB artwork and supported tracker thumbnails throughout the app on this device. Applies to newly loaded images; provider artwork and Reader pages keep their original quality.",
+                description: "Load smaller TMDB artwork and supported tracker thumbnails throughout the app on this device. Applies to newly loaded images; provider artwork keeps its original quality.",
                 isOn: $imageDataSaverEnabled
             )
             .id(AppearanceSettingsSearchTarget.dataSaver.anchorID)
