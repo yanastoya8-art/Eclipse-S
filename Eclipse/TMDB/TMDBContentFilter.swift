@@ -2671,6 +2671,32 @@ actor TaizenAnimeAgeRatingService {
     private let cacheLifetime: TimeInterval = 24 * 60 * 60
     private let maximumResponseBytes = 1 * 1_024 * 1_024
 
+    static func parseRatings(from data: Data, identifiers: [Int]) throws -> [Int: MaturityRating] {
+        guard data.count <= 1 * 1_024 * 1_024,
+              let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              (root["errors"] as? [Any])?.isEmpty != false,
+              let payload = root["data"] as? [String: Any] else {
+            throw TaizenAnimeAgeRatingError.invalidResponse
+        }
+
+        var ratings: [Int: MaturityRating] = [:]
+        for (index, id) in identifiers.enumerated() {
+            guard (1...1_000_000_000).contains(id) else { continue }
+            let rating: MaturityRating
+            if let anime = payload["a\(index)"] as? [String: Any],
+               let returnedID = anime["id"] as? NSNumber,
+               returnedID.intValue == id,
+               let age = anime["ageRating"] as? [String: Any],
+               let raw = age["rating"] as? String {
+                rating = MaturityRating.classify(certification: raw)
+            } else {
+                rating = .unknown
+            }
+            ratings[id] = rating
+        }
+        return ratings
+    }
+
     func rating(anilistID: Int) async throws -> MaturityRating {
         try await ratings(anilistIDs: [anilistID])[anilistID] ?? .unknown
     }
@@ -2714,23 +2740,8 @@ actor TaizenAnimeAgeRatingService {
             guard http.statusCode == 200 else {
                 throw TaizenAnimeAgeRatingError.http(http.statusCode)
             }
-            guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  (root["errors"] as? [Any])?.isEmpty != false,
-                  let payload = root["data"] as? [String: Any] else {
-                throw TaizenAnimeAgeRatingError.invalidResponse
-            }
-
-            for (index, id) in batch.enumerated() {
-                let rating: MaturityRating
-                if let anime = payload["a\(index)"] as? [String: Any],
-                   let returnedID = anime["id"] as? NSNumber,
-                   returnedID.intValue == id,
-                   let age = anime["ageRating"] as? [String: Any],
-                   let raw = age["rating"] as? String {
-                    rating = MaturityRating.classify(certification: raw)
-                } else {
-                    rating = .unknown
-                }
+            let parsedRatings = try Self.parseRatings(from: data, identifiers: batch)
+            for (id, rating) in parsedRatings {
                 cache[id] = CachedRating(fetchedAt: now, rating: rating)
                 resolved[id] = rating
             }
