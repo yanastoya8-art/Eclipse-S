@@ -452,6 +452,10 @@ class TMDBContentFilter: ObservableObject {
 
     private let animeEligibilityLock = NSLock()
     private var animeAgeRatingsByID: [Int: MaturityRating] = [:]
+    // MAL-only schedule rows use a negative sourceMediaId, not an AniList ID.
+    // Keep their resolved rating by stable schedule-entry ID so they still
+    // participate in the All Ages calendar filter.
+    private var scheduleAnimeAgeRatingsByEntryID: [String: MaturityRating] = [:]
     private var animeAgeCheckedIDs: Set<Int> = []
     private var animeAgeLoadingIDs: Set<Int> = []
     private var animeAgeRetryAfterByID: [Int: Date] = [:]
@@ -681,6 +685,31 @@ class TMDBContentFilter: ObservableObject {
             await resolveAnimeAgeRatings(
                 identities: animeEntries.map { ($0.sourceMediaId, $0.animeMALID) }
             )
+
+            let malOnlyEntries = animeEntries.compactMap { entry -> (String, Int)? in
+                guard entry.sourceMediaId <= 0 else { return nil }
+                let malID = entry.animeMALID ?? (entry.sourceMediaId < 0 ? -entry.sourceMediaId : nil)
+                guard let malID, malID > 0 else { return nil }
+                return (entry.id, malID)
+            }
+            if MALMetadataService.shared.isConfigured, !malOnlyEntries.isEmpty {
+                await withTaskGroup(of: (String, MaturityRating?).self) { group in
+                    for (entryID, malID) in malOnlyEntries {
+                        group.addTask {
+                            (entryID, await MALMetadataService.shared.fetchMaturityRating(malID: malID))
+                        }
+                    }
+                    for await (entryID, rating) in group {
+                        animeEligibilityLock.lock()
+                        if let rating, rating != .unknown {
+                            scheduleAnimeAgeRatingsByEntryID[entryID] = rating
+                        } else {
+                            scheduleAnimeAgeRatingsByEntryID.removeValue(forKey: entryID)
+                        }
+                        animeEligibilityLock.unlock()
+                    }
+                }
+            }
         }
 
         let tmdbEntries = entries.compactMap { entry -> (isMovie: Bool, id: Int)? in
@@ -700,9 +729,9 @@ class TMDBContentFilter: ObservableObject {
         if entry.source == .anime {
             guard defaults.bool(forKey: "catalogHideAllAgesAnime") else { return false }
             let id = entry.sourceMediaId
-            guard id > 0 else { return false }
             animeEligibilityLock.lock()
-            let rating = animeAgeRatingsByID[id]
+            let rating = scheduleAnimeAgeRatingsByEntryID[entry.id]
+                ?? (id > 0 ? animeAgeRatingsByID[id] : nil)
             animeEligibilityLock.unlock()
             return ScheduleAllAgesPolicy.shouldExclude(rating: rating, enabled: true)
         }
