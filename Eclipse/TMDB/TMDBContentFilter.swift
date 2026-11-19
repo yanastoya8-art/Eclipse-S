@@ -37,14 +37,6 @@ enum CatalogNativeAudioPolicy {
         )
     }
 
-    /// Compatibility helper used by the schedule policy tests and any callers
-    /// that need to check whether native audio is English or Spanish.
-    static func hasEnglishOrSpanishAudio(_ originalLanguage: String?) -> Bool {
-        ScheduleAudioLanguagePolicy.matches(
-            originalLanguage: originalLanguage,
-            selectedLanguages: [MyDubListLanguage.english.rawValue, MyDubListLanguage.spanish.rawValue]
-        )
-    }
 }
 
 enum DubLanguageSelectionPolicy {
