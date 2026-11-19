@@ -25,6 +25,8 @@ ANILIST_CLIENT_SECRET =
 ANILIST_REDIRECT_URI = luna:/$()/anilist-callback
 ANIMESCHEDULE_API_TOKEN =
 DUBSONLY_API_KEY =
+GEMINI_API_KEY =
+OPENAI_API_KEY =
 
 // Expose repository/local secrets through generated Info.plist so
 // Bundle.main.object(forInfoDictionaryKey:) can resolve them at runtime.
@@ -32,6 +34,8 @@ INFOPLIST_KEY_TMDBAPIKey = $(TMDB_API_KEY)
 INFOPLIST_KEY_FanartTVAPIKey = $(FANART_TV_API_KEY)
 INFOPLIST_KEY_AnimeScheduleAPIToken = $(ANIMESCHEDULE_API_TOKEN)
 INFOPLIST_KEY_DubsOnlyAPIKey = $(DUBSONLY_API_KEY)
+INFOPLIST_KEY_GeminiAPIKey = $(GEMINI_API_KEY)
+INFOPLIST_KEY_OpenAIAPIKey = $(OPENAI_API_KEY)
 TRAKT_CLIENT_ID =
 TRAKT_CLIENT_SECRET =
 TRAKT_REDIRECT_URI = luna:/$()/trakt-callback
