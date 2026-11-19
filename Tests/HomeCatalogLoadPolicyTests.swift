@@ -3,6 +3,15 @@ import XCTest
 @testable import Eclipse
 
 final class HomeCatalogLoadPolicyTests: XCTestCase {
+    func testJustForYouCatalogRequestsItsHiddenTrendingSeed() {
+        XCTAssertTrue(HomeCatalogLoadPolicy.requiresTrendingSeed(enabledCatalogIDs: ["forYou"]))
+        XCTAssertTrue(HomeCatalogLoadPolicy.requiresTrendingSeed(enabledCatalogIDs: ["trending", "forYou"]))
+    }
+
+    func testTrendingSeedIsNotRequestedWhenNeitherTrendingNorRecommendationsAreEnabled() {
+        XCTAssertFalse(HomeCatalogLoadPolicy.requiresTrendingSeed(enabledCatalogIDs: ["popularMovies", "featured"]))
+    }
+
     func testAniListOnlyHomeCatalogsCountAsLoadedContent() {
         XCTAssertTrue(HomeCatalogLoadPolicy.hasLoadedContent(
             tmdbCatalogCount: 0,
