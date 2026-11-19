@@ -1424,6 +1424,7 @@ private struct BrowseMediaView: View {
     @State private var activeBrowseLoadPage: Int?
     @State private var activeBrowseLoadReplacesResults = false
     @State private var interruptedBrowseLoad: (page: Int, replacing: Bool)?
+    @State private var failedBrowseLoad: (page: Int, replacing: Bool)?
     @State private var browseQueryGeneration = UUID()
 
     @State private var filterOwner: UUID
@@ -2060,7 +2061,7 @@ private struct BrowseMediaView: View {
                         .foregroundColor(.secondary)
                         .lineLimit(2)
                     Spacer(minLength: 8)
-                    Button("Retry") { loadNextPage() }
+                    Button("Retry") { retryBrowseLoad() }
                         .font(.caption.weight(.semibold))
                         .disabled(isLoading || !hasMorePages)
                 }
@@ -2167,6 +2168,7 @@ private struct BrowseMediaView: View {
 
     private func reloadResults() {
         interruptedBrowseLoad = nil
+        failedBrowseLoad = nil
         requestSerial += 1
         browseQueryGeneration = UUID()
         filterRefreshGeneration += 1
@@ -2260,6 +2262,15 @@ private struct BrowseMediaView: View {
         loadPage(currentPage + 1, replacing: false)
     }
 
+    private func retryBrowseLoad() {
+        guard !isLoading else { return }
+        if let failedBrowseLoad {
+            loadPage(failedBrowseLoad.page, replacing: failedBrowseLoad.replacing)
+        } else {
+            loadNextPage()
+        }
+    }
+
     private func loadPage(_ page: Int, replacing: Bool) {
         requestSerial += 1
         let serial = requestSerial
@@ -2279,6 +2290,7 @@ private struct BrowseMediaView: View {
         let existingRawResults = replacing ? [] : unfilteredResults
         activeBrowseLoadPage = page
         activeBrowseLoadReplacesResults = replacing
+        failedBrowseLoad = nil
         if replacing { browseQueryGeneration = UUID() }
         let queryGeneration = browseQueryGeneration
         filterRefreshGeneration += 1
@@ -2347,6 +2359,7 @@ private struct BrowseMediaView: View {
                     guard serial == requestSerial else { return }
                     loadTask = nil
                     activeBrowseLoadPage = nil
+                    failedBrowseLoad = nil
 
                     // Retain type/age-filtered rows with their resolved
                     // anime identities. Filter refreshes can now reuse the
@@ -2414,6 +2427,7 @@ private struct BrowseMediaView: View {
                     isLoading = false
                     guard !(error is CancellationError),
                           (error as? URLError)?.code != .cancelled else { return }
+                    failedBrowseLoad = (page: page, replacing: replacing)
                     errorMessage = error.localizedDescription
                 }
             }
