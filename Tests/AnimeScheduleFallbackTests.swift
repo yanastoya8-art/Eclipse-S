@@ -899,6 +899,29 @@ final class ScheduleReleaseDatePolicyTests: XCTestCase {
         ))
     }
 
+    func testSpanishDubResearchConfirmsDateWithoutClaimingClockTime() {
+        XCTAssertTrue(ScheduleReleaseDatePolicy.isConfirmedReleaseDate(
+            provider: .aiSpanishDub,
+            hasKnownAiringTime: false,
+            airingTimeWithdrawn: false
+        ))
+        XCTAssertFalse(ScheduleReleaseDatePolicy.isConfirmedReleaseDate(
+            provider: .aiSpanishDub,
+            hasKnownAiringTime: false,
+            airingTimeWithdrawn: true
+        ))
+        XCTAssertFalse(ScheduleReleaseDatePolicy.isConfirmedReleaseDate(
+            provider: .dubOnly,
+            hasKnownAiringTime: false,
+            airingTimeWithdrawn: false
+        ))
+        XCTAssertTrue(ScheduleReleaseDatePolicy.isConfirmedReleaseDate(
+            provider: .dubOnly,
+            hasKnownAiringTime: true,
+            airingTimeWithdrawn: false
+        ))
+    }
+
     func testNoQualifyingLanguageDateIsExcluded() {
         XCTAssertNil(ScheduleReleaseDatePolicy.earliest(native: nil, dubbed: nil))
         XCTAssertFalse(ScheduleReleaseDatePolicy.usesDubbedDate(native: nil, dubbed: nil))
