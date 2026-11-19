@@ -1414,6 +1414,9 @@ private struct BrowseMediaView: View {
     @State private var errorMessage: String?
     @State private var requestSerial = 0
     @State private var loadTask: Task<Void, Never>?
+    @State private var activeBrowseLoadPage: Int?
+    @State private var activeBrowseLoadReplacesResults = false
+    @State private var interruptedBrowseLoad: (page: Int, replacing: Bool)?
     @State private var browseQueryGeneration = UUID()
 
     @State private var filterOwner: UUID
@@ -1633,7 +1636,10 @@ private struct BrowseMediaView: View {
 #endif
         .eclipseBackground()
         .onAppear {
-            if results.isEmpty && !isLoading {
+            if let interrupted = interruptedBrowseLoad {
+                interruptedBrowseLoad = nil
+                loadPage(interrupted.page, replacing: interrupted.replacing)
+            } else if results.isEmpty && !isLoading {
                 reloadResults()
             } else if filterRefreshPending && !isLoading {
                 filterRefreshPending = false
@@ -2138,6 +2144,7 @@ private struct BrowseMediaView: View {
     }
 
     private func reloadResults() {
+        interruptedBrowseLoad = nil
         requestSerial += 1
         browseQueryGeneration = UUID()
         filterRefreshGeneration += 1
@@ -2156,6 +2163,14 @@ private struct BrowseMediaView: View {
     }
 
     private func cancelBrowseLoad() {
+        if let page = activeBrowseLoadPage {
+            // Browse cancels in-flight requests when navigating to a detail
+            // page or another tab. Remember the exact page and whether it was
+            // replacing the query so returning to Browse can resume without
+            // silently leaving a partial/stale result set behind.
+            interruptedBrowseLoad = (page, activeBrowseLoadReplacesResults)
+        }
+        activeBrowseLoadPage = nil
         requestSerial += 1
         browseQueryGeneration = UUID()
         filterRefreshGeneration += 1
@@ -2240,6 +2255,8 @@ private struct BrowseMediaView: View {
         let ageRating = self.ageRating
         let upcomingOnly = currentFilters.showsUpcomingOnly == true
         let existingRawResults = replacing ? [] : unfilteredResults
+        activeBrowseLoadPage = page
+        activeBrowseLoadReplacesResults = replacing
         if replacing { browseQueryGeneration = UUID() }
         let queryGeneration = browseQueryGeneration
         filterRefreshGeneration += 1
@@ -2310,6 +2327,7 @@ private struct BrowseMediaView: View {
                 await MainActor.run {
                     guard serial == requestSerial else { return }
                     loadTask = nil
+                    activeBrowseLoadPage = nil
 
                     // Retain type/age-filtered rows with their resolved
                     // anime identities. Filter refreshes can now reuse the
@@ -2373,6 +2391,7 @@ private struct BrowseMediaView: View {
                 await MainActor.run {
                     guard serial == requestSerial else { return }
                     loadTask = nil
+                    activeBrowseLoadPage = nil
                     isLoading = false
                     guard !(error is CancellationError),
                           (error as? URLError)?.code != .cancelled else { return }
