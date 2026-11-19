@@ -49,17 +49,17 @@ enum HomeCatalogLoadPolicy {
         _ catalogs: [String: [TMDBSearchResult]],
         enabledCatalogIDs: Set<String>
     ) -> Int {
-        catalogs.filter { id, results in
-            guard !results.isEmpty else { return false }
+        catalogs.filter { entry in
+            guard !entry.value.isEmpty else { return false }
             let parentID: String
-            if id.hasPrefix("network_") {
+            if entry.key.hasPrefix("network_") {
                 parentID = "networks"
-            } else if id.hasPrefix("genre_") {
+            } else if entry.key.hasPrefix("genre_") {
                 parentID = "genres"
-            } else if id.hasPrefix("company_") {
+            } else if entry.key.hasPrefix("company_") {
                 parentID = "companies"
             } else {
-                parentID = id
+                parentID = entry.key
             }
             return enabledCatalogIDs.contains(parentID)
         }.count
