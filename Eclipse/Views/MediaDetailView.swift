@@ -1123,7 +1123,9 @@ struct MediaDetailContentView: View {
     private var heroHeaderContentHeight: CGFloat {
         guard ExperimentalFeatureState.isEnabledAtLaunch else { return 0 }
         let fallback = usesLandscapeDetailComposition ? 250 : 260
-        return max(measuredHeroHeaderContentHeight, CGFloat(fallback))
+        return measuredHeroHeaderContentHeight > 0
+            ? measuredHeroHeaderContentHeight
+            : CGFloat(fallback)
     }
 
     private var heroSectionHeight: CGFloat {
