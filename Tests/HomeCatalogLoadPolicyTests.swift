@@ -8,6 +8,66 @@ final class HomeCatalogLoadPolicyTests: XCTestCase {
         XCTAssertTrue(HomeCatalogLoadPolicy.requiresTrendingSeed(enabledCatalogIDs: ["trending", "forYou"]))
     }
 
+    func testHiddenTrendingSeedDoesNotCountAsAVisibleForYouShelf() {
+        let trending = TMDBSearchResult(
+            id: 550,
+            mediaType: "movie",
+            title: "Fight Club",
+            name: nil,
+            overview: nil,
+            posterPath: nil,
+            backdropPath: nil,
+            releaseDate: "1999-10-15",
+            firstAirDate: nil,
+            voteAverage: 8.4,
+            popularity: 100,
+            adult: false,
+            genreIds: [18]
+        )
+        let catalogs = ["trending": [trending]]
+
+        XCTAssertEqual(
+            HomeCatalogLoadPolicy.visibleCatalogCount(catalogs, enabledCatalogIDs: ["forYou"]),
+            0
+        )
+        XCTAssertEqual(
+            HomeCatalogLoadPolicy.visibleCatalogCount(catalogs, enabledCatalogIDs: ["trending"]),
+            1
+        )
+    }
+
+    func testDynamicWidgetResultsCountOnlyWhenTheirParentCatalogIsEnabled() {
+        let sample = TMDBSearchResult(
+            id: 550,
+            mediaType: "movie",
+            title: "Fight Club",
+            name: nil,
+            overview: nil,
+            posterPath: nil,
+            backdropPath: nil,
+            releaseDate: "1999-10-15",
+            firstAirDate: nil,
+            voteAverage: 8.4,
+            popularity: 100,
+            adult: false,
+            genreIds: [18]
+        )
+        let widgets = [
+            "network_213": [sample],
+            "genre_18": [sample],
+            "company_420": [sample],
+            "featured": [sample]
+        ]
+
+        XCTAssertEqual(
+            HomeCatalogLoadPolicy.visibleWidgetCatalogCount(
+                widgets,
+                enabledCatalogIDs: ["networks", "featured"]
+            ),
+            2
+        )
+    }
+
     func testTrendingSeedIsNotRequestedWhenNeitherTrendingNorRecommendationsAreEnabled() {
         XCTAssertFalse(HomeCatalogLoadPolicy.requiresTrendingSeed(enabledCatalogIDs: ["popularMovies", "featured"]))
     }
