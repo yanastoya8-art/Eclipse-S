@@ -2067,6 +2067,7 @@
 				13F072B22E4B2D9200EF90EB /* FallbackImageView.swift in Sources */,
 				13F072B62E4B2D9200EF90EB /* AmbientColor.swift in Sources */,
 				13E1EDD22ED9E65F00087629 /* ModuleManager.swift in Sources */,
+				13E1EDD82ED9E65F00087629 /* Settings.swift in Sources */,
 				13F187AE2E6F38CE00747F7E /* LibraryCollection.swift in Sources */,
 				13F0729E2E4B2D9200EF90EB /* JSController-Details.swift in Sources */,
 				13F187AF2E6F38CE00747F7E /* AddToCollectionView.swift in Sources */,
