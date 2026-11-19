@@ -666,7 +666,11 @@ enum AnimeScheduleFallback {
         for candidate in fallback.entries {
             let key = "\(candidate.mediaId):\(candidate.episode)"
             if let existing = entriesByEpisode[key] {
-                if !existing.hasKnownAiringTime && candidate.hasKnownAiringTime {
+                // Prefer a confirmed timetable over a withdrawn/estimated one.
+                // When both providers have confirmed dates, keep the earliest
+                // qualifying dub release instead of always trusting the primary.
+                if candidate.hasKnownAiringTime,
+                   (!existing.hasKnownAiringTime || candidate.airingAt < existing.airingAt) {
                     entriesByEpisode[key] = candidate
                 }
             } else {
