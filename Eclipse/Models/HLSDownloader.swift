@@ -68,6 +68,34 @@ enum HLSDownloadCompatibility {
         return groups[group] != true
     }
 
+    static func mediaSequenceNumber(in playlist: String) -> UInt64? {
+        let prefix = "#EXT-X-MEDIA-SEQUENCE:"
+        let declarations = playlist.components(separatedBy: .newlines).compactMap { line -> String? in
+            let line = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard line.hasPrefix(prefix) else { return nil }
+            return String(line.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        guard declarations.count <= 1 else { return nil }
+        guard let declaration = declarations.first else { return 0 }
+        return UInt64(declaration)
+    }
+
+    static func sequenceNumber(base: UInt64, segmentIndex: Int) -> UInt64? {
+        guard segmentIndex >= 0 else { return nil }
+        let (sequence, overflow) = base.addingReportingOverflow(UInt64(segmentIndex))
+        return overflow ? nil : sequence
+    }
+
+    static func defaultAES128IV(sequenceNumber: UInt64) -> Data {
+        var bytes = [UInt8](repeating: 0, count: 16)
+        var value = sequenceNumber
+        for index in stride(from: 15, through: 8, by: -1) {
+            bytes[index] = UInt8(value & 0xff)
+            value >>= 8
+        }
+        return Data(bytes)
+    }
+
     static func unsupportedEncryptionLayout(in playlist: String) -> String? {
         var activeKeySignature: String?
         var hasSeenActiveKey = false
@@ -317,6 +345,9 @@ final class HLSDownloader: @unchecked Sendable {
                 }
                 if let reason = HLSDownloadCompatibility.unsupportedEncryptionLayout(in: mediaPlaylistContent) {
                     throw HLSError.unsupportedLayout(reason: reason)
+                }
+                guard let mediaSequenceNumber = HLSDownloadCompatibility.mediaSequenceNumber(in: mediaPlaylistContent) else {
+                    throw HLSError.unsupportedLayout(reason: "This HLS playlist has an invalid media sequence number and cannot be packaged safely for offline playback.")
                 }
                 let segments = self.parseMediaPlaylist(mediaPlaylistContent, baseURL: mediaPlaylistURL)
                 guard !segments.isEmpty else {
@@ -924,7 +955,13 @@ final class HLSDownloader: @unchecked Sendable {
                 try ensureDiskCapacity()
                 let initData = try await fetchDataWithRetry(url: initURL)
                 try checkCancelled()
-                let decrypted = try decryptIfNeeded(data: initData, key: encryptionKey, keyData: keyData, segmentIndex: -1)
+                // Encrypted EXT-X-MAP sections require an explicit IV.
+                let decrypted = try decryptIfNeeded(
+                    data: initData,
+                    key: encryptionKey,
+                    keyData: keyData,
+                    defaultSequenceNumber: nil
+                )
                 try ensureDiskCapacity(additionalBytes: Int64(decrypted.count))
                 try fileHandle.write(contentsOf: decrypted)
             }
@@ -940,7 +977,18 @@ final class HLSDownloader: @unchecked Sendable {
 
                 let segmentData = try await fetchSegmentWithRetry(url: segments[index], maxRetries: 3)
                 try checkCancelled()
-                let decrypted = try decryptIfNeeded(data: segmentData, key: encryptionKey, keyData: keyData, segmentIndex: index)
+                guard let sequenceNumber = HLSDownloadCompatibility.sequenceNumber(
+                    base: mediaSequenceNumber,
+                    segmentIndex: index
+                ) else {
+                    throw HLSError.unsupportedLayout(reason: "This HLS playlist's media sequence number is too large to decrypt safely.")
+                }
+                let decrypted = try decryptIfNeeded(
+                    data: segmentData,
+                    key: encryptionKey,
+                    keyData: keyData,
+                    defaultSequenceNumber: sequenceNumber
+                )
                 try ensureDiskCapacity(additionalBytes: Int64(decrypted.count))
 
                 try fileHandle.write(contentsOf: decrypted)
@@ -1033,23 +1081,25 @@ final class HLSDownloader: @unchecked Sendable {
         try await fetchDataWithRetry(url: url, maxRetries: maxRetries)
     }
 
-    private func decryptIfNeeded(data: Data, key: HLSEncryptionKey?, keyData: Data?, segmentIndex: Int) throws -> Data {
-        guard let encKey = key, encKey.method == "AES-128", let keyBytes = keyData else {
-            return data
+    private func decryptIfNeeded(
+        data: Data,
+        key: HLSEncryptionKey?,
+        keyData: Data?,
+        defaultSequenceNumber: UInt64?
+    ) throws -> Data {
+        guard let encKey = key else { return data }
+        guard encKey.method == "AES-128", let keyBytes = keyData else {
+            throw HLSError.unsupportedLayout(reason: "This HLS stream uses encryption that cannot be decrypted safely for offline playback.")
         }
 
         let iv: Data
         if let explicitIV = encKey.iv {
             iv = explicitIV
         } else {
-
-            var ivBytes = [UInt8](repeating: 0, count: 16)
-            let seqNum = UInt32(max(segmentIndex, 0))
-            ivBytes[12] = UInt8((seqNum >> 24) & 0xFF)
-            ivBytes[13] = UInt8((seqNum >> 16) & 0xFF)
-            ivBytes[14] = UInt8((seqNum >> 8) & 0xFF)
-            ivBytes[15] = UInt8(seqNum & 0xFF)
-            iv = Data(ivBytes)
+            guard let defaultSequenceNumber else {
+                throw HLSError.unsupportedLayout(reason: "This encrypted HLS initialization section is missing its required explicit IV.")
+            }
+            iv = HLSDownloadCompatibility.defaultAES128IV(sequenceNumber: defaultSequenceNumber)
         }
 
         return try aes128Decrypt(data: data, key: keyBytes, iv: iv)
