@@ -68,6 +68,48 @@ enum HLSDownloadCompatibility {
         return groups[group] != true
     }
 
+    static func unsupportedEncryptionLayout(in playlist: String) -> String? {
+        var activeKeySignature: String?
+        var hasSeenActiveKey = false
+
+        for line in playlist.components(separatedBy: .newlines) {
+            let line = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard line.hasPrefix("#EXT-X-KEY:") else { continue }
+            let values = attributes(String(line.dropFirst("#EXT-X-KEY:".count)))
+            let method = (values["METHOD"] ?? "NONE").uppercased()
+
+            if method == "NONE" {
+                // The downloader currently uses one key for the whole media
+                // playlist. A later key reset would leave earlier segments
+                // encrypted because it cannot map keys to individual segments.
+                if hasSeenActiveKey {
+                    return "This HLS stream changes encryption keys within the playlist, which cannot be packaged safely for offline playback. Choose another stream."
+                }
+                continue
+            }
+
+            guard method == "AES-128",
+                  values["URI"]?.isEmpty == false,
+                  values["KEYFORMAT"]?.lowercased() == nil
+                    || values["KEYFORMAT"]?.lowercased() == "identity" else {
+                return "This HLS stream uses an encryption method that cannot be packaged safely for offline playback. Choose another stream."
+            }
+
+            let signature = [
+                method,
+                values["URI"] ?? "",
+                values["IV"] ?? "",
+                values["KEYFORMAT"]?.lowercased() ?? "identity"
+            ].joined(separator: "|")
+            if let activeKeySignature, activeKeySignature != signature {
+                return "This HLS stream rotates encryption keys, which cannot be packaged safely for offline playback. Choose another stream."
+            }
+            activeKeySignature = signature
+            hasSeenActiveKey = true
+        }
+        return nil
+    }
+
     static func unsupportedMediaLayout(in playlist: String) -> String? {
         for line in playlist.components(separatedBy: .newlines) {
             let line = line.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -271,6 +313,9 @@ final class HLSDownloader: @unchecked Sendable {
                     throw HLSError.unsupportedLayout(reason: "This HLS stream uses nested variant playlists that cannot be packaged for offline playback. Choose another stream.")
                 }
                 if let reason = HLSDownloadCompatibility.unsupportedMediaLayout(in: mediaPlaylistContent) {
+                    throw HLSError.unsupportedLayout(reason: reason)
+                }
+                if let reason = HLSDownloadCompatibility.unsupportedEncryptionLayout(in: mediaPlaylistContent) {
                     throw HLSError.unsupportedLayout(reason: reason)
                 }
                 let segments = self.parseMediaPlaylist(mediaPlaylistContent, baseURL: mediaPlaylistURL)
