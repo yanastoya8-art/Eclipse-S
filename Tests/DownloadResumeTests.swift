@@ -774,19 +774,19 @@ final class DownloadResumeTests: XCTestCase {
     }
 
     func testHLSRejectsUnsupportedEncryptionAndKeyRotation() {
-        let sampleAES = "#EXTM3U\n#EXT-X-KEY:METHOD=SAMPLE-AES,URI=\\"key\\"\n#EXTINF:1,\nsegment.ts"
+        let sampleAES = "#EXTM3U\n#EXT-X-KEY:METHOD=SAMPLE-AES,URI=\"key\"\n#EXTINF:1,\nsegment.ts"
         XCTAssertNotNil(HLSDownloadCompatibility.unsupportedEncryptionLayout(in: sampleAES))
 
-        let fairPlay = "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,KEYFORMAT=\\"com.apple.streamingkeydelivery\\",URI=\\"skd://asset\\"\n#EXTINF:1,\nsegment.ts"
+        let fairPlay = "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,KEYFORMAT=\"com.apple.streamingkeydelivery\",URI=\"skd://asset\"\n#EXTINF:1,\nsegment.ts"
         XCTAssertNotNil(HLSDownloadCompatibility.unsupportedEncryptionLayout(in: fairPlay))
 
-        let rotated = "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\\"key-one\\"\n#EXTINF:1,\nfirst.ts\n#EXT-X-KEY:METHOD=AES-128,URI=\\"key-two\\"\n#EXTINF:1,\nsecond.ts"
+        let rotated = "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"key-one\"\n#EXTINF:1,\nfirst.ts\n#EXT-X-KEY:METHOD=AES-128,URI=\"key-two\"\n#EXTINF:1,\nsecond.ts"
         XCTAssertNotNil(HLSDownloadCompatibility.unsupportedEncryptionLayout(in: rotated))
 
-        let reset = "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\\"key\\"\n#EXTINF:1,\nfirst.ts\n#EXT-X-KEY:METHOD=NONE\n#EXTINF:1,\nsecond.ts"
+        let reset = "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"key\"\n#EXTINF:1,\nfirst.ts\n#EXT-X-KEY:METHOD=NONE\n#EXTINF:1,\nsecond.ts"
         XCTAssertNotNil(HLSDownloadCompatibility.unsupportedEncryptionLayout(in: reset))
 
-        let supported = "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\\"key\\",KEYFORMAT=\\"identity\\"\n#EXTINF:1,\nsegment.ts"
+        let supported = "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"key\",KEYFORMAT=\"identity\"\n#EXTINF:1,\nsegment.ts"
         XCTAssertNil(HLSDownloadCompatibility.unsupportedEncryptionLayout(in: supported))
         XCTAssertNil(HLSDownloadCompatibility.unsupportedEncryptionLayout(in: "#EXTM3U\n#EXTINF:1,\nsegment.ts"))
     }
