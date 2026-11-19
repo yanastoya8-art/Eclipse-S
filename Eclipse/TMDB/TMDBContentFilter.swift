@@ -459,6 +459,7 @@ class TMDBContentFilter: ObservableObject {
     // TVMaze episode rows do not carry a TMDB ID. Resolve exact title matches
     // once per show so the Series All Ages filter can still use TMDB ratings.
     private var scheduleSeriesAgeRatingsByEntryID: [String: MaturityRating] = [:]
+    private var scheduleSeriesTMDBIDsByTitle: [String: Int] = [:]
     private var animeAgeCheckedIDs: Set<Int> = []
     private var animeAgeLoadingIDs: Set<Int> = []
     private var animeAgeRetryAfterByID: [Int: Date] = [:]
@@ -738,8 +739,17 @@ class TMDBContentFilter: ObservableObject {
                 uniqueShows[key] = entry
             }
 
-            let matches = await withTaskGroup(of: (String, Int?).self) { group in
-                for (titleKey, entry) in uniqueShows {
+            animeEligibilityLock.lock()
+            let cachedMatches = uniqueShows.keys.compactMap { key -> (String, Int)? in
+                guard let id = scheduleSeriesTMDBIDsByTitle[key] else { return nil }
+                return (key, id)
+            }
+            animeEligibilityLock.unlock()
+            var matches = Dictionary(uniqueKeysWithValues: cachedMatches)
+
+            let unresolvedShows = uniqueShows.filter { matches[$0.key] == nil }
+            let newlyFound = await withTaskGroup(of: (String, Int?).self) { group in
+                for (titleKey, entry) in unresolvedShows {
                     group.addTask {
                         guard !Task.isCancelled,
                               let candidates = try? await TMDBService.shared.searchTVShows(query: entry.title) else {
@@ -765,6 +775,12 @@ class TMDBContentFilter: ObservableObject {
                 }
                 return values
             }
+            matches.merge(newlyFound) { _, new in new }
+            animeEligibilityLock.lock()
+            for (titleKey, tmdbID) in newlyFound {
+                scheduleSeriesTMDBIDsByTitle[titleKey] = tmdbID
+            }
+            animeEligibilityLock.unlock()
 
             let resolvedIDs = Array(Set(matches.values))
             if !resolvedIDs.isEmpty {
