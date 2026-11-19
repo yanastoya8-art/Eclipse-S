@@ -8,6 +8,28 @@
 import SwiftUI
 
 #if !os(tvOS)
+/// Shared title treatment used by the legacy Kanzen settings screens.
+/// Kept local to this file so these screens do not depend on a removed
+/// Reader transition or navigation component.
+private struct KanzenRootHeader: View {
+    private let title: String
+
+    init(_ title: String) {
+        self.title = title
+    }
+
+    var body: some View {
+        HStack {
+            Text(title)
+                .font(.largeTitle.weight(.bold))
+                .foregroundStyle(.white)
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityAddTraits(.isHeader)
+    }
+}
+
 struct KanzenSettingsView: View {
     @EnvironmentObject var moduleManager: ModuleManager
     @ObservedObject private var contentFilter = ReaderContentFilter.shared
