@@ -1744,7 +1744,7 @@ private struct RatingSettingsEntryRow: View {
             if entry.isMovie == nil {
                 Text(legacyMatches.isEmpty
                      ? (didResolve ? "No matching title is available yet. You can still attach this review from its media detail page." : "Looking for matching titles…")
-                     : (overlapsReader ? "This number also belongs to a Reader title. Choose the intended title to attach this review." : "This older review saved only a number. Choose its title below to attach the rating and note."))
+                     : "This older review saved only a number. Choose the intended title below to attach the rating and note.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             } else if let animeTitle, let result, animeTitle != result.displayTitle {
