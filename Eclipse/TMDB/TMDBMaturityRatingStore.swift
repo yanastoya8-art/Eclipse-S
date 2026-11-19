@@ -232,7 +232,7 @@ final class TMDBMaturityRatingStore: ObservableObject {
                     return .resolved(.unknown, kidsDetailPolicyAllows: detailPolicyAllows)
                 }
                 return .resolved(
-                    releaseDates.preferredCertification?.rating ?? .unknown,
+                    releaseDates.filterRating,
                     kidsDetailPolicyAllows: detailPolicyAllows
                 )
             }
@@ -248,7 +248,7 @@ final class TMDBMaturityRatingStore: ObservableObject {
                 return .resolved(.unknown, kidsDetailPolicyAllows: detailPolicyAllows)
             }
             return .resolved(
-                contentRatings.preferredCertification?.rating ?? .unknown,
+                contentRatings.filterRating,
                 kidsDetailPolicyAllows: detailPolicyAllows
             )
         } catch {
