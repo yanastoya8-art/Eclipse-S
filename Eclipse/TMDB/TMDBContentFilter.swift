@@ -1085,11 +1085,9 @@ class TMDBContentFilter: ObservableObject {
                 defaults: .standard
             ) else { return false }
             if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
-                guard let language = movie.originalLanguage?.lowercased() else { return false }
-                let hasNativeAudio = language.hasPrefix("en") || language.hasPrefix("es")
-                if !hasNativeAudio {
-                    guard shouldIncludeForConfiguredAgeAndAudio(movieResult) else { return false }
-                }
+                // Native audio only qualifies when it matches the user's selected
+                // language(s); English must not satisfy a Spanish-only selection.
+                guard shouldIncludeForConfiguredAgeAndAudio(movieResult) else { return false }
             }
             if movieAnime {
                 guard shouldIncludeAnimeAgeRating(movie.asSearchResult) else { return false }
@@ -1140,11 +1138,9 @@ class TMDBContentFilter: ObservableObject {
                 defaults: .standard
             ) else { return false }
             if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
-                guard let language = tvShow.originalLanguage?.lowercased() else { return false }
-                let hasNativeAudio = language.hasPrefix("en") || language.hasPrefix("es")
-                if !hasNativeAudio {
-                    guard shouldIncludeForConfiguredAgeAndAudio(tvResult) else { return false }
-                }
+                // Apply the same selected-language check to native-language
+                // titles and titles that need verified dub metadata.
+                guard shouldIncludeForConfiguredAgeAndAudio(tvResult) else { return false }
             }
             if isAnime {
                 guard shouldIncludeAnimeAgeRating(tvShow.asSearchResult) else { return false }
@@ -1641,8 +1637,12 @@ class TMDBContentFilter: ObservableObject {
 
         if defaults.bool(forKey: "catalogRequireEnglishSpanishAudio") {
             guard let originalLanguage = result.originalLanguage?.lowercased() else { return false }
-            let hasNativeAudio = CatalogNativeAudioPolicy.hasEnglishOrSpanishAudio(originalLanguage)
-            if !hasNativeAudio {
+            let selectedLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
+            let hasSelectedNativeAudio = ScheduleAudioLanguagePolicy.matches(
+                originalLanguage: originalLanguage,
+                selectedLanguages: selectedLanguages
+            )
+            if !hasSelectedNativeAudio {
                 if isAnime {
                     guard let anilistID = result.animeIdentitySeed?.anilistId,
                           anilistID > 0 else { return false }
