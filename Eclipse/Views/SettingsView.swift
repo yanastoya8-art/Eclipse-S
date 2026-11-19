@@ -5353,7 +5353,7 @@ private struct AgeFiltersSettingsView: View {
                 Toggle("Hide movies rated below 13+", isOn: $hideBelowPG13Movies)
                     .onChange(of: hideBelowPG13Movies) { _ in filtersDidChange() }
                     .accessibilityIdentifier("settings.contentFilters.moviesPG13")
-                Toggle("Hide series rated below 13+", isOn: $hideBelowTV14Shows)
+                Toggle("Hide series rated below TV-14", isOn: $hideBelowTV14Shows)
                     .onChange(of: hideBelowTV14Shows) { _ in filtersDidChange() }
                     .accessibilityIdentifier("settings.contentFilters.series13")
                 Toggle("Hide anime below PG-13", isOn: $hideBelowPG13Anime)
