@@ -213,24 +213,26 @@ actor SearchResultTitleLogoCache {
             // than leaving every Browse/Home poster without title artwork.
             if mediaType == "movie" {
                 let details = try? await TMDBService.shared.getMovieDetails(id: id)
-                let fanartLogo = await FanartTVLogoService.shared.logoURL(
+                let fanartLookup = await FanartTVLogoService.shared.lookup(
                     imdbID: details?.imdbId,
                     tvdbID: nil
                 )
                 return LookupResult(
-                    url: fanartLogo,
-                    succeeded: english != nil || spanish != nil || details != nil
+                    url: fanartLookup.url,
+                    succeeded: fanartLookup.url != nil
+                        || (english != nil && spanish != nil && details != nil && fanartLookup.succeeded)
                 )
             }
 
             let details = try? await TMDBService.shared.getTVShowWithSeasons(id: id)
-            let fanartLogo = await FanartTVLogoService.shared.logoURL(
+            let fanartLookup = await FanartTVLogoService.shared.lookup(
                 imdbID: nil,
                 tvdbID: details?.externalIds?.tvdbId
             )
             return LookupResult(
-                url: fanartLogo,
-                succeeded: english != nil || spanish != nil || details != nil
+                url: fanartLookup.url,
+                succeeded: fanartLookup.url != nil
+                    || (english != nil && spanish != nil && details != nil && fanartLookup.succeeded)
             )
         }
         pending[key] = task
