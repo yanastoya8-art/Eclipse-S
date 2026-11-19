@@ -75,7 +75,6 @@ struct TrackerImportProgressContent: View {
 
 enum TrackerLibraryContext: Equatable {
     case video
-    case reader
 
     var sources: [TrackerLibrarySource] {
         TrackerLibrarySource.allCases.filter { source in
@@ -84,10 +83,7 @@ enum TrackerLibraryContext: Equatable {
     }
 
     func kinds(for service: TrackerService) -> [TrackerLibraryKind] {
-#if os(tvOS)
-        guard self == .video else { return [] }
-#endif
-        return TrackerLibraryKind.supportedKinds(for: service).filter { self == .reader ? $0.isReader : $0.isVideo }
+        TrackerLibraryKind.supportedKinds(for: service).filter(\.isVideo)
     }
 }
 
@@ -142,9 +138,6 @@ private final class TrackerLibraryViewModel: ObservableObject {
     @Published private(set) var aniListLists: [String] = []
     @Published private(set) var listError: String?
     @Published private(set) var videos: [String: TrackerLibraryMediaResolution] = [:]
-#if !os(tvOS)
-    @Published private(set) var readers: [String: TrackerReaderResolution] = [:]
-#endif
     @Published private(set) var resolutionErrors: [String: String] = [:]
     @Published private(set) var resolving = Set<String>()
     private var identity: TrackerLibraryLoadIdentity?
@@ -155,7 +148,6 @@ private final class TrackerLibraryViewModel: ObservableObject {
     private var queue = TrackerLibraryResolutionQueue()
     private var animeIDs: [String: Int] = [:]
     private var manualVideos = Set<String>()
-    private var manualReaders = Set<String>()
     private var idLookups = Set<String>()
     private var idLookupTasks: [String: (id: UUID, task: Task<[String: Int], Never>, entries: [TrackerLibraryEntry])] = [:]
     private var resolutionTokens: [String: UUID] = [:]
@@ -267,28 +259,11 @@ private final class TrackerLibraryViewModel: ObservableObject {
         resolutionErrors.removeValue(forKey: entry.id)
         idLookups.remove(entry.id)
         manualVideos.remove(entry.id)
-        manualReaders.remove(entry.id)
-        if entry.kind.isVideo {
-            videos.removeValue(forKey: entry.id)
-            TrackerLibraryMediaResolver.shared.invalidate(entry, session: session)
-        } else {
-#if !os(tvOS)
-            readers.removeValue(forKey: entry.id)
-            TrackerReaderResolver.shared.invalidate(entry: entry, session: session)
-#endif
-        }
+        videos.removeValue(forKey: entry.id)
+        TrackerLibraryMediaResolver.shared.invalidate(entry, session: session)
         queue.retry(entry)
         startWorkers(token: generation, session: session)
     }
-
-#if !os(tvOS)
-    func selectReader(_ match: TrackerReaderMatch, entry: TrackerLibraryEntry) -> Bool {
-        guard let session, TrackerReaderResolver.shared.remember(match: match, entry: entry, session: session) else { return false }
-        manualReaders.insert(entry.id)
-        readers[entry.id] = TrackerReaderResolution(match: match, candidates: [], message: nil)
-        return true
-    }
-#endif
 
     func accept(_ entry: TrackerLibraryEntry, session: TrackerLibrarySession) {
         guard self.session == session, TrackerManager.shared.librarySessionIsCurrent(session) else { return }
@@ -337,12 +312,8 @@ private final class TrackerLibraryViewModel: ObservableObject {
             filteredEntries = []
             availableGenres = []
             videos = [:]
-#if !os(tvOS)
-            readers = [:]
-#endif
             animeIDs = [:]
             manualVideos = []
-            manualReaders = []
         }
         resolutionErrors = [:]
         resolving = []
@@ -365,29 +336,14 @@ private final class TrackerLibraryViewModel: ObservableObject {
             return entry.id
         })
         videos = videos.filter { validIDs.contains($0.key) }
-#if os(tvOS)
-        let staleReaderIDs = Set<String>()
-#else
-        let staleReaderIDs = Set(readers.compactMap { $0.value.match?.isCurrent == false ? $0.key : nil })
-#endif
-#if !os(tvOS)
-        readers = readers.filter { validIDs.contains($0.key) && $0.value.match?.isCurrent != false }
-#endif
         animeIDs = animeIDs.filter { validIDs.contains($0.key) }
         manualVideos.formIntersection(validIDs)
-        manualReaders.formIntersection(validIDs)
-#if !os(tvOS)
-        manualReaders.formIntersection(Set(readers.keys))
-#endif
-        for entry in incoming where previous[entry.id] != nil && (!validIDs.contains(entry.id) || staleReaderIDs.contains(entry.id)) {
+        for entry in incoming where previous[entry.id] != nil && !validIDs.contains(entry.id) {
             resolutionTokens.removeValue(forKey: entry.id)
             resolving.remove(entry.id)
             resolutionErrors.removeValue(forKey: entry.id)
             idLookups.remove(entry.id)
             idLookupTasks.removeValue(forKey: entry.id)
-#if !os(tvOS)
-            if entry.kind.isReader, let session { TrackerReaderResolver.shared.invalidate(entry: entry, session: session) }
-#endif
             queue.refreshMetadata(entry)
             if interactiveDemand.contains(entry.id) { queue.select(entry) }
         }
@@ -475,11 +431,7 @@ private final class TrackerLibraryViewModel: ObservableObject {
                 guard currentResolution(id, entry: entry, token: token, session: session) else { return }
                 if !manualVideos.contains(entry.id) { videos[entry.id] = resolution }
             } else {
-#if !os(tvOS)
-                let resolution = try await TrackerReaderResolver.shared.resolve(entry: entry, session: session)
-                guard currentResolution(id, entry: entry, token: token, session: session) else { return }
-                if !manualReaders.contains(entry.id) { readers[entry.id] = resolution }
-#endif
+                resolutionErrors[entry.id] = "This tracker entry is not a supported video."
             }
         } catch {
             guard currentResolution(id, entry: entry, token: token, session: session) else { return }
@@ -511,10 +463,6 @@ struct TrackerLibraryView: View {
     @State private var navigationResult: TMDBSearchResult?
     @State private var playbackIntent: TrackerLibraryPlaybackIntent?
     @State private var navigationActive = false
-#if !os(tvOS)
-    @State private var readerMatch: TrackerReaderMatch?
-    @State private var readerActive = false
-#endif
     @StateObject private var model = TrackerLibraryViewModel()
     @ObservedObject private var tracker = TrackerManager.shared
     @ObservedObject private var profiles = ProfileManager.shared
@@ -598,10 +546,6 @@ struct TrackerLibraryView: View {
             navigationActive = false
             navigationResult = nil
             playbackIntent = nil
-#if !os(tvOS)
-            readerActive = false
-            readerMatch = nil
-#endif
             editing = nil
             choosing = nil
             genre = nil
@@ -641,21 +585,9 @@ struct TrackerLibraryView: View {
             }
         }
         .sheet(item: $choosing) { selection in
-#if os(tvOS)
             TrackerLibraryMatchView(entry: selection.entry, session: selection.session,
                 resolution: model.videos[selection.id], error: model.resolutionErrors[selection.id],
                 didSelect: { select($0, selection: selection) }, retry: { model.retry(selection.entry) })
-#else
-            TrackerLibraryMatchView(entry: selection.entry, session: selection.session,
-                resolution: model.videos[selection.id], error: model.resolutionErrors[selection.id],
-                didSelect: { select($0, selection: selection) }, retry: { model.retry(selection.entry) }, readerResolution: model.readers[selection.id],
-                didSelectReader: { match in
-                    guard permits(selection.entry), model.session == selection.session, match.isCurrent, model.selectReader(match, entry: selection.entry) else { return }
-                    choosing = nil
-                    readerMatch = match
-                    readerActive = true
-                })
-#endif
         }
     }
 
@@ -767,7 +699,7 @@ struct TrackerLibraryView: View {
                         .overlay {
                             KFImage(entry.coverURL ?? result?.fullPosterURL.flatMap(URL.init(string:)))
                                 .resizable()
-                                .placeholder { Color.clear.overlay(Image(systemName: entry.kind.isReader ? "book.closed" : "film").foregroundColor(.secondary)) }
+                                .placeholder { Color.clear.overlay(Image(systemName: "film").foregroundColor(.secondary)) }
                                 .scaledToFill()
                                 .accessibilityHidden(true)
                         }
@@ -787,7 +719,7 @@ struct TrackerLibraryView: View {
             entryFooter(entry)
         }
         .contextMenu {
-            Button(entry.kind.isReader ? "Choose Reader Source" : "Choose Different Match") {
+            Button("Choose Different Match") {
                 guard permits(entry), let session = model.session else { return }
                 model.prioritize(entry)
                 choosing = TrackerLibraryEditingSelection(entry: entry, session: session)
@@ -860,10 +792,6 @@ struct TrackerLibraryView: View {
 
     private func readiness(_ entry: TrackerLibraryEntry) -> String {
         if model.videos[entry.id]?.match != nil { return "Ready" }
-#if !os(tvOS)
-        if model.readers[entry.id]?.match?.isCurrent == true { return "Ready" }
-        if model.readers[entry.id] != nil { return "Choose Match" }
-#endif
         if model.videos[entry.id] != nil || model.resolutionErrors[entry.id] != nil { return "Choose Match" }
         return "Matching"
     }
@@ -873,13 +801,7 @@ struct TrackerLibraryView: View {
         if entry.kind.isVideo {
             if model.videos[entry.id]?.match == nil { Text(model.videos[entry.id] == nil && model.resolutionErrors[entry.id] == nil ? "Matching title…" : "Choose match") }
         } else {
-#if !os(tvOS)
-            if let match = model.readers[entry.id]?.match {
-                Text(match.chapterCountVerified ? "\(match.sourceName) · \(match.chapterCount) chapters" : "\(match.sourceName) · Chapter count unavailable").lineLimit(2)
-            } else { Text(model.readers[entry.id] == nil && model.resolutionErrors[entry.id] == nil ? "Finding reader source…" : "Choose source") }
-#else
-            Text("Read on iPhone, iPad, or Mac")
-#endif
+            Text("Unsupported content type")
         }
     }
 
@@ -891,16 +813,6 @@ struct TrackerLibraryView: View {
             navigationActive = true
             return
         }
-#if !os(tvOS)
-        if let match = model.readers[entry.id]?.match, match.isCurrent {
-            readerMatch = match
-            readerActive = true
-            return
-        }
-#endif
-#if !os(tvOS)
-        if entry.kind.isReader, model.readers[entry.id]?.match?.isCurrent == false { model.retry(entry) }
-#endif
         model.prioritize(entry)
         choosing = TrackerLibraryEditingSelection(entry: entry, session: session)
     }
@@ -910,12 +822,6 @@ struct TrackerLibraryView: View {
             NavigationLink(isActive: $navigationActive) {
                 if let navigationResult, authorized, kind.isVideo { MediaDetailView(searchResult: navigationResult, trackerPlaybackIntent: playbackIntent) }
             } label: { EmptyView() }
-#if !os(tvOS)
-            NavigationLink(isActive: $readerActive) {
-                if let readerMatch, authorized, readerMatch.isCurrent,
-                   model.entries.contains(where: { $0.id == readerMatch.trackerEntryID && permits($0) }) { TrackerReaderDestinationView(match: readerMatch) }
-            } label: { EmptyView() }
-#endif
         }.hidden()
     }
 }
@@ -927,10 +833,6 @@ private struct TrackerLibraryMatchView: View {
     let error: String?
     let didSelect: (TMDBSearchResult) -> Void
     let retry: () -> Void
-#if !os(tvOS)
-    let readerResolution: TrackerReaderResolution?
-    let didSelectReader: (TrackerReaderMatch) -> Void
-#endif
     @State private var search = ""
     @State private var searched: [TMDBSearchResult]?
     @State private var searching = false
@@ -974,20 +876,8 @@ private struct TrackerLibraryMatchView: View {
                         }
                     }
                 } else {
-#if !os(tvOS)
-                    if let match = readerResolution?.match { readerButton(match) }
-                    ForEach(readerResolution?.candidates ?? []) { match in
-                        if match.id != readerResolution?.match?.id { readerButton(match) }
-                    }
-                    if let message = error ?? readerResolution?.message { Text(message).foregroundColor(.secondary) }
-                    NavigationLink("Search Reader Sources") { TrackerReaderSearchDestinationView(entry: entry) }
+                    Text(error ?? "No video match found").foregroundColor(.secondary)
                     Button("Retry Matching") { retry() }
-                    if readerResolution == nil && error == nil {
-                        HStack { ProgressView(); Text("Searching connected reader sources…") }
-                    }
-#else
-                    Text("Open manga with connected reader sources on iPhone, iPad, or Mac.")
-#endif
                 }
 #if !os(tvOS)
                 if let url = entry.websiteURL { Link("Tracker Page", destination: url) }
@@ -999,17 +889,6 @@ private struct TrackerLibraryMatchView: View {
         .onAppear { search = entry.title }
         .onDisappear { searchTask?.cancel() }
     }
-
-#if !os(tvOS)
-    private func readerButton(_ match: TrackerReaderMatch) -> some View {
-        Button { if authorized && match.isCurrent { didSelectReader(match) } } label: {
-            VStack(alignment: .leading, spacing: 5) {
-                Text(match.item.title)
-                Text(match.chapterCountVerified ? "\(match.sourceName) · \(match.chapterCount) chapters · \(match.language)" : "\(match.sourceName) · Chapter count unavailable · \(match.language)").font(.caption).foregroundColor(.secondary)
-            }
-        }.disabled(!match.isCurrent)
-    }
-#endif
 
     private func searchMedia() {
         guard authorized else { return }
