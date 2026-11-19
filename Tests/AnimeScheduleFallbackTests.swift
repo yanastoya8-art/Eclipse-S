@@ -938,6 +938,37 @@ final class ScheduleAllAgesFilterPolicyTests: XCTestCase {
 }
 
 
+final class CatalogNativeAudioSelectionTests: XCTestCase {
+    func testEnglishNativeAudioDoesNotSatisfySpanishOnlySelection() {
+        XCTAssertFalse(ScheduleAudioLanguagePolicy.matches(
+            originalLanguage: "en-US",
+            selectedLanguages: ["spanish"]
+        ))
+    }
+
+    func testSpanishNativeAudioDoesNotSatisfyEnglishOnlySelection() {
+        XCTAssertFalse(ScheduleAudioLanguagePolicy.matches(
+            originalLanguage: "es-ES",
+            selectedLanguages: ["english"]
+        ))
+    }
+
+    func testSpanishRegionalVariantsMatchCombinedSpanishSelection() {
+        XCTAssertTrue(ScheduleAudioLanguagePolicy.matches(
+            originalLanguage: "es-MX",
+            selectedLanguages: ["spanish"]
+        ))
+    }
+
+    func testEnglishNativeAudioMatchesEnglishSelection() {
+        XCTAssertTrue(ScheduleAudioLanguagePolicy.matches(
+            originalLanguage: "en-GB",
+            selectedLanguages: ["english"]
+        ))
+    }
+}
+
+
 final class AnimeScheduleProviderLanguagePolicyTests: XCTestCase {
     func testNativeLanguageRowsMustMatchTheSelectedLanguage() {
         XCTAssertTrue(AnimeScheduleProviderLanguagePolicy.includes(
