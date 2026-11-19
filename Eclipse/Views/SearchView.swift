@@ -1989,7 +1989,7 @@ private struct BrowseMediaView: View {
                 .multilineTextAlignment(.center)
 
             Button("Try Again") {
-                reloadResults()
+                retryBrowseLoad()
             }
             .padding(.top, 4)
         }
@@ -2009,7 +2009,7 @@ private struct BrowseMediaView: View {
                 .font(.title3.weight(.semibold))
                 .foregroundColor(.secondary)
 
-            if hasMorePages && currentPage < 8 {
+            if hasMorePages {
                 Text("Your filters may have excluded the first few pages.")
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -2034,7 +2034,8 @@ private struct BrowseMediaView: View {
                 ForEach(results, id: \.stableIdentity) { result in
                     SearchResultCard(result: result)
                         .onAppear {
-                            if result.stableIdentity == results.last?.stableIdentity {
+                            if result.stableIdentity == results.last?.stableIdentity,
+                           currentPage < Self.maximumAutomaticFilteredPages {
                                 loadNextPage()
                             }
                         }
@@ -2047,11 +2048,24 @@ private struct BrowseMediaView: View {
             // away and back. The page-based identity re-arms the sentinel after
             // each successful append. Keep the automatic scan bounded; the
             // final card remains a manual fallback for later pages.
-            if hasMorePages && currentPage < 8 {
+            if hasMorePages && currentPage < Self.maximumAutomaticFilteredPages {
                 Color.clear
                     .frame(height: 1)
                     .id("browse-search-pagination-\(currentPage)-\(results.count)")
                     .onAppear { loadNextPage() }
+            }
+
+            if hasMorePages && currentPage >= Self.maximumAutomaticFilteredPages {
+                Button {
+                    loadNextPage()
+                } label: {
+                    Label("Load More", systemImage: "arrow.down.circle")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .disabled(isLoading)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 12)
             }
 
             if let errorMessage {
@@ -2267,7 +2281,7 @@ private struct BrowseMediaView: View {
         if let failedBrowseLoad {
             loadPage(failedBrowseLoad.page, replacing: failedBrowseLoad.replacing)
         } else {
-            loadNextPage()
+            reloadResults()
         }
     }
 
