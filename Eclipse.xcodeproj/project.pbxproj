@@ -1036,6 +1036,7 @@
 		48DBDCF68C044118955BA1F5 /* MediaLanguageCatalog.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MediaLanguageCatalog.swift; sourceTree = "<group>"; };
 		XCTESTFR0000000000000001 /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = System/Library/Frameworks/XCTest.framework; sourceTree = SDKROOT; };
 		B5A0C0DE0000000000000002 /* HomeCatalogLoadPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeCatalogLoadPolicyTests.swift; sourceTree = "<group>"; };
+		13E1EDC32ED9E65F00087629 /* MainMenu.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MainMenu.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1356,6 +1357,7 @@
 		13E1EDB52ED9E65F00087629 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				13E1EDC32ED9E65F00087629 /* MainMenu.swift */,
 				KMG0000000000000000GRP1 /* Migration */,
 				13E1EDB62ED9E65F00087629 /* Reader */,
 				13E1EDBF2ED9E65F00087629 /* Settings */,
@@ -2192,6 +2194,7 @@
 				13F072BA2E4B2D9200EF90EB /* TMDBService.swift in Sources */,
 				13F072C22E4B2D9200EF90EB /* AniListService.swift in Sources */,
 				13E1EDE32ED9E66000087629 /* readerSettingsView.swift in Sources */,
+				13E1EDE82ED9E66000087629 /* MainMenu.swift in Sources */,
 				13F0725F2E4B2D3300EF90EB /* SoraApp.swift in Sources */,
 				AD20000B2FE2000000AD200B /* Localization.swift in Sources */,
 				13F187AD2E6F38CE00747F7E /* LibraryItem.swift in Sources */,
