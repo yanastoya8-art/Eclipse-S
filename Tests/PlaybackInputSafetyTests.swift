@@ -220,8 +220,8 @@ final class PlaybackInputSafetyTests: XCTestCase {
         let cues = TVExternalSubtitleParser.parse(Data(source.utf8))
         XCTAssertEqual(cues.count, 1)
         XCTAssertEqual(cues.first?.text, "Valid cue")
-        XCTAssertEqual(cues.first?.start, 1)
-        XCTAssertEqual(cues.first?.end, 2)
+        XCTAssertEqual(cues.first?.start, 1.0)
+        XCTAssertEqual(cues.first?.end, 2.0)
     }
 
     func testSubtitleDelayPreservesDirectionAndBoundsUntrustedValues() {
