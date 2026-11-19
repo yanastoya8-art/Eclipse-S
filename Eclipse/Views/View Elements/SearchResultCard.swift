@@ -168,7 +168,8 @@ actor SearchResultTitleLogoCache {
         if let task = pending[key] { return await task.value.url }
 
         let task = Task<LookupResult, Never> {
-            async let englishImages: TMDBImagesResponse? = {
+            func performLookup() async -> LookupResult {
+                async let englishImages: TMDBImagesResponse? = {
                 do {
                     return mediaType == "movie"
                         ? try await TMDBService.shared.getMovieImages(id: id, preferredLanguage: "en")
@@ -229,11 +230,21 @@ actor SearchResultTitleLogoCache {
                 imdbID: nil,
                 tvdbID: details?.externalIds?.tvdbId
             )
-            return LookupResult(
-                url: fanartLookup.url,
-                succeeded: fanartLookup.url != nil
-                    || (english != nil && spanish != nil && details != nil && fanartLookup.succeeded)
-            )
+                return LookupResult(
+                    url: fanartLookup.url,
+                    succeeded: fanartLookup.url != nil
+                        || (english != nil && spanish != nil && details != nil && fanartLookup.succeeded)
+                )
+            }
+
+            var result = await performLookup()
+            if !result.succeeded {
+                try? await Task.sleep(for: .milliseconds(600))
+                if !Task.isCancelled {
+                    result = await performLookup()
+                }
+            }
+            return result
         }
         pending[key] = task
         let lookup = await task.value
