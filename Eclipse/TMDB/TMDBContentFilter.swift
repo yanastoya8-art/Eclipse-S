@@ -210,7 +210,7 @@ final class MyDubListDubFilter: @unchecked Sendable {
     /// decide whether they need to await a network refresh.
     @discardableResult
     func prepareCachedSnapshot() -> Bool {
-        let languages = selectedLanguages
+        let languages = selectedLanguagesIncludingCatalogAudioRequirement
         guard !languages.isEmpty else {
             clearSnapshot()
             return true
@@ -280,7 +280,7 @@ final class MyDubListDubFilter: @unchecked Sendable {
     }
 
     func refresh() async -> Bool {
-        let languages = selectedLanguages
+        let languages = selectedLanguagesIncludingCatalogAudioRequirement
         guard !languages.isEmpty else {
             cancelRefreshTask()
             clearSnapshot()
@@ -363,7 +363,7 @@ final class MyDubListDubFilter: @unchecked Sendable {
     }
 
     func shouldInclude(_ result: TMDBSearchResult) -> Bool {
-        let languages = selectedLanguages
+        let languages = selectedLanguagesIncludingCatalogAudioRequirement
         guard !languages.isEmpty else { return true }
         let animeCountries: Set<String> = ["JP", "CN", "KR", "TW"]
         let animeLanguages: Set<String> = ["ja", "zh", "ko"]
@@ -392,7 +392,7 @@ final class MyDubListDubFilter: @unchecked Sendable {
     }
 
     func shouldIncludeEnglishSchedule(anilistID: Int?, malID: Int?) -> Bool {
-        let languages = selectedLanguages
+        let languages = selectedLanguagesIncludingCatalogAudioRequirement
         if languages.isEmpty { return true }
         guard languages.contains(MyDubListLanguage.english.rawValue) else { return false }
         lock.lock()
@@ -404,7 +404,7 @@ final class MyDubListDubFilter: @unchecked Sendable {
     }
 
     func shouldInclude(anilistID: Int?, malID: Int?) -> Bool {
-        let languages = selectedLanguages
+        let languages = selectedLanguagesIncludingCatalogAudioRequirement
         guard !languages.isEmpty else { return true }
         lock.lock()
         defer { lock.unlock() }
