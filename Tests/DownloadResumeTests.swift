@@ -773,6 +773,24 @@ final class DownloadResumeTests: XCTestCase {
         XCTAssertNil(HLSDownloader.resumeManifestFingerprint("#EXTM3U\nsegment.ts", playlistURL: upstream, keyData: nil))
     }
 
+    func testHLSRejectsUnsupportedEncryptionAndKeyRotation() {
+        let sampleAES = "#EXTM3U\\n#EXT-X-KEY:METHOD=SAMPLE-AES,URI=\\"key\\"\\n#EXTINF:1,\\nsegment.ts"
+        XCTAssertNotNil(HLSDownloadCompatibility.unsupportedEncryptionLayout(in: sampleAES))
+
+        let fairPlay = "#EXTM3U\\n#EXT-X-KEY:METHOD=AES-128,KEYFORMAT=\\"com.apple.streamingkeydelivery\\",URI=\\"skd://asset\\"\\n#EXTINF:1,\\nsegment.ts"
+        XCTAssertNotNil(HLSDownloadCompatibility.unsupportedEncryptionLayout(in: fairPlay))
+
+        let rotated = "#EXTM3U\\n#EXT-X-KEY:METHOD=AES-128,URI=\\"key-one\\"\\n#EXTINF:1,\\nfirst.ts\\n#EXT-X-KEY:METHOD=AES-128,URI=\\"key-two\\"\\n#EXTINF:1,\\nsecond.ts"
+        XCTAssertNotNil(HLSDownloadCompatibility.unsupportedEncryptionLayout(in: rotated))
+
+        let reset = "#EXTM3U\\n#EXT-X-KEY:METHOD=AES-128,URI=\\"key\\"\\n#EXTINF:1,\\nfirst.ts\\n#EXT-X-KEY:METHOD=NONE\\n#EXTINF:1,\\nsecond.ts"
+        XCTAssertNotNil(HLSDownloadCompatibility.unsupportedEncryptionLayout(in: reset))
+
+        let supported = "#EXTM3U\\n#EXT-X-KEY:METHOD=AES-128,URI=\\"key\\",KEYFORMAT=\\"identity\\"\\n#EXTINF:1,\\nsegment.ts"
+        XCTAssertNil(HLSDownloadCompatibility.unsupportedEncryptionLayout(in: supported))
+        XCTAssertNil(HLSDownloadCompatibility.unsupportedEncryptionLayout(in: "#EXTM3U\\n#EXTINF:1,\\nsegment.ts"))
+    }
+
     func testHLSSelectsMuxedAudioVariantAndPreservesInBandAudioGroups() throws {
         let base = try XCTUnwrap(URL(string: "https://hls-resume.example/playlist.m3u8"))
         let downloader = HLSDownloader(streamURL: base, headers: [:], destinationURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString), downloadId: UUID().uuidString)
