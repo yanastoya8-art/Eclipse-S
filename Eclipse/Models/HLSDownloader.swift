@@ -171,14 +171,24 @@ enum HLSDownloadCompatibility {
     }
 
     static func unsupportedMediaLayout(in playlist: String) -> String? {
+        var initializationURI: String?
         for line in playlist.components(separatedBy: .newlines) {
             let line = line.trimmingCharacters(in: .whitespacesAndNewlines)
             if line.hasPrefix("#EXT-X-BYTERANGE:") {
                 return "This HLS stream uses byte ranges that cannot be packaged for offline playback. Choose another stream."
             }
-            if line.hasPrefix("#EXT-X-MAP:"),
-               attributes(String(line.dropFirst("#EXT-X-MAP:".count)))["BYTERANGE"] != nil {
-                return "This HLS stream uses an initialization byte range that cannot be packaged for offline playback. Choose another stream."
+            if line.hasPrefix("#EXT-X-MAP:") {
+                let values = attributes(String(line.dropFirst("#EXT-X-MAP:".count)))
+                if values["BYTERANGE"] != nil {
+                    return "This HLS stream uses an initialization byte range that cannot be packaged for offline playback. Choose another stream."
+                }
+                guard let uri = values["URI"], !uri.isEmpty else {
+                    return "This HLS stream has an invalid initialization section and cannot be packaged safely for offline playback. Choose another stream."
+                }
+                if let initializationURI, initializationURI != uri {
+                    return "This HLS stream changes initialization sections, which cannot be packaged safely for offline playback. Choose another stream."
+                }
+                initializationURI = uri
             }
         }
         return nil
@@ -403,7 +413,7 @@ final class HLSDownloader: @unchecked Sendable {
                 guard let mediaSequenceNumber = HLSDownloadCompatibility.mediaSequenceNumber(in: mediaPlaylistContent) else {
                     throw HLSError.unsupportedLayout(reason: "This HLS playlist has an invalid media sequence number and cannot be packaged safely for offline playback.")
                 }
-                let segments = self.parseMediaPlaylist(mediaPlaylistContent, baseURL: mediaPlaylistURL)
+                let segments = try self.parseMediaPlaylist(mediaPlaylistContent, baseURL: mediaPlaylistURL)
                 guard !segments.isEmpty else {
                     throw HLSError.noSegmentsFound
                 }
@@ -437,7 +447,7 @@ final class HLSDownloader: @unchecked Sendable {
                     Logger.shared.log("HLS: Downloaded AES-128 encryption key", type: "Download")
                 }
 
-                let initSegmentURL = self.parseInitSegment(from: mediaPlaylistContent, baseURL: mediaPlaylistURL)
+                let initSegmentURL = try self.parseInitSegment(from: mediaPlaylistContent, baseURL: mediaPlaylistURL)
                 let manifestSHA256 = Self.resumeManifestFingerprint(
                     mediaPlaylistContent,
                     playlistURL: mediaPlaylistURL,
@@ -855,7 +865,7 @@ final class HLSDownloader: @unchecked Sendable {
         return variants.filter { !$0.requiresExternalAudio }.max(by: { $0.bandwidth < $1.bandwidth })
     }
 
-    func parseMediaPlaylist(_ content: String, baseURL: URL) -> [URL] {
+    func parseMediaPlaylist(_ content: String, baseURL: URL) throws -> [URL] {
         var segments: [URL] = []
         let lines = content.components(separatedBy: .newlines)
 
@@ -864,9 +874,10 @@ final class HLSDownloader: @unchecked Sendable {
 
             if trimmed.isEmpty || trimmed.hasPrefix("#") { continue }
 
-            if let segmentURL = resolveURL(trimmed, baseURL: baseURL) {
-                segments.append(segmentURL)
+            guard let segmentURL = resolveURL(trimmed, baseURL: baseURL) else {
+                throw HLSError.unsupportedLayout(reason: "This HLS playlist contains an invalid segment URL and cannot be packaged safely for offline playback. Choose another stream.")
             }
+            segments.append(segmentURL)
         }
 
         return segments
@@ -915,7 +926,7 @@ final class HLSDownloader: @unchecked Sendable {
         return lastKey
     }
 
-    private func parseInitSegment(from content: String, baseURL: URL) -> URL? {
+    private func parseInitSegment(from content: String, baseURL: URL) throws -> URL? {
         let lines = content.components(separatedBy: .newlines)
 
         for line in lines {
@@ -923,10 +934,11 @@ final class HLSDownloader: @unchecked Sendable {
             guard trimmed.hasPrefix("#EXT-X-MAP:") else { continue }
 
             let attributes = trimmed.replacingOccurrences(of: "#EXT-X-MAP:", with: "")
-            if let uriString = parseAttribute(attributes, key: "URI"),
-               let initURL = resolveURL(uriString, baseURL: baseURL) {
-                return initURL
+            guard let uriString = parseAttribute(attributes, key: "URI"),
+                  let initURL = resolveURL(uriString, baseURL: baseURL) else {
+                throw HLSError.unsupportedLayout(reason: "This HLS stream has an invalid initialization segment URL and cannot be packaged safely for offline playback. Choose another stream.")
             }
+            return initURL
         }
 
         return nil
