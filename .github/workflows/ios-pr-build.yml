@@ -11,13 +11,12 @@ permissions:
   actions: write
   contents: read
 
-# Keep one active iOS build per PR/branch. New commits supersede older
-# queued or in-progress runs instead of accumulating hours of stale builds.
+# Keep one active iOS build per PR/branch. New commits may wait for the
+# current validation to finish; do not cancel an expensive macOS test build
+# simply because another commit was pushed to the same PR.
 concurrency:
   group: ios-pr-build-${{ github.event.pull_request.number || github.ref_name }}
-  # Only the newest PR head is useful to validate. Cancel superseded
-  # builds so stale commits cannot hold the macOS runner ahead of the latest.
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   prune-stale-ios-builds:
