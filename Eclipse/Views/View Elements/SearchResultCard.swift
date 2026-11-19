@@ -314,6 +314,7 @@ struct SearchResultCard: View {
         }
         .aspectRatio(2/3, contentMode: .fill)
         .task(id: result.stableIdentity) {
+            titleLogoURL = nil
             titleLogoURL = await SearchResultTitleLogoCache.shared.logoURL(
                 mediaType: result.isMovie ? "movie" : "tv",
                 id: result.id
