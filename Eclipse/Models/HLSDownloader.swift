@@ -103,7 +103,19 @@ enum HLSDownloadCompatibility {
               url.host != nil,
               url.user == nil,
               url.password == nil else { return false }
-        return true
+        let sourceScheme = baseURL.scheme?.lowercased()
+        return !(sourceScheme == "https" && scheme == "http")
+    }
+
+    static func permitsRedirect(from source: URL, to destination: URL) -> Bool {
+        guard let sourceScheme = source.scheme?.lowercased(),
+              sourceScheme == "http" || sourceScheme == "https",
+              let destinationScheme = destination.scheme?.lowercased(),
+              destinationScheme == "http" || destinationScheme == "https",
+              destination.host != nil,
+              destination.user == nil,
+              destination.password == nil else { return false }
+        return !(sourceScheme == "https" && destinationScheme == "http")
     }
 
     static func isValidAES128IV(_ value: String) -> Bool {
@@ -177,6 +189,24 @@ struct HLSEncryptionKey {
     let method: String
     let keyURL: URL
     let iv: Data?
+}
+
+private final class HLSRedirectPolicyDelegate: NSObject, URLSessionTaskDelegate {
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        guard let source = response.url,
+              let destination = request.url,
+              HLSDownloadCompatibility.permitsRedirect(from: source, to: destination) else {
+            completionHandler(nil)
+            return
+        }
+        completionHandler(request)
+    }
 }
 
 struct HLSDownloadCheckpoint {
@@ -279,7 +309,11 @@ final class HLSDownloader: @unchecked Sendable {
         config.httpMaximumConnectionsPerHost = 4
         config.timeoutIntervalForRequest = 30
         config.timeoutIntervalForResource = 600
-        self.session = URLSession(configuration: config)
+        self.session = URLSession(
+            configuration: config,
+            delegate: HLSRedirectPolicyDelegate(),
+            delegateQueue: nil
+        )
     }
 
     deinit {
