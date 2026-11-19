@@ -93,6 +93,23 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
         return classify(certification: certification, region: region) == .general
     }
 
+    /// Returns a filter tier without conflating parental-guidance labels
+    /// with an explicit All Ages classification.
+    static func ratingForFiltering(certification: String, region: String? = nil) -> MaturityRating {
+        let rating = classify(certification: certification, region: region)
+        guard rating == .general,
+              !isExplicitAllAgesCertification(certification: certification, region: region) else {
+            return rating
+        }
+
+        let compact = certification.uppercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "+", with: "PLUS")
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .joined()
+        return ["TVY7", "TVY7FV"].contains(compact) ? .age7 : .age10
+    }
+
     static func classify(certification: String, region: String? = nil) -> MaturityRating {
         let normalized = certification.uppercased().trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { return .unknown }
