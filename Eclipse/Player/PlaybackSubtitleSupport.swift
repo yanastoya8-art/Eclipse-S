@@ -102,34 +102,54 @@ enum TVExternalSubtitleParser {
         if normalized.range(of: "[Events]", options: .caseInsensitive) != nil {
             return parseASS(normalized)
         }
-        let blocks = normalized.components(separatedBy: "\n\n")
         var cues: [TVExternalSubtitleCue] = []
-        cues.reserveCapacity(min(blocks.count, maximumCueCount))
+        cues.reserveCapacity(min(normalized.count / 48, maximumCueCount))
+        var currentStart: Double?
+        var currentEnd: Double?
+        var currentText: [String] = []
 
-        for block in blocks where cues.count < maximumCueCount {
-            let lines = block
-                .split(separator: "\n", omittingEmptySubsequences: true)
-                .map(String.init)
-            guard let timingIndex = lines.firstIndex(where: { $0.contains("-->") }) else {
-                continue
-            }
-            let timingParts = lines[timingIndex].components(separatedBy: "-->")
-            guard timingParts.count >= 2,
-                  let start = parseTimestamp(timingParts[0]),
-                  let end = parseTimestamp(
-                    timingParts[1].trimmingCharacters(in: .whitespacesAndNewlines)
-                        .split(whereSeparator: { $0.isWhitespace }).first.map(String.init) ?? ""
-                  ),
-                  start.isFinite,
-                  end.isFinite,
+        func finishCue() {
+            guard let start = currentStart,
+                  let end = currentEnd,
                   end > start else {
-                continue
+                currentStart = nil
+                currentEnd = nil
+                currentText.removeAll(keepingCapacity: true)
+                return
             }
-            let rawText = lines.dropFirst(timingIndex + 1).joined(separator: "\n")
-            let text = sanitizedCueText(rawText)
-            guard !text.isEmpty else { continue }
-            cues.append(TVExternalSubtitleCue(start: max(0, start), end: end, text: text))
+            let text = sanitizedCueText(currentText.joined(separator: "\n"))
+            if !text.isEmpty, cues.count < maximumCueCount {
+                cues.append(TVExternalSubtitleCue(start: max(0, start), end: end, text: text))
+            }
+            currentStart = nil
+            currentEnd = nil
+            currentText.removeAll(keepingCapacity: true)
         }
+
+        for rawLine in normalized.split(separator: "\n", omittingEmptySubsequences: false) {
+            guard cues.count < maximumCueCount else { break }
+            let line = String(rawLine)
+            if line.contains("-->") {
+                finishCue()
+                let timingParts = line.components(separatedBy: "-->")
+                guard timingParts.count >= 2,
+                      let start = parseTimestamp(timingParts[0]),
+                      let end = parseTimestamp(
+                        timingParts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+                            .split(whereSeparator: { $0.isWhitespace }).first.map(String.init) ?? ""
+                      ),
+                      end > start else {
+                    continue
+                }
+                currentStart = start
+                currentEnd = end
+            } else if line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                finishCue()
+            } else if currentStart != nil {
+                currentText.append(line)
+            }
+        }
+        finishCue()
         return cues.sorted {
             $0.start == $1.start ? $0.end < $1.end : $0.start < $1.start
         }
