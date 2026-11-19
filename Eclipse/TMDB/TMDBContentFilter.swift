@@ -941,7 +941,7 @@ class TMDBContentFilter: ObservableObject {
         )
     }
 
-    private func resolveAnimeAgeRatings(for results: [TMDBSearchResult]) async {
+    func resolveAnimeAgeRatings(for results: [TMDBSearchResult]) async {
         let identities = results.compactMap { result -> (Int, Int?)? in
             guard let id = result.animeIdentitySeed?.anilistId, id > 0 else { return nil }
             return (id, result.animeIdentitySeed?.malId)
