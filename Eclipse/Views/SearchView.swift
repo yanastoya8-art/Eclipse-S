@@ -2932,11 +2932,11 @@ private struct BrowseMediaView: View {
             }
         }
 
-        let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguages
-        let requiresAnimeIdentity = mediaType.isAnime && (
-            !selectedDubLanguages.isEmpty
-                || UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
-        )
+        // Use the effective language set, not only the manually selected
+        // languages. The global English/Spanish audio requirement implicitly
+        // selects both languages and must warm the same dub index on cold Browse.
+        let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
+        let requiresAnimeIdentity = mediaType.isAnime && !selectedDubLanguages.isEmpty
 
         // A cold launch can reach Browse before the asynchronous MyDubList
         // refresh in TMDBContentFilter.init has finished. The dub predicate
