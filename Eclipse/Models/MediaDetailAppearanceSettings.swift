@@ -7,6 +7,27 @@ enum HomeHeroTitleLogoPositionSettings {
     static let step = 0.05
 }
 
+// Retained for backup/profile decoding compatibility. These legacy settings are no longer
+// exposed in the UI, but existing backups still encode/decode their stored values.
+enum MediaDetailTitleArtworkSettings {
+    static let enabledKey = "mediaDetailTitleArtworkEnabled"
+    static let defaultEnabled = true
+
+    static func isEnabled(defaults: UserDefaults = ProfileSettingsStore.active) -> Bool {
+        defaults.object(forKey: enabledKey) == nil ? defaultEnabled : defaults.bool(forKey: enabledKey)
+    }
+}
+
+// Retained for backup/profile decoding compatibility; alternate-poster selection is disabled.
+enum MediaDetailAlternatePosterSettings {
+    static let enabledKey = "mediaDetailAlternatePosterEnabled"
+    static let defaultEnabled = false
+
+    static func isEnabled(defaults: UserDefaults = ProfileSettingsStore.active) -> Bool {
+        defaults.bool(forKey: enabledKey)
+    }
+}
+
 enum MediaDetailAgeRatingSettings {
     static let enabledKey = "mediaDetailAgeRatingEnabled"
     static let defaultEnabled = true
