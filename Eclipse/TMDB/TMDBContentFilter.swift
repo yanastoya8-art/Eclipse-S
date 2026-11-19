@@ -1630,7 +1630,8 @@ class TMDBContentFilter: ObservableObject {
         }
         if hideAllAges && rating == .general { return false }
         guard enabled else { return true }
-        return rating != .unknown && rating >= .teen
+        let minimum = isMovie ? MaturityRating.teen : .age14
+        return rating != .unknown && rating >= minimum
     }
 
     private func runtimeCacheKey(for result: TMDBSearchResult) -> String {
@@ -1752,7 +1753,8 @@ class TMDBContentFilter: ObservableObject {
             if hideBelowMinimum || hideAllAges,
                let rating = TMDBMaturityRatingStore.shared.rating(isMovie: result.isMovie, id: result.id) {
                 if hideAllAges && rating == .general { return false }
-                if hideBelowMinimum && (rating == .unknown || rating < .teen) { return false }
+                let minimum = result.isMovie ? MaturityRating.teen : .age14
+                if hideBelowMinimum && (rating == .unknown || rating < minimum) { return false }
             } else if hideBelowMinimum {
                 return false
             }
