@@ -188,8 +188,6 @@
 		F9A1B2D22F90000100A1B2D2 /* MPVHeaderProxy.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9A1B2D12F90000100A1B2D1 /* MPVHeaderProxy.swift */; };
 		F9A1B2D32F90000100A1B2D3 /* MPVHeaderProxy.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9A1B2D12F90000100A1B2D1 /* MPVHeaderProxy.swift */; };
 		C0A5A0052FD1000000C0A505 /* CrashReporter in Frameworks */ = {isa = PBXBuildFile; productRef = C0A5A0042FD1000000C0A504 /* CrashReporter */; };
-		AD0000032FD9000000AD0003 /* AidokuSourceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD0000122FD9000000AD0012 /* AidokuSourceManager.swift */; };
-		AD0000052FD9000000AD0005 /* AidokuSourcesSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD0000142FD9000000AD0014 /* AidokuSourcesSettingsView.swift */; };
 		AD0000072FD9000000AD0007 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = AD0000232FD9000000AD0023 /* ZIPFoundation */; };
 		AD0000332FDA000000AD0033 /* Nuke in Frameworks */ = {isa = PBXBuildFile; productRef = AD0000322FDA000000AD0032 /* Nuke */; };
 		AD0000432FDB000000AD0043 /* AsyncDisplayKit in Frameworks */ = {isa = PBXBuildFile; productRef = AD0000422FDB000000AD0042 /* AsyncDisplayKit */; };
@@ -201,6 +199,7 @@
 		13DCC4F62E58B40F0028AE91 /* HybridSimilarity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13DCC4F52E58B40F0028AE91 /* HybridSimilarity.swift */; };
 		13E1EDD12ED9E65F00087629 /* Module.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E1ED9C2ED9E65F00087629 /* Module.swift */; };
 		13E1EDD22ED9E65F00087629 /* ModuleManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E1ED9E2ED9E65F00087629 /* ModuleManager.swift */; };
+		13E1EDD82ED9E65F00087629 /* Settings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E1EDA62ED9E65F00087629 /* Settings.swift */; };
 		13E1EDDA2ED9E65F00087629 /* bundle.js in Resources */ = {isa = PBXBuildFile; fileRef = 13E1EDAB2ED9E65F00087629 /* bundle.js */; };
 		13F0725F2E4B2D3300EF90EB /* SoraApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13F0725E2E4B2D3300EF90EB /* SoraApp.swift */; };
 		AD20000B2FE2000000AD200B /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD20000A2FE2000000AD200A /* Localization.swift */; };
@@ -446,9 +445,6 @@
 		3DCA59F4758620A0616EDDF1 = { isa = "PBXBuildFile"; productRef = "136C25C52EFE950300E37A6E"; };
 		8DC5FEA46869BB7A3BB8D238 = { isa = "PBXBuildFile"; productRef = "AD0000232FD9000000AD0023"; };
 		2F14830ACD1060265AFF8E51 = { isa = "PBXBuildFile"; productRef = "13A46CFF2EF5944C00423BC6"; };
-		32CDA4AFBC178B1267398586 = { isa = "PBXBuildFile"; fileRef = "DCD67B02EBEF0564A3D0D7F8"; };
-		2419381D4A39F938B2C21951 = { isa = "PBXBuildFile"; fileRef = "9B2758602585D0CCD9503675"; };
-		17522D6EB51BBCB18B051C2F = { isa = "PBXBuildFile"; fileRef = "AFEAB1B0B4307444E9F64051"; };
 		3CB17B816D2FD8729438EC76 = { isa = "PBXBuildFile"; fileRef = "B5897A1DEE07B58F6D29D5D3"; };
 		05CDBD53C4951EA02D1FB9E7 = { isa = "PBXBuildFile"; fileRef = "B5897A1DEE07B58F6D29D5D3"; };
 		2EC94F47B7978B95BC5C9476 = { isa = "PBXBuildFile"; fileRef = "90BF2D51A1E5A8DF4E57256A"; };
@@ -2067,6 +2063,7 @@
 				13F072B22E4B2D9200EF90EB /* FallbackImageView.swift in Sources */,
 				13F072B62E4B2D9200EF90EB /* AmbientColor.swift in Sources */,
 				13E1EDD22ED9E65F00087629 /* ModuleManager.swift in Sources */,
+				13E1EDD82ED9E65F00087629 /* Settings.swift in Sources */,
 				13F187AE2E6F38CE00747F7E /* LibraryCollection.swift in Sources */,
 				13F0729E2E4B2D9200EF90EB /* JSController-Details.swift in Sources */,
 				13F187AF2E6F38CE00747F7E /* AddToCollectionView.swift in Sources */,
@@ -2140,16 +2137,11 @@
 				14BBB0053FFF111100AAAAAA /* BackupManager.swift in Sources */,
 				14CC00020000000000CC0002 /* HomeCatalogLayout.swift in Sources */,
 				UPNX00030000000000000003 /* UpNextResolutionCache.swift in Sources */,
-				AD0000032FD9000000AD0003 /* AidokuSourceManager.swift in Sources */,
-				AD0000052FD9000000AD0005 /* AidokuSourcesSettingsView.swift in Sources */,
 				A1B2C3012FA0000100A1B2C1 /* EclipseTheme.swift in Sources */,
 				A1B2C3032FA0000100A1B2C3 /* HeroTransition.swift in Sources */,
 				EC10AD1300000000EC10AD13 /* EclipseLoadingIndicator.swift in Sources */,
 				A1B2C3052FA0000100A1B2C5 /* GlassCardGroup.swift in Sources */,
 				A1B2C3072FA0000100A1B2C7 /* GradientBackground.swift in Sources */,
-				32CDA4AFBC178B1267398586,
-				2419381D4A39F938B2C21951,
-				17522D6EB51BBCB18B051C2F,
 				3CB17B816D2FD8729438EC76,
 				BAA337F9700E7833D914BCD5,
 				692360EE39F49D810DAA1A48,
