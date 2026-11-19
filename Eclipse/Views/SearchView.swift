@@ -1622,7 +1622,7 @@ private struct BrowseMediaView: View {
 
                 if isLoading && results.isEmpty {
                     loadingState
-                } else if let errorMessage {
+                } else if let errorMessage, results.isEmpty {
                     errorState(errorMessage)
                 } else if results.isEmpty {
                     emptyState
@@ -2051,6 +2051,21 @@ private struct BrowseMediaView: View {
                     .frame(height: 1)
                     .id("browse-search-pagination-\(currentPage)-\(results.count)")
                     .onAppear { loadNextPage() }
+            }
+
+            if let errorMessage {
+                HStack(spacing: 10) {
+                    Text(errorMessage)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                    Spacer(minLength: 8)
+                    Button("Retry") { loadNextPage() }
+                        .font(.caption.weight(.semibold))
+                        .disabled(isLoading || !hasMorePages)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 12)
             }
 
             if isLoading {
