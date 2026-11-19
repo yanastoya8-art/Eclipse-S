@@ -200,6 +200,31 @@
 		13E1EDD12ED9E65F00087629 /* Module.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E1ED9C2ED9E65F00087629 /* Module.swift */; };
 		13E1EDD22ED9E65F00087629 /* ModuleManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E1ED9E2ED9E65F00087629 /* ModuleManager.swift */; };
 		13E1EDD82ED9E65F00087629 /* Settings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E1EDA62ED9E65F00087629 /* Settings.swift */; };
+		F1E000000000000000000001 /* mangaData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E1EDA22ED9E65F00087629 /* mangaData.swift */; };
+		F1E000000000000000000002 /* AniListMangaService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1111102F30000000FF1110 /* AniListMangaService.swift */; };
+		F1E000000000000000000003 /* MangaCatalogManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF2222202F30000000FF2220 /* MangaCatalogManager.swift */; };
+		F1E000000000000000000004 /* KanzenCustomCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = KCC1000000000000000CAT01 /* KanzenCustomCatalog.swift */; };
+		F1E000000000000000000005 /* KanzenAidokuMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = KAM1000000000000000MIG01 /* KanzenAidokuMigration.swift */; };
+		F1E000000000000000000006 /* KanzenCatalogPresets.swift in Sources */ = {isa = PBXBuildFile; fileRef = KCP1000000000000000PRE01 /* KanzenCatalogPresets.swift */; };
+		F1E000000000000000000007 /* MangaSourceFinder.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF4444402F30000000FF4440 /* MangaSourceFinder.swift */; };
+		F1E000000000000000000008 /* MangaLibraryItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA111002F40000000FAA110 /* MangaLibraryItem.swift */; };
+		F1E000000000000000000009 /* MangaLibraryCollection.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBB222002F40000000FBB220 /* MangaLibraryCollection.swift */; };
+		F1E000000000000000000010 /* MangaLibraryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCC333002F40000000FCC330 /* MangaLibraryManager.swift */; };
+		F1E000000000000000000011 /* ReaderContentFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = RCFFR0100000000000000001 /* ReaderContentFilter.swift */; };
+		F1E000000000000000000012 /* MangaReadingProgressManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABB999002F50000000ABB990 /* MangaReadingProgressManager.swift */; };
+		F1E000000000000000000013 /* ReaderLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD0000102FD9000000AD0010 /* ReaderLogger.swift */; };
+		F1E000000000000000000014 /* ReaderExtensionEPUB.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EADF13877DE4D51AA6BCDCD /* ReaderExtensionEPUB.swift */; };
+		F1E000000000000000000015 /* ReaderExtensionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = RXMODFR0000000000000001 /* ReaderExtensionModels.swift */; };
+		F1E000000000000000000016 /* ReaderExtensionNativeProviders.swift in Sources */ = {isa = PBXBuildFile; fileRef = RXNATFR0000000000000001 /* ReaderExtensionNativeProviders.swift */; };
+		F1E000000000000000000017 /* ReaderExtensionNovelSanitizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = RXNOVFR0000000000000001 /* ReaderExtensionNovelSanitizer.swift */; };
+		F1E000000000000000000018 /* ReaderExtensionPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = RXPERFR0000000000000001 /* ReaderExtensionPersistence.swift */; };
+		F1E000000000000000000019 /* ReaderExtensionProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = RXPRVFR0000000000000001 /* ReaderExtensionProvider.swift */; };
+		F1E000000000000000000020 /* ReaderExtensionSecurity.swift in Sources */ = {isa = PBXBuildFile; fileRef = RXSECFR0000000000000001 /* ReaderExtensionSecurity.swift */; };
+		F1E000000000000000000021 /* ReaderExtensionJavaScriptRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = RXJS0FR0000000000000001 /* ReaderExtensionJavaScriptRuntime.swift */; };
+		F1E000000000000000000022 /* ReaderExtensionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = RXMGRFR0000000000000001 /* ReaderExtensionManager.swift */; };
+		F1E000000000000000000023 /* ReaderExtensionCompatibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = RXCMPFR0000000000000001 /* ReaderExtensionCompatibility.swift */; };
+		F1E000000000000000000024 /* ReaderExtensionAppBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = RXAPPFR0000000000000001 /* ReaderExtensionAppBridge.swift */; };
+		F1E000000000000000000025 /* ReaderExtensionBrowserTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B2758602585D0CCD9503675 /* ReaderExtensionBrowserTransport.swift */; };
 		13E1EDDA2ED9E65F00087629 /* bundle.js in Resources */ = {isa = PBXBuildFile; fileRef = 13E1EDAB2ED9E65F00087629 /* bundle.js */; };
 		13F0725F2E4B2D3300EF90EB /* SoraApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13F0725E2E4B2D3300EF90EB /* SoraApp.swift */; };
 		AD20000B2FE2000000AD200B /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD20000A2FE2000000AD200A /* Localization.swift */; };
@@ -2064,6 +2089,31 @@
 				13F072B62E4B2D9200EF90EB /* AmbientColor.swift in Sources */,
 				13E1EDD22ED9E65F00087629 /* ModuleManager.swift in Sources */,
 				13E1EDD82ED9E65F00087629 /* Settings.swift in Sources */,
+				F1E000000000000000000001 /* mangaData.swift in Sources */,
+				F1E000000000000000000002 /* AniListMangaService.swift in Sources */,
+				F1E000000000000000000003 /* MangaCatalogManager.swift in Sources */,
+				F1E000000000000000000004 /* KanzenCustomCatalog.swift in Sources */,
+				F1E000000000000000000005 /* KanzenAidokuMigration.swift in Sources */,
+				F1E000000000000000000006 /* KanzenCatalogPresets.swift in Sources */,
+				F1E000000000000000000007 /* MangaSourceFinder.swift in Sources */,
+				F1E000000000000000000008 /* MangaLibraryItem.swift in Sources */,
+				F1E000000000000000000009 /* MangaLibraryCollection.swift in Sources */,
+				F1E000000000000000000010 /* MangaLibraryManager.swift in Sources */,
+				F1E000000000000000000011 /* ReaderContentFilter.swift in Sources */,
+				F1E000000000000000000012 /* MangaReadingProgressManager.swift in Sources */,
+				F1E000000000000000000013 /* ReaderLogger.swift in Sources */,
+				F1E000000000000000000014 /* ReaderExtensionEPUB.swift in Sources */,
+				F1E000000000000000000015 /* ReaderExtensionModels.swift in Sources */,
+				F1E000000000000000000016 /* ReaderExtensionNativeProviders.swift in Sources */,
+				F1E000000000000000000017 /* ReaderExtensionNovelSanitizer.swift in Sources */,
+				F1E000000000000000000018 /* ReaderExtensionPersistence.swift in Sources */,
+				F1E000000000000000000019 /* ReaderExtensionProvider.swift in Sources */,
+				F1E000000000000000000020 /* ReaderExtensionSecurity.swift in Sources */,
+				F1E000000000000000000021 /* ReaderExtensionJavaScriptRuntime.swift in Sources */,
+				F1E000000000000000000022 /* ReaderExtensionManager.swift in Sources */,
+				F1E000000000000000000023 /* ReaderExtensionCompatibility.swift in Sources */,
+				F1E000000000000000000024 /* ReaderExtensionAppBridge.swift in Sources */,
+				F1E000000000000000000025 /* ReaderExtensionBrowserTransport.swift in Sources */,
 				13F187AE2E6F38CE00747F7E /* LibraryCollection.swift in Sources */,
 				13F0729E2E4B2D9200EF90EB /* JSController-Details.swift in Sources */,
 				13F187AF2E6F38CE00747F7E /* AddToCollectionView.swift in Sources */,
