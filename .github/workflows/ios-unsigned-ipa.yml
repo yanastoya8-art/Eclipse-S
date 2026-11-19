@@ -407,8 +407,8 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
+            ${{ runner.temp }}/DerivedData/Build
             ${{ runner.temp }}/DerivedData/ModuleCache.noindex
-            ${{ runner.temp }}/DerivedData/Build/Intermediates.noindex
           key: xcode-derived-${{ runner.os }}-${{ steps.apple-sdk.outputs.cache-key }}-${{ github.sha }}-${{ hashFiles('Eclipse.xcodeproj/project.pbxproj', '**/Package.resolved') }}
           restore-keys: |
             xcode-derived-${{ runner.os }}-${{ steps.apple-sdk.outputs.cache-key }}-
@@ -533,7 +533,9 @@ jobs:
 
           (
             cd "$PACKAGE_ROOT"
-            zip -qry "$IPA_PATH" Payload
+            # Fastest ZIP compression keeps IPA packaging from spending
+            # unnecessary time recompressing already-compressed app assets.
+            zip -qry -1 "$IPA_PATH" Payload
           )
 
           echo "IPA_PATH=$IPA_PATH" >> "$GITHUB_ENV"
