@@ -869,6 +869,36 @@ final class ScheduleReleaseDatePolicyTests: XCTestCase {
         XCTAssertEqual(ScheduleReleaseDatePolicy.earliest(native: nil, dubbed: dubbed), dubbed)
     }
 
+    func testConfirmedDateBeatsEarlierWithdrawnOrEstimatedDate() {
+        XCTAssertTrue(ScheduleReleaseDatePolicy.shouldPrefer(
+            candidateDate: Date(timeIntervalSince1970: 200),
+            candidateIsConfirmed: true,
+            over: Date(timeIntervalSince1970: 100),
+            existingIsConfirmed: false
+        ))
+        XCTAssertFalse(ScheduleReleaseDatePolicy.shouldPrefer(
+            candidateDate: Date(timeIntervalSince1970: 100),
+            candidateIsConfirmed: false,
+            over: Date(timeIntervalSince1970: 200),
+            existingIsConfirmed: true
+        ))
+    }
+
+    func testEarlierDateWinsWhenBothScheduleDatesAreConfirmed() {
+        XCTAssertTrue(ScheduleReleaseDatePolicy.shouldPrefer(
+            candidateDate: Date(timeIntervalSince1970: 100),
+            candidateIsConfirmed: true,
+            over: Date(timeIntervalSince1970: 200),
+            existingIsConfirmed: true
+        ))
+        XCTAssertFalse(ScheduleReleaseDatePolicy.shouldPrefer(
+            candidateDate: Date(timeIntervalSince1970: 200),
+            candidateIsConfirmed: true,
+            over: Date(timeIntervalSince1970: 100),
+            existingIsConfirmed: true
+        ))
+    }
+
     func testNoQualifyingLanguageDateIsExcluded() {
         XCTAssertNil(ScheduleReleaseDatePolicy.earliest(native: nil, dubbed: nil))
         XCTAssertFalse(ScheduleReleaseDatePolicy.usesDubbedDate(native: nil, dubbed: nil))
