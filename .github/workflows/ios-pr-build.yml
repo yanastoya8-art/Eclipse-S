@@ -75,6 +75,14 @@ jobs:
         with:
           xcode-version: latest-stable
 
+      - name: Record Xcode version for build cache keys
+        id: xcode-version
+        run: |
+          set -euo pipefail
+          VERSION="$(xcodebuild -version | awk '/^Xcode / { print $2; exit }')"
+          test -n "$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Create local build config from repository secrets
         env:
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
@@ -116,10 +124,28 @@ jobs:
           ref: b951a22fc5ddbf708057ace059e3742dae685e4d
           path: MPVKit
 
+      - name: Cache MPVKit build products and downloaded sources
+        uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.2.3
+        with:
+          path: |
+            MPVKit/.build
+            MPVKit/dist
+          key: mpvkit-${{ runner.os }}-${{ runner.arch }}-xcode-${{ steps.xcode-version.outputs.version }}-b951a22fc5ddbf708057ace059e3742dae685e4d-ios-gpl-0.41.0-v1
+
       - name: Build patched MPVKit for iPhone and iPad
         run: |
           set -euo pipefail
-          brew install autoconf automake cmake libtool nasm ninja pkg-config
+          missing=()
+          for formula in autoconf automake cmake libtool nasm ninja pkg-config; do
+            if ! brew list --versions "$formula" >/dev/null 2>&1; then
+              missing+=("$formula")
+            fi
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            brew install "${missing[@]}"
+          else
+            echo "All MPVKit build tools are already installed."
+          fi
           MPVKIT_BUILD_VENV="$RUNNER_TEMP/mpvkit-build-venv"
           python3 -m venv "$MPVKIT_BUILD_VENV"
           "$MPVKIT_BUILD_VENV/bin/python" -m pip install --disable-pip-version-check meson==1.4.2
@@ -148,6 +174,14 @@ jobs:
           test "$(git -C MPVKit rev-parse HEAD)" = "b951a22fc5ddbf708057ace059e3742dae685e4d"
           grep -q 'dovi_metadata' MPVKit/Sources/BuildScripts/patch/libmpv/0017-expose-decoded-dolby-vision-rpu.patch
           grep -q 'videoHasDolbyVisionRPU' MPVKit/Sources/MPVKitSampleBufferGPL/MPVGPUPlayerRenderer.swift
+
+      - name: Cache SwiftPM repositories and binary artifacts
+        uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.2.3
+        with:
+          path: |
+            ${{ runner.temp }}/SourcePackages/repositories
+            ${{ runner.temp }}/SourcePackages/artifacts
+          key: swiftpm-${{ runner.os }}-xcode-${{ steps.xcode-version.outputs.version }}-${{ hashFiles('**/Package.resolved') }}-v1
 
       - name: Resolve Swift packages
         run: |
