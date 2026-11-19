@@ -990,7 +990,7 @@ actor SpanishDubAIResearchService {
                 throw AnimeScheduleError.invalidResponse
             }
             return (url, [
-                "model": "gpt-6-astra",
+                "model": "gpt-6.2-astra",
                 "tools": [["type": "web_search"]],
                 "input": prompt
             ], "Authorization", "Bearer " + apiKey)
