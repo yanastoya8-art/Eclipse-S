@@ -1318,6 +1318,16 @@ struct TMDBReleaseDates: Codable {
     var preferredCertification: MaturityRating.Certification? {
         MaturityRating.preferredCertification(certificationsByRegion: certificationsByRegion)
     }
+
+    var filterRating: MaturityRating {
+        if let preferredCertification { return preferredCertification.rating }
+        let hasExplicitAllAgesRating = certificationsByRegion.contains { region, values in
+            values.contains {
+                MaturityRating.isExplicitAllAgesCertification(certification: $0, region: region)
+            }
+        }
+        return hasExplicitAllAgesRating ? .general : .unknown
+    }
 }
 
 struct TMDBReleaseDateResult: Codable {
@@ -1355,6 +1365,20 @@ struct TMDBContentRatings: Codable {
 
     var preferredCertification: MaturityRating.Certification? {
         MaturityRating.preferredEuropeanCertification(certificationsByRegion: certificationsByRegion)
+    }
+
+    /// TV-MA / TV-G from a non-preferred board must not replace a regional
+    /// rating. However, when no preferred European board has rated a title,
+    /// an explicit G / TV-G / All Ages result from another board is still
+    /// sufficient for the dedicated All Ages filter.
+    var filterRating: MaturityRating {
+        if let preferredCertification { return preferredCertification.rating }
+        let hasExplicitAllAgesRating = certificationsByRegion.contains { region, values in
+            values.contains {
+                MaturityRating.isExplicitAllAgesCertification(certification: $0, region: region)
+            }
+        }
+        return hasExplicitAllAgesRating ? .general : .unknown
     }
 }
 
