@@ -1109,3 +1109,74 @@ final class AnimeScheduleProviderLanguagePolicyTests: XCTestCase {
         ))
     }
 }
+
+
+final class EnglishDubScheduleMergeTests: XCTestCase {
+    private func entry(
+        date: TimeInterval,
+        known: Bool,
+        provider: AnimeScheduleProvider
+    ) -> AniListAiringScheduleEntry {
+        AniListAiringScheduleEntry(
+            id: Int(date),
+            mediaId: 101,
+            title: "Example Anime",
+            airingAt: Date(timeIntervalSince1970: date),
+            episode: 4,
+            coverImage: nil,
+            englishTitle: "Example Anime",
+            romajiTitle: nil,
+            nativeTitle: nil,
+            format: "TV",
+            hasKnownAiringTime: known,
+            scheduleProvider: provider,
+            malID: nil,
+            airingTimeWithdrawn: !known
+        )
+    }
+
+    func testEarlierConfirmedFallbackDateReplacesLaterPrimaryDate() {
+        let primary = entry(date: 200, known: true, provider: .dubOnly)
+        let fallback = entry(date: 100, known: true, provider: .tsuzuki)
+        let result = AnimeScheduleFallback.mergeEnglishDubSchedules(
+            primary: AnimeAiringScheduleResult(entries: [primary], isAuthoritativeForNotifications: true),
+            fallback: AnimeAiringScheduleResult(entries: [fallback], isAuthoritativeForNotifications: true)
+        )
+        XCTAssertEqual(result.entries.count, 1)
+        XCTAssertEqual(result.entries.first?.airingAt, fallback.airingAt)
+        XCTAssertEqual(result.entries.first?.scheduleProvider, .tsuzuki)
+    }
+
+    func testLaterConfirmedFallbackDoesNotReplaceEarlierPrimaryDate() {
+        let primary = entry(date: 100, known: true, provider: .dubOnly)
+        let fallback = entry(date: 200, known: true, provider: .tsuzuki)
+        let result = AnimeScheduleFallback.mergeEnglishDubSchedules(
+            primary: AnimeAiringScheduleResult(entries: [primary], isAuthoritativeForNotifications: true),
+            fallback: AnimeAiringScheduleResult(entries: [fallback], isAuthoritativeForNotifications: true)
+        )
+        XCTAssertEqual(result.entries.first?.airingAt, primary.airingAt)
+        XCTAssertEqual(result.entries.first?.scheduleProvider, .dubOnly)
+    }
+
+    func testConfirmedPrimaryDateBeatsUnconfirmedFallback() {
+        let primary = entry(date: 100, known: true, provider: .dubOnly)
+        let fallback = entry(date: 50, known: false, provider: .tsuzuki)
+        let result = AnimeScheduleFallback.mergeEnglishDubSchedules(
+            primary: AnimeAiringScheduleResult(entries: [primary], isAuthoritativeForNotifications: true),
+            fallback: AnimeAiringScheduleResult(entries: [fallback], isAuthoritativeForNotifications: true)
+        )
+        XCTAssertEqual(result.entries.first?.airingAt, primary.airingAt)
+        XCTAssertEqual(result.entries.first?.scheduleProvider, .dubOnly)
+    }
+
+    func testConfirmedFallbackReplacesUnconfirmedPrimary() {
+        let primary = entry(date: 200, known: false, provider: .dubOnly)
+        let fallback = entry(date: 100, known: true, provider: .tsuzuki)
+        let result = AnimeScheduleFallback.mergeEnglishDubSchedules(
+            primary: AnimeAiringScheduleResult(entries: [primary], isAuthoritativeForNotifications: true),
+            fallback: AnimeAiringScheduleResult(entries: [fallback], isAuthoritativeForNotifications: true)
+        )
+        XCTAssertEqual(result.entries.first?.airingAt, fallback.airingAt)
+        XCTAssertEqual(result.entries.first?.scheduleProvider, .tsuzuki)
+    }
+}
