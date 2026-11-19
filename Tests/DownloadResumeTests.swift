@@ -812,6 +812,26 @@ final class DownloadResumeTests: XCTestCase {
         XCTAssertNil(HLSDownloadCompatibility.unsupportedEncryptionLayout(in: "#EXTM3U\n#EXTINF:1,\nsegment.ts"))
     }
 
+    func testHLSRejectsMalformedEncryptionDeclarationsAndKeyURLs() throws {
+        let missingMethod = "#EXTM3U\\n#EXT-X-KEY:URI=\\"key.bin\\"\\n#EXTINF:1,\\nsegment.ts"
+        XCTAssertNotNil(HLSDownloadCompatibility.unsupportedEncryptionLayout(in: missingMethod))
+
+        let base = try XCTUnwrap(URL(string: "https://cdn.example/path/playlist.m3u8"))
+        XCTAssertTrue(HLSDownloadCompatibility.isValidAES128KeyURL("key.bin", relativeTo: base))
+        XCTAssertTrue(HLSDownloadCompatibility.isValidAES128KeyURL("https://keys.example/key.bin", relativeTo: base))
+        XCTAssertFalse(HLSDownloadCompatibility.isValidAES128KeyURL("file:///private/key.bin", relativeTo: base))
+        XCTAssertFalse(HLSDownloadCompatibility.isValidAES128KeyURL("skd://asset", relativeTo: base))
+        XCTAssertFalse(HLSDownloadCompatibility.isValidAES128KeyURL("https://user:pass@keys.example/key.bin", relativeTo: base))
+    }
+
+    func testHLSRequiresExactly128BitHexInitializationVectors() {
+        XCTAssertTrue(HLSDownloadCompatibility.isValidAES128IV("0x00000000000000000000000000000001"))
+        XCTAssertTrue(HLSDownloadCompatibility.isValidAES128IV("00000000000000000000000000000001"))
+        XCTAssertFalse(HLSDownloadCompatibility.isValidAES128IV("0x0001"))
+        XCTAssertFalse(HLSDownloadCompatibility.isValidAES128IV("0x000000000000000000000000000000001"))
+        XCTAssertFalse(HLSDownloadCompatibility.isValidAES128IV("0x0000000000000000000000000000000G"))
+    }
+
     func testHLSSelectsMuxedAudioVariantAndPreservesInBandAudioGroups() throws {
         let base = try XCTUnwrap(URL(string: "https://hls-resume.example/playlist.m3u8"))
         let downloader = HLSDownloader(streamURL: base, headers: [:], destinationURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString), downloadId: UUID().uuidString)
