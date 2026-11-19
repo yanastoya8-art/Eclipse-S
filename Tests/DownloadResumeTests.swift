@@ -773,6 +773,27 @@ final class DownloadResumeTests: XCTestCase {
         XCTAssertNil(HLSDownloader.resumeManifestFingerprint("#EXTM3U\nsegment.ts", playlistURL: upstream, keyData: nil))
     }
 
+    func testHLSMediaSequenceDrivesTheDefaultAES128IV() {
+        XCTAssertEqual(
+            HLSDownloadCompatibility.mediaSequenceNumber(in: "#EXTM3U\\n#EXT-X-MEDIA-SEQUENCE:42\\n#EXTINF:1,\\nsegment.ts"),
+            42
+        )
+        XCTAssertEqual(
+            HLSDownloadCompatibility.mediaSequenceNumber(in: "#EXTM3U\\n#EXTINF:1,\\nsegment.ts"),
+            0
+        )
+        XCTAssertNil(HLSDownloadCompatibility.mediaSequenceNumber(
+            in: "#EXTM3U\\n#EXT-X-MEDIA-SEQUENCE:42\\n#EXT-X-MEDIA-SEQUENCE:43"
+        ))
+        XCTAssertEqual(HLSDownloadCompatibility.sequenceNumber(base: 42, segmentIndex: 2), 44)
+        XCTAssertNil(HLSDownloadCompatibility.sequenceNumber(base: UInt64.max, segmentIndex: 1))
+
+        XCTAssertEqual(
+            HLSDownloadCompatibility.defaultAES128IV(sequenceNumber: 0x0102030405060708),
+            Data([0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8])
+        )
+    }
+
     func testHLSRejectsUnsupportedEncryptionAndKeyRotation() {
         let sampleAES = "#EXTM3U\n#EXT-X-KEY:METHOD=SAMPLE-AES,URI=\"key\"\n#EXTINF:1,\nsegment.ts"
         XCTAssertNotNil(HLSDownloadCompatibility.unsupportedEncryptionLayout(in: sampleAES))
