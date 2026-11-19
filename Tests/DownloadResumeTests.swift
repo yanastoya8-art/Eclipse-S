@@ -775,15 +775,15 @@ final class DownloadResumeTests: XCTestCase {
 
     func testHLSMediaSequenceDrivesTheDefaultAES128IV() {
         XCTAssertEqual(
-            HLSDownloadCompatibility.mediaSequenceNumber(in: "#EXTM3U\\n#EXT-X-MEDIA-SEQUENCE:42\\n#EXTINF:1,\\nsegment.ts"),
+            HLSDownloadCompatibility.mediaSequenceNumber(in: "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:42\n#EXTINF:1,\nsegment.ts"),
             42
         )
         XCTAssertEqual(
-            HLSDownloadCompatibility.mediaSequenceNumber(in: "#EXTM3U\\n#EXTINF:1,\\nsegment.ts"),
+            HLSDownloadCompatibility.mediaSequenceNumber(in: "#EXTM3U\n#EXTINF:1,\nsegment.ts"),
             0
         )
         XCTAssertNil(HLSDownloadCompatibility.mediaSequenceNumber(
-            in: "#EXTM3U\\n#EXT-X-MEDIA-SEQUENCE:42\\n#EXT-X-MEDIA-SEQUENCE:43"
+            in: "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:42\n#EXT-X-MEDIA-SEQUENCE:43"
         ))
         XCTAssertEqual(HLSDownloadCompatibility.sequenceNumber(base: 42, segmentIndex: 2), 44)
         XCTAssertNil(HLSDownloadCompatibility.sequenceNumber(base: UInt64.max, segmentIndex: 1))
