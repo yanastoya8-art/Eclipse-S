@@ -2708,6 +2708,15 @@ struct MediaDetailContentView: View {
                     ) {
                         Rectangle().fill(shouldAnalyzeAlternatePoster ? .clear : Color.gray.opacity(0.3))
                     }
+                    // Preserve the user's landscape artwork stretch controls.
+                    // The fixed full-bleed renderer replaced StretchyHeaderView,
+                    // so apply the same bounded scale here rather than silently
+                    // ignoring the saved horizontal/vertical values.
+                    .scaleEffect(
+                        x: CGFloat(min(max(landscapeHeroHorizontalStretch, 0.85), 1.5)),
+                        y: CGFloat(min(max(landscapeHeroVerticalStretch, 0.85), 1.5)),
+                        anchor: .center
+                    )
                     .frame(
                         width: max(detailViewportWidth, EclipseViewport.bounds.width),
                         height: heroSectionHeight
