@@ -9,13 +9,6 @@
 import SwiftUI
 
 #if !os(tvOS)
-enum KanzenRootTab: Hashable {
-    case home
-    case library
-    case search
-    case settings
-}
-
 struct KanzenRootHeader<Trailing: View>: View {
     let title: String
     @ViewBuilder let trailing: () -> Trailing
