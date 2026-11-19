@@ -40,7 +40,7 @@ struct SettingsView: View {
     @AppStorage(ScheduleWindow.storageKey) private var scheduleWindowDays = ScheduleWindow.defaultValue.rawValue
     @AppStorage("catalogHideBelowPG13Movies", store: .standard) private var hideBelowPG13Movies = true
     @AppStorage("catalogHideBelowTV14Shows", store: .standard) private var hideBelowTV14Shows = true
-    @AppStorage("catalogHideBelowPG13Anime", store: .standard) private var hideBelowPG13Anime = false
+    @AppStorage("catalogHideBelowPG13Anime", store: .standard) private var hideBelowPG13Anime = true
     @AppStorage("catalogHideAllAgesMovies", store: .standard) private var hideAllAgesMovies = false
     @AppStorage("catalogHideAllAgesSeries", store: .standard) private var hideAllAgesSeries = false
     @AppStorage("catalogHideAllAgesAnime", store: .standard) private var hideAllAgesAnime = false
