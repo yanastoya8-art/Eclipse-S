@@ -7383,6 +7383,7 @@ struct MediaDetailContentView: View {
             async let romajiResult = tmdbService.getRomajiTitle(for: isMovie ? "movie" : "tv", id: id)
             async let creditsResult: TMDBCreditsResponse? = try? loadOptionalPresentationCredits(id: id, isMovie: isMovie)
             async let titleImagesResult: TMDBImagesResponse? = try? loadOptionalTitleArtworkImages(id: id, isMovie: isMovie, language: "en")
+            async let spanishTitleImagesResult: TMDBImagesResponse? = try? loadOptionalTitleArtworkImages(id: id, isMovie: isMovie, language: "es")
             async let fanartLogoResult: String? = FanartTVLogoService.shared.logoURL(
                 imdbID: isMovie ? movieDetail?.imdbId : nil,
                 tvdbID: isMovie ? nil : tvShowDetail?.externalIds?.tvdbId
@@ -7394,14 +7395,16 @@ struct MediaDetailContentView: View {
             let romaji = await romajiResult
             let credits = await creditsResult
             let titleImages = await titleImagesResult
+            let spanishTitleImages = await spanishTitleImagesResult
             let fanartLogoURL = await fanartLogoResult
             let preloadedLogoURL = await preloadedLogoResult
-            let rankedLogos = (titleImages?.logos ?? []).sorted { lhs, rhs in
+            let rankedLogos = ((titleImages?.logos ?? []) + (spanishTitleImages?.logos ?? [])).sorted { lhs, rhs in
                 func languageRank(_ value: String?) -> Int {
                     switch value?.lowercased() {
                     case "en": return 0
-                    case nil, "": return 1
-                    default: return 2
+                    case "es": return 1
+                    case nil, "": return 2
+                    default: return 3
                     }
                 }
                 let leftRank = languageRank(lhs.iso6391)
@@ -7412,19 +7415,13 @@ struct MediaDetailContentView: View {
                 }
                 return (lhs.voteAverage ?? 0) > (rhs.voteAverage ?? 0)
             }
-            // Anime identity providers expose logo URLs without a reliable
-            // language tag; those URLs can be Japanese/native-script artwork.
-            // Prefer explicitly English TMDB logos, then language-neutral TMDB
-            // artwork, then Fanart.tv. Never fall back to an untagged provider
-            // logo or a cached logo of unknown language for anime.
+            // Do not use provider logos without a language tag for anime:
+            // they can be Japanese/native-script artwork. Across every media
+            // type, choose English first, Spanish second, then language-neutral.
             let selectedTMDBLogo = rankedLogos.first(where: { $0.iso6391?.lowercased() == "en" })?.fullURL
+                ?? rankedLogos.first(where: { $0.iso6391?.lowercased() == "es" })?.fullURL
                 ?? rankedLogos.first(where: { $0.iso6391 == nil || $0.iso6391 == "" })?.fullURL
-            let resolvedLogoURL: String?
-            if isAnimeShow {
-                resolvedLogoURL = selectedTMDBLogo ?? fanartLogoURL
-            } else {
-                resolvedLogoURL = fanartLogoURL ?? preloadedLogoURL ?? selectedTMDBLogo ?? rankedLogos.first?.fullURL
-            }
+            let resolvedLogoURL = selectedTMDBLogo ?? fanartLogoURL ?? preloadedLogoURL
 
             guard !Task.isCancelled, isDetailVisible, optionalPresentationGeneration == generation,
                   searchResult.stableIdentity == identity, selectedLanguage == language else { return }
@@ -7438,7 +7435,9 @@ struct MediaDetailContentView: View {
             // A missing logo is not a successful lookup: keep the enrichment
             // retryable so transient provider/API failures do not become a
             // permanent cached "no logo" result.
-            optionalPresentationIsComplete = credits != nil && titleImages != nil && resolvedLogoURL != nil
+            optionalPresentationIsComplete = credits != nil
+                && (titleImages != nil || spanishTitleImages != nil)
+                && resolvedLogoURL != nil
             cacheOptionalPresentation(key: cacheKey)
 
             let elapsedMs = Int(((ProcessInfo.processInfo.systemUptime - startedAt) * 1_000).rounded())
