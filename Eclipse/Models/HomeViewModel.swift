@@ -31,6 +31,13 @@ enum HomeCatalogLoadPolicy {
         enabledCatalogIDs.contains("trending") || enabledCatalogIDs.contains("forYou")
     }
 
+    static func forYouResults(
+        recommendations: [TMDBSearchResult],
+        trending: [TMDBSearchResult]
+    ) -> [TMDBSearchResult] {
+        recommendations.isEmpty ? trending : recommendations
+    }
+
     static func hasLoadedContent(
         tmdbCatalogCount: Int,
         animeCatalogCount: Int,
@@ -741,9 +748,16 @@ final class HomeViewModel: ObservableObject {
 
         if enabledCatalogs.contains(where: { $0.id == "forYou" }) {
             let currentResults = await MainActor.run { self.catalogResults }
-            let rawForYou = await RecommendationEngine.shared.generateRecommendations(
+            let generatedRecommendations = await RecommendationEngine.shared.generateRecommendations(
                 catalogResults: currentResults,
                 tmdbService: tmdbService
+            )
+            // New profiles have no taste profile yet, so the recommender
+            // legitimately returns an empty list. Use the hidden Trending seed
+            // as a first-run shelf instead of rendering a blank Home page.
+            let rawForYou = HomeCatalogLoadPolicy.forYouResults(
+                recommendations: generatedRecommendations,
+                trending: currentResults["trending"] ?? []
             )
             await contentFilter.prepareMaturityRatings(for: rawForYou)
             let forYou = contentFilter.filterSearchResults(rawForYou)
