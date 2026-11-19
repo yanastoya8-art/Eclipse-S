@@ -413,21 +413,35 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
     }
 
     var fullPosterURL: String? {
-        // Prefer dedicated artwork providers by media type; keep TMDB as the
-        // last-resort source when a better catalog poster is unavailable.
-        if (animeIdentitySeed != nil || isAnimeHint == true), let animeArtworkURL {
-            return animeArtworkURL
+        // Catalog posters must never fall back to TMDB's localized key art:
+        // many TMDB posters have the title baked into the image. Return only
+        // dedicated provider artwork known to be suitable as a clean poster.
+        let language = originalLanguage?.lowercased() ?? ""
+        let asianAnimationCountries: Set<String> = ["JP", "CN", "KR", "TW"]
+        let isAnime = animeIdentitySeed != nil
+            || isAnimeHint == true
+            || (genreIds?.contains(16) == true
+                && (["ja", "zh", "ko"].contains(language)
+                    || originCountry?.contains(where: { asianAnimationCountries.contains($0) }) == true))
+
+        if isAnime {
+            if let fanartTVPosterURL, !fanartTVPosterURL.isEmpty {
+                return fanartTVPosterURL
+            }
+            if let animeArtworkURL,
+               let host = URL(string: animeArtworkURL)?.host?.lowercased(),
+               host == "taizen.moe" || host.hasSuffix(".taizen.moe")
+                    || host == "fanart.tv" || host.hasSuffix(".fanart.tv") {
+                return animeArtworkURL
+            }
+            // A titleless backdrop is preferable to a title-bearing cover.
+            return fullBackdropURL
         }
-        if mediaType.lowercased() == "movie", let fanartTVPosterURL {
+
+        if isMovie {
             return fanartTVPosterURL
         }
-        if mediaType.lowercased() == "tv", let tvMazePosterURL {
-            return tvMazePosterURL
-        }
-        if let posterPath {
-            return TMDBImageRequestPolicy.urlString(for: posterPath, kind: .poster)
-        }
-        return animeArtworkURL ?? tvMazePosterURL ?? fanartTVPosterURL
+        return tvMazePosterURL ?? fanartTVPosterURL
     }
 
     var fullBackdropURL: String? {
