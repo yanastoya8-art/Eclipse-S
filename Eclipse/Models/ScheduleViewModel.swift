@@ -597,11 +597,6 @@ final class ScheduleViewModel: ObservableObject {
                 dayCount: requestedDayCount,
                 forceRefresh: forceRefresh
             )
-            // Resolve the same age-rating sources used by Home/Browse before
-            // publishing calendar rows. Previously the resolver and predicate
-            // existed but were never connected to the schedule load path, so
-            // explicitly All Ages-rated titles remained visible in every mode.
-            await TMDBContentFilter.shared.prepareScheduleAgeRatings(for: loadResult.entries)
             let hideUnofficialContent = UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent")
             let entries = loadResult.entries.filter { entry in
                 guard !TMDBContentFilter.shared.scheduleEntryIsAllAges(entry) else { return false }
