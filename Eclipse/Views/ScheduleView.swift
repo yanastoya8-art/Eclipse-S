@@ -9,6 +9,16 @@ import SwiftUI
 import Combine
 import Kingfisher
 
+private struct KidsScheduleKey: Hashable {
+    let isMovie: Bool
+    let id: Int
+
+    init(entry: ScheduleEntry, tmdbId: Int) {
+        isMovie = entry.isMovie
+        id = tmdbId
+    }
+}
+
 struct ScheduleView: View {
     @AppStorage("showLocalScheduleTime") private var showLocalScheduleTime = true
     @AppStorage("defaultScheduleMode") private var defaultScheduleModeRaw = ScheduleMode.anime.rawValue
@@ -29,11 +39,11 @@ struct ScheduleView: View {
     @State private var noTMDBAlertTitle = ""
     @State private var loadingItemId: String?
 
-    @State private var kidsBlockedScheduleIds: Set<Int> = []
+    @State private var kidsBlockedScheduleIds: Set<KidsScheduleKey> = []
     @State private var ageBlockedScheduleEntryIDs: Set<String> = []
     @State private var scheduleAgeFilterGeneration = 0
 
-    @State private var resolvedKidsScheduleIds: Set<Int> = []
+    @State private var resolvedKidsScheduleIds: Set<KidsScheduleKey> = []
 
     @State private var kidsScheduleFilterGeneration = 0
     @State private var scheduleNeedsFilterRefresh = false
@@ -93,8 +103,9 @@ struct ScheduleView: View {
         guard ProfileManager.shared.isKidsModeActive else { return unofficialFilteredEntries }
         return unofficialFilteredEntries.filter { entry in
             guard let tmdbId = entry.tmdbId else { return false }
-            guard resolvedKidsScheduleIds.contains(tmdbId) else { return false }
-            return !kidsBlockedScheduleIds.contains(tmdbId)
+            let key = KidsScheduleKey(entry: entry, tmdbId: tmdbId)
+            guard resolvedKidsScheduleIds.contains(key) else { return false }
+            return !kidsBlockedScheduleIds.contains(key)
         }
     }
 
@@ -107,36 +118,42 @@ struct ScheduleView: View {
             return
         }
 
-        let titlesById: [Int: String] = entries.reduce(into: [:]) { titles, entry in
+        let titlesByKey: [KidsScheduleKey: String] = entries.reduce(into: [:]) { titles, entry in
             guard let tmdbId = entry.tmdbId else { return }
+            let key = KidsScheduleKey(entry: entry, tmdbId: tmdbId)
             let variants = [entry.title, entry.englishTitle, entry.romajiTitle, entry.nativeTitle]
                 .compactMap { $0 }
                 .joined(separator: " ")
-            titles[tmdbId, default: ""] += variants + " "
+            titles[key, default: ""] += variants + " "
         }
-        let ids = Set(titlesById.keys)
-        let isMovieSchedule = entries.contains(where: \.isMovie)
+        let keys = Set(titlesByKey.keys)
         Task { @MainActor in
-
-            await TMDBMaturityRatingStore.shared.resolve(ids.map { (isMovie: isMovieSchedule, id: $0) })
+            await TMDBMaturityRatingStore.shared.resolve(
+                keys.map { (isMovie: $0.isMovie, id: $0.id) }
+            )
 
             guard generation == kidsScheduleFilterGeneration else { return }
             kidsBlockedScheduleIds = Set(
-                ids.filter { id in
-                    guard TMDBMaturityRatingStore.shared.isAllowedForKids(isMovie: isMovieSchedule, id: id) else {
+                keys.filter { key in
+                    guard TMDBMaturityRatingStore.shared.isAllowedForKids(
+                        isMovie: key.isMovie,
+                        id: key.id
+                    ) else {
                         return true
                     }
-                    guard TMDBContentFilter.kidsTextHeuristicsAllow(title: titlesById[id] ?? "") else {
+                    guard TMDBContentFilter.kidsTextHeuristicsAllow(
+                        title: titlesByKey[key] ?? ""
+                    ) else {
                         return true
                     }
 
                     return TMDBMaturityRatingStore.shared.kidsDetailPolicyAllows(
-                        isMovie: isMovieSchedule,
-                        id: id
+                        isMovie: key.isMovie,
+                        id: key.id
                     ) != true
                 }
             )
-            resolvedKidsScheduleIds = ids
+            resolvedKidsScheduleIds = keys
         }
     }
     @State private var selectedScheduleDate: Date?
