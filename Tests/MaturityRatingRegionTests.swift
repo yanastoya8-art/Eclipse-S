@@ -3,6 +3,52 @@ import XCTest
 
 final class MaturityRatingRegionTests: XCTestCase {
 
+    func testTaizenAgeRatingParserMapsAllAgesPGAndPG13ForScheduleFiltering() throws {
+        let data = try JSONSerialization.data(withJSONObject: [
+            "data": [
+                "a0": ["id": 101, "ageRating": ["rating": "All Ages"]],
+                "a1": ["id": 102, "ageRating": ["rating": "PG"]],
+                "a2": ["id": 103, "ageRating": ["rating": "PG-13"]]
+            ]
+        ])
+
+        let ratings = try TaizenAnimeAgeRatingService.parseRatings(
+            from: data,
+            identifiers: [101, 102, 103]
+        )
+
+        XCTAssertEqual(ratings[101], .general)
+        XCTAssertEqual(ratings[102], .age10)
+        XCTAssertEqual(ratings[103], .teen)
+        XCTAssertTrue(ScheduleAllAgesPolicy.shouldExclude(rating: ratings[101], enabled: true))
+        XCTAssertFalse(ScheduleAllAgesPolicy.shouldExclude(rating: ratings[102], enabled: true))
+        XCTAssertFalse(ScheduleAllAgesPolicy.shouldExclude(rating: ratings[103], enabled: true))
+    }
+
+    func testMALAnimeRatingParserKeepsPGSeparateFromAllAges() {
+        XCTAssertEqual(MALMetadataService.parseMaturityRating("G - All Ages"), .general)
+        XCTAssertEqual(MALMetadataService.parseMaturityRating("PG - Children"), .age10)
+        XCTAssertEqual(MALMetadataService.parseMaturityRating("PG-13 - Teens 13 or older"), .teen)
+    }
+
+    func testTaizenAgeRatingParserRejectsMismatchedIDsAndKeepsMissingRatingsUnknown() throws {
+        let data = try JSONSerialization.data(withJSONObject: [
+            "data": [
+                "a0": ["id": 999, "ageRating": ["rating": "All Ages"]],
+                "a1": ["id": 102]
+            ]
+        ])
+
+        let ratings = try TaizenAnimeAgeRatingService.parseRatings(
+            from: data,
+            identifiers: [101, 102]
+        )
+
+        XCTAssertEqual(ratings[101], .unknown)
+        XCTAssertEqual(ratings[102], .unknown)
+        XCTAssertFalse(ScheduleAllAgesPolicy.shouldExclude(rating: ratings[101], enabled: true))
+    }
+
     func testIndianCBFCAdultsOnlyIsNotAllAges() {
         XCTAssertEqual(MaturityRating.classify(certification: "A", region: "IN"), .adult)
         XCTAssertTrue(MaturityRating.classify(certification: "A", region: "IN").isBlockedForKids)
@@ -281,6 +327,68 @@ final class MaturityRatingRegionTests: XCTestCase {
         XCTAssertTrue(belowThirteen.allSatisfy(\.isBlockedForKids))
         XCTAssertFalse(MaturityRating.teen.isBlockedForKids)
         XCTAssertFalse(MaturityRating.age14.isBlockedForKids)
+    }
+
+    func testExplicitAllAgesDetectionDoesNotTreatPGTiersAsAllAges() {
+        XCTAssertTrue(MaturityRating.isExplicitAllAgesCertification(certification: "TV-G", region: "US"))
+        XCTAssertTrue(MaturityRating.isExplicitAllAgesCertification(certification: "All Ages"))
+        XCTAssertFalse(MaturityRating.isExplicitAllAgesCertification(certification: "PG", region: "US"))
+        XCTAssertFalse(MaturityRating.isExplicitAllAgesCertification(certification: "TV-PG", region: "US"))
+        XCTAssertFalse(MaturityRating.isExplicitAllAgesCertification(certification: "TV-Y7", region: "US"))
+    }
+
+    func testPreferredParentalGuidanceRatingsRemainDistinctFromAllAges() {
+        let movie = TMDBReleaseDates(results: [
+            TMDBReleaseDateResult(iso31661: "US", releaseDates: [
+                TMDBReleaseDate(
+                    certification: "PG",
+                    iso6391: "en",
+                    note: nil,
+                    releaseDate: "2026-01-01",
+                    type: 3
+                )
+            ])
+        ])
+        XCTAssertEqual(movie.preferredCertification?.rating, .general)
+        XCTAssertEqual(movie.filterRating, .age10)
+
+        let television = TMDBContentRatings(results: [
+            TMDBContentRating(descriptors: nil, iso31661: "GB", rating: "TV-PG")
+        ])
+        XCTAssertEqual(television.preferredCertification?.rating, .general)
+        XCTAssertEqual(television.filterRating, .age10)
+
+        let children = TMDBContentRatings(results: [
+            TMDBContentRating(descriptors: nil, iso31661: "GB", rating: "TV-Y7")
+        ])
+        XCTAssertEqual(children.filterRating, .age7)
+    }
+
+    func testUSOnlyTVGFeedsAllAgesFilterWithoutReplacingEuropeanRatingPolicy() {
+        let usOnlyTVG = TMDBContentRatings(results: [
+            TMDBContentRating(descriptors: nil, iso31661: "US", rating: "TV-G")
+        ])
+        XCTAssertNil(usOnlyTVG.preferredCertification)
+        XCTAssertEqual(usOnlyTVG.filterRating, .general)
+        XCTAssertTrue(ScheduleAllAgesPolicy.shouldExclude(rating: usOnlyTVG.filterRating, enabled: true))
+
+        let usOnlyTVMA = TMDBContentRatings(results: [
+            TMDBContentRating(descriptors: nil, iso31661: "US", rating: "TV-MA")
+        ])
+        XCTAssertNil(usOnlyTVMA.preferredCertification)
+        XCTAssertEqual(usOnlyTVMA.filterRating, .unknown)
+
+        let parentalGuidance = TMDBContentRatings(results: [
+            TMDBContentRating(descriptors: nil, iso31661: "US", rating: "TV-PG")
+        ])
+        XCTAssertEqual(parentalGuidance.filterRating, .unknown)
+
+        let regionalOverride = TMDBContentRatings(results: [
+            TMDBContentRating(descriptors: nil, iso31661: "US", rating: "TV-G"),
+            TMDBContentRating(descriptors: nil, iso31661: "GB", rating: "15")
+        ])
+        XCTAssertEqual(regionalOverride.preferredCertification?.region, "GB")
+        XCTAssertEqual(regionalOverride.filterRating, .mature)
     }
 
     func testTelevisionCertificationUsesEuropeanProvidersOnly() throws {

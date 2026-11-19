@@ -71,6 +71,67 @@ final class AnimeScheduleFallbackTests: XCTestCase {
         XCTAssertEqual(scheduleEntry.metadataTags, ["Action"])
     }
 
+    func testScheduleMergeBridgesAniListAndMALIDsAndPrefersConfirmedDates() {
+        let baseDate = Date(timeIntervalSince1970: 1_800_000_000)
+        func entry(
+            id: Int,
+            mediaID: Int,
+            malID: Int?,
+            date: Date,
+            knownTime: Bool,
+            withdrawn: Bool = false
+        ) -> ScheduleEntry {
+            ScheduleEntry(animeEntry: AniListAiringScheduleEntry(
+                id: id,
+                mediaId: mediaID,
+                title: "Shared Anime",
+                airingAt: date,
+                episode: 4,
+                coverImage: nil,
+                englishTitle: "Shared Anime",
+                romajiTitle: "Shared Anime",
+                nativeTitle: nil,
+                format: "TV",
+                hasKnownAiringTime: knownTime,
+                scheduleProvider: .aniList,
+                malID: malID,
+                airingTimeWithdrawn: withdrawn,
+                tags: [],
+                releaseYear: 2026,
+                runtimeMinutes: 24
+            ))
+        }
+
+        let aniListOnly = entry(
+            id: 1, mediaID: 1234, malID: nil,
+            date: baseDate, knownTime: true
+        )
+        let malOnly = entry(
+            id: 2, mediaID: -5678, malID: nil,
+            date: baseDate.addingTimeInterval(3_600), knownTime: true
+        )
+        let unconfirmedBridge = entry(
+            id: 3, mediaID: 1234, malID: 5678,
+            date: baseDate.addingTimeInterval(-3_600), knownTime: false, withdrawn: true
+        )
+
+        let confirmedMerge = ScheduleEntryMergePolicy.earliestByEpisode([
+            aniListOnly, malOnly, unconfirmedBridge
+        ])
+        XCTAssertEqual(confirmedMerge.count, 1)
+        XCTAssertEqual(confirmedMerge.first?.airingAt, baseDate)
+
+        let confirmedBridge = entry(
+            id: 4, mediaID: 1234, malID: 5678,
+            date: baseDate.addingTimeInterval(-1_800), knownTime: true
+        )
+        let earliestConfirmedMerge = ScheduleEntryMergePolicy.earliestByEpisode([
+            aniListOnly, malOnly, confirmedBridge
+        ])
+        XCTAssertEqual(earliestConfirmedMerge.count, 1)
+        XCTAssertEqual(earliestConfirmedMerge.first?.airingAt, confirmedBridge.airingAt)
+    }
+
     func testDubLanguagePickerOnlyExposesEnglishAndSpanish() {
         XCTAssertEqual(
             Set(MyDubListLanguage.allCases.map(\.rawValue)),

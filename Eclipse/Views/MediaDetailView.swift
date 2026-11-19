@@ -2708,7 +2708,14 @@ struct MediaDetailContentView: View {
                 artworkScaleY: usesLandscapeDetailComposition
                     ? CGFloat(min(max(landscapeHeroVerticalStretch, 0.85), 1.5))
                     : 1.0,
-                showsBottomFade: !usesLandscapeDetailComposition,
+                showsBottomFade: true,
+                bottomFadeHeight: usesLandscapeDetailComposition
+                    ? min(max(heroSectionHeight * 0.30, 120), 200)
+                    : 100,
+                bottomFadeEndOpacity: usesLandscapeDetailComposition
+                    ? min(max(mediaDetailHeroBleedStrength, 0), 1)
+                    : 0.6,
+                bottomFadeColor: usesLandscapeDetailComposition ? mediaDetailHeroBleedColor : nil,
                 scrollCoordinateSpaceName: "mediaDetailScroll"
             )
             // StretchyHeaderView can initially report its intrinsic artwork
@@ -2738,10 +2745,10 @@ struct MediaDetailContentView: View {
             image
 #endif
 
-            // Portrait keeps its existing artwork-local fade. Landscape
-            // uses the same extended HeroBannerBleed treatment as Home so the
-            // colour continues naturally beyond the poster edge instead of
-            // ending in an opaque, clipped horizontal line.
+            // Portrait retains its existing lower artwork overlay.
+            // Landscape fades the artwork itself into the extracted-colour
+            // bleed behind it, so the transition is visible before the image
+            // ends instead of appearing as a hard horizontal seam.
             if !usesLandscapeDetailComposition {
                 gradientOverlay
             }
@@ -2798,12 +2805,10 @@ struct MediaDetailContentView: View {
         // Keeping it behind the hero lets the content below blend smoothly
         // without painting an opaque strip over the artwork itself.
         .heroBannerBleed(
-            // Landscape uses the single bleed layer attached to the whole
-            // scroll-content stack. Keeping a second layer on the artwork
-            // creates an abrupt overlap at the poster/content boundary.
-            // This is the sole bleed layer for landscape. The ScrollView-level
-            // modifier intentionally disables its own layer in that orientation,
-            // so disabling this one as well removes the colour transition entirely.
+            // Landscape keeps one extended bleed background attached to the
+            // hero artwork. The ScrollView-level modifier is disabled in this
+            // orientation so the colour wash is not doubled. The separate
+            // bottom fade above blends the image into this background.
             color: mediaDetailHeroBleedColor,
             heroHeight: heroSectionHeight,
             tail: mediaDetailHeroBleedTail,

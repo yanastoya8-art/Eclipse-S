@@ -21,6 +21,15 @@ enum CatalogNativeAudioPolicy {
             selectedLanguages: selectedLanguages
         )
     }
+
+    /// Compatibility helper used by the schedule policy tests and any callers
+    /// that need to check whether native audio is English or Spanish.
+    static func hasEnglishOrSpanishAudio(_ originalLanguage: String?) -> Bool {
+        ScheduleAudioLanguagePolicy.matches(
+            originalLanguage: originalLanguage,
+            selectedLanguages: [MyDubListLanguage.english.rawValue, MyDubListLanguage.spanish.rawValue]
+        )
+    }
 }
 
 enum DubLanguageSelectionPolicy {
@@ -210,7 +219,7 @@ final class MyDubListDubFilter: @unchecked Sendable {
     /// decide whether they need to await a network refresh.
     @discardableResult
     func prepareCachedSnapshot() -> Bool {
-        let languages = selectedLanguages
+        let languages = selectedLanguagesIncludingCatalogAudioRequirement
         guard !languages.isEmpty else {
             clearSnapshot()
             return true
@@ -280,7 +289,7 @@ final class MyDubListDubFilter: @unchecked Sendable {
     }
 
     func refresh() async -> Bool {
-        let languages = selectedLanguages
+        let languages = selectedLanguagesIncludingCatalogAudioRequirement
         guard !languages.isEmpty else {
             cancelRefreshTask()
             clearSnapshot()
@@ -332,8 +341,9 @@ final class MyDubListDubFilter: @unchecked Sendable {
                 }
             }
 
-            guard !Task.isCancelled, languages == selectedLanguages else {
-                return hasSnapshot(for: selectedLanguages)
+            guard !Task.isCancelled,
+                  languages == selectedLanguagesIncludingCatalogAudioRequirement else {
+                return hasSnapshot(for: selectedLanguagesIncludingCatalogAudioRequirement)
             }
             publishSnapshot(
                 malIDs: malIDs,
@@ -363,7 +373,7 @@ final class MyDubListDubFilter: @unchecked Sendable {
     }
 
     func shouldInclude(_ result: TMDBSearchResult) -> Bool {
-        let languages = selectedLanguages
+        let languages = selectedLanguagesIncludingCatalogAudioRequirement
         guard !languages.isEmpty else { return true }
         let animeCountries: Set<String> = ["JP", "CN", "KR", "TW"]
         let animeLanguages: Set<String> = ["ja", "zh", "ko"]
@@ -392,7 +402,7 @@ final class MyDubListDubFilter: @unchecked Sendable {
     }
 
     func shouldIncludeEnglishSchedule(anilistID: Int?, malID: Int?) -> Bool {
-        let languages = selectedLanguages
+        let languages = selectedLanguagesIncludingCatalogAudioRequirement
         if languages.isEmpty { return true }
         guard languages.contains(MyDubListLanguage.english.rawValue) else { return false }
         lock.lock()
@@ -404,7 +414,7 @@ final class MyDubListDubFilter: @unchecked Sendable {
     }
 
     func shouldInclude(anilistID: Int?, malID: Int?) -> Bool {
-        let languages = selectedLanguages
+        let languages = selectedLanguagesIncludingCatalogAudioRequirement
         guard !languages.isEmpty else { return true }
         lock.lock()
         defer { lock.unlock() }
@@ -931,7 +941,7 @@ class TMDBContentFilter: ObservableObject {
         )
     }
 
-    private func resolveAnimeAgeRatings(for results: [TMDBSearchResult]) async {
+    func resolveAnimeAgeRatings(for results: [TMDBSearchResult]) async {
         let identities = results.compactMap { result -> (Int, Int?)? in
             guard let id = result.animeIdentitySeed?.anilistId, id > 0 else { return nil }
             return (id, result.animeIdentitySeed?.malId)
@@ -2661,6 +2671,32 @@ actor TaizenAnimeAgeRatingService {
     private let cacheLifetime: TimeInterval = 24 * 60 * 60
     private let maximumResponseBytes = 1 * 1_024 * 1_024
 
+    static func parseRatings(from data: Data, identifiers: [Int]) throws -> [Int: MaturityRating] {
+        guard data.count <= 1 * 1_024 * 1_024,
+              let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              (root["errors"] as? [Any])?.isEmpty != false,
+              let payload = root["data"] as? [String: Any] else {
+            throw TaizenAnimeAgeRatingError.invalidResponse
+        }
+
+        var ratings: [Int: MaturityRating] = [:]
+        for (index, id) in identifiers.enumerated() {
+            guard (1...1_000_000_000).contains(id) else { continue }
+            let rating: MaturityRating
+            if let anime = payload["a\(index)"] as? [String: Any],
+               let returnedID = anime["id"] as? NSNumber,
+               returnedID.intValue == id,
+               let age = anime["ageRating"] as? [String: Any],
+               let raw = age["rating"] as? String {
+                rating = MaturityRating.ratingForFiltering(certification: raw)
+            } else {
+                rating = .unknown
+            }
+            ratings[id] = rating
+        }
+        return ratings
+    }
+
     func rating(anilistID: Int) async throws -> MaturityRating {
         try await ratings(anilistIDs: [anilistID])[anilistID] ?? .unknown
     }
@@ -2704,23 +2740,8 @@ actor TaizenAnimeAgeRatingService {
             guard http.statusCode == 200 else {
                 throw TaizenAnimeAgeRatingError.http(http.statusCode)
             }
-            guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  (root["errors"] as? [Any])?.isEmpty != false,
-                  let payload = root["data"] as? [String: Any] else {
-                throw TaizenAnimeAgeRatingError.invalidResponse
-            }
-
-            for (index, id) in batch.enumerated() {
-                let rating: MaturityRating
-                if let anime = payload["a\(index)"] as? [String: Any],
-                   let returnedID = anime["id"] as? NSNumber,
-                   returnedID.intValue == id,
-                   let age = anime["ageRating"] as? [String: Any],
-                   let raw = age["rating"] as? String {
-                    rating = MaturityRating.classify(certification: raw)
-                } else {
-                    rating = .unknown
-                }
+            let parsedRatings = try Self.parseRatings(from: data, identifiers: batch)
+            for (id, rating) in parsedRatings {
                 cache[id] = CachedRating(fetchedAt: now, rating: rating)
                 resolved[id] = rating
             }

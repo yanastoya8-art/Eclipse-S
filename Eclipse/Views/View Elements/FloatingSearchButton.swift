@@ -20,7 +20,7 @@ struct FloatingSettingsButton: View {
 }
 
 #if !os(tvOS) && !os(macOS)
-struct ModeSwitchButtonPulse: View {
+struct AppHubActionPulse: View {
     let isActive: Bool
     let tint: Color
 
@@ -47,78 +47,6 @@ struct ModeSwitchButtonPulse: View {
     }
 }
 
-struct FloatingModeSwitchButton: View {
-    @AppStorage("showKanzen", store: .standard) private var showKanzen: Bool = false
-    @AppStorage(ModeSwitchAnimationSettings.enabledKey) private var modeSwitchAnimationEnabled = ModeSwitchAnimationSettings.defaultEnabled
-    @EnvironmentObject private var modeSwitchTransitionCoordinator: ModeSwitchTransitionCoordinator
-    @State private var isLaunching = false
-    @State private var buttonFrame: CGRect = .zero
-
-    var body: some View {
-        Button {
-            switchToReaderMode()
-        } label: {
-            ZStack {
-                ModeSwitchButtonPulse(isActive: isLaunching, tint: .orange)
-
-                Image(systemName: "book.fill")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.white)
-                    .rotationEffect(.degrees(isLaunching ? -12 : 0))
-                    .scaleEffect(isLaunching ? 1.16 : 1)
-            }
-            .frame(width: 44, height: 44)
-            .applyLiquidGlassBackground(cornerRadius: 22)
-            .scaleEffect(isLaunching ? 0.94 : 1)
-        }
-        .background {
-            GeometryReader { proxy in
-                Color.clear.preference(
-                    key: ModeSwitchButtonOriginPreferenceKey.self,
-                    value: proxy.frame(in: .named(ModeSwitchTransitionCoordinator.coordinateSpaceName))
-                )
-            }
-        }
-        .onPreferenceChange(ModeSwitchButtonOriginPreferenceKey.self) { frame in
-            buttonFrame = frame
-        }
-        .accessibilityLabel("Switch to Reader Mode")
-        .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
-    }
-
-    private func switchToReaderMode() {
-        guard !showKanzen, !isLaunching else { return }
-
-        guard modeSwitchAnimationEnabled else {
-            showKanzen = true
-            return
-        }
-
-        recordSwitchOrigin()
-        modeSwitchTransitionCoordinator.beginBurst(toReaderMode: true)
-
-#if os(iOS)
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-#endif
-
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.58)) {
-            isLaunching = true
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) {
-            withAnimation(.timingCurve(0.2, 0.75, 0.25, 1, duration: 0.82)) {
-                showKanzen = true
-            }
-        }
-    }
-
-    private func recordSwitchOrigin() {
-        guard buttonFrame != .zero else { return }
-        modeSwitchTransitionCoordinator.record(
-            origin: CGPoint(x: buttonFrame.midX, y: buttonFrame.midY)
-        )
-    }
-}
 #endif
 
 struct FloatingSettingsOverlay: View {
@@ -130,9 +58,6 @@ struct FloatingSettingsOverlay: View {
                 .allowsHitTesting(false)
 
             HStack(spacing: 10) {
-#if !os(tvOS) && !os(macOS)
-                FloatingModeSwitchButton()
-#endif
                 FloatingSettingsButton(isPresented: $showingSettings)
             }
                 .padding(.trailing, 16)

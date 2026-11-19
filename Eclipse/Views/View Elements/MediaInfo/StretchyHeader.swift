@@ -85,10 +85,13 @@ struct StretchyHeaderView: View {
     var preservesArtworkComposition: Bool = false
     var artworkScaleX: CGFloat = 1.0
     var artworkScaleY: CGFloat = 1.0
-    // Landscape detail uses the extended hero-bleed compositor outside this
-    // view. Suppress this local 100pt fade there to avoid a stacked gradient
-    // that can read as a hard seam at the poster/content boundary.
+    // Fade the image edge into its extracted ambient colour. Landscape
+    // detail supplies a longer fade that reaches the same opacity as the
+    // extended hero-bleed background.
     var showsBottomFade: Bool = true
+    var bottomFadeHeight: CGFloat = 100
+    var bottomFadeEndOpacity: Double = 0.6
+    var bottomFadeColor: Color? = nil
     // Detail pages measure stretching relative to their ScrollView so the
     // safe-area origin and initial rotation layout do not shift the artwork.
     var scrollCoordinateSpaceName: String? = nil
@@ -189,17 +192,19 @@ struct StretchyHeaderView: View {
                     .frame(height: height)
 
                 if showsBottomFade {
+                    let endOpacity = min(max(bottomFadeEndOpacity, 0), 1)
+                    let fadeColor = bottomFadeColor ?? localAmbientColor
                     LinearGradient(
                         gradient: Gradient(stops: [
-                            .init(color: localAmbientColor.opacity(0.0), location: 0.0),
-                            .init(color: localAmbientColor.opacity(0.1), location: 0.2),
-                            .init(color: localAmbientColor.opacity(0.3), location: 0.7),
-                            .init(color: localAmbientColor.opacity(0.6), location: 1.0)
+                            .init(color: fadeColor.opacity(0.0), location: 0.0),
+                            .init(color: fadeColor.opacity(endOpacity / 6), location: 0.2),
+                            .init(color: fadeColor.opacity(endOpacity * 0.5), location: 0.7),
+                            .init(color: fadeColor.opacity(endOpacity), location: 1.0)
                         ]),
                         startPoint: .top,
                         endPoint: .bottom
                     )
-                    .frame(height: 100)
+                    .frame(height: max(bottomFadeHeight, 0))
                     .clipShape(RoundedRectangle(cornerRadius: 0))
                 }
             }

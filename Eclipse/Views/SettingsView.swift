@@ -40,7 +40,7 @@ struct SettingsView: View {
     @AppStorage(ScheduleWindow.storageKey) private var scheduleWindowDays = ScheduleWindow.defaultValue.rawValue
     @AppStorage("catalogHideBelowPG13Movies", store: .standard) private var hideBelowPG13Movies = true
     @AppStorage("catalogHideBelowTV14Shows", store: .standard) private var hideBelowTV14Shows = true
-    @AppStorage("catalogHideBelowPG13Anime", store: .standard) private var hideBelowPG13Anime = false
+    @AppStorage("catalogHideBelowPG13Anime", store: .standard) private var hideBelowPG13Anime = true
     @AppStorage("catalogHideAllAgesMovies", store: .standard) private var hideAllAgesMovies = false
     @AppStorage("catalogHideAllAgesSeries", store: .standard) private var hideAllAgesSeries = false
     @AppStorage("catalogHideAllAgesAnime", store: .standard) private var hideAllAgesAnime = false
@@ -225,6 +225,7 @@ struct SettingsView: View {
             .init(id: "appearance-library-bookmarks", title: "Show Bookmarks", location: "Appearance > Library", icon: "bookmark", color: .purple, keywords: ["hide bookmarks", "library sections", "collections only"], action: .destination(.appearanceTarget(.libraryBookmarks))),
             .init(id: "appearance-library-layout", title: "Collection Layout", location: "Appearance > Library", icon: "rectangle.grid.1x2", color: .purple, keywords: ["library collections", "horizontal", "vertical", "grid"], action: .destination(.appearanceTarget(.libraryCollectionLayout))),
             .init(id: "language-filters", title: "Language Filters", location: "Content Filters", icon: "globe", color: .cyan, keywords: ["Spanish dub AI research", "Gemini", "OpenAI", "repository secrets", "dub release date", "audio language"], action: .destination(.languageFilters)),
+            .init(id: "filter-audio-language-requirement", title: "Require English/Spanish Audio", location: "Content Filters > Language Filters", icon: "waveform", color: .cyan, keywords: ["original audio", "native audio", "English audio", "Spanish audio", "English/Spanish", "verified anime dub", "audio requirement", "dub filter"], action: .destination(.languageFilters)),
             .init(id: "schedule", title: "Schedule", location: "Basic", icon: "calendar", color: .red, keywords: ["calendar", "anime", "western", "default tab", "range", "days"], action: .destination(.schedule)),
             .init(id: "schedule-range", title: "Schedule Range", location: "Schedule", icon: "calendar.badge.clock", color: .red, keywords: ["7 days", "14 days", "21 days", "30 days", "window", "performance", "upcoming episodes"], action: .destination(.schedule)),
             .init(id: "notifications", title: "Notifications", location: "Basic", icon: "bell.badge.fill", color: .orange, keywords: ["alerts", "reminders", "episodes", "airing", "seasons", "local"], action: .destination(.notifications)),
@@ -259,7 +260,7 @@ struct SettingsView: View {
             .init(id: "trackers", title: "Trackers", location: "Basic", icon: "chart.bar.fill", color: .pink, keywords: ["Trakt", "MyAnimeList", "MAL", "AniList", "SIMKL"], action: .destination(.trackers)),
             .init(id: "ratings-notes", title: "Ratings & Notes", location: "Basic", icon: "star.bubble", color: .yellow, keywords: ["reviews", "ratings", "notes", "stars", "season", "lock ratings", "lock notes"], action: .destination(.ratings)),
             .init(id: "ratings-follow-season", title: "Lock Ratings & Notes to Season", location: "Ratings & Notes", icon: "lock", color: .yellow, keywords: ["reviews", "ratings", "season selector", "anime", "score"], action: .destination(.ratings)),
-            .init(id: "deep-tracker-library", title: "Deep Library Integration", location: "Trackers", icon: "books.vertical", color: .blue, keywords: ["AniList", "MAL", "Trakt", "manga", "watchlist", "status", "score", "progress"], action: .destination(.trackers)),
+            .init(id: "deep-tracker-library", title: "Deep Library Integration", location: "Trackers", icon: "books.vertical", color: .blue, keywords: ["AniList", "MAL", "Trakt", "watchlist", "status", "score", "progress"], action: .destination(.trackers)),
             .init(id: "storage", title: "Storage", location: "Data", icon: "internaldrive", color: .gray, keywords: ["downloads", "cache", "files", "clear"], action: .destination(.storage)),
             .init(id: "download-concurrency", title: "Concurrent Downloads", location: "Downloads", icon: "arrow.down.circle", color: .gray, keywords: ["parallel", "simultaneous", "video"], action: .destination(.downloads)),
             .init(id: "download-hls-concurrency", title: "Concurrent HLS Downloads", location: "Downloads", icon: "film", color: .gray, keywords: ["parallel", "simultaneous", "HLS", "playlist"], action: .destination(.downloads)),
@@ -4077,24 +4078,13 @@ private struct OpenSourceLicensesView: View {
     )
 
     private static let groups: [OpenSourceLicenseGroup] = {
-        var readerAndShaderDocuments = documents([
+        var shaderDocuments = documents([
             ("ArtCNN Shader — MIT", "LICENSE-MIT-ArtCNN"),
             ("FidelityFX FSR Shader — MIT", "LICENSE-MIT-FidelityFX-FSR"),
             ("Shader Components — GPL 3.0", "LICENSE-GPL-3.0"),
             ("Shader Components — LGPL 3.0", "LICENSE-LGPL-3.0")
         ], subdirectory: "Shaders")
-#if !os(tvOS)
-        readerAndShaderDocuments.insert(contentsOf: documents([
-            ("Reader Extensions — Provenance & Notices", "NOTICE"),
-            ("Reader Extensions — Apache 2.0", "LICENSE-APACHE-2.0")
-        ], subdirectory: "ReaderExtensions"), at: 0)
-#endif
-
-#if os(tvOS)
         let shaderGroupTitle = "Shader Licenses"
-#else
-        let shaderGroupTitle = "Reader & Shader Licenses"
-#endif
 
         return [
             OpenSourceLicenseGroup(title: "App Dependency Licenses", documents: documents([
@@ -4136,7 +4126,7 @@ private struct OpenSourceLicensesView: View {
                 ("uavs3d — BSD 3-Clause", "uavs3d-BSD-3-Clause"),
                 ("uchardet — MPL 1.1", "uchardet-MPL-1.1")
             ])),
-            OpenSourceLicenseGroup(title: shaderGroupTitle, documents: readerAndShaderDocuments),
+            OpenSourceLicenseGroup(title: shaderGroupTitle, documents: shaderDocuments),
             OpenSourceLicenseGroup(title: "Common License Texts", documents: documents([
                 ("GNU GPL 2.0", "GPL-2.0"),
                 ("GNU GPL 3.0", "GPL-3.0"),
@@ -4213,7 +4203,6 @@ private struct OpenSourceLicensesView: View {
         switch group.title {
         case "App Dependency Licenses": return "shippingbox.fill"
         case "Playback Component Licenses": return "play.rectangle.fill"
-        case "Reader & Shader Licenses": return "wand.and.stars"
 #if os(tvOS)
         case "Shader Licenses": return "wand.and.stars"
 #endif
@@ -4225,7 +4214,6 @@ private struct OpenSourceLicensesView: View {
         switch group.title {
         case "App Dependency Licenses": return .blue
         case "Playback Component Licenses": return .purple
-        case "Reader & Shader Licenses": return .orange
 #if os(tvOS)
         case "Shader Licenses": return .orange
 #endif
@@ -4390,7 +4378,8 @@ private struct ThirdPartyAcknowledgementsView: View {
 #else
     private static let iOSOnlyLineage: [ThirdPartyAcknowledgement] = [
         .init("Nuvio", detail: "Defined the plugin format and behavior supported by Eclipse's Nuvio compatibility layer. Nuvio plugins are independent projects and are not bundled with Eclipse.", project: "https://github.com/NuvioMedia/NuvioMobile"),
-        .init("Mangayomi & Mangayomi Extensions", detail: "Eclipse's substantially modified Swift implementation adapts Apache-2.0 interface and runtime behavior from Mangayomi revision 4eec7aca and five generic parser families from the archived official Mangayomi Extensions revision 6004f1f8. Eclipse bundles no provider catalog, provider scripts, provider logos, or site-specific parser configuration.", project: "https://github.com/kodjodevf/mangayomi/tree/4eec7aca6f1c8bd563d0bc79bcf895f46bb30b74", licenseName: "Apache 2.0", license: "https://github.com/kodjodevf/mangayomi/blob/4eec7aca6f1c8bd563d0bc79bcf895f46bb30b74/LICENSE", source: "https://github.com/kodjodevf/mangayomi-extensions/tree/6004f1f8d1a56f882dadb734ce26f50c626a3850")
+        .init("Mangayomi Anime Source Runtime", detail: "Eclipse's anime-source runtime adapts Apache-2.0 interface and runtime behavior from Mangayomi revision 4eec7aca and generic anime extractor families from the archived official Mangayomi Extensions revision 6004f1f8. Eclipse bundles no provider catalog, provider scripts, provider logos, or site-specific parser configuration.", project: "https://github.com/kodjodevf/mangayomi/tree/4eec7aca6f1c8bd563d0bc79bcf895f46bb30b74", licenseName: "Apache 2.0", license: "https://github.com/kodjodevf/mangayomi/blob/4eec7aca6f1c8bd563d0bc79bcf895f46bb30b74/LICENSE", source: "https://github.com/kodjodevf/mangayomi-extensions/tree/6004f1f8d1a56f882dadb734ce26f50c626a3850"),
+
     ]
 #endif
 
@@ -4428,9 +4417,9 @@ private struct ThirdPartyAcknowledgementsView: View {
 
     private static let sharedServices: [ThirdPartyAcknowledgement] = [
         .init("TMDB", detail: "Movie and television metadata and images. This product uses the TMDB API but is not endorsed or certified by TMDB.", project: "https://www.themoviedb.org"),
-        .init("AniList", detail: "Anime and manga metadata, schedules, and optional tracking.", project: "https://anilist.co"),
+        .init("AniList", detail: "Anime metadata, schedules, and optional tracking.", project: "https://anilist.co"),
         .init("AnimeSchedule.net", detail: "Independently maintained anime airing schedules and episode release information.", project: "https://animeschedule.net", licenseName: "API Terms of Use", license: "https://animeschedule.net/api-terms-of-use"),
-        .init("MyAnimeList", detail: "Optional anime and manga tracking.", project: "https://myanimelist.net"),
+        .init("MyAnimeList", detail: "Optional anime tracking.", project: "https://myanimelist.net"),
         .init("Trakt", detail: "Optional movie and television tracking, ratings, and schedules.", project: "https://trakt.tv"),
         .init("SIMKL", detail: "Optional movie, television, and anime tracking and ratings.", project: "https://simkl.com"),
         .init("TVmaze", detail: "Supplemental television poster artwork and schedule metadata. TVmaze data is licensed under CC BY-SA 4.0.", project: "https://www.tvmaze.com", licenseName: "CC BY-SA 4.0", license: "https://creativecommons.org/licenses/by-sa/4.0/"),
@@ -5353,7 +5342,7 @@ private struct AgeFiltersSettingsView: View {
                 Toggle("Hide movies rated below 13+", isOn: $hideBelowPG13Movies)
                     .onChange(of: hideBelowPG13Movies) { _ in filtersDidChange() }
                     .accessibilityIdentifier("settings.contentFilters.moviesPG13")
-                Toggle("Hide series rated below 13+", isOn: $hideBelowTV14Shows)
+                Toggle("Hide series rated below TV-14", isOn: $hideBelowTV14Shows)
                     .onChange(of: hideBelowTV14Shows) { _ in filtersDidChange() }
                     .accessibilityIdentifier("settings.contentFilters.series13")
                 Toggle("Hide anime below PG-13", isOn: $hideBelowPG13Anime)
@@ -5400,6 +5389,10 @@ private struct LanguageFiltersSettingsView: View {
                     .onChange(of: requireEnglishSpanishAudio) { _ in
                         NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil)
                         NotificationCenter.default.post(name: Notification.Name("scheduleContentFiltersDidChange"), object: nil)
+                        Task {
+                            _ = await MyDubListDubFilter.shared.refresh()
+                            NotificationCenter.default.post(name: MyDubListDubFilter.didRefreshNotification, object: nil)
+                        }
                     }
                     .accessibilityIdentifier("settings.contentFilters.audioLanguages")
             } footer: {

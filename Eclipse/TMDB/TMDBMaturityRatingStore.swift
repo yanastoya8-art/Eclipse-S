@@ -35,7 +35,7 @@ final class TMDBMaturityRatingStore: ObservableObject {
     }
 
     private struct DiskCache: Codable {
-        static let currentVersion = 5
+        static let currentVersion = 6
         var version: Int
         var records: [DiskRecord]
     }
@@ -232,7 +232,7 @@ final class TMDBMaturityRatingStore: ObservableObject {
                     return .resolved(.unknown, kidsDetailPolicyAllows: detailPolicyAllows)
                 }
                 return .resolved(
-                    releaseDates.preferredCertification?.rating ?? .unknown,
+                    releaseDates.filterRating,
                     kidsDetailPolicyAllows: detailPolicyAllows
                 )
             }
@@ -248,7 +248,7 @@ final class TMDBMaturityRatingStore: ObservableObject {
                 return .resolved(.unknown, kidsDetailPolicyAllows: detailPolicyAllows)
             }
             return .resolved(
-                contentRatings.preferredCertification?.rating ?? .unknown,
+                contentRatings.filterRating,
                 kidsDetailPolicyAllows: detailPolicyAllows
             )
         } catch {

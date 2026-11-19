@@ -13414,6 +13414,15 @@ final class MALMetadataService {
 
     var isConfigured: Bool { !clientID.isEmpty }
 
+    static func parseMaturityRating(_ rawRating: String) -> MaturityRating? {
+        // MAL sends labels such as "PG-13 - Teens 13 or older". Keep the
+        // classification token intact (including the hyphen in PG-13).
+        let code = rawRating.components(separatedBy: " - ").first?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? rawRating
+        let rating = MaturityRating.ratingForFiltering(certification: code)
+        return rating == .unknown ? nil : rating
+    }
+
     func fetchMaturityRating(malID: Int) async -> MaturityRating? {
         guard isConfigured,
               let details = try? await fetchAnimeDetails(id: malID),
@@ -13421,12 +13430,7 @@ final class MALMetadataService {
               !rawRating.isEmpty else {
             return nil
         }
-        // MAL sends labels such as "PG-13 - Teens 13 or older". Keep the
-        // classification token intact (including the hyphen in PG-13).
-        let code = rawRating.components(separatedBy: " - ").first?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? rawRating
-        let rating = MaturityRating.classify(certification: code)
-        return rating == .unknown ? nil : rating
+        return Self.parseMaturityRating(rawRating)
     }
 
     func fetchAllAnimeCatalogs(

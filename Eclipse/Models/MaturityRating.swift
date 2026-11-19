@@ -77,6 +77,39 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
         return lhs > rhs ? lhs : rhs
     }
 
+    /// Distinguish an explicit all-ages board result from parental-guidance
+    /// tiers such as PG, TV-PG, and TV-Y7. Those ratings are below the app's
+    /// teen threshold, but they are not equivalent to a G / All Ages label.
+    static func isExplicitAllAgesCertification(
+        certification: String,
+        region: String? = nil
+    ) -> Bool {
+        let compact = certification.uppercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "+", with: "PLUS")
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .joined()
+        guard !["PG", "TVPG", "TVY7", "TVY7FV"].contains(compact) else { return false }
+        return classify(certification: certification, region: region) == .general
+    }
+
+    /// Returns a filter tier without conflating parental-guidance labels
+    /// with an explicit All Ages classification.
+    static func ratingForFiltering(certification: String, region: String? = nil) -> MaturityRating {
+        let rating = classify(certification: certification, region: region)
+        guard rating == .general,
+              !isExplicitAllAgesCertification(certification: certification, region: region) else {
+            return rating
+        }
+
+        let compact = certification.uppercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "+", with: "PLUS")
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .joined()
+        return ["TVY7", "TVY7FV"].contains(compact) ? .age7 : .age10
+    }
+
     static func classify(certification: String, region: String? = nil) -> MaturityRating {
         let normalized = certification.uppercased().trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { return .unknown }

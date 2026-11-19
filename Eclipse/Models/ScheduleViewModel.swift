@@ -424,6 +424,87 @@ struct ScheduleEntry: Identifiable, Sendable {
     }
 }
 
+enum ScheduleEntryMergePolicy {
+    static func earliestByEpisode(_ entries: [ScheduleEntry]) -> [ScheduleEntry] {
+        var merged: [ScheduleEntry] = []
+        var animeAliasIndices: [String: Int] = [:]
+        var nonAnimeIndices: [String: Int] = [:]
+
+        for entry in entries {
+            if entry.source == .anime {
+                let aliases = entry.animeMediaIDs.map { "anime|\($0)|\(entry.episode)" }
+                let matchingIndices = Set(aliases.compactMap { animeAliasIndices[$0] })
+                guard let targetIndex = matchingIndices.min() else {
+                    let index = merged.count
+                    merged.append(entry)
+                    for alias in aliases { animeAliasIndices[alias] = index }
+                    continue
+                }
+
+                var preferred = merged[targetIndex]
+                if shouldPrefer(entry, over: preferred) { preferred = entry }
+
+                // An entry carrying both AniList and MAL IDs can bridge two
+                // earlier rows that were initially known under only one ID.
+                // Collapse those rows too, preserving the best confirmed date.
+                for removedIndex in matchingIndices.sorted(by: >) where removedIndex != targetIndex {
+                    let existing = merged[removedIndex]
+                    if shouldPrefer(existing, over: preferred) { preferred = existing }
+                    merged.remove(at: removedIndex)
+
+                    for key in Array(animeAliasIndices.keys) {
+                        guard let index = animeAliasIndices[key] else { continue }
+                        if index == removedIndex {
+                            animeAliasIndices[key] = targetIndex
+                        } else if index > removedIndex {
+                            animeAliasIndices[key] = index - 1
+                        }
+                    }
+                    for key in Array(nonAnimeIndices.keys) {
+                        guard let index = nonAnimeIndices[key], index > removedIndex else { continue }
+                        nonAnimeIndices[key] = index - 1
+                    }
+                }
+
+                merged[targetIndex] = preferred
+                for alias in aliases { animeAliasIndices[alias] = targetIndex }
+            } else {
+                let key = [
+                    entry.title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current),
+                    String(entry.season ?? 0),
+                    String(entry.episode)
+                ].joined(separator: "|")
+                if let index = nonAnimeIndices[key] {
+                    if shouldPrefer(entry, over: merged[index]) { merged[index] = entry }
+                } else {
+                    let index = merged.count
+                    merged.append(entry)
+                    nonAnimeIndices[key] = index
+                }
+            }
+        }
+
+        return merged.sorted { $0.airingAt < $1.airingAt }
+    }
+
+    private static func shouldPrefer(_ candidate: ScheduleEntry, over existing: ScheduleEntry) -> Bool {
+        ScheduleReleaseDatePolicy.shouldPrefer(
+            candidateDate: candidate.airingAt,
+            candidateIsConfirmed: ScheduleReleaseDatePolicy.isConfirmedReleaseDate(
+                provider: candidate.provider,
+                hasKnownAiringTime: candidate.hasKnownAiringTime,
+                airingTimeWithdrawn: candidate.airingTimeWithdrawn
+            ),
+            over: existing.airingAt,
+            existingIsConfirmed: ScheduleReleaseDatePolicy.isConfirmedReleaseDate(
+                provider: existing.provider,
+                hasKnownAiringTime: existing.hasKnownAiringTime,
+                airingTimeWithdrawn: existing.airingTimeWithdrawn
+            )
+        )
+    }
+}
+
 final class ScheduleViewModel: ObservableObject {
     static let shared = ScheduleViewModel()
 
@@ -603,7 +684,9 @@ final class ScheduleViewModel: ObservableObject {
             await TMDBContentFilter.shared.prepareScheduleAgeRatings(for: loadResult.entries)
             let hideUnofficialContent = UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent")
             let entries = loadResult.entries.filter { entry in
-                guard !TMDBContentFilter.shared.scheduleEntryIsAllAges(entry) else { return false }
+                // All-ages exclusions are preference-driven and are applied by
+                // the configured age-filter policy in ScheduleView. Do not
+                // remove every all-ages title here unconditionally.
                 guard hideUnofficialContent else { return true }
                 // Anime schedule providers include production/category tags.
                 // Include them (and the episode's format/overview) in the same
@@ -918,35 +1001,9 @@ final class ScheduleViewModel: ObservableObject {
     ) {
         guard !additions.isEmpty else { return }
 
-        var earliestByEpisode: [String: ScheduleEntry] = [:]
-        for entry in currentResult.entries + additions {
-            let key = entry.source == .anime
-                ? "anime|\(entry.sourceMediaId)|\(entry.episode)"
-                : "\(entry.title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current))|\(entry.season ?? 0)|\(entry.episode)"
-            if let existing = earliestByEpisode[key],
-               !ScheduleReleaseDatePolicy.shouldPrefer(
-                    candidateDate: entry.airingAt,
-                    candidateIsConfirmed: ScheduleReleaseDatePolicy.isConfirmedReleaseDate(
-                        provider: entry.provider,
-                        hasKnownAiringTime: entry.hasKnownAiringTime,
-                        airingTimeWithdrawn: entry.airingTimeWithdrawn
-                    ),
-                    over: existing.airingAt,
-                    existingIsConfirmed: ScheduleReleaseDatePolicy.isConfirmedReleaseDate(
-                        provider: existing.provider,
-                        hasKnownAiringTime: existing.hasKnownAiringTime,
-                        airingTimeWithdrawn: existing.airingTimeWithdrawn
-                    )
-               ) {
-                // Keep an existing confirmed date ahead of withdrawn or
-                // estimated metadata. When both are confirmed, use the earlier
-                // qualifying native-language or Spanish-dub release.
-                continue
-            }
-            earliestByEpisode[key] = entry
-        }
-
-        let mergedEntries = earliestByEpisode.values.sorted { $0.airingAt < $1.airingAt }
+        // Merge by shared AniList/MAL identity so fallback rows cannot
+        // duplicate an episode merely because the providers use different IDs.
+        let mergedEntries = ScheduleEntryMergePolicy.earliestByEpisode(currentResult.entries + additions)
         let mergedResult = AnimeScheduleLoadResult(
             entries: mergedEntries,
             isAuthoritativeForNotifications: currentResult.isAuthoritativeForNotifications,
@@ -1116,30 +1173,9 @@ final class ScheduleViewModel: ObservableObject {
                         try await AniListService.shared.fetchAiringScheduleResult(daysAhead: dayCount)
                     }
                 }
-                var entries = result.entries.map(ScheduleEntry.init(animeEntry:)) + verifiedNativeLanguageEntries
-                var earliestByEpisode: [String: ScheduleEntry] = [:]
-                for entry in entries {
-                    let key = entry.source == .anime
-                        ? "anime|\(entry.sourceMediaId)|\(entry.episode)"
-                        : "\(entry.title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current))|\(entry.season ?? 0)|\(entry.episode)"
-                    if let existing = earliestByEpisode[key],
-                       !ScheduleReleaseDatePolicy.shouldPrefer(
-                            candidateDate: entry.airingAt,
-                            candidateIsConfirmed: ScheduleReleaseDatePolicy.isConfirmedReleaseDate(
-                                provider: entry.provider,
-                                hasKnownAiringTime: entry.hasKnownAiringTime,
-                                airingTimeWithdrawn: entry.airingTimeWithdrawn
-                            ),
-                            over: existing.airingAt,
-                            existingIsConfirmed: ScheduleReleaseDatePolicy.isConfirmedReleaseDate(
-                                provider: existing.provider,
-                                hasKnownAiringTime: existing.hasKnownAiringTime,
-                                airingTimeWithdrawn: existing.airingTimeWithdrawn
-                            )
-                       ) { continue }
-                    earliestByEpisode[key] = entry
-                }
-                entries = earliestByEpisode.values.sorted { $0.airingAt < $1.airingAt }
+                let entries = ScheduleEntryMergePolicy.earliestByEpisode(
+                    result.entries.map(ScheduleEntry.init(animeEntry:)) + verifiedNativeLanguageEntries
+                )
                 try Task.checkCancellation()
                 // Hide the routine language-verification explanation. Keep a
                 // concise outage notice only when every selected-language source
