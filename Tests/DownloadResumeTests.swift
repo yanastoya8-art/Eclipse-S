@@ -864,8 +864,8 @@ final class DownloadResumeTests: XCTestCase {
     }
 
     func testHLSRejectsChangingOrMalformedInitializationSections() {
-        let changing = "#EXTM3U\\n#EXT-X-MAP:URI=\\"init-one.mp4\\"\\n#EXTINF:1,\\nfirst.m4s\\n#EXT-X-MAP:URI=\\"init-two.mp4\\"\\n#EXTINF:1,\\nsecond.m4s"
-        let malformed = "#EXTM3U\\n#EXT-X-MAP:BYTERANGE=\\"100@0\\"\\n#EXTINF:1,\\nsegment.m4s"
+        let changing = "#EXTM3U\n#EXT-X-MAP:URI=\"init-one.mp4\"\n#EXTINF:1,\nfirst.m4s\n#EXT-X-MAP:URI=\"init-two.mp4\"\n#EXTINF:1,\nsecond.m4s"
+        let malformed = "#EXTM3U\n#EXT-X-MAP:BYTERANGE=\"100@0\"\n#EXTINF:1,\nsegment.m4s"
         XCTAssertNotNil(HLSDownloadCompatibility.unsupportedMediaLayout(in: changing))
         XCTAssertNotNil(HLSDownloadCompatibility.unsupportedMediaLayout(in: malformed))
     }
@@ -879,11 +879,11 @@ final class DownloadResumeTests: XCTestCase {
             downloadId: UUID().uuidString
         )
         XCTAssertThrowsError(try downloader.parseMediaPlaylist(
-            "#EXTM3U\\nvalid.ts\\nfile:///private/segment.ts",
+            "#EXTM3U\nvalid.ts\nfile:///private/segment.ts",
             baseURL: base
         ))
         let segments = try downloader.parseMediaPlaylist(
-            "#EXTM3U\\nfirst.ts\\nsecond.ts",
+            "#EXTM3U\nfirst.ts\nsecond.ts",
             baseURL: base
         )
         XCTAssertEqual(segments.map(\\.lastPathComponent), ["first.ts", "second.ts"])
