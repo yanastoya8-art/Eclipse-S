@@ -197,6 +197,7 @@ struct AppHubOverlay: View {
                 }
             }
         }
+        .coordinateSpace(name: "AppHubOverlay")
         .onPreferenceChange(AppHubActionFramePreferenceKey.self) { frames in
             actionFrames = frames
         }
@@ -381,7 +382,7 @@ struct AppHubOverlay: View {
             GeometryReader { proxy in
                 Color.clear.preference(
                     key: AppHubActionFramePreferenceKey.self,
-                    value: [action.id: proxy.frame(in: .named(ModeSwitchTransitionCoordinator.coordinateSpaceName))]
+                    value: [action.id: proxy.frame(in: .named("AppHubOverlay"))]
                 )
             }
         }
