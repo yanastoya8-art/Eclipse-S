@@ -332,8 +332,9 @@ final class MyDubListDubFilter: @unchecked Sendable {
                 }
             }
 
-            guard !Task.isCancelled, languages == selectedLanguages else {
-                return hasSnapshot(for: selectedLanguages)
+            guard !Task.isCancelled,
+                  languages == selectedLanguagesIncludingCatalogAudioRequirement else {
+                return hasSnapshot(for: selectedLanguagesIncludingCatalogAudioRequirement)
             }
             publishSnapshot(
                 malIDs: malIDs,
