@@ -3245,6 +3245,29 @@ enum RatingTitleLookupPolicy {
 actor FanartTVLogoService {
     static let shared = FanartTVLogoService()
 
+    struct LookupResult {
+        let url: String?
+        let succeeded: Bool
+    }
+
+    /// Exposes whether a missing logo was a completed lookup or a transient
+    /// network failure, so callers do not permanently cache failed requests.
+    func lookup(imdbID: String?, tvdbID: Int?) async -> LookupResult {
+        let hasValidIMDbID = imdbID?.range(
+            of: #"^tt[0-9]{7,12}$"#,
+            options: .regularExpression
+        ) != nil
+        let hasValidTVDBID = tvdbID.map { $0 > 0 } ?? false
+        let url = await logoURL(imdbID: imdbID, tvdbID: tvdbID)
+        let movieSucceeded = !hasValidIMDbID || attempted.contains(imdbID ?? "")
+        let tvSucceeded = !hasValidTVDBID || attempted.contains("tvdb:\(tvdbID ?? 0)")
+        let hasNoLookupIDs = !hasValidIMDbID && !hasValidTVDBID
+        return LookupResult(
+            url: url,
+            succeeded: url != nil || hasNoLookupIDs || (movieSucceeded && tvSucceeded)
+        )
+    }
+
     private struct Logo: Decodable {
         let url: String
         let lang: String?
@@ -3282,8 +3305,12 @@ actor FanartTVLogoService {
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let http = response as? HTTPURLResponse,
-                  http.statusCode == 200,
-                  http.url?.host?.lowercased() == "webservice.fanart.tv",
+                  http.url?.host?.lowercased() == "webservice.fanart.tv" else { return nil }
+            if http.statusCode == 404 {
+                attempted.insert(cacheKey)
+                return nil
+            }
+            guard http.statusCode == 200,
                   data.count <= 2 * 1_024 * 1_024 else { return nil }
             let payload = try JSONDecoder().decode(TVResponse.self, from: data)
             let logos = (payload.hdtvlogo ?? []) + (payload.clearlogo ?? [])
@@ -3330,9 +3357,13 @@ actor FanartTVLogoService {
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let http = response as? HTTPURLResponse,
-                  http.statusCode == 200,
                   let host = http.url?.host?.lowercased(),
-                  host == "webservice.fanart.tv",
+                  host == "webservice.fanart.tv" else { return nil }
+            if http.statusCode == 404 {
+                attempted.insert(imdbID)
+                return nil
+            }
+            guard http.statusCode == 200,
                   data.count <= 2 * 1_024 * 1_024 else { return nil }
             let payload = try JSONDecoder().decode(MovieResponse.self, from: data)
             let logos = (payload.hdmovielogo ?? []) + (payload.movielogo ?? [])
