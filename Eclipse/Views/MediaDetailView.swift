@@ -2708,7 +2708,13 @@ struct MediaDetailContentView: View {
                 artworkScaleY: usesLandscapeDetailComposition
                     ? CGFloat(min(max(landscapeHeroVerticalStretch, 0.85), 1.5))
                     : 1.0,
-                showsBottomFade: !usesLandscapeDetailComposition,
+                showsBottomFade: true,
+                bottomFadeHeight: usesLandscapeDetailComposition
+                    ? min(max(heroSectionHeight * 0.30, 120), 200)
+                    : 100,
+                bottomFadeEndOpacity: usesLandscapeDetailComposition
+                    ? min(max(mediaDetailHeroBleedStrength, 0), 1)
+                    : 0.6,
                 scrollCoordinateSpaceName: "mediaDetailScroll"
             )
             // StretchyHeaderView can initially report its intrinsic artwork
@@ -2738,10 +2744,10 @@ struct MediaDetailContentView: View {
             image
 #endif
 
-            // Portrait keeps its existing artwork-local fade. Landscape
-            // uses the same extended HeroBannerBleed treatment as Home so the
-            // colour continues naturally beyond the poster edge instead of
-            // ending in an opaque, clipped horizontal line.
+            // Portrait retains its existing lower artwork overlay.
+            // Landscape fades the artwork itself into the extracted-colour
+            // bleed behind it, so the transition is visible before the image
+            // ends instead of appearing as a hard horizontal seam.
             if !usesLandscapeDetailComposition {
                 gradientOverlay
             }
