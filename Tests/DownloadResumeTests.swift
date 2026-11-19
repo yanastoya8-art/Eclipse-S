@@ -886,7 +886,7 @@ final class DownloadResumeTests: XCTestCase {
             "#EXTM3U\nfirst.ts\nsecond.ts",
             baseURL: base
         )
-        XCTAssertEqual(segments.map(\\.lastPathComponent), ["first.ts", "second.ts"])
+        XCTAssertEqual(segments.map(\.lastPathComponent), ["first.ts", "second.ts"])
     }
 
     @MainActor
