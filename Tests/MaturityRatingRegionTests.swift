@@ -320,6 +320,41 @@ final class MaturityRatingRegionTests: XCTestCase {
         XCTAssertFalse(MaturityRating.age14.isBlockedForKids)
     }
 
+    func testExplicitAllAgesDetectionDoesNotTreatPGTiersAsAllAges() {
+        XCTAssertTrue(MaturityRating.isExplicitAllAgesCertification(certification: "TV-G", region: "US"))
+        XCTAssertTrue(MaturityRating.isExplicitAllAgesCertification(certification: "All Ages"))
+        XCTAssertFalse(MaturityRating.isExplicitAllAgesCertification(certification: "PG", region: "US"))
+        XCTAssertFalse(MaturityRating.isExplicitAllAgesCertification(certification: "TV-PG", region: "US"))
+        XCTAssertFalse(MaturityRating.isExplicitAllAgesCertification(certification: "TV-Y7", region: "US"))
+    }
+
+    func testUSOnlyTVGFeedsAllAgesFilterWithoutReplacingEuropeanRatingPolicy() {
+        let usOnlyTVG = TMDBContentRatings(results: [
+            TMDBContentRating(descriptors: nil, iso31661: "US", rating: "TV-G")
+        ])
+        XCTAssertNil(usOnlyTVG.preferredCertification)
+        XCTAssertEqual(usOnlyTVG.filterRating, .general)
+        XCTAssertTrue(ScheduleAllAgesPolicy.shouldExclude(rating: usOnlyTVG.filterRating, enabled: true))
+
+        let usOnlyTVMA = TMDBContentRatings(results: [
+            TMDBContentRating(descriptors: nil, iso31661: "US", rating: "TV-MA")
+        ])
+        XCTAssertNil(usOnlyTVMA.preferredCertification)
+        XCTAssertEqual(usOnlyTVMA.filterRating, .unknown)
+
+        let parentalGuidance = TMDBContentRatings(results: [
+            TMDBContentRating(descriptors: nil, iso31661: "US", rating: "TV-PG")
+        ])
+        XCTAssertEqual(parentalGuidance.filterRating, .unknown)
+
+        let regionalOverride = TMDBContentRatings(results: [
+            TMDBContentRating(descriptors: nil, iso31661: "US", rating: "TV-G"),
+            TMDBContentRating(descriptors: nil, iso31661: "GB", rating: "15")
+        ])
+        XCTAssertEqual(regionalOverride.preferredCertification?.region, "GB")
+        XCTAssertEqual(regionalOverride.filterRating, .mature)
+    }
+
     func testTelevisionCertificationUsesEuropeanProvidersOnly() throws {
         let mixed = TMDBContentRatings(results: [
             TMDBContentRating(descriptors: nil, iso31661: "US", rating: "TV-MA"),
