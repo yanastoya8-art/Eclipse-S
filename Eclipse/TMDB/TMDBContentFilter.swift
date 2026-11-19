@@ -483,6 +483,7 @@ class TMDBContentFilter: ObservableObject {
     private var animeAgeLoadingIDs: Set<Int> = []
     private var animeAgeRetryAfterByID: [Int: Date] = [:]
     private var animeAudioEligibleIDs: Set<Int> = []
+    private var animeAudioEligibilityLanguages: Set<String> = []
     private var animeAudioCheckedIDs: Set<Int> = []
     private var animeAudioLoadingIDs: Set<Int> = []
     private var animeAudioRetryAfterByID: [Int: Date] = [:]
@@ -694,9 +695,7 @@ class TMDBContentFilter: ObservableObject {
         }
 
         guard requireVerifiedAudio, !animeResults.isEmpty else { return }
-        Task(priority: .utility) {
-            await TMDBContentFilter.shared.resolveAnimeAudioMetadata(for: animeResults)
-        }
+        scheduleAnimeAudioMetadataResolutionIfNeeded(for: animeResults)
     }
 
     func prepareScheduleAgeRatings(for entries: [ScheduleEntry]) async {
@@ -952,7 +951,10 @@ class TMDBContentFilter: ObservableObject {
         )
     }
 
-    private func resolveAnimeAudioMetadata(for results: [TMDBSearchResult]) async {
+    private func resolveAnimeAudioMetadata(
+        for results: [TMDBSearchResult],
+        selectedLanguages: Set<String>
+    ) async {
         let candidates = results.filter { result in
             guard !CatalogNativeAudioPolicy.hasEnglishOrSpanishAudio(result.originalLanguage) else { return false }
             guard let id = result.animeIdentitySeed?.anilistId, id > 0 else { return false }
@@ -966,7 +968,6 @@ class TMDBContentFilter: ObservableObject {
         }
         guard !candidates.isEmpty else { return }
 
-        let selectedLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
         await withTaskGroup(of: (Int, Bool?).self) { group in
             var iterator = candidates.makeIterator()
             let concurrencyLimit = 6
@@ -985,7 +986,7 @@ class TMDBContentFilter: ObservableObject {
 
             while let (id, eligible) = await group.next() {
                 if let eligible {
-                    storeAnimeAudioEligibility(eligible, for: id)
+                    storeAnimeAudioEligibility(eligible, for: id, selectedLanguages: selectedLanguages)
                     // Publish each completed lookup: a slow title must not hold
                     // already-verified rows behind the whole six-title batch.
                     await MainActor.run {
@@ -996,11 +997,13 @@ class TMDBContentFilter: ObservableObject {
                     }
                 } else {
                     animeEligibilityLock.lock()
-                    animeAudioLoadingIDs.remove(id)
-                    // Missing provider data is not evidence of a dub. Keep the
-                    // result excluded, but retry later so temporary API outages
-                    // do not permanently poison the in-memory eligibility cache.
-                    animeAudioRetryAfterByID[id] = Date().addingTimeInterval(10 * 60)
+                    if animeAudioEligibilityLanguages == selectedLanguages {
+                        animeAudioLoadingIDs.remove(id)
+                        // Missing provider data is not evidence of a dub. Keep the
+                        // result excluded, but retry later so temporary API outages
+                        // do not permanently poison the in-memory eligibility cache.
+                        animeAudioRetryAfterByID[id] = Date().addingTimeInterval(10 * 60)
+                    }
                     animeEligibilityLock.unlock()
                 }
 
@@ -1084,9 +1087,22 @@ class TMDBContentFilter: ObservableObject {
         guard UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") else { return }
         let animeResults = results.filter { Self.isAnimeResult($0) }
         guard !animeResults.isEmpty else { return }
+        let selectedLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
+        prepareAnimeAudioEligibilitySelection(selectedLanguages)
         Task(priority: .utility) {
-            await self.resolveAnimeAudioMetadata(for: animeResults)
+            await self.resolveAnimeAudioMetadata(for: animeResults, selectedLanguages: selectedLanguages)
         }
+    }
+
+    private func prepareAnimeAudioEligibilitySelection(_ selectedLanguages: Set<String>) {
+        animeEligibilityLock.lock()
+        defer { animeEligibilityLock.unlock() }
+        guard animeAudioEligibilityLanguages != selectedLanguages else { return }
+        animeAudioEligibilityLanguages = selectedLanguages
+        animeAudioEligibleIDs.removeAll()
+        animeAudioCheckedIDs.removeAll()
+        animeAudioLoadingIDs.removeAll()
+        animeAudioRetryAfterByID.removeAll()
     }
 
     func filterMovies(_ movies: [TMDBMovie]) -> [TMDBMovie] {
@@ -1482,8 +1498,14 @@ class TMDBContentFilter: ObservableObject {
         }
     }
 
-    private func storeAnimeAudioEligibility(_ isEligible: Bool, for id: Int) {
+    private func storeAnimeAudioEligibility(
+        _ isEligible: Bool,
+        for id: Int,
+        selectedLanguages: Set<String>
+    ) {
         animeEligibilityLock.lock()
+        defer { animeEligibilityLock.unlock() }
+        guard animeAudioEligibilityLanguages == selectedLanguages else { return }
         animeAudioLoadingIDs.remove(id)
         animeAudioRetryAfterByID.removeValue(forKey: id)
         animeAudioCheckedIDs.insert(id)
@@ -1492,7 +1514,6 @@ class TMDBContentFilter: ObservableObject {
         } else {
             animeAudioEligibleIDs.remove(id)
         }
-        animeEligibilityLock.unlock()
     }
 
     private func cachedAnimeAgeRating(for result: TMDBSearchResult) -> MaturityRating? {
