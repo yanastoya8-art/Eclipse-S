@@ -37,6 +37,8 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
     case titleLogoWeight
     case heroActionPosition
     case heroSynopsisPosition
+    case portraitHeroBleedIntensity
+    case landscapeHeroBleedIntensity
     case landscapeTitleLogoPosition
     case landscapeTitleLogoSize
     case landscapeTitleLogoWeight
@@ -64,7 +66,7 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
             return "interface"
         case .animatedBackground, .animationQuality, .animationColor, .customAnimationColor, .animationFrameRate, .appPerformanceOverlay, .hideSplashScreen:
             return "motion"
-        case .alternativeSeasonMenu, .horizontalEpisodeList, .showUnairedEpisodes, .titleLogoPosition, .titleLogoSize, .titleLogoWeight, .heroActionPosition, .heroSynopsisPosition, .landscapeTitleLogoPosition, .landscapeTitleLogoSize, .landscapeTitleLogoWeight, .landscapeHeroActionPosition, .landscapeHeroSynopsisPosition, .landscapeHeroHorizontalStretch, .landscapeHeroVerticalStretch, .landscapeContentHorizontalPosition, .tmdbTitleArt, .dataSaver, .ageRating, .similarTitles:
+        case .alternativeSeasonMenu, .horizontalEpisodeList, .showUnairedEpisodes, .titleLogoPosition, .titleLogoSize, .titleLogoWeight, .heroActionPosition, .heroSynopsisPosition, .portraitHeroBleedIntensity, .landscapeHeroBleedIntensity, .landscapeTitleLogoPosition, .landscapeTitleLogoSize, .landscapeTitleLogoWeight, .landscapeHeroActionPosition, .landscapeHeroSynopsisPosition, .landscapeHeroHorizontalStretch, .landscapeHeroVerticalStretch, .landscapeContentHorizontalPosition, .tmdbTitleArt, .dataSaver, .ageRating, .similarTitles:
             return "details"
         case .libraryBookmarks, .libraryCollectionLayout:
             return "library"
@@ -663,6 +665,7 @@ struct AlternativeUIView: View {
                 range: 0...2,
                 step: 0.05
             )
+            .id(AppearanceSettingsSearchTarget.portraitHeroBleedIntensity.anchorID)
 
             Divider()
             Text("Landscape Detail Page").font(.subheadline.weight(.semibold))
@@ -708,6 +711,7 @@ struct AlternativeUIView: View {
                 range: 0...3.5,
                 step: 0.05
             )
+            .id(AppearanceSettingsSearchTarget.landscapeHeroBleedIntensity.anchorID)
         } header: {
             Text("Detail Pages")
         }
