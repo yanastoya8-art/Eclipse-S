@@ -9,6 +9,18 @@ enum ScheduleReleaseDatePolicy {
         [native, dubbed].compactMap { $0 }.min()
     }
 
+    static func isConfirmedReleaseDate(
+        provider: ScheduleProvider?,
+        hasKnownAiringTime: Bool,
+        airingTimeWithdrawn: Bool
+    ) -> Bool {
+        guard !airingTimeWithdrawn else { return false }
+        // AI research confirms a calendar date from a cited announcement, but
+        // intentionally has no clock time. Do not mistake that for an unknown date.
+        if provider == .aiSpanishDub { return true }
+        return hasKnownAiringTime
+    }
+
     static func shouldPrefer(
         candidateDate: Date,
         candidateIsConfirmed: Bool,
@@ -127,9 +139,17 @@ enum AnimeScheduleEntryMapper {
     ) -> Bool {
         ScheduleReleaseDatePolicy.shouldPrefer(
             candidateDate: candidate.airingAt,
-            candidateIsConfirmed: candidate.hasKnownAiringTime,
+            candidateIsConfirmed: ScheduleReleaseDatePolicy.isConfirmedReleaseDate(
+                provider: candidate.scheduleProvider,
+                hasKnownAiringTime: candidate.hasKnownAiringTime,
+                airingTimeWithdrawn: candidate.airingTimeWithdrawn == true
+            ),
             over: existing.airingAt,
-            existingIsConfirmed: existing.hasKnownAiringTime
+            existingIsConfirmed: ScheduleReleaseDatePolicy.isConfirmedReleaseDate(
+                provider: existing.scheduleProvider,
+                hasKnownAiringTime: existing.hasKnownAiringTime,
+                airingTimeWithdrawn: existing.airingTimeWithdrawn == true
+            )
         )
     }
 
@@ -684,9 +704,17 @@ enum AnimeScheduleFallback {
                 // qualifying dub release instead of always trusting the primary.
                 if ScheduleReleaseDatePolicy.shouldPrefer(
                     candidateDate: candidate.airingAt,
-                    candidateIsConfirmed: candidate.hasKnownAiringTime,
+                    candidateIsConfirmed: ScheduleReleaseDatePolicy.isConfirmedReleaseDate(
+                        provider: candidate.scheduleProvider,
+                        hasKnownAiringTime: candidate.hasKnownAiringTime,
+                        airingTimeWithdrawn: candidate.airingTimeWithdrawn == true
+                    ),
                     over: existing.airingAt,
-                    existingIsConfirmed: existing.hasKnownAiringTime
+                    existingIsConfirmed: ScheduleReleaseDatePolicy.isConfirmedReleaseDate(
+                        provider: existing.scheduleProvider,
+                        hasKnownAiringTime: existing.hasKnownAiringTime,
+                        airingTimeWithdrawn: existing.airingTimeWithdrawn == true
+                    )
                 ) {
                     entriesByEpisode[key] = candidate
                 }
