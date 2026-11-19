@@ -315,6 +315,7 @@ jobs:
           path: |
             ${{ runner.temp }}/SourcePackages/repositories
             ${{ runner.temp }}/SourcePackages/artifacts
+            ${{ runner.temp }}/SourcePackages/checkouts
           key: swiftpm-${{ runner.os }}-${{ hashFiles('**/Package.resolved') }}-${{ hashFiles('Eclipse.xcodeproj/project.pbxproj') }}
           restore-keys: |
             swiftpm-${{ runner.os }}-
@@ -407,7 +408,8 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
-            ${{ runner.temp }}/DerivedData/Build
+            ${{ runner.temp }}/DerivedData/Build/Intermediates.noindex
+            ${{ runner.temp }}/DerivedData/Build/Products
             ${{ runner.temp }}/DerivedData/ModuleCache.noindex
           key: xcode-derived-${{ runner.os }}-${{ steps.apple-sdk.outputs.cache-key }}-${{ github.sha }}-${{ hashFiles('Eclipse.xcodeproj/project.pbxproj', '**/Package.resolved') }}
           restore-keys: |
@@ -428,7 +430,12 @@ jobs:
           # an incremental Release archive instead of recompiling every source file.
           mkdir -p "$DERIVED_DATA_PATH"
 
+          BUILD_JOBS="$(sysctl -n hw.ncpu)"
+          echo "Using $BUILD_JOBS parallel Xcode build jobs."
+
           xcodebuild archive \
+            -jobs "$BUILD_JOBS" \
+            -showBuildTimingSummary \
             -project Eclipse.xcodeproj \
             -scheme Eclipse \
             -configuration Release \
