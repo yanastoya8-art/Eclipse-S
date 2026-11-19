@@ -91,7 +91,7 @@ struct StretchyHeaderView: View {
     var showsBottomFade: Bool = true
     var bottomFadeHeight: CGFloat = 100
     var bottomFadeEndOpacity: Double = 0.6
-    var bottomFadeColor: Color?
+    var bottomFadeColor: Color? = nil
     // Detail pages measure stretching relative to their ScrollView so the
     // safe-area origin and initial rotation layout do not shift the artwork.
     var scrollCoordinateSpaceName: String? = nil
