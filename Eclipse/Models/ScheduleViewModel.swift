@@ -958,7 +958,8 @@ final class ScheduleViewModel: ObservableObject {
             // enabling these catalog filters left incompatible anime visible.
             guard !TMDBContentFilter.shouldExcludeAnimeCategory(
                 title: searchableTitle,
-                overview: entry.overview
+                overview: entry.overview,
+                tags: entry.metadataTags
             ) else { return false }
             if UserDefaults.standard.bool(forKey: "catalogHidePre1994Anime"),
                let year = entry.releaseYear, year < 1994 {
