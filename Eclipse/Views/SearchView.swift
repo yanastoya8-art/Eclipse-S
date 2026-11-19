@@ -869,10 +869,12 @@ struct SearchView: View {
                         results.append(contentsOf: supplemental)
                     }
                 }
-                let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguages
+                let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
+                let requiresGlobalAnimeAgeRating = UserDefaults.standard.bool(forKey: "catalogHideBelowPG13Anime")
+                    || UserDefaults.standard.bool(forKey: "catalogHideAllAgesAnime")
                 let needsAnimeIdentity = searchFilter == .anime
                     || !selectedDubLanguages.isEmpty
-                    || UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
+                    || requiresGlobalAnimeAgeRating
                 // Anime identity resolution is network-backed. For broad
                 // searches, resolve only likely anime candidates already
                 // marked by TMDB's genre/origin/language metadata (the helper
@@ -886,6 +888,11 @@ struct SearchView: View {
                 // refresh path; search must remain responsive and cancellable.
                 try Task.checkCancellation()
                 await contentFilter.prepareMaturityRatings(for: identityResolvedResults)
+                if requiresGlobalAnimeAgeRating {
+                    await contentFilter.resolveAnimeAgeRatings(
+                        for: identityResolvedResults.filter { isAnimeResult($0) }
+                    )
+                }
                 try Task.checkCancellation()
 
                 await MainActor.run {
