@@ -41,14 +41,24 @@ struct ScheduleView: View {
     private func refreshScheduleAgeFilter(_ entries: [ScheduleEntry]) {
         scheduleAgeFilterGeneration &+= 1
         let generation = scheduleAgeFilterGeneration
+        let filter = TMDBContentFilter.shared
+
+        // Apply already-cached ratings immediately. Minimum-age filters fail
+        // closed for unresolved entries, so a newly loaded schedule cannot
+        // briefly display titles that will be removed after metadata resolves.
+        ageBlockedScheduleEntryIDs = Set(
+            entries
+                .filter { filter.scheduleEntryIsBlockedByConfiguredAgeFilter($0) }
+                .map(\.id)
+        )
 
         Task { @MainActor in
-            await TMDBContentFilter.shared.prepareScheduleAgeRatings(for: entries)
+            await filter.prepareScheduleAgeRatings(for: entries)
 
             guard generation == scheduleAgeFilterGeneration else { return }
             ageBlockedScheduleEntryIDs = Set(
                 entries
-                    .filter { TMDBContentFilter.shared.scheduleEntryIsBlockedByConfiguredAgeFilter($0) }
+                    .filter { filter.scheduleEntryIsBlockedByConfiguredAgeFilter($0) }
                     .map(\.id)
             )
         }
