@@ -7,15 +7,6 @@ enum HomeHeroTitleLogoPositionSettings {
     static let step = 0.05
 }
 
-enum MediaDetailTitleArtworkSettings {
-    static let enabledKey = "mediaDetailTitleArtworkEnabled"
-    static let defaultEnabled = true
-
-    static func isEnabled(defaults: UserDefaults = ProfileSettingsStore.active) -> Bool {
-        defaults.object(forKey: enabledKey) == nil ? defaultEnabled : defaults.bool(forKey: enabledKey)
-    }
-}
-
 enum MediaDetailAlternatePosterSettings {
     static let enabledKey = "mediaDetailAlternatePosterEnabled"
 
