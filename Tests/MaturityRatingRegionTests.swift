@@ -3,23 +3,32 @@ import XCTest
 
 final class MaturityRatingRegionTests: XCTestCase {
 
-    func testTaizenAgeRatingParserMapsAllAgesAndPG13ForScheduleFiltering() throws {
+    func testTaizenAgeRatingParserMapsAllAgesPGAndPG13ForScheduleFiltering() throws {
         let data = try JSONSerialization.data(withJSONObject: [
             "data": [
                 "a0": ["id": 101, "ageRating": ["rating": "All Ages"]],
-                "a1": ["id": 102, "ageRating": ["rating": "PG-13"]]
+                "a1": ["id": 102, "ageRating": ["rating": "PG"]],
+                "a2": ["id": 103, "ageRating": ["rating": "PG-13"]]
             ]
         ])
 
         let ratings = try TaizenAnimeAgeRatingService.parseRatings(
             from: data,
-            identifiers: [101, 102]
+            identifiers: [101, 102, 103]
         )
 
         XCTAssertEqual(ratings[101], .general)
-        XCTAssertEqual(ratings[102], .teen)
+        XCTAssertEqual(ratings[102], .age10)
+        XCTAssertEqual(ratings[103], .teen)
         XCTAssertTrue(ScheduleAllAgesPolicy.shouldExclude(rating: ratings[101], enabled: true))
         XCTAssertFalse(ScheduleAllAgesPolicy.shouldExclude(rating: ratings[102], enabled: true))
+        XCTAssertFalse(ScheduleAllAgesPolicy.shouldExclude(rating: ratings[103], enabled: true))
+    }
+
+    func testMALAnimeRatingParserKeepsPGSeparateFromAllAges() {
+        XCTAssertEqual(MALMetadataService.parseMaturityRating("G - All Ages"), .general)
+        XCTAssertEqual(MALMetadataService.parseMaturityRating("PG - Children"), .age10)
+        XCTAssertEqual(MALMetadataService.parseMaturityRating("PG-13 - Teens 13 or older"), .teen)
     }
 
     func testTaizenAgeRatingParserRejectsMismatchedIDsAndKeepsMissingRatingsUnknown() throws {
