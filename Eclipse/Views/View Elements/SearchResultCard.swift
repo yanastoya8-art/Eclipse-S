@@ -239,7 +239,7 @@ actor SearchResultTitleLogoCache {
 
             var result = await performLookup()
             if !result.succeeded {
-                try? await Task.sleep(for: .milliseconds(600))
+                try? await Task.sleep(nanoseconds: 600_000_000)
                 if !Task.isCancelled {
                     result = await performLookup()
                 }
