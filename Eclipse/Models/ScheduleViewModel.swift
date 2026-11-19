@@ -926,9 +926,17 @@ final class ScheduleViewModel: ObservableObject {
             if let existing = earliestByEpisode[key],
                !ScheduleReleaseDatePolicy.shouldPrefer(
                     candidateDate: entry.airingAt,
-                    candidateIsConfirmed: entry.hasKnownAiringTime,
+                    candidateIsConfirmed: ScheduleReleaseDatePolicy.isConfirmedReleaseDate(
+                        provider: entry.provider,
+                        hasKnownAiringTime: entry.hasKnownAiringTime,
+                        airingTimeWithdrawn: entry.airingTimeWithdrawn
+                    ),
                     over: existing.airingAt,
-                    existingIsConfirmed: existing.hasKnownAiringTime
+                    existingIsConfirmed: ScheduleReleaseDatePolicy.isConfirmedReleaseDate(
+                        provider: existing.provider,
+                        hasKnownAiringTime: existing.hasKnownAiringTime,
+                        airingTimeWithdrawn: existing.airingTimeWithdrawn
+                    )
                ) {
                 // Keep an existing confirmed date ahead of withdrawn or
                 // estimated metadata. When both are confirmed, use the earlier
@@ -1117,9 +1125,17 @@ final class ScheduleViewModel: ObservableObject {
                     if let existing = earliestByEpisode[key],
                        !ScheduleReleaseDatePolicy.shouldPrefer(
                             candidateDate: entry.airingAt,
-                            candidateIsConfirmed: entry.hasKnownAiringTime,
+                            candidateIsConfirmed: ScheduleReleaseDatePolicy.isConfirmedReleaseDate(
+                                provider: entry.provider,
+                                hasKnownAiringTime: entry.hasKnownAiringTime,
+                                airingTimeWithdrawn: entry.airingTimeWithdrawn
+                            ),
                             over: existing.airingAt,
-                            existingIsConfirmed: existing.hasKnownAiringTime
+                            existingIsConfirmed: ScheduleReleaseDatePolicy.isConfirmedReleaseDate(
+                                provider: existing.provider,
+                                hasKnownAiringTime: existing.hasKnownAiringTime,
+                                airingTimeWithdrawn: existing.airingTimeWithdrawn
+                            )
                        ) { continue }
                     earliestByEpisode[key] = entry
                 }
