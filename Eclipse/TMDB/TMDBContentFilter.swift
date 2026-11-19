@@ -1810,7 +1810,8 @@ class TMDBContentFilter: ObservableObject {
     private func shouldIncludeAnimeCategoryFilters(_ result: TMDBSearchResult) -> Bool {
         !Self.shouldExcludeAnimeCategory(
             title: result.displayTitle,
-            overview: result.overview
+            overview: result.overview,
+            tags: result.animeTags ?? []
         )
     }
 
