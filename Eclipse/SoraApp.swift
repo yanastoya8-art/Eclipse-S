@@ -317,9 +317,6 @@ struct SoraApp: App {
             .modifier(EclipseWindowSceneScopeModifier())
 #endif
             .environment(\.eclipseStartupOverlayVisible, showSplash && !hideSplashScreen)
-#if !os(tvOS)
-            .coordinateSpace(name: ModeSwitchTransitionCoordinator.coordinateSpaceName)
-#endif
 
             .defaultAppStorage(ProfileSettingsStore.shared.store(for: profileManager.activeProfileID))
             .environment(\.locale, localization.locale)
