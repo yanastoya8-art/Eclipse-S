@@ -406,12 +406,17 @@ final class HomeViewModel: ObservableObject {
                 for: Array(rawTMDBLoadedCatalogs.values.joined())
             )
             guard !Task.isCancelled else { return }
-            let kidsLoadedCatalogs = await self.loadKidsCatalogs(
+            let rawKidsCatalogs = await self.loadKidsCatalogs(
                 tmdbService: tmdbService,
-                contentFilter: contentFilter,
                 catalogs: enabledCatalogSnapshot
             )
             guard !Task.isCancelled else { return }
+            await contentFilter.prepareMaturityRatings(for: Array(rawKidsCatalogs.values.joined()))
+            let kidsLoadedCatalogs = rawKidsCatalogs.mapValues { contentFilter.filterSearchResults($0) }
+            await MainActor.run {
+                guard self.loadGeneration == generation else { return }
+                self.unfilteredCatalogResults.merge(rawKidsCatalogs) { _, kids in kids }
+            }
             var tmdbLoadedCatalogs = rawTMDBLoadedCatalogs
                 .map { catalogID, results in
                     let isExplicitUpcomingCatalog = catalogID == "upcomingMovies" || catalogID == "upcomingTV"
@@ -585,13 +590,11 @@ final class HomeViewModel: ObservableObject {
 
             async let stremioCatalogs = self.loadStremioCatalogs(
                 enabledCatalogs: enabledCatalogSnapshot,
-                tmdbService: tmdbService,
-                contentFilter: contentFilter
+                tmdbService: tmdbService
             )
             async let traktCatalogs = self.loadTraktCatalogs(
                 enabledCatalogs: enabledCatalogSnapshot,
-                tmdbService: tmdbService,
-                contentFilter: contentFilter
+                tmdbService: tmdbService
             )
             async let widgetsLoaded: Void = self.loadWidgetData(
                 tmdbService: tmdbService,
@@ -608,6 +611,20 @@ final class HomeViewModel: ObservableObject {
 
             let loadedStremioCatalogs = await stremioCatalogs
             let loadedTraktCatalogs = await traktCatalogs
+            let externalCatalogResults = Array(loadedStremioCatalogs.values.joined())
+                + Array(loadedTraktCatalogs.values.joined())
+            await contentFilter.prepareMaturityRatings(for: externalCatalogResults)
+            let filteredStremioCatalogs = loadedStremioCatalogs.mapValues {
+                contentFilter.filterSearchResults($0)
+            }
+            let filteredTraktCatalogs = loadedTraktCatalogs.mapValues {
+                contentFilter.filterSearchResults($0)
+            }
+            await MainActor.run {
+                guard self.loadGeneration == generation else { return }
+                self.unfilteredCatalogResults.merge(loadedStremioCatalogs) { _, raw in raw }
+                self.unfilteredCatalogResults.merge(loadedTraktCatalogs) { _, raw in raw }
+            }
             _ = await widgetsLoaded
             _ = await recommendationsLoaded
             guard !Task.isCancelled else { return }
@@ -617,14 +634,14 @@ final class HomeViewModel: ObservableObject {
 
                 guard self.loadGeneration == generation else { return }
                 let currentlyEnabledCatalogIds = Set(catalogManager.getEnabledCatalogs().map(\.id))
-                let enabledStremioCatalogs = loadedStremioCatalogs.filter {
+                let enabledStremioCatalogs = filteredStremioCatalogs.filter {
                     currentlyEnabledCatalogIds.contains($0.key)
                 }
                 if !enabledStremioCatalogs.isEmpty {
                     self.catalogResults.merge(enabledStremioCatalogs) { _, stremio in stremio }
                 }
-                if !loadedTraktCatalogs.isEmpty {
-                    self.catalogResults.merge(loadedTraktCatalogs) { _, trakt in trakt }
+                if !filteredTraktCatalogs.isEmpty {
+                    self.catalogResults.merge(filteredTraktCatalogs) { _, trakt in trakt }
                 }
 
                 let finalLoadedCount = self.catalogResults.values.filter { !$0.isEmpty }.count
@@ -686,10 +703,11 @@ final class HomeViewModel: ObservableObject {
             )
             await contentFilter.prepareMaturityRatings(for: rawForYou)
             let forYou = contentFilter.filterSearchResults(rawForYou)
-            if !forYou.isEmpty {
+            if !rawForYou.isEmpty {
                 await MainActor.run {
                     guard self.loadGeneration == generation else { return }
                     guard ProfileManager.shared.isStillActive(owner) else { return }
+                    self.unfilteredCatalogResults["forYou"] = rawForYou
                     self.catalogResults["forYou"] = forYou
                     self.applyHeroBannerSelection()
                 }
@@ -702,10 +720,11 @@ final class HomeViewModel: ObservableObject {
             )
             await contentFilter.prepareMaturityRatings(for: rawBYWResults)
             let bywResults = contentFilter.filterSearchResults(rawBYWResults)
-            if !bywResults.isEmpty {
+            if !rawBYWResults.isEmpty {
                 await MainActor.run {
                     guard self.loadGeneration == generation else { return }
                     guard ProfileManager.shared.isStillActive(owner) else { return }
+                    self.unfilteredCatalogResults["becauseYouWatched"] = rawBYWResults
                     self.catalogResults["becauseYouWatched"] = bywResults
                     self.becauseYouWatchedTitle = bywTitle
                     self.applyHeroBannerSelection()
@@ -716,7 +735,6 @@ final class HomeViewModel: ObservableObject {
 
     private func loadKidsCatalogs(
         tmdbService: TMDBService,
-        contentFilter: TMDBContentFilter,
         catalogs: [Catalog]
     ) async -> [String: [TMDBSearchResult]] {
         let kinds = catalogs.compactMap { KidsHomeCatalog.from(catalogID: $0.id) }
@@ -742,8 +760,7 @@ final class HomeViewModel: ObservableObject {
             }
         }
 
-        await contentFilter.prepareMaturityRatings(for: Array(raw.values.joined()))
-        return raw.mapValues { contentFilter.filterSearchResults($0) }
+        return raw
     }
 
     private func loadHomeCatalog<T>(_ id: String, fetch: () async throws -> [T]) async -> [T] {
@@ -994,8 +1011,7 @@ final class HomeViewModel: ObservableObject {
 
     private func loadStremioCatalogs(
         enabledCatalogs: [Catalog],
-        tmdbService: TMDBService,
-        contentFilter: TMDBContentFilter
+        tmdbService: TMDBService
     ) async -> [String: [TMDBSearchResult]] {
         let catalogs = enabledCatalogs.filter { $0.source == .stremio }
         guard !catalogs.isEmpty else { return [:] }
@@ -1008,10 +1024,8 @@ final class HomeViewModel: ObservableObject {
                 tmdbService: tmdbService,
                 limit: 15
             )
-            await contentFilter.prepareMaturityRatings(for: items)
-            let filtered = contentFilter.filterSearchResults(items)
-            if !filtered.isEmpty {
-                loaded[catalog.id] = filtered
+            if !items.isEmpty {
+                loaded[catalog.id] = items
             }
         }
 
@@ -1025,8 +1039,7 @@ final class HomeViewModel: ObservableObject {
 
     private func loadTraktCatalogs(
         enabledCatalogs: [Catalog],
-        tmdbService: TMDBService,
-        contentFilter: TMDBContentFilter
+        tmdbService: TMDBService
     ) async -> [String: [TMDBSearchResult]] {
         let catalogs = enabledCatalogs.filter { $0.source == .trakt }
         guard !catalogs.isEmpty else { return [:] }
@@ -1039,10 +1052,8 @@ final class HomeViewModel: ObservableObject {
                 tmdbService: tmdbService,
                 limit: 15
             )
-            await contentFilter.prepareMaturityRatings(for: items)
-            let filtered = contentFilter.filterSearchResults(items)
-            if !filtered.isEmpty {
-                loaded[catalog.id] = filtered
+            if !items.isEmpty {
+                loaded[catalog.id] = items
             }
         }
 
