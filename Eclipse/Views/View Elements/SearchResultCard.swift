@@ -161,58 +161,62 @@ actor SearchResultTitleLogoCache {
     }
 
     private func prefetchOne(_ result: TMDBSearchResult) async {
-        let candidate: String?
-        if (result.animeIdentitySeed != nil || result.isAnimeHint == true),
-           let supplied = result.animeLogoURL,
-           !supplied.isEmpty {
-            candidate = supplied
-        } else {
-            candidate = await logoURL(
-                mediaType: result.isMovie ? "movie" : "tv",
-                id: result.id
-            )
-        }
+        // Provider-supplied anime logo URLs do not expose a dependable language
+        // tag and can contain Japanese lettering. Resolve through the same
+        // English-first TMDB policy used for movies and live-action TV instead.
+        let candidate = await logoURL(
+            mediaType: result.isMovie ? "movie" : "tv",
+            id: result.id
+        )
         guard let candidate, let url = URL(string: candidate), url.scheme == "https" else { return }
         KingfisherManager.shared.retrieveImage(with: url, options: [.backgroundDecode]) { _ in }
     }
 
     func logoURL(mediaType: String, id: Int) async -> String? {
         guard id > 0, mediaType == "movie" || mediaType == "tv" else { return nil }
-        let key = "\(mediaType):\(id):en"
+        let key = "\(mediaType):\(id):en-es"
         if attempted.contains(key) { return resolved[key] }
         if let task = pending[key] { return await task.value.url }
 
         let task = Task<LookupResult, Never> {
-            do {
-                let images: TMDBImagesResponse
-                if mediaType == "movie" {
-                    images = try await TMDBService.shared.getMovieImages(id: id, preferredLanguage: "en")
-                } else {
-                    images = try await TMDBService.shared.getTVShowImages(id: id, preferredLanguage: "en")
-                }
-                let ranked = (images.logos ?? []).sorted { lhs, rhs in
-                    func languageRank(_ code: String?) -> Int {
-                        switch code?.lowercased() {
-                        case "en": return 0
-                        case nil, "": return 1
-                        default: return 2
-                        }
+            async let englishImages: TMDBImagesResponse? = {
+                do {
+                    return mediaType == "movie"
+                        ? try await TMDBService.shared.getMovieImages(id: id, preferredLanguage: "en")
+                        : try await TMDBService.shared.getTVShowImages(id: id, preferredLanguage: "en")
+                } catch { return nil }
+            }()
+            async let spanishImages: TMDBImagesResponse? = {
+                do {
+                    return mediaType == "movie"
+                        ? try await TMDBService.shared.getMovieImages(id: id, preferredLanguage: "es")
+                        : try await TMDBService.shared.getTVShowImages(id: id, preferredLanguage: "es")
+                } catch { return nil }
+            }()
+            let (english, spanish) = await (englishImages, spanishImages)
+            let logos = (english?.logos ?? []) + (spanish?.logos ?? [])
+            let ranked = logos.sorted { lhs, rhs in
+                func languageRank(_ code: String?) -> Int {
+                    switch code?.lowercased() {
+                    case "en": return 0
+                    case "es": return 1
+                    case nil, "": return 2
+                    default: return 3
                     }
-                    let left = languageRank(lhs.iso6391)
-                    let right = languageRank(rhs.iso6391)
-                    if left != right { return left < right }
-                    if (lhs.voteCount ?? 0) != (rhs.voteCount ?? 0) {
-                        return (lhs.voteCount ?? 0) > (rhs.voteCount ?? 0)
-                    }
-                    return (lhs.voteAverage ?? 0) > (rhs.voteAverage ?? 0)
                 }
-                let url = ranked.first(where: {
-                    $0.iso6391?.lowercased() == "en" || $0.iso6391 == nil || $0.iso6391 == ""
-                })?.fullURL ?? ranked.first?.fullURL
-                return LookupResult(url: url, succeeded: true)
-            } catch {
-                return LookupResult(url: nil, succeeded: false)
+                let left = languageRank(lhs.iso6391)
+                let right = languageRank(rhs.iso6391)
+                if left != right { return left < right }
+                if (lhs.voteCount ?? 0) != (rhs.voteCount ?? 0) {
+                    return (lhs.voteCount ?? 0) > (rhs.voteCount ?? 0)
+                }
+                return (lhs.voteAverage ?? 0) > (rhs.voteAverage ?? 0)
             }
+            // Never choose an unrelated-language logo merely to fill the slot.
+            let url = ranked.first(where: { $0.iso6391?.lowercased() == "en" })?.fullURL
+                ?? ranked.first(where: { $0.iso6391?.lowercased() == "es" })?.fullURL
+                ?? ranked.first(where: { $0.iso6391 == nil || $0.iso6391 == "" })?.fullURL
+            return LookupResult(url: url, succeeded: english != nil || spanish != nil)
         }
         pending[key] = task
         let lookup = await task.value
