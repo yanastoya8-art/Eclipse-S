@@ -936,3 +936,58 @@ final class ScheduleAllAgesFilterPolicyTests: XCTestCase {
         XCTAssertFalse(ScheduleAllAgesPolicy.shouldExclude(rating: .general, enabled: false))
     }
 }
+
+
+final class AnimeScheduleProviderLanguagePolicyTests: XCTestCase {
+    func testNativeLanguageRowsMustMatchTheSelectedLanguage() {
+        XCTAssertTrue(AnimeScheduleProviderLanguagePolicy.includes(
+            provider: .nativeLanguage,
+            originalLanguage: "en",
+            selectedLanguages: ["english"]
+        ) == true)
+        XCTAssertFalse(AnimeScheduleProviderLanguagePolicy.includes(
+            provider: .nativeLanguage,
+            originalLanguage: "es-MX",
+            selectedLanguages: ["english"]
+        ) == true)
+        XCTAssertTrue(AnimeScheduleProviderLanguagePolicy.includes(
+            provider: .nativeLanguage,
+            originalLanguage: "es-ES",
+            selectedLanguages: ["spanish"]
+        ) == true)
+    }
+
+    func testSpanishAIResearchRowsNeverAppearInEnglishOnlySchedule() {
+        XCTAssertTrue(AnimeScheduleProviderLanguagePolicy.includes(
+            provider: .aiSpanishDub,
+            originalLanguage: nil,
+            selectedLanguages: ["spanish"]
+        ) == true)
+        XCTAssertFalse(AnimeScheduleProviderLanguagePolicy.includes(
+            provider: .aiSpanishDub,
+            originalLanguage: nil,
+            selectedLanguages: ["english"]
+        ) == true)
+    }
+
+    func testEnglishDubTimetablesNeverAppearInSpanishOnlySchedule() {
+        XCTAssertTrue(AnimeScheduleProviderLanguagePolicy.includes(
+            provider: .dubOnly,
+            originalLanguage: nil,
+            selectedLanguages: ["english"]
+        ) == true)
+        XCTAssertFalse(AnimeScheduleProviderLanguagePolicy.includes(
+            provider: .tsuzuki,
+            originalLanguage: nil,
+            selectedLanguages: ["spanish"]
+        ) == true)
+    }
+
+    func testUnverifiedProvidersFallThroughToTitleLevelVerification() {
+        XCTAssertNil(AnimeScheduleProviderLanguagePolicy.includes(
+            provider: .aniList,
+            originalLanguage: "ja",
+            selectedLanguages: ["english"]
+        ))
+    }
+}
