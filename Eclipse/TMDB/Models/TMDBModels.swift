@@ -1320,7 +1320,12 @@ struct TMDBReleaseDates: Codable {
     }
 
     var filterRating: MaturityRating {
-        if let preferredCertification { return preferredCertification.rating }
+        if let preferredCertification {
+            return MaturityRating.ratingForFiltering(
+                certification: preferredCertification.value,
+                region: preferredCertification.region
+            )
+        }
         let hasExplicitAllAgesRating = certificationsByRegion.contains { region, values in
             values.contains {
                 MaturityRating.isExplicitAllAgesCertification(certification: $0, region: region)
@@ -1372,7 +1377,12 @@ struct TMDBContentRatings: Codable {
     /// an explicit G / TV-G / All Ages result from another board is still
     /// sufficient for the dedicated All Ages filter.
     var filterRating: MaturityRating {
-        if let preferredCertification { return preferredCertification.rating }
+        if let preferredCertification {
+            return MaturityRating.ratingForFiltering(
+                certification: preferredCertification.value,
+                region: preferredCertification.region
+            )
+        }
         let hasExplicitAllAgesRating = certificationsByRegion.contains { region, values in
             values.contains {
                 MaturityRating.isExplicitAllAgesCertification(certification: $0, region: region)
