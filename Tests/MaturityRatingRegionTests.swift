@@ -3,6 +3,43 @@ import XCTest
 
 final class MaturityRatingRegionTests: XCTestCase {
 
+    func testTaizenAgeRatingParserMapsAllAgesAndPG13ForScheduleFiltering() throws {
+        let data = try JSONSerialization.data(withJSONObject: [
+            "data": [
+                "a0": ["id": 101, "ageRating": ["rating": "All Ages"]],
+                "a1": ["id": 102, "ageRating": ["rating": "PG-13"]]
+            ]
+        ])
+
+        let ratings = try TaizenAnimeAgeRatingService.parseRatings(
+            from: data,
+            identifiers: [101, 102]
+        )
+
+        XCTAssertEqual(ratings[101], .general)
+        XCTAssertEqual(ratings[102], .teen)
+        XCTAssertTrue(ScheduleAllAgesPolicy.shouldExclude(rating: ratings[101], enabled: true))
+        XCTAssertFalse(ScheduleAllAgesPolicy.shouldExclude(rating: ratings[102], enabled: true))
+    }
+
+    func testTaizenAgeRatingParserRejectsMismatchedIDsAndKeepsMissingRatingsUnknown() throws {
+        let data = try JSONSerialization.data(withJSONObject: [
+            "data": [
+                "a0": ["id": 999, "ageRating": ["rating": "All Ages"]],
+                "a1": ["id": 102]
+            ]
+        ])
+
+        let ratings = try TaizenAnimeAgeRatingService.parseRatings(
+            from: data,
+            identifiers: [101, 102]
+        )
+
+        XCTAssertEqual(ratings[101], .unknown)
+        XCTAssertEqual(ratings[102], .unknown)
+        XCTAssertFalse(ScheduleAllAgesPolicy.shouldExclude(rating: ratings[101], enabled: true))
+    }
+
     func testIndianCBFCAdultsOnlyIsNotAllAges() {
         XCTAssertEqual(MaturityRating.classify(certification: "A", region: "IN"), .adult)
         XCTAssertTrue(MaturityRating.classify(certification: "A", region: "IN").isBlockedForKids)
