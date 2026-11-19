@@ -3132,6 +3132,7 @@ struct ExperimentalMediaCard: View {
     let metrics: ExperimentalMediaDesignMetrics
 
     @Environment(\.heroNamespace) private var heroNamespace
+    @State private var posterTitleLogoURL: String?
 
     private var resolvedStyle: ExperimentalMediaShelfStyle {
         switch preferredStyle {
@@ -3224,8 +3225,24 @@ struct ExperimentalMediaCard: View {
                     .frame(width: cardSize.width, height: cardSize.height)
             }
 
+            if resolvedStyle == .poster {
+                CenteredPosterTitleOverlay(
+                    title: result.displayTitle,
+                    logoURL: posterTitleLogoURL
+                )
+            }
         }
         .frame(width: cardSize.width, height: cardSize.height)
+        .task(id: result.stableIdentity) {
+            guard resolvedStyle == .poster else {
+                posterTitleLogoURL = nil
+                return
+            }
+            posterTitleLogoURL = await SearchResultTitleLogoCache.shared.logoURL(
+                mediaType: result.isMovie ? "movie" : "tv",
+                id: result.id
+            )
+        }
         .clipShape(RoundedRectangle(cornerRadius: metrics.cardRadius, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: metrics.cardRadius, style: .continuous)
@@ -3279,6 +3296,7 @@ struct MediaCard: View {
     var metrics: ExperimentalMediaDesignMetrics = .current
     var preferredStyle: ExperimentalMediaShelfStyle = .poster
     @Environment(\.heroNamespace) private var heroNamespace
+    @State private var posterTitleLogoURL: String?
 
     private var posterWidth: CGFloat { isTvOS ? 280 * metrics.mediaCardScale : 120 * iPadScale }
     private var posterHeight: CGFloat { isTvOS ? 380 * metrics.mediaCardScale : 180 * iPadScale }
@@ -3327,8 +3345,18 @@ struct MediaCard: View {
                 }
                 .frame(width: posterWidth, height: posterHeight)
 
+                CenteredPosterTitleOverlay(
+                    title: result.displayTitle,
+                    logoURL: posterTitleLogoURL
+                )
             }
             .frame(width: posterWidth, height: posterHeight)
+            .task(id: result.stableIdentity) {
+                posterTitleLogoURL = await SearchResultTitleLogoCache.shared.logoURL(
+                    mediaType: result.isMovie ? "movie" : "tv",
+                    id: result.id
+                )
+            }
             .tvos({ view in
                 view.clipShape(RoundedRectangle(cornerRadius: metrics.cardRadius, style: .continuous))
             }, else: { view in
