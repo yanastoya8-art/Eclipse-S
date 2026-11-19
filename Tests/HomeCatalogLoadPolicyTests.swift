@@ -48,6 +48,22 @@ final class HomeCatalogLoadPolicyTests: XCTestCase {
     }
 }
 
+
+final class HomeCatalogFilterPolicyTests: XCTestCase {
+    func testAnimeShelvesKeepAnimeSpecificFiltersWhenCatalogFiltersRefresh() {
+        for catalogID in ["trendingAnime", "popularAnime", "topRatedAnime", "airingAnime", "bestAnime"] {
+            XCTAssertTrue(HomeCatalogFilterPolicy.usesAnimeFiltering(catalogID: catalogID))
+        }
+        XCTAssertFalse(HomeCatalogFilterPolicy.usesAnimeFiltering(catalogID: "popularMovies"))
+    }
+
+    func testUpcomingShelvesKeepTheirUpcomingReleaseExceptionOnRefresh() {
+        XCTAssertTrue(HomeCatalogFilterPolicy.allowsUpcomingContent(catalogID: "upcomingMovies"))
+        XCTAssertTrue(HomeCatalogFilterPolicy.allowsUpcomingContent(catalogID: "upcomingTV"))
+        XCTAssertFalse(HomeCatalogFilterPolicy.allowsUpcomingContent(catalogID: "popularMovies"))
+    }
+}
+
 final class HomeCatalogFailurePresentationTests: XCTestCase {
     func testMissingTMDBKeyShowsActionableConfigurationGuidance() {
         let error = NSError(
