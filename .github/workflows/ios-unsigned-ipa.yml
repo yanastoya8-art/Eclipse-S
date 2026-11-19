@@ -103,10 +103,13 @@ jobs:
           simulator_sdk="$(xcrun --sdk iphonesimulator --show-sdk-version)"
           echo "cache-key=xcode-${xcode_version}-ios-${device_sdk}-sim-${simulator_sdk}" >> "$GITHUB_OUTPUT"
 
-      - name: Cache patched MPVKit iOS frameworks
+      - name: Cache patched MPVKit build products and sources
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
-          path: MPVKit/dist/release
+          path: |
+            MPVKit/.build
+            MPVKit/dist
+            ${{ runner.temp }}/mpvkit-build-venv
           key: mpvkit-ios-${{ runner.os }}-${{ runner.arch }}-${{ steps.apple-sdk.outputs.cache-key }}-b951a22fc5ddbf708057ace059e3742dae685e4d-${{ hashFiles('MPVKit/Makefile', 'MPVKit/Sources/BuildScripts/**/*.swift', 'MPVKit/Sources/BuildScripts/patch/**/*.patch') }}
 
       - name: Build patched MPVKit for iPhone and iPad
@@ -171,10 +174,22 @@ jobs:
           else
             echo "::notice::MPVKit cache is missing or invalid; rebuilding the pinned source."
             rm -rf MPVKit/dist/release
-            brew install autoconf automake cmake libtool nasm ninja pkg-config
+            missing=()
+            for formula in autoconf automake cmake libtool nasm ninja pkg-config; do
+              if ! brew list --versions "$formula" >/dev/null 2>&1; then
+                missing+=("$formula")
+              fi
+            done
+            if [[ "${#missing[@]}" -gt 0 ]]; then
+              brew install "${missing[@]}"
+            fi
             MPVKIT_BUILD_VENV="$RUNNER_TEMP/mpvkit-build-venv"
-            python3 -m venv "$MPVKIT_BUILD_VENV"
-            "$MPVKIT_BUILD_VENV/bin/python" -m pip install --disable-pip-version-check meson==1.4.2
+            if [[ ! -x "$MPVKIT_BUILD_VENV/bin/python" ]]; then
+              python3 -m venv "$MPVKIT_BUILD_VENV"
+            fi
+            if ! "$MPVKIT_BUILD_VENV/bin/python" -c 'import mesonbuild' >/dev/null 2>&1; then
+              "$MPVKIT_BUILD_VENV/bin/python" -m pip install --disable-pip-version-check meson==1.4.2
+            fi
             export PATH="$MPVKIT_BUILD_VENV/bin:$PATH"
             MPVKIT_BUILD_SUCCEEDED=false
             for attempt in 1 2 3; do
@@ -388,6 +403,16 @@ jobs:
           echo "MPVKIT_LOCAL_ARTIFACTS_DIR=$MPVKIT_LOCAL_ARTIFACTS_DIR" >> "$GITHUB_ENV"
           echo "Using local MPVKit checkout: $(git -C MPVKit rev-parse HEAD)"
 
+      - name: Cache Xcode compile intermediates
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ${{ runner.temp }}/DerivedData/ModuleCache.noindex
+            ${{ runner.temp }}/DerivedData/Build/Intermediates.noindex
+          key: xcode-derived-${{ runner.os }}-${{ steps.apple-sdk.outputs.cache-key }}-${{ github.sha }}-${{ hashFiles('Eclipse.xcodeproj/project.pbxproj', '**/Package.resolved') }}
+          restore-keys: |
+            xcode-derived-${{ runner.os }}-${{ steps.apple-sdk.outputs.cache-key }}-
+
       - name: Build unsigned archive
         env:
           BUILD_NUMBER: ${{ github.run_number }}
@@ -398,7 +423,10 @@ jobs:
           DERIVED_DATA_PATH="$RUNNER_TEMP/DerivedData"
           MPVKIT_SOURCE_REVISION="$(git -C "$GITHUB_WORKSPACE/MPVKit" rev-parse HEAD)"
 
-          rm -rf "$ARCHIVE_PATH" "$DERIVED_DATA_PATH"
+          rm -rf "$ARCHIVE_PATH"
+          # Preserve restored compiler/module intermediates so Xcode can perform
+          # an incremental Release archive instead of recompiling every source file.
+          mkdir -p "$DERIVED_DATA_PATH"
 
           xcodebuild archive \
             -project Eclipse.xcodeproj \
