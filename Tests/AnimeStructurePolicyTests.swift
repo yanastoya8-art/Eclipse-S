@@ -6702,3 +6702,18 @@ final class TMDBSearchResultAnimeTagsTests: XCTestCase {
         XCTAssertEqual(decoded.animeTags, ["Hentai", "Yuri"])
     }
 }
+
+final class AnimeUnofficialTagFilterTests: XCTestCase {
+    func testFanmadeProductionFilterInspectsAniListTags() {
+        XCTAssertTrue(TMDBContentFilter.isUnofficialCreatorContent(
+            title: "Example Series",
+            overview: "An ordinary synopsis.",
+            tags: ["Fan Made", "Doujin"]
+        ))
+        XCTAssertFalse(TMDBContentFilter.isUnofficialCreatorContent(
+            title: "Example Series",
+            overview: "An ordinary synopsis.",
+            tags: ["Action", "Adventure"]
+        ))
+    }
+}
