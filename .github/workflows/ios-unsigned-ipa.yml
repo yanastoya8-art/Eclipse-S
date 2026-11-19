@@ -412,10 +412,12 @@ jobs:
             ${{ runner.temp }}/DerivedData/Build/Intermediates.noindex
             ${{ runner.temp }}/DerivedData/Build/Products
             ${{ runner.temp }}/DerivedData/ModuleCache.noindex
-          key: xcode-derived-v2-${{ runner.os }}-${{ steps.apple-sdk.outputs.cache-key }}-${{ github.sha }}-${{ hashFiles('Eclipse.xcodeproj/project.pbxproj', '**/Package.resolved') }}
+          # This cache is deliberately isolated from the previous whole-module
+          # Release build products: the archive below uses incremental Swift
+          # compilation so independent source files can compile in parallel.
+          key: xcode-derived-v3-incremental-${{ runner.os }}-${{ steps.apple-sdk.outputs.cache-key }}-${{ github.sha }}-${{ hashFiles('Eclipse.xcodeproj/project.pbxproj', '**/Package.resolved') }}
           restore-keys: |
-            xcode-derived-v2-${{ runner.os }}-${{ steps.apple-sdk.outputs.cache-key }}-
-            xcode-derived-${{ runner.os }}-${{ steps.apple-sdk.outputs.cache-key }}-
+            xcode-derived-v3-incremental-${{ runner.os }}-${{ steps.apple-sdk.outputs.cache-key }}-
 
       - name: Build unsigned archive
         env:
@@ -458,6 +460,7 @@ jobs:
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
             MARKETING_VERSION="$SIDESTORE_MARKETING_VERSION" \
             'SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) ECLIPSE_UNSIGNED_BUILD' \
+            SWIFT_COMPILATION_MODE=incremental \
             ENABLE_USER_SCRIPT_SANDBOXING=NO
 
           APP_PATH="$(find "$ARCHIVE_PATH/Products/Applications" -maxdepth 1 -type d -name '*.app' -print -quit)"
