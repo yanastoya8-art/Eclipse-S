@@ -998,16 +998,49 @@ final class ScheduleViewModel: ObservableObject {
     }
 
     @MainActor
+    private func scheduleEntryPassesConfiguredFilters(_ entry: ScheduleEntry) -> Bool {
+        guard !TMDBContentFilter.shared.scheduleEntryIsBlockedByConfiguredAgeFilter(entry) else {
+            return false
+        }
+        guard UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent") else {
+            return true
+        }
+        let searchableMetadata = [
+            entry.title,
+            entry.englishTitle,
+            entry.romajiTitle,
+            entry.nativeTitle,
+            entry.format
+        ]
+        .compactMap { $0 }
+        .joined(separator: " ")
+            + " " + entry.metadataTags.joined(separator: " ")
+        return !TMDBContentFilter.isUnofficialCreatorContent(
+            title: searchableMetadata,
+            overview: entry.overview
+        )
+    }
+
+    @MainActor
     private func mergeSpanishDubResearchEntries(
         _ additions: [ScheduleEntry],
         into currentResult: AnimeScheduleLoadResult,
         dayCount: Int
-    ) {
+    ) async {
         guard !additions.isEmpty else { return }
 
         // Merge by shared AniList/MAL identity so fallback rows cannot
         // duplicate an episode merely because the providers use different IDs.
         let mergedEntries = ScheduleEntryMergePolicy.earliestByEpisode(currentResult.entries + additions)
+
+        // Spanish research runs after the first calendar paint. Resolve ratings
+        // for the complete merged snapshot, then reapply every schedule filter
+        // before publishing; otherwise this late merge can reintroduce excluded
+        // All Ages or unofficial entries from the cached raw schedule.
+        await TMDBContentFilter.shared.prepareScheduleAgeRatings(for: mergedEntries)
+        let visibleAnimeEntries = mergedEntries.filter {
+            scheduleEntryPassesConfiguredFilters($0)
+        }
         let mergedResult = AnimeScheduleLoadResult(
             entries: mergedEntries,
             isAuthoritativeForNotifications: currentResult.isAuthoritativeForNotifications,
@@ -1017,7 +1050,7 @@ final class ScheduleViewModel: ObservableObject {
 
         guard loadedScheduleMode == .anime || loadedScheduleMode == .combined else { return }
         let nonAnimeEntries = scheduleEntries.filter { $0.source != .anime }
-        scheduleEntries = (mergedEntries + nonAnimeEntries).sorted { $0.airingAt < $1.airingAt }
+        scheduleEntries = (visibleAnimeEntries + nonAnimeEntries).sorted { $0.airingAt < $1.airingAt }
         updateBuckets(
             with: scheduleEntries,
             localTimeZone: currentLocalTimeZone,
@@ -1158,12 +1191,13 @@ final class ScheduleViewModel: ObservableObject {
                                           let self,
                                           self.animeScheduleCachedPolicyKey == policyKey,
                                           self.animeScheduleDayCount == dayCount,
-                                          let currentResult = self.animeScheduleResult else { return }
+                                          self.animeScheduleResult != nil else { return }
                                     let scheduleWindow = ScheduleDateWindow.envelope(dayCount: dayCount)
                                     let confirmedEntries = researched
                                         .filter { $0.airingAt >= scheduleWindow.start && $0.airingAt < scheduleWindow.end }
                                         .map(ScheduleEntry.init(animeEntry:))
-                                    self.mergeSpanishDubResearchEntries(
+                                    guard let currentResult = self.animeScheduleResult else { return }
+                                    await self.mergeSpanishDubResearchEntries(
                                         confirmedEntries,
                                         into: currentResult,
                                         dayCount: dayCount
