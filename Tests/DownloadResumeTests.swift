@@ -819,9 +819,13 @@ final class DownloadResumeTests: XCTestCase {
         let base = try XCTUnwrap(URL(string: "https://cdn.example/path/playlist.m3u8"))
         XCTAssertTrue(HLSDownloadCompatibility.isValidAES128KeyURL("key.bin", relativeTo: base))
         XCTAssertTrue(HLSDownloadCompatibility.isValidAES128KeyURL("https://keys.example/key.bin", relativeTo: base))
+        XCTAssertFalse(HLSDownloadCompatibility.isValidAES128KeyURL("http://keys.example/key.bin", relativeTo: base))
         XCTAssertFalse(HLSDownloadCompatibility.isValidAES128KeyURL("file:///private/key.bin", relativeTo: base))
         XCTAssertFalse(HLSDownloadCompatibility.isValidAES128KeyURL("skd://asset", relativeTo: base))
         XCTAssertFalse(HLSDownloadCompatibility.isValidAES128KeyURL("https://user:pass@keys.example/key.bin", relativeTo: base))
+
+        let httpBase = try XCTUnwrap(URL(string: "http://cdn.example/path/playlist.m3u8"))
+        XCTAssertTrue(HLSDownloadCompatibility.isValidAES128KeyURL("http://keys.example/key.bin", relativeTo: httpBase))
     }
 
     func testHLSRequiresExactly128BitHexInitializationVectors() {
@@ -830,6 +834,20 @@ final class DownloadResumeTests: XCTestCase {
         XCTAssertFalse(HLSDownloadCompatibility.isValidAES128IV("0x0001"))
         XCTAssertFalse(HLSDownloadCompatibility.isValidAES128IV("0x000000000000000000000000000000001"))
         XCTAssertFalse(HLSDownloadCompatibility.isValidAES128IV("0x0000000000000000000000000000000G"))
+    }
+
+    func testHLSRedirectPolicyRejectsHTTPSDowngradesAndCredentialURLs() throws {
+        let secure = try XCTUnwrap(URL(string: "https://cdn.example/playlist.m3u8"))
+        let insecure = try XCTUnwrap(URL(string: "http://cdn.example/playlist.m3u8"))
+        let secureTarget = try XCTUnwrap(URL(string: "https://cdn.example/redirected.m3u8"))
+        let credentialTarget = try XCTUnwrap(URL(string: "https://user:pass@cdn.example/redirected.m3u8"))
+        let invalidScheme = try XCTUnwrap(URL(string: "file:///private/playlist.m3u8"))
+
+        XCTAssertFalse(HLSDownloadCompatibility.permitsRedirect(from: secure, to: insecure))
+        XCTAssertTrue(HLSDownloadCompatibility.permitsRedirect(from: secure, to: secureTarget))
+        XCTAssertTrue(HLSDownloadCompatibility.permitsRedirect(from: insecure, to: secureTarget))
+        XCTAssertFalse(HLSDownloadCompatibility.permitsRedirect(from: secure, to: credentialTarget))
+        XCTAssertFalse(HLSDownloadCompatibility.permitsRedirect(from: secure, to: invalidScheme))
     }
 
     func testHLSSelectsMuxedAudioVariantAndPreservesInBandAudioGroups() throws {
