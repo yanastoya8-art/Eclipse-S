@@ -124,7 +124,12 @@ struct StretchyHeaderView: View {
             } ?? geometry.frame(in: .global)
             let deltaY = frame.minY
             let height = headerHeight + max(0, deltaY)
-            let offset = min(0, -deltaY)
+            // The detail ScrollView extends edge-to-edge, but SwiftUI can
+            // still place its content origin inside the safe-area insets.
+            // Pin the hero to the scroll viewport on both axes; the old
+            // min(0, -deltaY) left a visible top strip whenever minY was positive.
+            let offsetY = scrollCoordinateSpaceName == nil ? min(0, -deltaY) : -deltaY
+            let offsetX = scrollCoordinateSpaceName == nil ? 0 : -frame.minX
 
             ZStack(alignment: .bottom) {
                 // Fill the landscape side gutters with a restrained wash
@@ -180,7 +185,6 @@ struct StretchyHeaderView: View {
                     }
                     .clipped()
                     .frame(height: height)
-                    .offset(y: offset)
 
                 if showsBottomFade {
                     LinearGradient(
@@ -197,6 +201,7 @@ struct StretchyHeaderView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 0))
                 }
             }
+            .offset(x: offsetX, y: offsetY)
         }
         .frame(height: headerHeight)
         .onChangeComp(of: imageCandidates) { _, _ in failedImageURLs.removeAll() }
