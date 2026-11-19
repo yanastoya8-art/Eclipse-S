@@ -12,6 +12,66 @@ final class HomeCatalogLoadPolicyTests: XCTestCase {
         XCTAssertFalse(HomeCatalogLoadPolicy.requiresTrendingSeed(enabledCatalogIDs: ["popularMovies", "featured"]))
     }
 
+    func testJustForYouFallsBackToTrendingForProfilesWithoutTasteHistory() {
+        let trending = TMDBSearchResult(
+            id: 550,
+            mediaType: "movie",
+            title: "Fight Club",
+            name: nil,
+            overview: nil,
+            posterPath: nil,
+            backdropPath: nil,
+            releaseDate: "1999-10-15",
+            firstAirDate: nil,
+            voteAverage: 8.4,
+            popularity: 100,
+            adult: false,
+            genreIds: [18]
+        )
+
+        let results = HomeCatalogLoadPolicy.forYouResults(recommendations: [], trending: [trending])
+        XCTAssertEqual(results.map(\\.id), [550])
+    }
+
+    func testPersonalizedRecommendationsTakePrecedenceOverTrendingFallback() {
+        let recommendation = TMDBSearchResult(
+            id: 1399,
+            mediaType: "tv",
+            title: nil,
+            name: "Game of Thrones",
+            overview: nil,
+            posterPath: nil,
+            backdropPath: nil,
+            releaseDate: nil,
+            firstAirDate: "2011-04-17",
+            voteAverage: 8.4,
+            popularity: 100,
+            adult: false,
+            genreIds: [18]
+        )
+        let trending = TMDBSearchResult(
+            id: 550,
+            mediaType: "movie",
+            title: "Fight Club",
+            name: nil,
+            overview: nil,
+            posterPath: nil,
+            backdropPath: nil,
+            releaseDate: "1999-10-15",
+            firstAirDate: nil,
+            voteAverage: 8.4,
+            popularity: 100,
+            adult: false,
+            genreIds: [18]
+        )
+
+        let results = HomeCatalogLoadPolicy.forYouResults(
+            recommendations: [recommendation],
+            trending: [trending]
+        )
+        XCTAssertEqual(results.map(\\.id), [1399])
+    }
+
     func testAniListOnlyHomeCatalogsCountAsLoadedContent() {
         XCTAssertTrue(HomeCatalogLoadPolicy.hasLoadedContent(
             tmdbCatalogCount: 0,
