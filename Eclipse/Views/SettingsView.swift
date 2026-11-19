@@ -4078,7 +4078,7 @@ private struct OpenSourceLicensesView: View {
     )
 
     private static let groups: [OpenSourceLicenseGroup] = {
-        var readerAndShaderDocuments = documents([
+        var shaderDocuments = documents([
             ("ArtCNN Shader — MIT", "LICENSE-MIT-ArtCNN"),
             ("FidelityFX FSR Shader — MIT", "LICENSE-MIT-FidelityFX-FSR"),
             ("Shader Components — GPL 3.0", "LICENSE-GPL-3.0"),
@@ -4126,7 +4126,7 @@ private struct OpenSourceLicensesView: View {
                 ("uavs3d — BSD 3-Clause", "uavs3d-BSD-3-Clause"),
                 ("uchardet — MPL 1.1", "uchardet-MPL-1.1")
             ])),
-            OpenSourceLicenseGroup(title: shaderGroupTitle, documents: readerAndShaderDocuments),
+            OpenSourceLicenseGroup(title: shaderGroupTitle, documents: shaderDocuments),
             OpenSourceLicenseGroup(title: "Common License Texts", documents: documents([
                 ("GNU GPL 2.0", "GPL-2.0"),
                 ("GNU GPL 3.0", "GPL-3.0"),
