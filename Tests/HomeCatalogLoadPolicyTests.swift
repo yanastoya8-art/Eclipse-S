@@ -30,7 +30,7 @@ final class HomeCatalogLoadPolicyTests: XCTestCase {
         )
 
         let results = HomeCatalogLoadPolicy.forYouResults(recommendations: [], trending: [trending])
-        XCTAssertEqual(results.map(\\.id), [550])
+        XCTAssertEqual(results.map(\.id), [550])
     }
 
     func testPersonalizedRecommendationsTakePrecedenceOverTrendingFallback() {
@@ -69,7 +69,7 @@ final class HomeCatalogLoadPolicyTests: XCTestCase {
             recommendations: [recommendation],
             trending: [trending]
         )
-        XCTAssertEqual(results.map(\\.id), [1399])
+        XCTAssertEqual(results.map(\.id), [1399])
     }
 
     func testAniListOnlyHomeCatalogsCountAsLoadedContent() {
