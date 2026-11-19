@@ -923,7 +923,14 @@ final class ScheduleViewModel: ObservableObject {
             let key = entry.source == .anime
                 ? "anime|\(entry.sourceMediaId)|\(entry.episode)"
                 : "\(entry.title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current))|\(entry.season ?? 0)|\(entry.episode)"
-            if let existing = earliestByEpisode[key], existing.airingAt <= entry.airingAt {
+            if let existing = earliestByEpisode[key],
+               ScheduleReleaseDatePolicy.earliest(
+                    native: existing.airingAt,
+                    dubbed: entry.airingAt
+               ) == existing.airingAt {
+                // Keep the existing row when its native/provider date is
+                // already earlier (or ties the candidate). A confirmed
+                // dubbed-language date replaces it only when it is earlier.
                 continue
             }
             earliestByEpisode[key] = entry
