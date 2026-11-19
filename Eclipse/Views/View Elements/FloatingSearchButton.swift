@@ -47,27 +47,6 @@ struct AppHubActionPulse: View {
     }
 }
 
-
-#endif
-
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.58)) {
-            isLaunching = true
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) {
-            withAnimation(.timingCurve(0.2, 0.75, 0.25, 1, duration: 0.82)) {
-                showKanzen = true
-            }
-        }
-    }
-
-    private func recordSwitchOrigin() {
-        guard buttonFrame != .zero else { return }
-        modeSwitchTransitionCoordinator.record(
-            origin: CGPoint(x: buttonFrame.midX, y: buttonFrame.midY)
-        )
-    }
-}
 #endif
 
 struct FloatingSettingsOverlay: View {
