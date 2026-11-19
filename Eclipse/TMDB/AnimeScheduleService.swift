@@ -9,6 +9,18 @@ enum ScheduleReleaseDatePolicy {
         [native, dubbed].compactMap { $0 }.min()
     }
 
+    static func shouldPrefer(
+        candidateDate: Date,
+        candidateIsConfirmed: Bool,
+        over existingDate: Date,
+        existingIsConfirmed: Bool
+    ) -> Bool {
+        if candidateIsConfirmed != existingIsConfirmed {
+            return candidateIsConfirmed
+        }
+        return candidateDate < existingDate
+    }
+
     static func usesDubbedDate(native: Date?, dubbed: Date?) -> Bool {
         guard let dubbed else { return false }
         guard let native else { return true }
@@ -113,11 +125,12 @@ enum AnimeScheduleEntryMapper {
         existing: AniListAiringScheduleEntry,
         candidate: AniListAiringScheduleEntry
     ) -> Bool {
-        if candidate.airingAt != existing.airingAt {
-            return candidate.airingAt < existing.airingAt
-        }
-        // At the same time, prefer a confirmed airing over a withdrawn date.
-        return existing.airingTimeWithdrawn == true && candidate.airingTimeWithdrawn != true
+        ScheduleReleaseDatePolicy.shouldPrefer(
+            candidateDate: candidate.airingAt,
+            candidateIsConfirmed: candidate.hasKnownAiringTime,
+            over: existing.airingAt,
+            existingIsConfirmed: existing.hasKnownAiringTime
+        )
     }
 
     static func date(_ value: String?) -> Date? {
