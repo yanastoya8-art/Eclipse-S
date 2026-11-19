@@ -373,7 +373,7 @@ final class HomeViewModel: ObservableObject {
             let needsTopRatedMovies = enabledCatalogIds.contains("topRatedMovies") || enabledCatalogIds.contains("bestMovies")
             let needsTopRatedAnime = enabledCatalogIds.contains("topRatedAnime") || enabledCatalogIds.contains("bestAnime")
 
-            async let trending: [TMDBSearchResult] = self.loadHomeCatalogIfNeeded("trending", shouldLoad: enabledCatalogIds.contains("trending")) {
+            async let trending: [TMDBSearchResult] = self.loadHomeCatalogIfNeeded("trending", shouldLoad: enabledCatalogIds.contains("trending") || enabledCatalogIds.contains("forYou")) {
                 try await tmdbService.getTrending()
             }
             async let popularM: [TMDBMovie] = self.loadHomeCatalogIfNeeded("popularMovies", shouldLoad: enabledCatalogIds.contains("popularMovies")) {
@@ -636,12 +636,6 @@ final class HomeViewModel: ObservableObject {
                 contentFilter: contentFilter,
                 generation: generation
             )
-            async let recommendationsLoaded: Void = self.loadRecommendationCatalogs(
-                enabledCatalogs: enabledCatalogSnapshot,
-                tmdbService: tmdbService,
-                contentFilter: contentFilter,
-                generation: generation
-            )
 
             let loadedStremioCatalogs = await stremioCatalogs
             let loadedTraktCatalogs = await traktCatalogs
@@ -660,7 +654,16 @@ final class HomeViewModel: ObservableObject {
                 self.unfilteredCatalogResults.merge(loadedTraktCatalogs) { _, raw in raw }
             }
             _ = await widgetsLoaded
-            _ = await recommendationsLoaded
+            // Generate app-provided recommendation shelves only after the
+            // enabled provider catalogs have populated catalogResults. Starting
+            // this beside the first-page requests used to snapshot an empty
+            // catalog dictionary, leaving "Just For You" permanently blank.
+            await self.loadRecommendationCatalogs(
+                enabledCatalogs: enabledCatalogSnapshot,
+                tmdbService: tmdbService,
+                contentFilter: contentFilter,
+                generation: generation
+            )
             guard !Task.isCancelled else { return }
             let firstCatalogFailure = await catalogFailureRecorder.firstFailureMessage()
 
@@ -743,6 +746,7 @@ final class HomeViewModel: ObservableObject {
                     guard ProfileManager.shared.isStillActive(owner) else { return }
                     self.unfilteredCatalogResults["forYou"] = rawForYou
                     self.catalogResults["forYou"] = forYou
+                    if !forYou.isEmpty { self.hasRenderableStartupContent = true }
                     self.applyHeroBannerSelection()
                 }
             }
@@ -760,6 +764,7 @@ final class HomeViewModel: ObservableObject {
                     guard ProfileManager.shared.isStillActive(owner) else { return }
                     self.unfilteredCatalogResults["becauseYouWatched"] = rawBYWResults
                     self.catalogResults["becauseYouWatched"] = bywResults
+                    if !bywResults.isEmpty { self.hasRenderableStartupContent = true }
                     self.becauseYouWatchedTitle = bywTitle
                     self.applyHeroBannerSelection()
                 }
@@ -1157,6 +1162,7 @@ final class HomeViewModel: ObservableObject {
                         guard self.loadGeneration == generation else { return }
                         self.unfilteredWidgetData[mapping.catalogId] = rawItems
                         self.widgetData[mapping.catalogId] = items
+                        if !items.isEmpty { self.hasRenderableStartupContent = true }
                         self.applyHeroBannerSelection()
                     }
                 }
@@ -1178,6 +1184,7 @@ final class HomeViewModel: ObservableObject {
                                 guard self.loadGeneration == generation else { return }
                                 self.unfilteredWidgetData["network_\(networkId)"] = raw
                                 self.widgetData["network_\(networkId)"] = results
+                                if !results.isEmpty { self.hasRenderableStartupContent = true }
                                 self.applyHeroBannerSelection()
                             }
                         }
@@ -1201,6 +1208,7 @@ final class HomeViewModel: ObservableObject {
                                 guard self.loadGeneration == generation else { return }
                                 self.unfilteredWidgetData["genre_\(genreId)"] = raw
                                 self.widgetData["genre_\(genreId)"] = results
+                                if !results.isEmpty { self.hasRenderableStartupContent = true }
                                 self.applyHeroBannerSelection()
                             }
                         }
@@ -1224,6 +1232,7 @@ final class HomeViewModel: ObservableObject {
                                 guard self.loadGeneration == generation else { return }
                                 self.unfilteredWidgetData["company_\(companyId)"] = raw
                                 self.widgetData["company_\(companyId)"] = results
+                                if !results.isEmpty { self.hasRenderableStartupContent = true }
                                 self.applyHeroBannerSelection()
                             }
                         }
@@ -1241,6 +1250,7 @@ final class HomeViewModel: ObservableObject {
                         guard self.loadGeneration == generation else { return }
                         self.unfilteredWidgetData["featured"] = rawResults
                         self.widgetData["featured"] = results
+                        if !results.isEmpty { self.hasRenderableStartupContent = true }
                         self.widgetData["featured_genreName"] = []
                         self.applyHeroBannerSelection()
                     }
