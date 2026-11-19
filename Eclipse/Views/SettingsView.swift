@@ -299,8 +299,7 @@ struct SettingsView: View {
             .init(id: "filter-hide-yuri", title: "Exclude Yuri", location: "Content Filters > Anime Filters", icon: "eye.slash", color: .pink, keywords: ["yuri", "girls love", "shoujo ai", "exclude"], action: .destination(.animeFilters)),
             .init(id: "filter-hide-yaoi", title: "Exclude Yaoi", location: "Content Filters > Anime Filters", icon: "eye.slash", color: .pink, keywords: ["yaoi", "boys love", "shounen ai", "exclude"], action: .destination(.animeFilters)),
             .init(id: "filter-hide-short-runtime", title: "Hide Under-20-Minute Content", location: "Content Filters > Runtime Filters", icon: "timer", color: .mint, keywords: ["runtime", "short", "20 minutes", "movies", "tv"], action: .destination(.runtimeFilters)),
-            .init(id: "filter-hide-fanmade", title: "Hide Fan-made Productions", location: "Content Filters > Productions", icon: "film.stack", color: .orange, keywords: ["fanmade", "fan-made", "unofficial", "YouTuber", "YouTube original", "productions"], action: .destination(.productions))
-        ])
+            .init(id: "filter-hide-fanmade", title: "Hide Fan-made Productions", location: "Content Filters > Productions", icon: "film.stack", color: .orange, keywords: ["fanmade", "fan-made", "unofficial", "YouTuber", "YouTube original", "productions"], action: .destination(.productions))        ])
 
         return entries
     }()
