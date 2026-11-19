@@ -914,3 +914,25 @@ final class CatalogNativeAudioPolicyTests: XCTestCase {
         XCTAssertFalse(CatalogNativeAudioPolicy.hasEnglishOrSpanishAudio(""))
     }
 }
+
+
+final class ScheduleAllAgesFilterPolicyTests: XCTestCase {
+    func testExplicitGeneralAudienceRatingIsExcludedWhenFilterIsEnabled() {
+        XCTAssertTrue(ScheduleAllAgesPolicy.shouldExclude(rating: .general, enabled: true))
+    }
+
+    func testTeenAndOlderRatingsRemainVisible() {
+        XCTAssertFalse(ScheduleAllAgesPolicy.shouldExclude(rating: .teen, enabled: true))
+        XCTAssertFalse(ScheduleAllAgesPolicy.shouldExclude(rating: .mature, enabled: true))
+        XCTAssertFalse(ScheduleAllAgesPolicy.shouldExclude(rating: .adult, enabled: true))
+    }
+
+    func testUnknownOrMissingRatingIsNotMisclassifiedAsAllAges() {
+        XCTAssertFalse(ScheduleAllAgesPolicy.shouldExclude(rating: .unknown, enabled: true))
+        XCTAssertFalse(ScheduleAllAgesPolicy.shouldExclude(rating: nil, enabled: true))
+    }
+
+    func testDisabledFilterKeepsGeneralAudienceTitles() {
+        XCTAssertFalse(ScheduleAllAgesPolicy.shouldExclude(rating: .general, enabled: false))
+    }
+}
