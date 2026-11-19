@@ -20,7 +20,7 @@ struct FloatingSettingsButton: View {
 }
 
 #if !os(tvOS) && !os(macOS)
-struct ModeSwitchButtonPulse: View {
+struct AppHubActionPulse: View {
     let isActive: Bool
     let tint: Color
 
