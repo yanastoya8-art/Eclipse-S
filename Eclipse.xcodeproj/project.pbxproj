@@ -591,6 +591,15 @@
 		366BD41136384C83AC6F8EE3 /* MediaLanguageCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48DBDCF68C044118955BA1F5 /* MediaLanguageCatalog.swift */; };
 		12F7451D2EB52DFC00889684 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = XCTESTFR0000000000000001 /* XCTest.framework */; };
 		3631951E94427514E27A63D0 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = XCTESTFR0000000000000001 /* XCTest.framework */; };
+		0EF9321023FCD3C5CDB671C7 /* MangayomiMediaModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB5AD989B389503CDA90E36A /* MangayomiMediaModels.swift */; };
+		C6A4FC40BDD8B25B2A258951 /* MangayomiMediaManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0460C184A0A41B1933619DB6 /* MangayomiMediaManager.swift */; };
+		09D0C6E5DAFEE0114889DB9F /* MangayomiMediaRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26708CC76C5855E35A8CCB87 /* MangayomiMediaRuntime.swift */; };
+		F4003ED083FDD39F257A7554 /* MangayomiMediaAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAC603886E4A9676B484C12B /* MangayomiMediaAdapter.swift */; };
+		7B47A809CEF9DEFADE620BB1 /* MangayomiMediaSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3569DAAAABDE1DBE5E964C67 /* MangayomiMediaSettingsView.swift */; };
+		EAD0FBECD20C22D7B0CDDBC6 /* MangayomiMediaHost.js in Resources */ = {isa = PBXBuildFile; fileRef = BF623A49D4CC2B2DE8D557F8 /* MangayomiMediaHost.js */; };
+		80E0BF85F92F582EE6171EB2 /* MangayomiDartRuntime.js in Resources */ = {isa = PBXBuildFile; fileRef = 3F653A4799F8202DB2ED2032 /* MangayomiDartRuntime.js */; };
+		18A0C0FE05E44E69B364ECC6 /* MangayomiDartRuntime.LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = F8A7F0269F5DB7DA5A4494E7 /* MangayomiDartRuntime.LICENSE.txt */; };
+		509D75504728493EADA9A47E /* MangayomiMediaRuntimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82DF49F1AF83724FF4E100B6 /* MangayomiMediaRuntimeTests.swift */; };
 /* Begin PBXFileReference section */
 		E6C1F0000000000000000001 /* PlatformCapabilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Eclipse/Extensions/PlatformCapabilities.swift"; sourceTree = SOURCE_ROOT; };
 		E6C1F0000000000000000002 /* MediaStateModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Eclipse/Models/MediaStateModels.swift"; sourceTree = SOURCE_ROOT; };
@@ -1895,6 +1904,15 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7B47A809CEF9DEFADE620BB1 /* MangayomiMediaSettingsView.swift in Sources */,
+				F4003ED083FDD39F257A7554 /* MangayomiMediaAdapter.swift in Sources */,
+				09D0C6E5DAFEE0114889DB9F /* MangayomiMediaRuntime.swift in Sources */,
+				C6A4FC40BDD8B25B2A258951 /* MangayomiMediaManager.swift in Sources */,
+				0EF9321023FCD3C5CDB671C7 /* MangayomiMediaModels.swift in Sources */,
+				509D75504728493EADA9A47E /* MangayomiMediaRuntimeTests.swift in Sources */,
+				18A0C0FE05E44E69B364ECC6 /* MangayomiDartRuntime.LICENSE.txt in Resources */,
+				80E0BF85F92F582EE6171EB2 /* MangayomiDartRuntime.js in Resources */,
+				EAD0FBECD20C22D7B0CDDBC6 /* MangayomiMediaHost.js in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
