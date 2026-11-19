@@ -8,34 +8,6 @@
 import SwiftUI
 import Kingfisher
 
-/// Shared title row for the legacy Kanzen screens. This is presentation only;
-/// it does not expose or activate Reader mode.
-struct KanzenRootHeader<TrailingContent: View>: View {
-    private let title: String
-    private let trailingContent: TrailingContent
-
-    init(_ title: String, @ViewBuilder trailingContent: () -> TrailingContent = { EmptyView() }) {
-        self.title = title
-        self.trailingContent = trailingContent()
-    }
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Text(title)
-                .font(.largeTitle.weight(.bold))
-                .foregroundColor(.white)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-
-            Spacer(minLength: 8)
-            trailingContent
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-    }
-}
-
 #if !os(tvOS)
 struct KanzenHomeView: View {
     private let onStartupReady: () -> Void
