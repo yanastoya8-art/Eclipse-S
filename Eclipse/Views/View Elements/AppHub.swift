@@ -272,7 +272,7 @@ struct AppHubOverlay: View {
             .accessibilityElement()
             .accessibilityAddTraits(.isButton)
             .accessibilityLabel("Quick Actions")
-            .accessibilityHint("Opens mode and settings shortcuts. Drag to move.")
+            .accessibilityHint("Opens Settings shortcuts. Drag to move.")
             .animation(.easeOut(duration: 0.28), value: isIdle)
             .animation(.spring(response: 0.32, dampingFraction: 0.8), value: isExpanded)
             .position(x: x, y: centerY)
@@ -362,7 +362,7 @@ struct AppHubOverlay: View {
         } label: {
             ZStack {
                 if let tint = action.pulseTint {
-                    ModeSwitchButtonPulse(isActive: isActivating, tint: tint)
+                    AppHubActionPulse(isActive: isActivating, tint: tint)
                 }
 
                 Image(systemName: action.systemImage)
