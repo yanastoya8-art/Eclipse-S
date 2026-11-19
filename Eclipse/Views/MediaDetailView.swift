@@ -7790,6 +7790,11 @@ struct MediaDetailContentView: View {
                         self.detailLoadedLanguage = detailLanguage
                         self.isLoading = false
                         self.hasLoadedContent = true
+                        // Start title artwork as soon as the TMDB-backed detail
+                        // shell is ready. Waiting for optional anime identity,
+                        // season, and provider hydration made ordinary TV logos
+                        // appear late or not at all when those providers stalled.
+                        self.resumeOptionalPresentationIfNeeded()
                         Logger.shared.log(
                             "MediaDetailTiming: tmdbId=\(detail.id) medium=tv stage=tmdb-first-render-ready elapsedMs=\(primaryDetailElapsedMs)",
                             type: "TMDB"
