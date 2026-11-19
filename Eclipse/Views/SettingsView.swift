@@ -4084,18 +4084,7 @@ private struct OpenSourceLicensesView: View {
             ("Shader Components — GPL 3.0", "LICENSE-GPL-3.0"),
             ("Shader Components — LGPL 3.0", "LICENSE-LGPL-3.0")
         ], subdirectory: "Shaders")
-#if !os(tvOS)
-        readerAndShaderDocuments.insert(contentsOf: documents([
-            ("Reader Extensions — Provenance & Notices", "NOTICE"),
-            ("Reader Extensions — Apache 2.0", "LICENSE-APACHE-2.0")
-        ], subdirectory: "ReaderExtensions"), at: 0)
-#endif
-
-#if os(tvOS)
         let shaderGroupTitle = "Shader Licenses"
-#else
-        let shaderGroupTitle = "Reader & Shader Licenses"
-#endif
 
         return [
             OpenSourceLicenseGroup(title: "App Dependency Licenses", documents: documents([
@@ -4391,7 +4380,7 @@ private struct ThirdPartyAcknowledgementsView: View {
 #else
     private static let iOSOnlyLineage: [ThirdPartyAcknowledgement] = [
         .init("Nuvio", detail: "Defined the plugin format and behavior supported by Eclipse's Nuvio compatibility layer. Nuvio plugins are independent projects and are not bundled with Eclipse.", project: "https://github.com/NuvioMedia/NuvioMobile"),
-        .init("Mangayomi & Mangayomi Extensions", detail: "Eclipse's substantially modified Swift implementation adapts Apache-2.0 interface and runtime behavior from Mangayomi revision 4eec7aca and five generic parser families from the archived official Mangayomi Extensions revision 6004f1f8. Eclipse bundles no provider catalog, provider scripts, provider logos, or site-specific parser configuration.", project: "https://github.com/kodjodevf/mangayomi/tree/4eec7aca6f1c8bd563d0bc79bcf895f46bb30b74", licenseName: "Apache 2.0", license: "https://github.com/kodjodevf/mangayomi/blob/4eec7aca6f1c8bd563d0bc79bcf895f46bb30b74/LICENSE", source: "https://github.com/kodjodevf/mangayomi-extensions/tree/6004f1f8d1a56f882dadb734ce26f50c626a3850")
+
     ]
 #endif
 
@@ -4429,9 +4418,9 @@ private struct ThirdPartyAcknowledgementsView: View {
 
     private static let sharedServices: [ThirdPartyAcknowledgement] = [
         .init("TMDB", detail: "Movie and television metadata and images. This product uses the TMDB API but is not endorsed or certified by TMDB.", project: "https://www.themoviedb.org"),
-        .init("AniList", detail: "Anime and manga metadata, schedules, and optional tracking.", project: "https://anilist.co"),
+        .init("AniList", detail: "Anime metadata, schedules, and optional tracking.", project: "https://anilist.co"),
         .init("AnimeSchedule.net", detail: "Independently maintained anime airing schedules and episode release information.", project: "https://animeschedule.net", licenseName: "API Terms of Use", license: "https://animeschedule.net/api-terms-of-use"),
-        .init("MyAnimeList", detail: "Optional anime and manga tracking.", project: "https://myanimelist.net"),
+        .init("MyAnimeList", detail: "Optional anime tracking.", project: "https://myanimelist.net"),
         .init("Trakt", detail: "Optional movie and television tracking, ratings, and schedules.", project: "https://trakt.tv"),
         .init("SIMKL", detail: "Optional movie, television, and anime tracking and ratings.", project: "https://simkl.com"),
         .init("TVmaze", detail: "Supplemental television poster artwork and schedule metadata. TVmaze data is licensed under CC BY-SA 4.0.", project: "https://www.tvmaze.com", licenseName: "CC BY-SA 4.0", license: "https://creativecommons.org/licenses/by-sa/4.0/"),
