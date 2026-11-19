@@ -6631,3 +6631,41 @@ final class AnimeOpenEndedActualInventoryTests: XCTestCase {
     }
 
 }
+
+final class AnimeScheduleCategoryTagFilterTests: XCTestCase {
+    func testAnimeCategoryFiltersInspectProviderTags() {
+        let suiteName = "AnimeScheduleCategoryTagFilterTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        defaults.set(true, forKey: "catalogHideHentai")
+        XCTAssertTrue(TMDBContentFilter.shouldExcludeAnimeCategory(
+            title: "Example Series",
+            tags: ["Hentai"],
+            defaults: defaults
+        ))
+
+        defaults.set(false, forKey: "catalogHideHentai")
+        defaults.set(true, forKey: "catalogHideYuri")
+        XCTAssertTrue(TMDBContentFilter.shouldExcludeAnimeCategory(
+            title: "Example Series",
+            tags: ["Girls' Love", "Yuri"],
+            defaults: defaults
+        ))
+
+        defaults.set(false, forKey: "catalogHideYuri")
+        defaults.set(true, forKey: "catalogHideYaoi")
+        XCTAssertTrue(TMDBContentFilter.shouldExcludeAnimeCategory(
+            title: "Example Series",
+            tags: ["Boys' Love", "Yaoi"],
+            defaults: defaults
+        ))
+
+        defaults.set(false, forKey: "catalogHideYaoi")
+        XCTAssertFalse(TMDBContentFilter.shouldExcludeAnimeCategory(
+            title: "Example Series",
+            tags: ["Action", "Adventure"],
+            defaults: defaults
+        ))
+    }
+}
