@@ -185,6 +185,45 @@ final class PlaybackInputSafetyTests: XCTestCase {
         }
     }
 
+    func testSubtitleRedirectPolicyRejectsHTTPSDowngradeAndCredentialURLs() throws {
+        let secure = try XCTUnwrap(URL(string: "https://subtitles.example/captions.srt"))
+        let insecure = try XCTUnwrap(URL(string: "http://subtitles.example/captions.srt"))
+        let otherSecure = try XCTUnwrap(URL(string: "https://cdn.example/captions.srt"))
+        let credentialURL = try XCTUnwrap(URL(string: "https://user:secret@cdn.example/captions.srt"))
+        let fileURL = try XCTUnwrap(URL(string: "file:///tmp/captions.srt"))
+
+        XCTAssertFalse(TVSubtitleRedirectPolicy.permits(from: secure, to: insecure))
+        XCTAssertTrue(TVSubtitleRedirectPolicy.permits(from: secure, to: otherSecure))
+        XCTAssertTrue(TVSubtitleRedirectPolicy.permits(from: insecure, to: secure))
+        XCTAssertFalse(TVSubtitleRedirectPolicy.permits(from: secure, to: credentialURL))
+        XCTAssertFalse(TVSubtitleRedirectPolicy.permits(from: secure, to: fileURL))
+    }
+
+    func testExternalSubtitleParserRejectsOutOfRangeTimestamps() {
+        let source = """
+        1
+        00:00:01,000 --> 00:00:02,000
+        Valid cue
+
+        2
+        00:00:61,000 --> 00:01:02,000
+        Invalid seconds
+
+        3
+        00:60:01,000 --> 00:60:02,000
+        Invalid minutes
+
+        4
+        00:00:03,000 --> 00:00:02,000
+        Reversed cue
+        """
+        let cues = TVExternalSubtitleParser.parse(Data(source.utf8))
+        XCTAssertEqual(cues.count, 1)
+        XCTAssertEqual(cues.first?.text, "Valid cue")
+        XCTAssertEqual(cues.first?.start, 1)
+        XCTAssertEqual(cues.first?.end, 2)
+    }
+
     func testSubtitleDelayPreservesDirectionAndBoundsUntrustedValues() {
         XCTAssertEqual(PlayerSubtitleTiming.cueTime(playbackTime: 10, delay: 2), 8)
         XCTAssertEqual(PlayerSubtitleTiming.cueTime(playbackTime: 10, delay: -2), 12)
