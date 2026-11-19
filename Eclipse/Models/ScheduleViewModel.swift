@@ -597,6 +597,10 @@ final class ScheduleViewModel: ObservableObject {
                 dayCount: requestedDayCount,
                 forceRefresh: forceRefresh
             )
+            // Populate schedule-specific age metadata before evaluating the
+            // exclusion predicate. Without this call the predicate only sees
+            // cached ratings and silently misses MAL-only anime and TVMaze rows.
+            await TMDBContentFilter.shared.prepareScheduleAgeRatings(for: loadResult.entries)
             let hideUnofficialContent = UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent")
             let entries = loadResult.entries.filter { entry in
                 guard !TMDBContentFilter.shared.scheduleEntryIsAllAges(entry) else { return false }
