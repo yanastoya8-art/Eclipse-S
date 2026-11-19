@@ -1113,7 +1113,12 @@ final class ScheduleViewModel: ObservableObject {
                         ? "anime|\(entry.sourceMediaId)|\(entry.episode)"
                         : "\(entry.title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current))|\(entry.season ?? 0)|\(entry.episode)"
                     if let existing = earliestByEpisode[key],
-                       existing.airingAt <= entry.airingAt { continue }
+                       !ScheduleReleaseDatePolicy.shouldPrefer(
+                            candidateDate: entry.airingAt,
+                            candidateIsConfirmed: entry.hasKnownAiringTime,
+                            over: existing.airingAt,
+                            existingIsConfirmed: existing.hasKnownAiringTime
+                       ) { continue }
                     earliestByEpisode[key] = entry
                 }
                 entries = earliestByEpisode.values.sorted { $0.airingAt < $1.airingAt }
