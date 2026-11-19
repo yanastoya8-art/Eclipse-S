@@ -102,34 +102,58 @@ enum TVExternalSubtitleParser {
         if normalized.range(of: "[Events]", options: .caseInsensitive) != nil {
             return parseASS(normalized)
         }
-        let blocks = normalized.components(separatedBy: "\n\n")
         var cues: [TVExternalSubtitleCue] = []
-        cues.reserveCapacity(min(blocks.count, maximumCueCount))
+        cues.reserveCapacity(min(normalized.count / 48, maximumCueCount))
+        var currentStart: Double?
+        var currentEnd: Double?
+        var currentText: [String] = []
 
-        for block in blocks where cues.count < maximumCueCount {
-            let lines = block
-                .split(separator: "\n", omittingEmptySubsequences: true)
-                .map(String.init)
-            guard let timingIndex = lines.firstIndex(where: { $0.contains("-->") }) else {
-                continue
-            }
-            let timingParts = lines[timingIndex].components(separatedBy: "-->")
-            guard timingParts.count >= 2,
-                  let start = parseTimestamp(timingParts[0]),
-                  let end = parseTimestamp(
-                    timingParts[1].trimmingCharacters(in: .whitespacesAndNewlines)
-                        .split(whereSeparator: { $0.isWhitespace }).first.map(String.init) ?? ""
-                  ),
-                  start.isFinite,
-                  end.isFinite,
+        func finishCue() {
+            guard let start = currentStart,
+                  let end = currentEnd,
                   end > start else {
-                continue
+                currentStart = nil
+                currentEnd = nil
+                currentText.removeAll(keepingCapacity: true)
+                return
             }
-            let rawText = lines.dropFirst(timingIndex + 1).joined(separator: "\n")
-            let text = sanitizedCueText(rawText)
-            guard !text.isEmpty else { continue }
-            cues.append(TVExternalSubtitleCue(start: max(0, start), end: end, text: text))
+            let text = sanitizedCueText(currentText.joined(separator: "\n"))
+            if !text.isEmpty, cues.count < maximumCueCount {
+                cues.append(TVExternalSubtitleCue(start: max(0, start), end: end, text: text))
+            }
+            currentStart = nil
+            currentEnd = nil
+            currentText.removeAll(keepingCapacity: true)
         }
+
+        for rawLine in normalized.split(separator: "\n", omittingEmptySubsequences: false) {
+            guard cues.count < maximumCueCount else { break }
+            let line = String(rawLine)
+            if line.contains("-->") {
+                let timingParts = line.components(separatedBy: "-->")
+                if timingParts.count >= 2,
+                   let start = parseTimestamp(timingParts[0]) {
+                    finishCue()
+                    guard let end = parseTimestamp(
+                        timingParts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+                            .split(whereSeparator: { $0.isWhitespace }).first.map(String.init) ?? ""
+                    ), end > start else {
+                        continue
+                    }
+                    currentStart = start
+                    currentEnd = end
+                    continue
+                }
+                // Subtitle text may legitimately contain an arrow. Treat it as
+                // cue text unless the left side is a valid timestamp.
+            }
+            if line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                finishCue()
+            } else if currentStart != nil {
+                currentText.append(line)
+            }
+        }
+        finishCue()
         return cues.sorted {
             $0.start == $1.start ? $0.end < $1.end : $0.start < $1.start
         }
@@ -206,12 +230,16 @@ enum TVExternalSubtitleParser {
             .replacingOccurrences(of: ",", with: ".")
         let components = cleaned.split(separator: ":").map(String.init)
         guard components.count == 2 || components.count == 3,
-              let seconds = Double(components.last ?? "") else { return nil }
+              let seconds = Double(components.last ?? ""),
+              seconds.isFinite, seconds >= 0, seconds < 60 else { return nil }
         let minutesIndex = components.count - 2
-        guard let minutes = Double(components[minutesIndex]) else { return nil }
+        guard let minutes = Double(components[minutesIndex]),
+              minutes.isFinite, minutes >= 0,
+              components.count == 2 || minutes < 60 else { return nil }
         let hours: Double
         if components.count == 3 {
-            guard let parsedHours = Double(components[0]) else { return nil }
+            guard let parsedHours = Double(components[0]),
+                  parsedHours.isFinite, parsedHours >= 0 else { return nil }
             hours = parsedHours
         } else {
             hours = 0
@@ -241,6 +269,22 @@ enum TVExternalSubtitleParser {
     }
 }
 
+enum TVSubtitleRedirectPolicy {
+    static func permits(from source: URL, to destination: URL) -> Bool {
+        guard let sourceScheme = source.scheme?.lowercased(),
+              let destinationScheme = destination.scheme?.lowercased(),
+              ["http", "https"].contains(sourceScheme),
+              ["http", "https"].contains(destinationScheme),
+              destination.host?.isEmpty == false,
+              destination.user == nil,
+              destination.password == nil else {
+            return false
+        }
+        // Never allow a secure subtitle request to downgrade to cleartext.
+        return sourceScheme != "https" || destinationScheme == "https"
+    }
+}
+
 final class TVBoundedSubtitleDownload: NSObject, URLSessionDataDelegate, URLSessionTaskDelegate, @unchecked Sendable {
     private static let maximumBytes = 4 * 1_024 * 1_024
 
@@ -259,6 +303,10 @@ final class TVBoundedSubtitleDownload: NSObject, URLSessionDataDelegate, URLSess
 
     func start(completion: @escaping (Result<Data, Error>) -> Void) {
         guard session == nil else { return }
+        guard TVSubtitleRedirectPolicy.permits(from: originURL, to: originURL) else {
+            completion(.failure(URLError(.badURL)))
+            return
+        }
         self.completion = completion
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 30
@@ -320,7 +368,7 @@ final class TVBoundedSubtitleDownload: NSObject, URLSessionDataDelegate, URLSess
         completionHandler: @escaping (URLRequest?) -> Void
     ) {
         guard let url = request.url,
-              ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+              TVSubtitleRedirectPolicy.permits(from: response.url ?? originURL, to: url),
               redirectCount < 10 else {
             completionHandler(nil)
             finish(.failure(URLError(.httpTooManyRedirects)))

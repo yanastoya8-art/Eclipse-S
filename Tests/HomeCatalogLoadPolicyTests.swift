@@ -48,6 +48,22 @@ final class HomeCatalogLoadPolicyTests: XCTestCase {
     }
 }
 
+
+final class HomeCatalogFilterPolicyTests: XCTestCase {
+    func testAnimeShelvesKeepAnimeSpecificFiltersWhenCatalogFiltersRefresh() {
+        for catalogID in ["trendingAnime", "popularAnime", "topRatedAnime", "airingAnime", "bestAnime"] {
+            XCTAssertTrue(HomeCatalogFilterPolicy.usesAnimeFiltering(catalogID: catalogID))
+        }
+        XCTAssertFalse(HomeCatalogFilterPolicy.usesAnimeFiltering(catalogID: "popularMovies"))
+    }
+
+    func testUpcomingShelvesKeepTheirUpcomingReleaseExceptionOnRefresh() {
+        XCTAssertTrue(HomeCatalogFilterPolicy.allowsUpcomingContent(catalogID: "upcomingMovies"))
+        XCTAssertTrue(HomeCatalogFilterPolicy.allowsUpcomingContent(catalogID: "upcomingTV"))
+        XCTAssertFalse(HomeCatalogFilterPolicy.allowsUpcomingContent(catalogID: "popularMovies"))
+    }
+}
+
 final class HomeCatalogFailurePresentationTests: XCTestCase {
     func testMissingTMDBKeyShowsActionableConfigurationGuidance() {
         let error = NSError(
@@ -83,6 +99,39 @@ final class HomeCatalogFailurePresentationTests: XCTestCase {
         let message = HomeCatalogFailurePresentation.message(for: error)
         XCTAssertTrue(message.contains("rate-limited"))
         XCTAssertTrue(message.contains("Retry"))
+    }
+
+    func testActualTMDBErrorCasesAreClassifiedByTheirStructuredStatus() {
+        let unauthorized = HomeCatalogFailurePresentation.message(
+            for: TMDBError.httpError(statusCode: 401, path: "/trending/all", message: "Invalid API key")
+        )
+        XCTAssertTrue(unauthorized.contains("rejected"))
+        XCTAssertTrue(unauthorized.contains("401/403"))
+
+        let rateLimited = HomeCatalogFailurePresentation.message(
+            for: TMDBError.httpError(statusCode: 429, path: "/trending/all", message: "Rate limit exceeded")
+        )
+        XCTAssertTrue(rateLimited.contains("rate-limited"))
+        XCTAssertTrue(rateLimited.contains("Retry"))
+
+        let unavailable = HomeCatalogFailurePresentation.message(
+            for: TMDBError.httpError(statusCode: 503, path: "/trending/all", message: nil)
+        )
+        XCTAssertTrue(unavailable.contains("temporarily unavailable"))
+        XCTAssertTrue(unavailable.contains("503"))
+    }
+
+    func testWrappedTMDBTransportErrorPreservesConnectivityGuidance() {
+        let error = TMDBError.networkError(URLError(.notConnectedToInternet))
+        let message = HomeCatalogFailurePresentation.message(for: error)
+        XCTAssertTrue(message.contains("internet connection"))
+        XCTAssertTrue(message.contains("Retry"))
+    }
+
+    func testActualMissingTMDBKeyErrorShowsBuildConfigurationGuidance() {
+        let message = HomeCatalogFailurePresentation.message(for: TMDBError.missingAPIKey)
+        XCTAssertTrue(message.contains("TMDB_API_KEY"))
+        XCTAssertTrue(message.contains("rebuild"))
     }
 
     func testOfflineFailureSuggestsCheckingConnectivity() {

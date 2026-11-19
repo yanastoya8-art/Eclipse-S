@@ -12,6 +12,20 @@ import UIKit
 #endif
 
 
+enum HomeCatalogFilterPolicy {
+    private static let animeCatalogIDs: Set<String> = [
+        "trendingAnime", "popularAnime", "topRatedAnime", "airingAnime", "bestAnime"
+    ]
+
+    static func usesAnimeFiltering(catalogID: String) -> Bool {
+        animeCatalogIDs.contains(catalogID)
+    }
+
+    static func allowsUpcomingContent(catalogID: String) -> Bool {
+        catalogID == "upcomingMovies" || catalogID == "upcomingTV"
+    }
+}
+
 enum HomeCatalogLoadPolicy {
     static func hasLoadedContent(
         tmdbCatalogCount: Int,
@@ -32,12 +46,31 @@ enum HomeCatalogLoadPolicy {
 
 enum HomeCatalogFailurePresentation {
     static func message(for error: Error) -> String {
+        // Classify the real TMDBError cases before falling back to localized
+        // text. The app wraps URLSession failures in TMDBError.networkError and
+        // exposes HTTP failures as associated status codes, so checking only
+        // NSError descriptions can mislabel real API failures as generic errors.
+        if let tmdbError = error as? TMDBError {
+            switch tmdbError {
+            case .missingAPIKey:
+                return missingAPIKeyMessage
+            case .httpError(let statusCode, _, _):
+                return message(forHTTPStatusCode: statusCode)
+            case .networkError(let underlying):
+                return message(for: underlying)
+            case .invalidURL:
+                return "Eclipse could not build the TMDB request URL. Check the API configuration, then tap Retry."
+            case .decodingError:
+                return "TMDB returned a response Eclipse could not read. Check the API service, then tap Retry."
+            }
+        }
+
+        let nsError = error as NSError
         let diagnostic = "\(error.localizedDescription) \(String(reflecting: error))"
         let normalized = diagnostic.lowercased()
-        let nsError = error as NSError
 
         if normalized.contains("missingapikey") || normalized.contains("missing api key") {
-            return "TMDB API key is missing from this app build. Add the TMDB_API_KEY repository secret and rebuild the app."
+            return missingAPIKeyMessage
         }
 
         if normalized.contains("invalid api key")
@@ -86,6 +119,26 @@ enum HomeCatalogFailurePresentation {
         return message.isEmpty
             ? "TMDB did not return Home catalog data. Check the API configuration and tap Retry."
             : "TMDB request failed: \(message.prefix(180))"
+    }
+
+    private static let missingAPIKeyMessage =
+        "TMDB API key is missing from this app build. Add the TMDB_API_KEY repository secret and rebuild the app."
+
+    private static func message(forHTTPStatusCode statusCode: Int) -> String {
+        switch statusCode {
+        case 401, 403:
+            return "TMDB rejected the API key (HTTP 401/403). Verify that TMDB_API_KEY is a valid v3 API key, then rebuild the app."
+        case 429:
+            return "TMDB rate-limited the Home requests (HTTP 429). Wait briefly, then tap Retry."
+        case 408, 425:
+            return "TMDB could not complete the Home request (HTTP \(statusCode)). Wait briefly, then tap Retry."
+        case 500...599:
+            return "TMDB is temporarily unavailable (HTTP \(statusCode)). Wait a moment, then tap Retry."
+        case 400...499:
+            return "TMDB rejected a Home request (HTTP \(statusCode)). Check the API request, then tap Retry."
+        default:
+            return "TMDB request failed (HTTP \(statusCode)). Check the API service, then tap Retry."
+        }
     }
 }
 
@@ -136,6 +189,7 @@ final class HomeViewModel: ObservableObject {
     private var unfilteredCatalogResults: [String: [TMDBSearchResult]] = [:]
     private var unfilteredWidgetData: [String: [TMDBSearchResult]] = [:]
     private var pendingCatalogFilterRefresh = false
+    private var catalogFilterGeneration = UUID()
     @Published var isLoading = true
     @Published var errorMessage: String?
     @Published var heroContent: TMDBSearchResult?
@@ -194,6 +248,9 @@ final class HomeViewModel: ObservableObject {
             return
         }
         guard let contentFilter = activeContentFilter else { return }
+        let filterGeneration = UUID()
+        catalogFilterGeneration = filterGeneration
+        let loadGenerationSnapshot = loadGeneration
         var catalogSnapshot = unfilteredCatalogResults
         for (key, value) in catalogResults where catalogSnapshot[key] == nil {
             catalogSnapshot[key] = value
@@ -213,7 +270,24 @@ final class HomeViewModel: ObservableObject {
             .filter { seenIdentities.insert($0.stableIdentity).inserted }
         await contentFilter.prepareMaturityRatings(for: allResults)
 
-        catalogResults = catalogSnapshot.mapValues { contentFilter.filterSearchResults($0) }
+        // Actor reentrancy allows another filter refresh or catalog load to begin
+        // while rating metadata is fetched. Never publish this stale snapshot.
+        guard catalogFilterGeneration == filterGeneration,
+              loadGeneration == loadGenerationSnapshot,
+              hasLoadedContent else { return }
+
+        var filteredCatalogSnapshot: [String: [TMDBSearchResult]] = [:]
+        for (catalogID, items) in catalogSnapshot {
+            if HomeCatalogFilterPolicy.usesAnimeFiltering(catalogID: catalogID) {
+                filteredCatalogSnapshot[catalogID] = contentFilter.filterFastAnimeSearchResults(items)
+            } else {
+                filteredCatalogSnapshot[catalogID] = contentFilter.filterSearchResults(
+                    items,
+                    allowUpcomingContent: HomeCatalogFilterPolicy.allowsUpcomingContent(catalogID: catalogID)
+                )
+            }
+        }
+        catalogResults = filteredCatalogSnapshot
         widgetData = widgetSnapshot.mapValues { contentFilter.filterSearchResults($0) }
         let renderableCount = catalogResults.values.filter { !$0.isEmpty }.count
             + widgetData.values.filter { !$0.isEmpty }.count
@@ -352,17 +426,28 @@ final class HomeViewModel: ObservableObject {
             await MainActor.run {
                 guard self.loadGeneration == generation else { return }
                 self.unfilteredCatalogResults = rawTMDBLoadedCatalogs
+                if enabledCatalogIds.contains("bestTVShows") {
+                    self.unfilteredCatalogResults["bestTVShows"] = rawTMDBLoadedCatalogs["topRatedTVShows"] ?? []
+                }
+                if enabledCatalogIds.contains("bestMovies") {
+                    self.unfilteredCatalogResults["bestMovies"] = rawTMDBLoadedCatalogs["topRatedMovies"] ?? []
+                }
             }
             await contentFilter.prepareMaturityRatings(
                 for: Array(rawTMDBLoadedCatalogs.values.joined())
             )
             guard !Task.isCancelled else { return }
-            let kidsLoadedCatalogs = await self.loadKidsCatalogs(
+            let rawKidsCatalogs = await self.loadKidsCatalogs(
                 tmdbService: tmdbService,
-                contentFilter: contentFilter,
                 catalogs: enabledCatalogSnapshot
             )
             guard !Task.isCancelled else { return }
+            await contentFilter.prepareMaturityRatings(for: Array(rawKidsCatalogs.values.joined()))
+            let kidsLoadedCatalogs = rawKidsCatalogs.mapValues { contentFilter.filterSearchResults($0) }
+            await MainActor.run {
+                guard self.loadGeneration == generation else { return }
+                self.unfilteredCatalogResults.merge(rawKidsCatalogs) { _, kids in kids }
+            }
             var tmdbLoadedCatalogs = rawTMDBLoadedCatalogs
                 .map { catalogID, results in
                     let isExplicitUpcomingCatalog = catalogID == "upcomingMovies" || catalogID == "upcomingTV"
@@ -419,6 +504,9 @@ final class HomeViewModel: ObservableObject {
             await MainActor.run {
                 guard self.loadGeneration == generation else { return }
                 self.unfilteredCatalogResults.merge(rawAnimeByCatalogID) { _, anime in anime }
+                if enabledCatalogIds.contains("bestAnime") {
+                    self.unfilteredCatalogResults["bestAnime"] = rawAnimeByCatalogID["topRatedAnime"] ?? []
+                }
             }
             let trendingAnime = animeCatalogs[.trending] ?? []
             let popularAnime = animeCatalogs[.popular] ?? []
@@ -536,13 +624,11 @@ final class HomeViewModel: ObservableObject {
 
             async let stremioCatalogs = self.loadStremioCatalogs(
                 enabledCatalogs: enabledCatalogSnapshot,
-                tmdbService: tmdbService,
-                contentFilter: contentFilter
+                tmdbService: tmdbService
             )
             async let traktCatalogs = self.loadTraktCatalogs(
                 enabledCatalogs: enabledCatalogSnapshot,
-                tmdbService: tmdbService,
-                contentFilter: contentFilter
+                tmdbService: tmdbService
             )
             async let widgetsLoaded: Void = self.loadWidgetData(
                 tmdbService: tmdbService,
@@ -559,6 +645,20 @@ final class HomeViewModel: ObservableObject {
 
             let loadedStremioCatalogs = await stremioCatalogs
             let loadedTraktCatalogs = await traktCatalogs
+            let externalCatalogResults = Array(loadedStremioCatalogs.values.joined())
+                + Array(loadedTraktCatalogs.values.joined())
+            await contentFilter.prepareMaturityRatings(for: externalCatalogResults)
+            let filteredStremioCatalogs = loadedStremioCatalogs.mapValues {
+                contentFilter.filterSearchResults($0)
+            }
+            let filteredTraktCatalogs = loadedTraktCatalogs.mapValues {
+                contentFilter.filterSearchResults($0)
+            }
+            await MainActor.run {
+                guard self.loadGeneration == generation else { return }
+                self.unfilteredCatalogResults.merge(loadedStremioCatalogs) { _, raw in raw }
+                self.unfilteredCatalogResults.merge(loadedTraktCatalogs) { _, raw in raw }
+            }
             _ = await widgetsLoaded
             _ = await recommendationsLoaded
             guard !Task.isCancelled else { return }
@@ -568,14 +668,14 @@ final class HomeViewModel: ObservableObject {
 
                 guard self.loadGeneration == generation else { return }
                 let currentlyEnabledCatalogIds = Set(catalogManager.getEnabledCatalogs().map(\.id))
-                let enabledStremioCatalogs = loadedStremioCatalogs.filter {
+                let enabledStremioCatalogs = filteredStremioCatalogs.filter {
                     currentlyEnabledCatalogIds.contains($0.key)
                 }
                 if !enabledStremioCatalogs.isEmpty {
                     self.catalogResults.merge(enabledStremioCatalogs) { _, stremio in stremio }
                 }
-                if !loadedTraktCatalogs.isEmpty {
-                    self.catalogResults.merge(loadedTraktCatalogs) { _, trakt in trakt }
+                if !filteredTraktCatalogs.isEmpty {
+                    self.catalogResults.merge(filteredTraktCatalogs) { _, trakt in trakt }
                 }
 
                 let finalLoadedCount = self.catalogResults.values.filter { !$0.isEmpty }.count
@@ -637,10 +737,11 @@ final class HomeViewModel: ObservableObject {
             )
             await contentFilter.prepareMaturityRatings(for: rawForYou)
             let forYou = contentFilter.filterSearchResults(rawForYou)
-            if !forYou.isEmpty {
+            if !rawForYou.isEmpty {
                 await MainActor.run {
                     guard self.loadGeneration == generation else { return }
                     guard ProfileManager.shared.isStillActive(owner) else { return }
+                    self.unfilteredCatalogResults["forYou"] = rawForYou
                     self.catalogResults["forYou"] = forYou
                     self.applyHeroBannerSelection()
                 }
@@ -653,10 +754,11 @@ final class HomeViewModel: ObservableObject {
             )
             await contentFilter.prepareMaturityRatings(for: rawBYWResults)
             let bywResults = contentFilter.filterSearchResults(rawBYWResults)
-            if !bywResults.isEmpty {
+            if !rawBYWResults.isEmpty {
                 await MainActor.run {
                     guard self.loadGeneration == generation else { return }
                     guard ProfileManager.shared.isStillActive(owner) else { return }
+                    self.unfilteredCatalogResults["becauseYouWatched"] = rawBYWResults
                     self.catalogResults["becauseYouWatched"] = bywResults
                     self.becauseYouWatchedTitle = bywTitle
                     self.applyHeroBannerSelection()
@@ -667,7 +769,6 @@ final class HomeViewModel: ObservableObject {
 
     private func loadKidsCatalogs(
         tmdbService: TMDBService,
-        contentFilter: TMDBContentFilter,
         catalogs: [Catalog]
     ) async -> [String: [TMDBSearchResult]] {
         let kinds = catalogs.compactMap { KidsHomeCatalog.from(catalogID: $0.id) }
@@ -693,8 +794,7 @@ final class HomeViewModel: ObservableObject {
             }
         }
 
-        await contentFilter.prepareMaturityRatings(for: Array(raw.values.joined()))
-        return raw.mapValues { contentFilter.filterSearchResults($0) }
+        return raw
     }
 
     private func loadHomeCatalog<T>(_ id: String, fetch: () async throws -> [T]) async -> [T] {
@@ -945,8 +1045,7 @@ final class HomeViewModel: ObservableObject {
 
     private func loadStremioCatalogs(
         enabledCatalogs: [Catalog],
-        tmdbService: TMDBService,
-        contentFilter: TMDBContentFilter
+        tmdbService: TMDBService
     ) async -> [String: [TMDBSearchResult]] {
         let catalogs = enabledCatalogs.filter { $0.source == .stremio }
         guard !catalogs.isEmpty else { return [:] }
@@ -959,10 +1058,8 @@ final class HomeViewModel: ObservableObject {
                 tmdbService: tmdbService,
                 limit: 15
             )
-            await contentFilter.prepareMaturityRatings(for: items)
-            let filtered = contentFilter.filterSearchResults(items)
-            if !filtered.isEmpty {
-                loaded[catalog.id] = filtered
+            if !items.isEmpty {
+                loaded[catalog.id] = items
             }
         }
 
@@ -976,8 +1073,7 @@ final class HomeViewModel: ObservableObject {
 
     private func loadTraktCatalogs(
         enabledCatalogs: [Catalog],
-        tmdbService: TMDBService,
-        contentFilter: TMDBContentFilter
+        tmdbService: TMDBService
     ) async -> [String: [TMDBSearchResult]] {
         let catalogs = enabledCatalogs.filter { $0.source == .trakt }
         guard !catalogs.isEmpty else { return [:] }
@@ -990,10 +1086,8 @@ final class HomeViewModel: ObservableObject {
                 tmdbService: tmdbService,
                 limit: 15
             )
-            await contentFilter.prepareMaturityRatings(for: items)
-            let filtered = contentFilter.filterSearchResults(items)
-            if !filtered.isEmpty {
-                loaded[catalog.id] = filtered
+            if !items.isEmpty {
+                loaded[catalog.id] = items
             }
         }
 

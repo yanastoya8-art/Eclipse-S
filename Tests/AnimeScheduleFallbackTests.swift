@@ -213,6 +213,25 @@ final class AnimeScheduleFallbackTests: XCTestCase {
         XCTAssertTrue(AnimeDubMetadataFallbackPolicy.shouldQueryAnidub(taizenCounts: [:]))
     }
 
+    func testAnidubFallbackChecksTheSelectedLanguageRatherThanAnyDub() {
+        XCTAssertTrue(AnimeDubMetadataFallbackPolicy.shouldQueryAnidub(
+            taizenCounts: ["en": 12],
+            selectedLanguages: ["spanish"]
+        ))
+        XCTAssertFalse(AnimeDubMetadataFallbackPolicy.shouldQueryAnidub(
+            taizenCounts: ["es-419": 12],
+            selectedLanguages: ["spanish"]
+        ))
+        XCTAssertTrue(AnimeDubMetadataFallbackPolicy.shouldQueryAnidub(
+            taizenCounts: ["es": 12],
+            selectedLanguages: ["english"]
+        ))
+        XCTAssertFalse(AnimeDubMetadataFallbackPolicy.shouldQueryAnidub(
+            taizenCounts: ["en": 12],
+            selectedLanguages: ["english"]
+        ))
+    }
+
     func testSpanishSelectionExplainsMissingSpanishEpisodeDatesWithoutSubstitutingBroadcasts() {
         let notice = AnimeScheduleLanguageNoticePolicy.notice(
             selectedLanguages: ["english", "spanish"],
@@ -850,6 +869,59 @@ final class ScheduleReleaseDatePolicyTests: XCTestCase {
         XCTAssertEqual(ScheduleReleaseDatePolicy.earliest(native: nil, dubbed: dubbed), dubbed)
     }
 
+    func testConfirmedDateBeatsEarlierWithdrawnOrEstimatedDate() {
+        XCTAssertTrue(ScheduleReleaseDatePolicy.shouldPrefer(
+            candidateDate: Date(timeIntervalSince1970: 200),
+            candidateIsConfirmed: true,
+            over: Date(timeIntervalSince1970: 100),
+            existingIsConfirmed: false
+        ))
+        XCTAssertFalse(ScheduleReleaseDatePolicy.shouldPrefer(
+            candidateDate: Date(timeIntervalSince1970: 100),
+            candidateIsConfirmed: false,
+            over: Date(timeIntervalSince1970: 200),
+            existingIsConfirmed: true
+        ))
+    }
+
+    func testEarlierDateWinsWhenBothScheduleDatesAreConfirmed() {
+        XCTAssertTrue(ScheduleReleaseDatePolicy.shouldPrefer(
+            candidateDate: Date(timeIntervalSince1970: 100),
+            candidateIsConfirmed: true,
+            over: Date(timeIntervalSince1970: 200),
+            existingIsConfirmed: true
+        ))
+        XCTAssertFalse(ScheduleReleaseDatePolicy.shouldPrefer(
+            candidateDate: Date(timeIntervalSince1970: 200),
+            candidateIsConfirmed: true,
+            over: Date(timeIntervalSince1970: 100),
+            existingIsConfirmed: true
+        ))
+    }
+
+    func testSpanishDubResearchConfirmsDateWithoutClaimingClockTime() {
+        XCTAssertTrue(ScheduleReleaseDatePolicy.isConfirmedReleaseDate(
+            provider: .aiSpanishDub,
+            hasKnownAiringTime: false,
+            airingTimeWithdrawn: false
+        ))
+        XCTAssertFalse(ScheduleReleaseDatePolicy.isConfirmedReleaseDate(
+            provider: .aiSpanishDub,
+            hasKnownAiringTime: false,
+            airingTimeWithdrawn: true
+        ))
+        XCTAssertFalse(ScheduleReleaseDatePolicy.isConfirmedReleaseDate(
+            provider: .dubOnly,
+            hasKnownAiringTime: false,
+            airingTimeWithdrawn: false
+        ))
+        XCTAssertTrue(ScheduleReleaseDatePolicy.isConfirmedReleaseDate(
+            provider: .dubOnly,
+            hasKnownAiringTime: true,
+            airingTimeWithdrawn: false
+        ))
+    }
+
     func testNoQualifyingLanguageDateIsExcluded() {
         XCTAssertNil(ScheduleReleaseDatePolicy.earliest(native: nil, dubbed: nil))
         XCTAssertFalse(ScheduleReleaseDatePolicy.usesDubbedDate(native: nil, dubbed: nil))
@@ -938,6 +1010,105 @@ final class ScheduleAllAgesFilterPolicyTests: XCTestCase {
 }
 
 
+final class AnimeDubAudioSelectionPolicyTests: XCTestCase {
+    func testSpanishOnlySelectionDoesNotAcceptEnglishOnlyDub() {
+        XCTAssertFalse(AnimeDubAudioSelectionPolicy.hasSelectedAudio(
+            selectedLanguages: ["spanish"],
+            dubCountsByLanguage: ["en": 12]
+        ))
+    }
+
+    func testEnglishOnlySelectionDoesNotAcceptSpanishOnlyDub() {
+        XCTAssertFalse(AnimeDubAudioSelectionPolicy.hasSelectedAudio(
+            selectedLanguages: ["english"],
+            dubCountsByLanguage: ["es": 12]
+        ))
+    }
+
+    func testCombinedSelectionUsesOrLogic() {
+        XCTAssertTrue(AnimeDubAudioSelectionPolicy.hasSelectedAudio(
+            selectedLanguages: ["english", "spanish"],
+            dubCountsByLanguage: ["en": 1]
+        ))
+        XCTAssertTrue(AnimeDubAudioSelectionPolicy.hasSelectedAudio(
+            selectedLanguages: ["english", "spanish"],
+            dubCountsByLanguage: ["es-419": 1]
+        ))
+    }
+
+    func testSpanishRegionalVariantsAreEquivalent() {
+        XCTAssertTrue(AnimeDubAudioSelectionPolicy.hasSelectedAudio(
+            selectedLanguages: ["spanish"],
+            dubCountsByLanguage: ["es-es": 4]
+        ))
+    }
+}
+
+final class CatalogNativeAudioDubVerificationTests: XCTestCase {
+    func testSpanishOriginalStillChecksForEnglishDubWhenEnglishIsSelected() {
+        XCTAssertTrue(CatalogNativeAudioPolicy.requiresDubVerification(
+            originalLanguage: "es-ES",
+            selectedLanguages: ["english"]
+        ))
+    }
+
+    func testEnglishOriginalStillChecksForSpanishDubWhenSpanishIsSelected() {
+        XCTAssertTrue(CatalogNativeAudioPolicy.requiresDubVerification(
+            originalLanguage: "en-US",
+            selectedLanguages: ["spanish"]
+        ))
+    }
+
+    func testNativeAudioSkipsDubLookupWhenItMatchesSelection() {
+        XCTAssertFalse(CatalogNativeAudioPolicy.requiresDubVerification(
+            originalLanguage: "en-GB",
+            selectedLanguages: ["english"]
+        ))
+        XCTAssertFalse(CatalogNativeAudioPolicy.requiresDubVerification(
+            originalLanguage: "es-MX",
+            selectedLanguages: ["spanish"]
+        ))
+    }
+
+    func testForeignOriginalAlwaysRequiresSelectedDubVerification() {
+        XCTAssertTrue(CatalogNativeAudioPolicy.requiresDubVerification(
+            originalLanguage: "ja",
+            selectedLanguages: ["english", "spanish"]
+        ))
+    }
+}
+
+final class CatalogNativeAudioSelectionTests: XCTestCase {
+    func testEnglishNativeAudioDoesNotSatisfySpanishOnlySelection() {
+        XCTAssertFalse(ScheduleAudioLanguagePolicy.matches(
+            originalLanguage: "en-US",
+            selectedLanguages: ["spanish"]
+        ))
+    }
+
+    func testSpanishNativeAudioDoesNotSatisfyEnglishOnlySelection() {
+        XCTAssertFalse(ScheduleAudioLanguagePolicy.matches(
+            originalLanguage: "es-ES",
+            selectedLanguages: ["english"]
+        ))
+    }
+
+    func testSpanishRegionalVariantsMatchCombinedSpanishSelection() {
+        XCTAssertTrue(ScheduleAudioLanguagePolicy.matches(
+            originalLanguage: "es-MX",
+            selectedLanguages: ["spanish"]
+        ))
+    }
+
+    func testEnglishNativeAudioMatchesEnglishSelection() {
+        XCTAssertTrue(ScheduleAudioLanguagePolicy.matches(
+            originalLanguage: "en-GB",
+            selectedLanguages: ["english"]
+        ))
+    }
+}
+
+
 final class AnimeScheduleProviderLanguagePolicyTests: XCTestCase {
     func testNativeLanguageRowsMustMatchTheSelectedLanguage() {
         XCTAssertTrue(AnimeScheduleProviderLanguagePolicy.includes(
@@ -989,5 +1160,76 @@ final class AnimeScheduleProviderLanguagePolicyTests: XCTestCase {
             originalLanguage: "ja",
             selectedLanguages: ["english"]
         ))
+    }
+}
+
+
+final class EnglishDubScheduleMergeTests: XCTestCase {
+    private func entry(
+        date: TimeInterval,
+        known: Bool,
+        provider: ScheduleProvider
+    ) -> AniListAiringScheduleEntry {
+        AniListAiringScheduleEntry(
+            id: Int(date),
+            mediaId: 101,
+            title: "Example Anime",
+            airingAt: Date(timeIntervalSince1970: date),
+            episode: 4,
+            coverImage: nil,
+            englishTitle: "Example Anime",
+            romajiTitle: nil,
+            nativeTitle: nil,
+            format: "TV",
+            hasKnownAiringTime: known,
+            scheduleProvider: provider,
+            malID: nil,
+            airingTimeWithdrawn: !known
+        )
+    }
+
+    func testEarlierConfirmedFallbackDateReplacesLaterPrimaryDate() {
+        let primary = entry(date: 200, known: true, provider: .dubOnly)
+        let fallback = entry(date: 100, known: true, provider: .tsuzuki)
+        let result = AnimeScheduleFallback.mergeEnglishDubSchedules(
+            primary: AnimeAiringScheduleResult(entries: [primary], isAuthoritativeForNotifications: true),
+            fallback: AnimeAiringScheduleResult(entries: [fallback], isAuthoritativeForNotifications: true)
+        )
+        XCTAssertEqual(result.entries.count, 1)
+        XCTAssertEqual(result.entries.first?.airingAt, fallback.airingAt)
+        XCTAssertEqual(result.entries.first?.scheduleProvider, .tsuzuki)
+    }
+
+    func testLaterConfirmedFallbackDoesNotReplaceEarlierPrimaryDate() {
+        let primary = entry(date: 100, known: true, provider: .dubOnly)
+        let fallback = entry(date: 200, known: true, provider: .tsuzuki)
+        let result = AnimeScheduleFallback.mergeEnglishDubSchedules(
+            primary: AnimeAiringScheduleResult(entries: [primary], isAuthoritativeForNotifications: true),
+            fallback: AnimeAiringScheduleResult(entries: [fallback], isAuthoritativeForNotifications: true)
+        )
+        XCTAssertEqual(result.entries.first?.airingAt, primary.airingAt)
+        XCTAssertEqual(result.entries.first?.scheduleProvider, .dubOnly)
+    }
+
+    func testConfirmedPrimaryDateBeatsUnconfirmedFallback() {
+        let primary = entry(date: 100, known: true, provider: .dubOnly)
+        let fallback = entry(date: 50, known: false, provider: .tsuzuki)
+        let result = AnimeScheduleFallback.mergeEnglishDubSchedules(
+            primary: AnimeAiringScheduleResult(entries: [primary], isAuthoritativeForNotifications: true),
+            fallback: AnimeAiringScheduleResult(entries: [fallback], isAuthoritativeForNotifications: true)
+        )
+        XCTAssertEqual(result.entries.first?.airingAt, primary.airingAt)
+        XCTAssertEqual(result.entries.first?.scheduleProvider, .dubOnly)
+    }
+
+    func testConfirmedFallbackReplacesUnconfirmedPrimary() {
+        let primary = entry(date: 200, known: false, provider: .dubOnly)
+        let fallback = entry(date: 100, known: true, provider: .tsuzuki)
+        let result = AnimeScheduleFallback.mergeEnglishDubSchedules(
+            primary: AnimeAiringScheduleResult(entries: [primary], isAuthoritativeForNotifications: true),
+            fallback: AnimeAiringScheduleResult(entries: [fallback], isAuthoritativeForNotifications: true)
+        )
+        XCTAssertEqual(result.entries.first?.airingAt, fallback.airingAt)
+        XCTAssertEqual(result.entries.first?.scheduleProvider, .tsuzuki)
     }
 }

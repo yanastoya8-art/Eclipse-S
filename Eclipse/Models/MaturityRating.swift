@@ -96,6 +96,16 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
             return exact
         }
 
+        // Taizen and some international catalogues return descriptive labels
+        // rather than a short code (for example "All Ages" or "G - All Ages").
+        // Treat these as explicit general-audience ratings, not unknown.
+        if compact == "ALLAGES" || compact == "ALLAGESRATING"
+            || normalized.contains("ALL AGES")
+            || normalized.contains("GENERAL AUDIENCE")
+            || normalized == "EVERYONE" {
+            return .general
+        }
+
         if normalized.contains("18禁") || normalized.contains("限制級")
             || normalized.contains("成人") || normalized.contains("청소년관람불가") {
             return .adult

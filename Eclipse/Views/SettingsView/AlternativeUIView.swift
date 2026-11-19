@@ -37,6 +37,8 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
     case titleLogoWeight
     case heroActionPosition
     case heroSynopsisPosition
+    case portraitHeroBleedIntensity
+    case landscapeHeroBleedIntensity
     case landscapeTitleLogoPosition
     case landscapeTitleLogoSize
     case landscapeTitleLogoWeight
@@ -45,7 +47,6 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
     case landscapeHeroHorizontalStretch
     case landscapeHeroVerticalStretch
     case landscapeContentHorizontalPosition
-    case tmdbTitleArt
     case dataSaver
     case ageRating
     case similarTitles
@@ -64,7 +65,7 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
             return "interface"
         case .animatedBackground, .animationQuality, .animationColor, .customAnimationColor, .animationFrameRate, .appPerformanceOverlay, .hideSplashScreen:
             return "motion"
-        case .alternativeSeasonMenu, .horizontalEpisodeList, .showUnairedEpisodes, .titleLogoPosition, .titleLogoSize, .titleLogoWeight, .heroActionPosition, .heroSynopsisPosition, .landscapeTitleLogoPosition, .landscapeTitleLogoSize, .landscapeTitleLogoWeight, .landscapeHeroActionPosition, .landscapeHeroSynopsisPosition, .landscapeHeroHorizontalStretch, .landscapeHeroVerticalStretch, .landscapeContentHorizontalPosition, .tmdbTitleArt, .dataSaver, .ageRating, .similarTitles:
+        case .alternativeSeasonMenu, .horizontalEpisodeList, .showUnairedEpisodes, .titleLogoPosition, .titleLogoSize, .titleLogoWeight, .heroActionPosition, .heroSynopsisPosition, .portraitHeroBleedIntensity, .landscapeHeroBleedIntensity, .landscapeTitleLogoPosition, .landscapeTitleLogoSize, .landscapeTitleLogoWeight, .landscapeHeroActionPosition, .landscapeHeroSynopsisPosition, .landscapeHeroHorizontalStretch, .landscapeHeroVerticalStretch, .landscapeContentHorizontalPosition, .dataSaver, .ageRating, .similarTitles:
             return "details"
         case .libraryBookmarks, .libraryCollectionLayout:
             return "library"
@@ -444,7 +445,7 @@ struct AlternativeUIView: View {
 #endif
             toggleRow(
                 title: "Global Appearance",
-                description: "Share appearance changes between media and reader mode.",
+                description: "Apply the same appearance settings across the entire Watch interface.",
                 isOn: $theme.globalAppearanceEnabled
             )
             .id(AppearanceSettingsSearchTarget.globalAppearance.anchorID)
@@ -498,7 +499,7 @@ struct AlternativeUIView: View {
 
             settingRow(
                 title: "Animation Color",
-                description: "Choose the particle color used by the animated rings, stars, and circles in Streaming and Reader mode."
+                description: "Choose the particle color used by animated backgrounds throughout the Watch interface."
             ) {
                 Picker("", selection: $homeAnimatedBackgroundParticleColor) {
                     ForEach(HomeAnimatedBackgroundParticleColor.allCases) { color in
@@ -586,7 +587,7 @@ struct AlternativeUIView: View {
         Section {
             toggleRow(
                 title: "Image Data Saver",
-                description: "Load smaller TMDB artwork and supported tracker thumbnails throughout the app on this device. Applies to newly loaded images; provider artwork and Reader pages keep their original quality.",
+                description: "Load smaller TMDB artwork and supported tracker thumbnails throughout the app on this device. Applies to newly loaded images; provider artwork keeps its original quality.",
                 isOn: $imageDataSaverEnabled
             )
             .id(AppearanceSettingsSearchTarget.dataSaver.anchorID)
@@ -663,6 +664,7 @@ struct AlternativeUIView: View {
                 range: 0...2,
                 step: 0.05
             )
+            .id(AppearanceSettingsSearchTarget.portraitHeroBleedIntensity.anchorID)
 
             Divider()
             Text("Landscape Detail Page").font(.subheadline.weight(.semibold))
@@ -708,6 +710,7 @@ struct AlternativeUIView: View {
                 range: 0...3.5,
                 step: 0.05
             )
+            .id(AppearanceSettingsSearchTarget.landscapeHeroBleedIntensity.anchorID)
         } header: {
             Text("Detail Pages")
         }
@@ -789,7 +792,12 @@ struct AlternativeUIView: View {
             }
 #else
             ForEach(mediaDetailElements) { element in
-                mediaDetailElementRow(element)
+                if element == .similarTitles {
+                    mediaDetailElementRow(element)
+                        .id(AppearanceSettingsSearchTarget.similarTitles.anchorID)
+                } else {
+                    mediaDetailElementRow(element)
+                }
             }
             .onMove(perform: moveMediaDetailElements)
 #endif

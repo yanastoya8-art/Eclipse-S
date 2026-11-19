@@ -834,7 +834,7 @@ struct ProfilesSettingsView: View {
 #if os(tvOS)
         "Each profile keeps its own appearance, player, and language settings, plus its own watch progress, library, ratings, and tracker accounts. Diagnostics are shared across profiles on this Apple TV."
 #else
-        "Each profile keeps its own settings — appearance, player, reader, and language — plus its own watch progress, library, ratings, and tracker accounts. Downloads and diagnostics are shared across profiles on this device."
+        "Each profile keeps its own appearance, player, and language settings, plus its own watch progress, library, ratings, and tracker accounts. Downloads and diagnostics are shared across profiles on this device."
 #endif
     }
 
@@ -1403,8 +1403,6 @@ private struct ProfilePhotoPickerRow: View {
 #endif
 
 struct ProfilePickerView: View {
-    var isReaderMode: Bool = false
-
     var autoUnlockProfile: Profile?
     let onFinished: () -> Void
 
@@ -1420,7 +1418,7 @@ struct ProfilePickerView: View {
             SettingsGradientBackground().ignoresSafeArea()
 
             VStack(spacing: 28) {
-                Text(isReaderMode ? "Who's reading?" : "Who's watching?")
+                Text("Who's watching?")
                     .font(.system(size: 28, weight: .semibold))
                     .foregroundColor(.white)
 

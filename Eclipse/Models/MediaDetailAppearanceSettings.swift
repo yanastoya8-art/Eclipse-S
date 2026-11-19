@@ -7,6 +7,8 @@ enum HomeHeroTitleLogoPositionSettings {
     static let step = 0.05
 }
 
+// Retained for backup/profile decoding compatibility. These legacy settings are no longer
+// exposed in the UI, but existing backups still encode/decode their stored values.
 enum MediaDetailTitleArtworkSettings {
     static let enabledKey = "mediaDetailTitleArtworkEnabled"
     static let defaultEnabled = true
@@ -16,6 +18,8 @@ enum MediaDetailTitleArtworkSettings {
     }
 }
 
+// Retained for backup/profile decoding compatibility. The feature is no longer
+// exposed in the UI, but preserve its historical defaults when importing old backups.
 enum MediaDetailAlternatePosterSettings {
     static let enabledKey = "mediaDetailAlternatePosterEnabled"
 

@@ -1,6 +1,45 @@
 import Foundation
 import Security
 
+/// Selects the earliest confirmed release date among the user's qualifying
+/// native-language and dubbed release dates. Missing dates never become
+/// synthetic broadcast dates.
+enum ScheduleReleaseDatePolicy {
+    static func earliest(native: Date?, dubbed: Date?) -> Date? {
+        [native, dubbed].compactMap { $0 }.min()
+    }
+
+    static func isConfirmedReleaseDate(
+        provider: ScheduleProvider?,
+        hasKnownAiringTime: Bool,
+        airingTimeWithdrawn: Bool
+    ) -> Bool {
+        guard !airingTimeWithdrawn else { return false }
+        // AI research confirms a calendar date from a cited announcement, but
+        // intentionally has no clock time. Do not mistake that for an unknown date.
+        if provider == .aiSpanishDub { return true }
+        return hasKnownAiringTime
+    }
+
+    static func shouldPrefer(
+        candidateDate: Date,
+        candidateIsConfirmed: Bool,
+        over existingDate: Date,
+        existingIsConfirmed: Bool
+    ) -> Bool {
+        if candidateIsConfirmed != existingIsConfirmed {
+            return candidateIsConfirmed
+        }
+        return candidateDate < existingDate
+    }
+
+    static func usesDubbedDate(native: Date?, dubbed: Date?) -> Bool {
+        guard let dubbed else { return false }
+        guard let native else { return true }
+        return dubbed < native
+    }
+}
+
 enum AnimeScheduleError: Error, LocalizedError {
     case unconfigured
     case invalidResponse
@@ -98,11 +137,20 @@ enum AnimeScheduleEntryMapper {
         existing: AniListAiringScheduleEntry,
         candidate: AniListAiringScheduleEntry
     ) -> Bool {
-        if candidate.airingAt != existing.airingAt {
-            return candidate.airingAt < existing.airingAt
-        }
-        // At the same time, prefer a confirmed airing over a withdrawn date.
-        return existing.airingTimeWithdrawn == true && candidate.airingTimeWithdrawn != true
+        ScheduleReleaseDatePolicy.shouldPrefer(
+            candidateDate: candidate.airingAt,
+            candidateIsConfirmed: ScheduleReleaseDatePolicy.isConfirmedReleaseDate(
+                provider: candidate.scheduleProvider,
+                hasKnownAiringTime: candidate.hasKnownAiringTime,
+                airingTimeWithdrawn: candidate.airingTimeWithdrawn == true
+            ),
+            over: existing.airingAt,
+            existingIsConfirmed: ScheduleReleaseDatePolicy.isConfirmedReleaseDate(
+                provider: existing.scheduleProvider,
+                hasKnownAiringTime: existing.hasKnownAiringTime,
+                airingTimeWithdrawn: existing.airingTimeWithdrawn == true
+            )
+        )
     }
 
     static func date(_ value: String?) -> Date? {
@@ -651,7 +699,23 @@ enum AnimeScheduleFallback {
         for candidate in fallback.entries {
             let key = "\(candidate.mediaId):\(candidate.episode)"
             if let existing = entriesByEpisode[key] {
-                if !existing.hasKnownAiringTime && candidate.hasKnownAiringTime {
+                // Prefer a confirmed timetable over a withdrawn/estimated one.
+                // When both providers have confirmed dates, keep the earliest
+                // qualifying dub release instead of always trusting the primary.
+                if ScheduleReleaseDatePolicy.shouldPrefer(
+                    candidateDate: candidate.airingAt,
+                    candidateIsConfirmed: ScheduleReleaseDatePolicy.isConfirmedReleaseDate(
+                        provider: candidate.scheduleProvider,
+                        hasKnownAiringTime: candidate.hasKnownAiringTime,
+                        airingTimeWithdrawn: candidate.airingTimeWithdrawn == true
+                    ),
+                    over: existing.airingAt,
+                    existingIsConfirmed: ScheduleReleaseDatePolicy.isConfirmedReleaseDate(
+                        provider: existing.scheduleProvider,
+                        hasKnownAiringTime: existing.hasKnownAiringTime,
+                        airingTimeWithdrawn: existing.airingTimeWithdrawn == true
+                    )
+                ) {
                     entriesByEpisode[key] = candidate
                 }
             } else {
@@ -975,15 +1039,16 @@ actor SpanishDubAIResearchService {
                 throw AnimeScheduleError.invalidResponse
             }
             return (url, [
-                "model": "gpt-6-astra",
+                "model": "gpt-6.2-astra",
                 "tools": [["type": "web_search"]],
                 "input": prompt
             ], "Authorization", "Bearer " + apiKey)
         }
     }
 
-    /// Keys are supplied by GitHub Actions and injected into the generated app Info.plist.
-    /// A key embedded in an iOS app can be extracted; production deployments should use a server proxy.
+    /// Optional local developer override only. Do not inject provider keys through CI or ship
+    /// them in a shared app bundle: resources in an iOS app can be extracted. Use a server-side
+    /// proxy before enabling this provider in a shared or release build.
     private static func apiKey(for provider: SpanishDubAIProvider) -> String? {
         let infoKey: String
         switch provider {

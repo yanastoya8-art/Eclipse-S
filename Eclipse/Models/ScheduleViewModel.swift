@@ -923,7 +923,24 @@ final class ScheduleViewModel: ObservableObject {
             let key = entry.source == .anime
                 ? "anime|\(entry.sourceMediaId)|\(entry.episode)"
                 : "\(entry.title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current))|\(entry.season ?? 0)|\(entry.episode)"
-            if let existing = earliestByEpisode[key], existing.airingAt <= entry.airingAt {
+            if let existing = earliestByEpisode[key],
+               !ScheduleReleaseDatePolicy.shouldPrefer(
+                    candidateDate: entry.airingAt,
+                    candidateIsConfirmed: ScheduleReleaseDatePolicy.isConfirmedReleaseDate(
+                        provider: entry.provider,
+                        hasKnownAiringTime: entry.hasKnownAiringTime,
+                        airingTimeWithdrawn: entry.airingTimeWithdrawn
+                    ),
+                    over: existing.airingAt,
+                    existingIsConfirmed: ScheduleReleaseDatePolicy.isConfirmedReleaseDate(
+                        provider: existing.provider,
+                        hasKnownAiringTime: existing.hasKnownAiringTime,
+                        airingTimeWithdrawn: existing.airingTimeWithdrawn
+                    )
+               ) {
+                // Keep an existing confirmed date ahead of withdrawn or
+                // estimated metadata. When both are confirmed, use the earlier
+                // qualifying native-language or Spanish-dub release.
                 continue
             }
             earliestByEpisode[key] = entry
@@ -1106,7 +1123,20 @@ final class ScheduleViewModel: ObservableObject {
                         ? "anime|\(entry.sourceMediaId)|\(entry.episode)"
                         : "\(entry.title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current))|\(entry.season ?? 0)|\(entry.episode)"
                     if let existing = earliestByEpisode[key],
-                       existing.airingAt <= entry.airingAt { continue }
+                       !ScheduleReleaseDatePolicy.shouldPrefer(
+                            candidateDate: entry.airingAt,
+                            candidateIsConfirmed: ScheduleReleaseDatePolicy.isConfirmedReleaseDate(
+                                provider: entry.provider,
+                                hasKnownAiringTime: entry.hasKnownAiringTime,
+                                airingTimeWithdrawn: entry.airingTimeWithdrawn
+                            ),
+                            over: existing.airingAt,
+                            existingIsConfirmed: ScheduleReleaseDatePolicy.isConfirmedReleaseDate(
+                                provider: existing.provider,
+                                hasKnownAiringTime: existing.hasKnownAiringTime,
+                                airingTimeWithdrawn: existing.airingTimeWithdrawn
+                            )
+                       ) { continue }
                     earliestByEpisode[key] = entry
                 }
                 entries = earliestByEpisode.values.sorted { $0.airingAt < $1.airingAt }

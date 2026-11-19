@@ -8,6 +8,57 @@ final class MaturityRatingRegionTests: XCTestCase {
         XCTAssertTrue(MaturityRating.classify(certification: "A", region: "IN").isBlockedForKids)
     }
 
+    func testDescriptiveAllAgesLabelsAreClassifiedAsGeneral() {
+        for label in ["All Ages", "ALL AGES", "All-Ages", "G - All Ages", "General Audience", "Everyone"] {
+            XCTAssertEqual(
+                MaturityRating.classify(certification: label),
+                .general,
+                "\(label) must be treated as an explicit All Ages rating"
+            )
+        }
+        XCTAssertTrue(ScheduleAllAgesPolicy.shouldExclude(
+            rating: MaturityRating.classify(certification: "All Ages"),
+            enabled: true
+        ))
+    }
+
+    func testScheduleMinimumAgePolicyUsesDifferentMovieAndTVThresholds() {
+        XCTAssertTrue(ScheduleAllAgesPolicy.shouldExclude(
+            rating: .general, minimum: .teen, hideAllAges: false
+        ))
+        XCTAssertTrue(ScheduleAllAgesPolicy.shouldExclude(
+            rating: .age12, minimum: .teen, hideAllAges: false
+        ))
+        XCTAssertFalse(ScheduleAllAgesPolicy.shouldExclude(
+            rating: .teen, minimum: .teen, hideAllAges: false
+        ))
+
+        XCTAssertTrue(ScheduleAllAgesPolicy.shouldExclude(
+            rating: .teen, minimum: .age14, hideAllAges: false
+        ))
+        XCTAssertFalse(ScheduleAllAgesPolicy.shouldExclude(
+            rating: .age14, minimum: .age14, hideAllAges: false
+        ))
+    }
+
+    func testScheduleUnknownRatingsFailClosedOnlyForMinimumAgeRules() {
+        XCTAssertTrue(ScheduleAllAgesPolicy.shouldExclude(
+            rating: nil, minimum: .teen, hideAllAges: false
+        ))
+        XCTAssertTrue(ScheduleAllAgesPolicy.shouldExclude(
+            rating: .unknown, minimum: .age14, hideAllAges: false
+        ))
+        XCTAssertFalse(ScheduleAllAgesPolicy.shouldExclude(
+            rating: nil, minimum: nil, hideAllAges: true
+        ))
+        XCTAssertFalse(ScheduleAllAgesPolicy.shouldExclude(
+            rating: .unknown, minimum: nil, hideAllAges: true
+        ))
+        XCTAssertTrue(ScheduleAllAgesPolicy.shouldExclude(
+            rating: .general, minimum: nil, hideAllAges: true
+        ))
+    }
+
     func testAllAgesBoardsKeepTheirMeaning() {
         for region in ["ES", "SE", "JP"] {
             XCTAssertEqual(

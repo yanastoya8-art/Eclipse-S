@@ -2801,7 +2801,10 @@ struct MediaDetailContentView: View {
             // Landscape uses the single bleed layer attached to the whole
             // scroll-content stack. Keeping a second layer on the artwork
             // creates an abrupt overlap at the poster/content boundary.
-            color: usesLandscapeDetailComposition ? nil : mediaDetailHeroBleedColor,
+            // This is the sole bleed layer for landscape. The ScrollView-level
+            // modifier intentionally disables its own layer in that orientation,
+            // so disabling this one as well removes the colour transition entirely.
+            color: mediaDetailHeroBleedColor,
             heroHeight: heroSectionHeight,
             tail: mediaDetailHeroBleedTail,
             strength: mediaDetailHeroBleedStrength

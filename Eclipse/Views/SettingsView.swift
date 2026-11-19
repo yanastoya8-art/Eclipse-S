@@ -140,6 +140,8 @@ struct SettingsView: View {
             .init(id: "subtitle-edit-menu", title: "Subtitle Edit Menu", location: "Media Player > Subtitle Appearance", icon: "slider.horizontal.3", color: .purple, keywords: ["subtitle controls", "style controls"], action: .destination(.playerTarget(.subtitleEditMenu))),
             .init(id: "subtitle-text-color", title: "Subtitle Text Color", location: "Media Player > Subtitle Appearance", icon: "textformat", color: .purple, keywords: ["caption color", "font color"], action: .destination(.playerTarget(.subtitleTextColor))),
             .init(id: "subtitle-stroke", title: "Subtitle Stroke", location: "Media Player > Subtitle Appearance", icon: "textformat.alt", color: .purple, keywords: ["outline", "border", "stroke color", "stroke width"], action: .destination(.playerTarget(.subtitleStrokeColor))),
+            .init(id: "subtitle-stroke-width", title: "Subtitle Stroke Width", location: "Media Player > Subtitle Appearance", icon: "textformat.alt", color: .purple, keywords: ["outline thickness", "subtitle border width", "stroke thickness"], action: .destination(.playerTarget(.subtitleStrokeWidth))),
+            .init(id: "subtitle-reset-style", title: "Reset Subtitle Style", location: "Media Player > Subtitle Appearance", icon: "arrow.counterclockwise", color: .purple, keywords: ["restore captions", "default subtitle colors", "reset text style"], action: .destination(.playerTarget(.resetSubtitleStyle))),
             .init(id: "subtitle-font-size", title: "Subtitle Font Size", location: "Media Player > Subtitle Appearance", icon: "textformat.size", color: .purple, keywords: ["caption size", "text size", "font"], action: .destination(.playerTarget(.subtitleFontSize))),
             .init(id: "subtitle-position", title: "Subtitle Vertical Position", location: "Media Player > Subtitle Appearance", icon: "arrow.up.and.down.text.horizontal", color: .purple, keywords: ["caption position", "subtitle offset", "vertical offset"], action: .destination(.playerTarget(.subtitleVerticalPosition))),
             .init(id: "caption-background", title: "Caption Background", location: "Media Player > Subtitle Appearance", icon: "rectangle.fill", color: .purple, keywords: ["subtitle background", "caption box", "visibility"], action: .destination(.playerTarget(.captionBackground))),
@@ -159,13 +161,20 @@ struct SettingsView: View {
             .init(id: "hdr-output", title: "HDR Output", location: "Media Player > MPV Rendering", icon: "sun.max.fill", color: .cyan, keywords: ["high dynamic range", "Dolby Vision", "video range"], action: .destination(.playerTarget(.hdrOutput))),
             .init(id: "dolby-vision", title: "Dolby Vision", location: "Media Player > MPV Rendering", icon: "sun.max.fill", color: .cyan, keywords: ["DV", "metadata", "HDR", "color"], action: .destination(.playerTarget(.dolbyVision))),
             .init(id: "dolby-atmos", title: "Dolby Atmos", location: "Media Player > MPV Rendering", icon: "hifispeaker.2", color: .cyan, keywords: ["DA", "spatial audio", "EAC3", "Dolby Digital Plus", "surround"], action: .destination(.playerTarget(.dolbyAtmos))),
+            .init(id: "truehd-atmos", title: "TrueHD Dolby Atmos", location: "Media Player > MPV Rendering", icon: "hifispeaker.2.fill", color: .cyan, keywords: ["TrueHD", "lossless Atmos", "bitstream passthrough", "HDMI receiver"], action: .destination(.playerTarget(.trueHDAtmos))),
             .init(id: "surround-sound", title: "Surround Sound", location: "Media Player > MPV Rendering", icon: "hifispeaker.2", color: .cyan, keywords: ["audio route", "receiver", "stereo"], action: .destination(.playerTarget(.surroundSound))),
             .init(id: "comfort-audio", title: "Comfort Audio", location: "Media Player > MPV Rendering", icon: "ear", color: .cyan, keywords: ["dynamic range", "night mode", "audio comfort", "volume"], action: .destination(.playerTarget(.comfortAudio))),
+            .init(id: "comfort-audio-all", title: "Apply Comfort Audio to All Categories", location: "Media Player > MPV Rendering", icon: "ear.badge.checkmark", color: .cyan, keywords: ["anime", "western animation", "live action", "all media", "audio scope"], action: .destination(.playerTarget(.comfortAudioApplyToAll))),
             .init(id: "inline-frame-rate", title: "Inline Frame Rate", location: "Media Player > MPV Rendering", icon: "film", color: .cyan, keywords: ["60 fps", "30 fps", "frame rate", "fps"], action: .destination(.playerTarget(.inlineFrameRate))),
             .init(id: "player-skin", title: "Player Skin", location: "Media Player > MPV Player", icon: "paintpalette.fill", color: .pink, keywords: ["MPV UI", "theme", "Black and Gold", "Prismatic", "Cyberpunk", "Custom"], action: .destination(.playerTarget(.playerSkin))),
             .init(id: "open-subtitles", title: "OpenSubtitles", location: "Media Player > OpenSubtitles", icon: "globe", color: .indigo, keywords: ["subtitle search", "Stremio addon", "subtitle provider"], action: .destination(.playerTarget(.openSubtitles))),
             .init(id: "open-subtitles-fallback", title: "Use OpenSubtitles as Auto Fallback", location: "Media Player > OpenSubtitles", icon: "arrow.triangle.branch", color: .indigo, keywords: ["automatic subtitle fallback", "missing subtitles"], action: .destination(.playerTarget(.openSubtitlesAutoFallback))),
             .init(id: "skip-segments", title: "Skip Segments", location: "Media Player > Skip Segments", icon: "forward.fill", color: .pink, keywords: ["intro", "outro", "recap", "AniSkip", "IntroDB"], action: .destination(.playerTarget(.skipSegments))),
+            .init(id: "aniskip-provider", title: "AniSkip Provider", location: "Media Player > Skip Segments", icon: "sparkles", color: .pink, keywords: ["anime skip source", "AniSkip", "anime intros"], action: .destination(.playerTarget(.aniSkip))),
+            .init(id: "theintrodb-provider", title: "TheIntroDB Provider", location: "Media Player > Skip Segments", icon: "database", color: .pink, keywords: ["TheIntroDB", "skip database", "intros and outros"], action: .destination(.playerTarget(.theIntroDB))),
+            .init(id: "introdb-provider", title: "IntroDB Provider", location: "Media Player > Skip Segments", icon: "database", color: .pink, keywords: ["introdb.app", "IMDb skip data", "fallback skip source"], action: .destination(.playerTarget(.introDB))),
+            .init(id: "skip-85s-fallback", title: "Skip 85s Fallback", location: "Media Player > Skip Segments", icon: "forward.end", color: .pink, keywords: ["85 seconds", "fallback skip button", "no skip data"], action: .destination(.playerTarget(.skip85sFallback))),
+            .init(id: "always-show-skip-85s", title: "Always Show Skip 85s", location: "Media Player > Skip Segments", icon: "eye", color: .pink, keywords: ["always show fallback", "85 seconds button"], action: .destination(.playerTarget(.alwaysShowSkip85s))),
             .init(id: "auto-skip", title: "Auto Skip", location: "Media Player > Skip Segments", icon: "forward.fill", color: .pink, keywords: ["skip intro", "skip outro", "automatic skipping"], action: .destination(.playerTarget(.autoSkip))),
             .init(id: "next-episode", title: "Next Episode", location: "Media Player > Next Episode", icon: "forward.end.fill", color: .yellow, keywords: ["episode button", "episode drawer", "up next"], action: .destination(.playerTarget(.nextEpisode))),
             .init(id: "autoplay-next-episode", title: "Autoplay Next Episode", location: "Media Player > Next Episode", icon: "play.fill", color: .yellow, keywords: ["automatic playback", "auto play", "next"], action: .destination(.playerTarget(.nextEpisode))),
@@ -175,12 +184,15 @@ struct SettingsView: View {
             .init(id: "skip-filler", title: "Skip Filler Episodes", location: "Media Player > Next Episode", icon: "forward.end.fill", color: .yellow, keywords: ["anime filler", "filler skip"], action: .destination(.playerTarget(.skipFillerEpisodes))),
             .init(id: "next-episode-threshold", title: "Next Episode Appearance Threshold", location: "Media Player > Next Episode", icon: "chart.bar.xaxis", color: .yellow, keywords: ["next episode percentage", "90 percent", "button timing"], action: .destination(.playerTarget(.appearanceThreshold))),
             .init(id: "appearance", title: "Appearance", location: "Basic", icon: "paintbrush.fill", color: .purple, keywords: ["theme", "layout", "home", "details", "artwork", "UI"], action: .destination(.appearance)),
+            .init(id: "appearance-palette", title: "Color Palette", location: "Appearance > Theme", icon: "paintpalette", color: .purple, keywords: ["theme colors", "palette", "gradient colors"], action: .destination(.appearanceTarget(.palette))),
+            .init(id: "appearance-solid-color-source", title: "Solid Color Source", location: "Appearance > Theme", icon: "circle.lefthalf.filled", color: .purple, keywords: ["poster color", "custom solid background", "background source"], action: .destination(.appearanceTarget(.backgroundStyle))),
+            .init(id: "appearance-custom-background-color", title: "Custom Background Color", location: "Appearance > Theme", icon: "eyedropper", color: .purple, keywords: ["custom palette", "color picker", "background color"], action: .destination(.appearanceTarget(.palette))),
             .init(id: "appearance-home-hero-logo-position", title: "Home Hero Title Logo Position", location: "Appearance > Home Layout > Hero", icon: "arrow.up.and.down", color: .purple, keywords: ["home banner logo", "move home title logo", "hero title position"], action: .destination(.homeLayout)),
             .init(id: "appearance-home-hero-bleed-intensity", title: "Hero Banner Color Bleed Intensity", location: "Appearance > Home Layout > Hero", icon: "paintbrush.pointed", color: .purple, keywords: ["home banner bleed", "hero banner color intensity", "home banner color strength"], action: .destination(.homeLayout)),
             .init(id: "appearance-background-style", title: "Background Style", location: "Appearance > Theme", icon: "rectangle.fill", color: .purple, keywords: ["gradient", "solid", "background"], action: .destination(.appearanceTarget(.backgroundStyle))),
             .init(id: "appearance-background-intensity", title: "Background Intensity", location: "Appearance > Theme", icon: "sun.max", color: .purple, keywords: ["lighten", "darken", "background brightness"], action: .destination(.appearanceTarget(.backgroundIntensity))),
             .init(id: "appearance-interface", title: "Interface", location: "Appearance > Interface", icon: "rectangle.3.group", color: .purple, keywords: ["modern", "classic", "restart", "layout style"], action: .destination(.appearanceTarget(.interface))),
-            .init(id: "appearance-global", title: "Global Appearance", location: "Appearance > Interface", icon: "paintbrush", color: .purple, keywords: ["media mode", "reader mode", "shared theme"], action: .destination(.appearanceTarget(.globalAppearance))),
+            .init(id: "appearance-global", title: "Global Appearance", location: "Appearance > Interface", icon: "paintbrush", color: .purple, keywords: ["media mode", "shared theme"], action: .destination(.appearanceTarget(.globalAppearance))),
             .init(id: "appearance-accent", title: "Accent Color", location: "Appearance > Interface", icon: "paintpalette", color: .purple, keywords: ["tint", "buttons", "links", "interactive color"], action: .destination(.appearanceTarget(.accentColor))),
             .init(id: "appearance-animated-background", title: "Animated Background", location: "Appearance > Motion & Startup", icon: "sparkles", color: .purple, keywords: ["ambient motion", "background animation", "motion"], action: .destination(.appearanceTarget(.animatedBackground))),
             .init(id: "appearance-animation-quality", title: "Animation Quality", location: "Appearance > Motion & Startup", icon: "dial.medium", color: .purple, keywords: ["low", "medium", "high", "FPS", "background quality"], action: .destination(.appearanceTarget(.animationQuality))),
@@ -198,6 +210,8 @@ struct SettingsView: View {
             .init(id: "appearance-title-logo-weight", title: "Title Logo Weight", location: "Appearance > Detail Pages", icon: "bold", color: .purple, keywords: ["thicker logo", "bold title logo", "logo stroke"], action: .destination(.appearanceTarget(.titleLogoWeight))),
             .init(id: "appearance-hero-action-position", title: "Action Buttons Vertical Position", location: "Appearance > Detail Pages", icon: "arrow.up.and.down", color: .purple, keywords: ["move play button", "detail page controls", "button position"], action: .destination(.appearanceTarget(.heroActionPosition))),
             .init(id: "appearance-hero-synopsis-position", title: "Synopsis Vertical Position", location: "Appearance > Detail Pages", icon: "arrow.up.and.down", color: .purple, keywords: ["move synopsis", "description position", "detail page synopsis"], action: .destination(.appearanceTarget(.heroSynopsisPosition))),
+            .init(id: "appearance-portrait-hero-bleed-intensity", title: "Portrait Detail Hero Color Bleed Intensity", location: "Appearance > Detail Pages > Portrait", icon: "paintbrush.pointed", color: .purple, keywords: ["portrait detail color bleed", "portrait poster fade", "detail hero color strength"], action: .destination(.appearanceTarget(.portraitHeroBleedIntensity))),
+            .init(id: "appearance-landscape-hero-bleed-intensity", title: "Landscape Detail Hero Color Bleed Intensity", location: "Appearance > Detail Pages > Landscape", icon: "paintbrush.pointed", color: .purple, keywords: ["landscape detail color bleed", "landscape poster fade", "landscape hero color strength"], action: .destination(.appearanceTarget(.landscapeHeroBleedIntensity))),
             .init(id: "appearance-landscape-title-logo-position", title: "Landscape Title Logo Position", location: "Appearance > Detail Pages > Landscape", icon: "arrow.up.and.down", color: .purple, keywords: ["landscape logo height", "wide title logo position"], action: .destination(.appearanceTarget(.landscapeTitleLogoPosition))),
             .init(id: "appearance-landscape-title-logo-size", title: "Landscape Title Logo Size", location: "Appearance > Detail Pages > Landscape", icon: "arrow.up.left.and.arrow.down.right", color: .purple, keywords: ["wide logo scale", "landscape logo size"], action: .destination(.appearanceTarget(.landscapeTitleLogoSize))),
             .init(id: "appearance-landscape-title-logo-weight", title: "Landscape Title Logo Weight", location: "Appearance > Detail Pages > Landscape", icon: "bold", color: .purple, keywords: ["wide logo thickness", "landscape logo weight"], action: .destination(.appearanceTarget(.landscapeTitleLogoWeight))),
@@ -207,7 +221,7 @@ struct SettingsView: View {
             .init(id: "appearance-landscape-hero-vertical-stretch", title: "Landscape Hero Vertical Stretch", location: "Appearance > Detail Pages > Landscape", icon: "arrow.up.and.down", color: .purple, keywords: ["taller banner", "shorter banner", "vertical artwork scale"], action: .destination(.appearanceTarget(.landscapeHeroVerticalStretch))),
             .init(id: "appearance-landscape-content-horizontal-position", title: "Landscape Content Horizontal Position", location: "Appearance > Detail Pages > Landscape", icon: "arrow.left.and.right", color: .purple, keywords: ["move genres", "move action buttons", "move ratings", "move notes", "move episodes", "left right alignment"], action: .destination(.appearanceTarget(.landscapeContentHorizontalPosition))),
             .init(id: "appearance-age-rating", title: "Show Age Rating", location: "Appearance > Media Detail Layout", icon: "eye", color: .purple, keywords: ["content rating", "age certification", "PG-13", "TV-14"], action: .destination(.appearanceTarget(.ageRating))),
-            .init(id: "appearance-title-art", title: "TMDB Title Art", location: "Appearance > Detail Pages", icon: "text.below.photo", color: .purple, keywords: ["logo artwork", "title logo", "media artwork"], action: .destination(.appearanceTarget(.tmdbTitleArt))),
+            .init(id: "appearance-similar-titles", title: "Similar Titles", location: "Appearance > Media Detail Layout", icon: "rectangle.stack", color: .purple, keywords: ["recommendations", "related media", "similar movies", "similar shows"], action: .destination(.appearanceTarget(.similarTitles))),
             .init(id: "appearance-library-bookmarks", title: "Show Bookmarks", location: "Appearance > Library", icon: "bookmark", color: .purple, keywords: ["hide bookmarks", "library sections", "collections only"], action: .destination(.appearanceTarget(.libraryBookmarks))),
             .init(id: "appearance-library-layout", title: "Collection Layout", location: "Appearance > Library", icon: "rectangle.grid.1x2", color: .purple, keywords: ["library collections", "horizontal", "vertical", "grid"], action: .destination(.appearanceTarget(.libraryCollectionLayout))),
             .init(id: "language-filters", title: "Language Filters", location: "Content Filters", icon: "globe", color: .cyan, keywords: ["Spanish dub AI research", "Gemini", "OpenAI", "repository secrets", "dub release date", "audio language"], action: .destination(.languageFilters)),
@@ -296,7 +310,20 @@ struct SettingsView: View {
             .init(id: "filter-hide-yuri", title: "Exclude Yuri", location: "Content Filters > Anime Filters", icon: "eye.slash", color: .pink, keywords: ["yuri", "girls love", "shoujo ai", "exclude"], action: .destination(.animeFilters)),
             .init(id: "filter-hide-yaoi", title: "Exclude Yaoi", location: "Content Filters > Anime Filters", icon: "eye.slash", color: .pink, keywords: ["yaoi", "boys love", "shounen ai", "exclude"], action: .destination(.animeFilters)),
             .init(id: "filter-hide-short-runtime", title: "Hide Under-20-Minute Content", location: "Content Filters > Runtime Filters", icon: "timer", color: .mint, keywords: ["runtime", "short", "20 minutes", "movies", "tv"], action: .destination(.runtimeFilters)),
-            .init(id: "filter-hide-fanmade", title: "Hide Fan-made Productions", location: "Content Filters > Productions", icon: "film.stack", color: .orange, keywords: ["fanmade", "fan-made", "unofficial", "YouTuber", "YouTube original", "productions"], action: .destination(.productions))
+            .init(id: "filter-hide-fanmade", title: "Hide Fan-made Productions", location: "Content Filters > Productions", icon: "film.stack", color: .orange, keywords: ["fanmade", "fan-made", "unofficial", "YouTuber", "YouTube original", "productions"], action: .destination(.productions)),
+            .init(id: "filter-age-movies-pg13", title: "Hide Movies Below PG-13", location: "Content Filters > Age Filters", icon: "18.circle", color: .pink, keywords: ["movie age rating", "13 plus", "certification", "minimum age"], action: .destination(.ageFilters)),
+            .init(id: "filter-age-series-tv14", title: "Hide Series Below TV-14", location: "Content Filters > Age Filters", icon: "tv", color: .pink, keywords: ["series age rating", "TV 14", "television certification", "minimum age"], action: .destination(.ageFilters)),
+            .init(id: "filter-age-anime-pg13", title: "Hide Anime Below PG-13", location: "Content Filters > Age Filters", icon: "sparkles", color: .pink, keywords: ["anime age rating", "PG 13", "MAL rating", "AniList rating"], action: .destination(.ageFilters)),
+            .init(id: "filter-all-ages-movies", title: "Hide All-Ages Movies", location: "Content Filters > Age Filters", icon: "eye.slash", color: .pink, keywords: ["all ages", "general audience", "G rated movies"], action: .destination(.ageFilters)),
+            .init(id: "filter-all-ages-series", title: "Hide All-Ages Series", location: "Content Filters > Age Filters", icon: "eye.slash", color: .pink, keywords: ["all ages", "general audience", "TV G"], action: .destination(.ageFilters)),
+            .init(id: "filter-all-ages-anime", title: "Hide All-Ages Anime", location: "Content Filters > Age Filters", icon: "eye.slash", color: .pink, keywords: ["all ages anime", "G", "PG", "general audience"], action: .destination(.ageFilters)),
+            .init(id: "filter-pre1994-anime", title: "Hide Anime Before 1994", location: "Content Filters > Release Date Filters", icon: "calendar", color: .pink, keywords: ["before 1994", "classic anime", "release year"], action: .destination(.releaseDateFilters)),
+            .init(id: "filter-pre1994-movies", title: "Hide Movies Before 1994", location: "Content Filters > Release Date Filters", icon: "calendar", color: .pink, keywords: ["before 1994", "classic films", "release year"], action: .destination(.releaseDateFilters)),
+            .init(id: "filter-pre1994-series", title: "Hide Series Before 1994", location: "Content Filters > Release Date Filters", icon: "calendar", color: .pink, keywords: ["before 1994", "classic television", "release year"], action: .destination(.releaseDateFilters)),
+            .init(id: "filter-unreleased-anime", title: "Hide Upcoming Anime", location: "Content Filters > Release Date Filters", icon: "calendar.badge.clock", color: .pink, keywords: ["unreleased", "future airing", "upcoming anime"], action: .destination(.releaseDateFilters)),
+            .init(id: "filter-unreleased-movies", title: "Hide Upcoming Movies", location: "Content Filters > Release Date Filters", icon: "calendar.badge.clock", color: .pink, keywords: ["unreleased", "future release", "upcoming movies"], action: .destination(.releaseDateFilters)),
+            .init(id: "filter-unreleased-series", title: "Hide Upcoming Series", location: "Content Filters > Release Date Filters", icon: "calendar.badge.clock", color: .pink, keywords: ["unreleased", "future release", "upcoming TV"], action: .destination(.releaseDateFilters)),
+            .init(id: "filter-anime-specials", title: "Hide Anime Specials and OVAs", location: "Content Filters > Anime Filters", icon: "eye.slash", color: .pink, keywords: ["specials", "OVA", "ONA", "extra episodes"], action: .destination(.animeFilters))
         ])
 
         return entries
@@ -1241,7 +1268,7 @@ private final class EclipseRatingsFixtureStore: ObservableObject {
             TMDBSearchResult(id: 98213, mediaType: "tv", title: nil, name: "Conflict Fixture Show", overview: nil,
                 posterPath: nil, backdropPath: nil, releaseDate: nil, firstAirDate: nil, voteAverage: nil,
                 popularity: 0, adult: false, genreIds: nil),
-            TMDBSearchResult(id: 98214, mediaType: "tv", title: nil, name: "Reader Collision Fixture Show", overview: nil,
+            TMDBSearchResult(id: 98214, mediaType: "tv", title: nil, name: "Legacy ID Fixture Show", overview: nil,
                 posterPath: nil, backdropPath: nil, releaseDate: nil, firstAirDate: nil, voteAverage: nil,
                 popularity: 0, adult: false, genreIds: nil)
         ]
@@ -1277,7 +1304,7 @@ private final class EclipseRatingsFixtureStore: ObservableObject {
         manager.setRating(8, for: 98213, isMovie: false)
         manager.setNote("Current conflicting note", for: 98213, isMovie: false)
         manager.setRating(5, for: 98214)
-        manager.setNote("Reader collision note", for: 98214)
+        manager.setNote("Legacy ID note", for: 98214)
         manager.setRating(7.5, for: 98215)
         manager.setNote("Bulk lookup fixture note", for: 98215)
         manager.setRating(6, for: 98216)
@@ -1323,7 +1350,7 @@ private struct EclipseRatingsFixtureContentView: View {
 
                     NavigationLink("Ratings & Notes") {
                         RatingsSettingsView(manager: store.manager, metadata: store.metadata,
-                            excludedReaderIDs: [98214], lookupTitle: store.lookupTitle)
+                            lookupTitle: store.lookupTitle)
                     }
                     .accessibilityIdentifier("ratings.fixture.settings")
 
@@ -1354,7 +1381,6 @@ private struct EclipseRatingsFixtureContentView: View {
 private struct RatingsSettingsView: View {
     private let ratingManager: UserRatingManager
     private let suppliedMetadata: [TMDBSearchResult]
-    private let suppliedReaderIDs: Set<Int>
     private let lookupTitle: @Sendable (Int, Bool) async -> RatingTitleLookup
 
     @AppStorage("ratingsFollowSeasonSelection") private var followSeasonSelection = true
@@ -1364,7 +1390,6 @@ private struct RatingsSettingsView: View {
     @State private var authority: ProviderPlaybackScopeAuthority?
     @State private var reloadID = UUID()
     @State private var storeUnreadable = false
-    @State private var excludedReaderIDs: Set<Int> = []
     @State private var matchingContextReadable = false
     @State private var automaticallyMatchedCount = 0
     @State private var legacyTitleMatches: [String: [TMDBSearchResult]] = [:]
@@ -1375,13 +1400,12 @@ private struct RatingsSettingsView: View {
     @State private var lookupTotal = 0
     @State private var lookupSummary: String?
 
-    init(manager: UserRatingManager = .shared, metadata: [TMDBSearchResult] = [], excludedReaderIDs: Set<Int> = [],
+    init(manager: UserRatingManager = .shared, metadata: [TMDBSearchResult] = [],
          lookupTitle: @escaping @Sendable (Int, Bool) async -> RatingTitleLookup = { id, isMovie in
              await RatingTitleLookupPolicy.lookup(tmdbID: id, isMovie: isMovie)
          }) {
         ratingManager = manager
         suppliedMetadata = metadata
-        suppliedReaderIDs = excludedReaderIDs
         self.lookupTitle = lookupTitle
     }
 
@@ -1402,7 +1426,7 @@ private struct RatingsSettingsView: View {
                             .font(.subheadline)
                             .accessibilityIdentifier("settings.ratings.automatically-matched")
                     }
-                    if entries.contains(where: { $0.isMovie == nil && !excludedReaderIDs.contains($0.tmdbID) }) {
+                    if entries.contains(where: { $0.isMovie == nil }) {
                         if isLookingUpReviews {
                             ProgressView("Looking up older reviews: \(lookedUpCount) of \(lookupTotal)", value: Double(lookedUpCount), total: Double(max(lookupTotal, 1)))
                         } else if matchingContextReadable {
@@ -1410,7 +1434,7 @@ private struct RatingsSettingsView: View {
                                 .accessibilityIdentifier("settings.ratings.lookup-remaining")
                         }
                         Text(matchingContextReadable
-                             ? "Saved titles are matched automatically. Bulk lookup attaches reviews with one confirmed movie or show match. Multiple matches, Reader overlaps, and conflicting reviews stay for you to choose."
+                             ? "Saved titles are matched automatically. Bulk lookup attaches reviews with one confirmed movie or show match. Multiple matches and conflicting reviews stay for you to choose."
                              : "Automatic matching is unavailable while saved title data cannot be checked. Existing reviews have been kept.")
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -1438,7 +1462,6 @@ private struct RatingsSettingsView: View {
                             ratingManager: ratingManager,
                             libraryMatches: libraryResults[entry.tmdbID] ?? [],
                             resolvedLegacyMatches: legacyTitleMatches[entry.id],
-                            overlapsReader: excludedReaderIDs.contains(entry.tmdbID),
                             lookupTitle: lookupTitle,
                             authority: authority,
                             isKidsProfile: profileManager.isKidsModeActive
@@ -1479,7 +1502,6 @@ private struct RatingsSettingsView: View {
         storeUnreadable = ratingManager.hasUnreadableStore
         let originalEntries = ratingManager.allEntries()
         let context = matchingContext(profileID: capturedAuthority.profileID)
-        excludedReaderIDs = context.readerIDs
         matchingContextReadable = context.readable
         var results: [Int: [TMDBSearchResult]] = [:]
         for result in context.metadata {
@@ -1492,7 +1514,7 @@ private struct RatingsSettingsView: View {
             let matches = UserRatingManager.automaticLegacyAttachments(
                 entries: originalEntries,
                 knownMediaTypes: results.mapValues { Set($0.map(\.isMovie)) },
-                excludedReaderIDs: context.readerIDs
+                excludedReaderIDs: []
             )
             automaticallyMatchedCount += ratingManager.attachLegacyEntries(matches, expectedProfileID: capturedAuthority.profileID)
         }
@@ -1503,13 +1525,13 @@ private struct RatingsSettingsView: View {
     }
 
     @MainActor
-    private func matchingContext(profileID: UUID) -> (metadata: [TMDBSearchResult], readerIDs: Set<Int>, readable: Bool) {
+    private func matchingContext(profileID: UUID) -> (metadata: [TMDBSearchResult], readable: Bool) {
         guard ratingManager === UserRatingManager.shared else {
-            return (suppliedMetadata, suppliedReaderIDs, true)
+            return (suppliedMetadata, true)
         }
         guard let collections = LibraryManager.shared.collections(forProfile: profileID),
               let progress = ProgressManager.shared.progressData(forProfile: profileID) else {
-            return ([], [], false)
+            return ([], false)
         }
         var metadata = collections.flatMap(\.items).map(\.searchResult)
         metadata += progress.movieProgress.map {
@@ -1522,17 +1544,7 @@ private struct RatingsSettingsView: View {
                 posterPath: nil, backdropPath: nil, releaseDate: nil, firstAirDate: nil, voteAverage: nil,
                 popularity: 0, adult: nil, genreIds: nil)
         }
-#if os(tvOS)
-        return (metadata, [], false)
-#else
-        guard let readerCollections = MangaLibraryManager.shared.collectionsSnapshot(forProfile: profileID),
-              !MangaLibraryManager.hasPreservedQuarantinedCollections(forProfile: profileID),
-              let readerProgress = MangaReadingProgressManager.shared.progressSnapshot(forProfile: profileID) else {
-            return (metadata, [], false)
-        }
-        let readerIDs = Set(readerCollections.flatMap(\.items).map(\.id)).union(readerProgress.keys)
-        return (metadata, readerIDs, true)
-#endif
+        return (metadata, true)
     }
 
     private struct LegacyLookupResult: Sendable {
@@ -1552,7 +1564,7 @@ private struct RatingsSettingsView: View {
     private func lookUpRemainingReviews() {
         guard let authority, authority.isCurrent, !profileManager.isKidsModeActive,
               matchingContextReadable, !isLookingUpReviews else { return }
-        let remaining = entries.filter { $0.isMovie == nil && !excludedReaderIDs.contains($0.tmdbID) }
+        let remaining = entries.filter { $0.isMovie == nil }
         guard !remaining.isEmpty else { return }
         let operationID = UUID()
         bulkMatchingID = operationID
@@ -1604,8 +1616,7 @@ private struct RatingsSettingsView: View {
             let currentMediaTypes = Dictionary(grouping: context.metadata.filter { $0.isMovie || $0.isTVShow }, by: \.id)
                 .mapValues { Set($0.map(\.isMovie)) }
             attachments.removeAll { attachment in
-                context.readerIDs.contains(attachment.entry.tmdbID)
-                    || currentMediaTypes[attachment.entry.tmdbID].map { $0 != Set([attachment.isMovie]) } == true
+                currentMediaTypes[attachment.entry.tmdbID].map { $0 != Set([attachment.isMovie]) } == true
             }
             let attached = ratingManager.attachLegacyEntries(attachments, expectedProfileID: authority.profileID)
             lookupSummary = "Matched \(attached) older reviews. Entries without a clear match or with conflicting reviews have been kept."
@@ -1627,7 +1638,6 @@ private struct RatingSettingsEntryRow: View {
     let ratingManager: UserRatingManager
     let libraryMatches: [TMDBSearchResult]
     let resolvedLegacyMatches: [TMDBSearchResult]?
-    let overlapsReader: Bool
     let lookupTitle: @Sendable (Int, Bool) async -> RatingTitleLookup
     let authority: ProviderPlaybackScopeAuthority
     let isKidsProfile: Bool
@@ -1734,7 +1744,7 @@ private struct RatingSettingsEntryRow: View {
             if entry.isMovie == nil {
                 Text(legacyMatches.isEmpty
                      ? (didResolve ? "No matching title is available yet. You can still attach this review from its media detail page." : "Looking for matching titles…")
-                     : (overlapsReader ? "This number also belongs to a Reader title. Choose the intended title to attach this review." : "This older review saved only a number. Choose its title below to attach the rating and note."))
+                     : "This older review saved only a number. Choose the intended title below to attach the rating and note.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             } else if let animeTitle, let result, animeTitle != result.displayTitle {

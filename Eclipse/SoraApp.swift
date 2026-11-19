@@ -169,11 +169,6 @@ struct SoraApp: App {
     private let cloudSyncMaintenanceTimer = Timer.publish(every: 900, on: .main, in: .common).autoconnect()
 #endif
 
-#if !os(tvOS)
-    @AppStorage("showKanzen", store: .standard) private var showKanzen: Bool = false
-    private var modeSwitchAnimationEnabled: Bool { ModeSwitchAnimationSettings.isEnabled() }
-    @StateObject private var modeSwitchTransitionCoordinator = ModeSwitchTransitionCoordinator()
-#endif
 
     init() {
 
@@ -189,22 +184,12 @@ struct SoraApp: App {
         MediaStateSyncBootstrap.startIfAvailable()
 #if !os(tvOS)
         LocalNotificationManager.shared.configure()
-        ReaderImagePipelineConfigurator.configureIfNeeded()
 #endif
 
         DispatchQueue.global(qos: .background).async {
             CacheManager.shared.checkAndAutoClearIfNeeded()
         }
         _ = DownloadManager.shared
-#if !os(tvOS)
-        // ReaderDownloadManager runs migration recovery synchronously before it
-        // loads the mutable queue. If another Reader store is quarantined, the
-        // manager still exposes independently verified completed chapters
-        // read-only while keeping every provider and mutation path inert.
-        Task { @MainActor in
-            _ = ReaderDownloadManager.shared
-        }
-#endif
 
         let onboardingCompletedAtLaunch = UserDefaults.standard.bool(forKey: OnboardingState.completedKey)
 #if (DEBUG || ECLIPSE_PERF_HARNESS) && os(iOS)
@@ -248,18 +233,11 @@ struct SoraApp: App {
                             .environmentObject(theme)
                     }
                 }
-                .environmentObject(modeSwitchTransitionCoordinator)
-                .onAppear {
-                    // Watch Mode is the only supported application mode.
-                    // Clear any legacy preference so older installs cannot reopen Reader Mode.
-                    showKanzen = false
-                    scheduleStartupFallback()
-                }
+                .onAppear { scheduleStartupFallback() }
 #endif
 
                 if showProfilePicker {
                     ProfilePickerView(
-                        isReaderMode: profilePickerIsReaderMode,
                         autoUnlockProfile: launchUnlockProfile
                     ) {
                         showProfilePicker = false
@@ -338,9 +316,6 @@ struct SoraApp: App {
             .modifier(EclipseWindowSceneScopeModifier())
 #endif
             .environment(\.eclipseStartupOverlayVisible, showSplash && !hideSplashScreen)
-#if !os(tvOS)
-            .coordinateSpace(name: ModeSwitchTransitionCoordinator.coordinateSpaceName)
-#endif
 
             .defaultAppStorage(ProfileSettingsStore.shared.store(for: profileManager.activeProfileID))
             .environment(\.locale, localization.locale)
@@ -404,12 +379,6 @@ struct SoraApp: App {
             .onAppear {
                 MediaStateSyncBootstrap.syncOnActivation()
                 ExperimentalCloudSyncManager.shared.syncOnActivationIfNeeded(reason: "launch")
-                if LocalNotificationManager.shared.hasPendingScheduleNavigation {
-                    showKanzen = false
-                }
-                if showKanzen, LocalNotificationManager.shared.hasNotificationSelections {
-                    warmSchedulesAfterStartup()
-                }
                 Task {
                     await LocalNotificationManager.shared.refreshAuthorizationStatus()
                 }
@@ -449,13 +418,9 @@ struct SoraApp: App {
 
                 MediaStateSyncBootstrap.syncOnActivation()
             }
-            .onReceive(NotificationCenter.default.publisher(for: .openScheduleFromLocalNotification)) { _ in
-                showKanzen = false
-            }
 #endif
     }
 
-    private var profilePickerIsReaderMode: Bool { false }
 
     private func presentCloudKitUpgradeNoticeIfReady() {
         guard cloudKitUpgradeNoticePending,
@@ -469,16 +434,6 @@ struct SoraApp: App {
         showCloudKitUpgradeNotice = true
     }
 
-#if !os(tvOS)
-    private func modeSwitchTransition(isReaderMode: Bool) -> AnyTransition {
-        // The dedicated burst overlay owns the transition in both directions.
-        // Avoid a second full-screen destination-out mask over the entire
-        // Watch/Reader view trees: that forced expensive off-screen rendering
-        // at the same time as both large interfaces were being created.
-        .identity
-    }
-
-#endif
 
     private var performanceAppMode: String { "media" }
 
@@ -496,10 +451,6 @@ struct SoraApp: App {
     }
 
     private func warmSchedulesAfterStartup() {
-#if !os(tvOS)
-
-        guard !showKanzen || LocalNotificationManager.shared.hasNotificationSelections else { return }
-#endif
         guard !schedulePrefetchScheduled else { return }
         schedulePrefetchScheduled = true
 
@@ -599,391 +550,3 @@ enum EclipseDebugAutoplay {
 }
 #endif
 
-#if !os(tvOS)
-
-private struct KanzenAppRoot: View {
-    let onStartupReady: () -> Void
-    let settings: Settings
-    let theme: EclipseTheme
-    let modeSwitchTransitionCoordinator: ModeSwitchTransitionCoordinator
-
-    @StateObject private var moduleManager = ModuleManager.shared
-    @StateObject private var favouriteManager = FavouriteManager.shared
-
-    var body: some View {
-        KanzenMenu(onStartupReady: onStartupReady)
-            .environmentObject(settings)
-            .environmentObject(theme)
-            .environmentObject(moduleManager)
-            .environmentObject(favouriteManager)
-            .environmentObject(modeSwitchTransitionCoordinator)
-            .environment(\.managedObjectContext, favouriteManager.container.viewContext)
-            .accentColor(settings.effectiveAccentColor)
-    }
-}
-
-final class ModeSwitchTransitionCoordinator: ObservableObject {
-    static let coordinateSpaceName = "AppModeSwitchTransitionRoot"
-
-    @Published private(set) var origin: CGPoint?
-    @Published private(set) var activeBurst: AppModeSwitchBurst?
-
-    func record(origin: CGPoint) {
-        guard origin.x.isFinite, origin.y.isFinite else { return }
-        self.origin = origin
-    }
-
-    func beginBurst(toReaderMode: Bool) {
-        let burst = AppModeSwitchBurst(toReaderMode: toReaderMode, origin: origin)
-        activeBurst = burst
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.96) { [weak self] in
-            if self?.activeBurst?.id == burst.id {
-                self?.activeBurst = nil
-            }
-        }
-    }
-
-    func cancelBurst() {
-        activeBurst = nil
-    }
-}
-
-struct ModeSwitchButtonOriginPreferenceKey: PreferenceKey {
-    static var defaultValue: CGRect = .zero
-
-    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
-        let next = nextValue()
-        if next != .zero {
-            value = next
-        }
-    }
-}
-
-struct AppModeSwitchBurst: Identifiable, Equatable {
-    let id = UUID()
-    let toReaderMode: Bool
-    let origin: CGPoint?
-}
-
-private struct AppModeSwitchBurstOverlay: View {
-    let burst: AppModeSwitchBurst
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    @State private var waveScale: CGFloat = 0.025
-    @State private var waveOpacity = 0.82
-    @State private var leadingRingOpacity = 0.72
-    @State private var trailingRingScale: CGFloat = 0.025
-    @State private var trailingRingOpacity = 0.44
-    @State private var waveletProgress: CGFloat = 0
-
-    private var primaryColor: Color {
-        burst.toReaderMode
-            ? Color(red: 0.64, green: 0.38, blue: 0.31)
-            : Color(red: 0.24, green: 0.46, blue: 0.53)
-    }
-
-    private var secondaryColor: Color {
-        burst.toReaderMode
-            ? Color(red: 0.43, green: 0.32, blue: 0.52)
-            : Color(red: 0.20, green: 0.34, blue: 0.46)
-    }
-
-    private var shadowColor: Color {
-        burst.toReaderMode
-            ? Color(red: 0.15, green: 0.09, blue: 0.14)
-            : Color(red: 0.06, green: 0.13, blue: 0.18)
-    }
-
-    var body: some View {
-        GeometryReader { proxy in
-            let origin = resolvedOrigin(in: proxy)
-            let diameter = coverageDiameter(from: origin, in: proxy.size)
-
-            ZStack {
-
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [
-                                primaryColor.opacity(0.76),
-                                secondaryColor.opacity(0.66),
-                                shadowColor.opacity(0.56)
-                            ],
-                            center: .center,
-                            startRadius: 0,
-                            endRadius: diameter * 0.5
-                        )
-                    )
-                    .frame(width: diameter, height: diameter)
-                    .scaleEffect(waveScale)
-                    .opacity(waveOpacity)
-                    .position(origin)
-
-                waveRing(
-                    scale: waveScale,
-                    opacity: leadingRingOpacity,
-                    diameter: diameter,
-                    lineWidth: 14
-                )
-                .position(origin)
-
-                waveRing(
-                    scale: trailingRingScale,
-                    opacity: trailingRingOpacity,
-                    diameter: diameter,
-                    lineWidth: 5
-                )
-                .position(origin)
-
-                ForEach(0..<10, id: \.self) { index in
-                    AppModeSwitchWavelet(
-                        index: index,
-                        progress: waveletProgress,
-                        coverage: diameter * 0.5,
-                        primaryColor: primaryColor,
-                        secondaryColor: secondaryColor
-                    )
-                    .position(origin)
-                }
-            }
-            .frame(width: proxy.size.width, height: proxy.size.height)
-        }
-        .ignoresSafeArea()
-        .onAppear(perform: animate)
-    }
-
-    private func waveRing(scale: CGFloat, opacity: Double, diameter: CGFloat, lineWidth: CGFloat) -> some View {
-        Circle()
-            .stroke(
-                LinearGradient(
-                    colors: [primaryColor.opacity(0.82), secondaryColor.opacity(0.6), shadowColor.opacity(0.2)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ),
-                lineWidth: lineWidth
-            )
-            .frame(width: diameter, height: diameter)
-            .scaleEffect(scale)
-            .opacity(opacity)
-    }
-
-    private func resolvedOrigin(in proxy: GeometryProxy) -> CGPoint {
-        let fallback = CGPoint(x: proxy.size.width - 38, y: 58)
-        let rootFrame = proxy.frame(in: .named(ModeSwitchTransitionCoordinator.coordinateSpaceName))
-        guard let origin = burst.origin,
-              origin.x >= rootFrame.minX, origin.x <= rootFrame.maxX,
-              origin.y >= rootFrame.minY, origin.y <= rootFrame.maxY else {
-            return fallback
-        }
-        return CGPoint(x: origin.x - rootFrame.minX, y: origin.y - rootFrame.minY)
-    }
-
-    private func coverageDiameter(from origin: CGPoint, in size: CGSize) -> CGFloat {
-        let farthestCorner = max(
-            hypot(origin.x, origin.y),
-            hypot(size.width - origin.x, origin.y),
-            hypot(origin.x, size.height - origin.y),
-            hypot(size.width - origin.x, size.height - origin.y)
-        )
-
-        return (farthestCorner + 44) * 2
-    }
-
-    private func animate() {
-        if reduceMotion {
-
-            withAnimation(.easeOut(duration: 0.24)) {
-                waveScale = 1
-                waveOpacity = 0.2
-            }
-            withAnimation(.easeIn(duration: 0.32).delay(0.24)) {
-                waveOpacity = 0
-            }
-            return
-        }
-
-        let waveTiming = Animation.timingCurve(0.2, 0.75, 0.25, 1, duration: 0.82)
-        withAnimation(waveTiming) {
-            waveScale = 1
-            trailingRingScale = 0.96
-            waveletProgress = 1
-        }
-        withAnimation(.easeOut(duration: 0.4).delay(0.35)) {
-            leadingRingOpacity = 0
-            trailingRingOpacity = 0
-        }
-        withAnimation(.easeIn(duration: 0.24).delay(0.62)) {
-            waveOpacity = 0
-        }
-    }
-}
-
-private struct AppModeSwitchWavelet: View {
-    let index: Int
-    let progress: CGFloat
-    let coverage: CGFloat
-    let primaryColor: Color
-    let secondaryColor: Color
-
-    private var angle: Double {
-        Double(index) * 36 - 90
-    }
-
-    var body: some View {
-        let radians = angle * .pi / 180
-        let distance = 16 + progress * coverage * (0.2 + CGFloat(index % 3) * 0.09)
-        let x = CGFloat(cos(radians)) * distance
-        let y = CGFloat(sin(radians)) * distance
-
-        Capsule()
-            .fill(
-                LinearGradient(
-                    colors: [
-                        (index.isMultiple(of: 2) ? primaryColor : secondaryColor).opacity(0.7),
-                        secondaryColor.opacity(0.38),
-                        Color.clear
-                    ],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-            )
-            .frame(width: 26 + progress * 92, height: 7)
-            .rotationEffect(.degrees(angle))
-            .offset(x: x, y: y)
-            .scaleEffect(1 - progress * 0.3)
-            .opacity(Double(max(0, 0.62 - progress * progress * 0.62)))
-    }
-}
-
-private struct AppModeWaveRevealModifier: AnimatableModifier {
-    var progress: CGFloat
-    let origin: CGPoint?
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var animatableData: CGFloat {
-        get { progress }
-        set { progress = newValue }
-    }
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if reduceMotion {
-            content.opacity(Double(progress))
-        } else {
-            content.mask {
-                GeometryReader { proxy in
-                    let rootFrame = proxy.frame(in: .named(ModeSwitchTransitionCoordinator.coordinateSpaceName))
-                    let resolvedOrigin = origin.map {
-                        CGPoint(x: $0.x - rootFrame.minX, y: $0.y - rootFrame.minY)
-                    } ?? CGPoint(x: proxy.size.width - 38, y: 58)
-                    let radius = max(
-                        hypot(resolvedOrigin.x, resolvedOrigin.y),
-                        hypot(proxy.size.width - resolvedOrigin.x, resolvedOrigin.y),
-                        hypot(resolvedOrigin.x, proxy.size.height - resolvedOrigin.y),
-                        hypot(proxy.size.width - resolvedOrigin.x, proxy.size.height - resolvedOrigin.y)
-                    ) + 44
-                    let diameter = max(4, radius * 2 * min(max(progress, 0), 1))
-
-                    Circle()
-                        .frame(width: diameter, height: diameter)
-                        .position(resolvedOrigin)
-                }
-                .ignoresSafeArea()
-            }
-        }
-    }
-}
-
-private struct AppModeWaveCutoutModifier: AnimatableModifier {
-    var progress: CGFloat
-    let origin: CGPoint?
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var animatableData: CGFloat {
-        get { progress }
-        set { progress = newValue }
-    }
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if reduceMotion {
-            content.opacity(Double(1 - progress))
-        } else {
-            content.mask {
-                GeometryReader { proxy in
-                    let rootFrame = proxy.frame(in: .named(ModeSwitchTransitionCoordinator.coordinateSpaceName))
-                    let resolvedOrigin = origin.map {
-                        CGPoint(x: $0.x - rootFrame.minX, y: $0.y - rootFrame.minY)
-                    } ?? CGPoint(x: proxy.size.width - 38, y: 58)
-                    let radius = max(
-                        hypot(resolvedOrigin.x, resolvedOrigin.y),
-                        hypot(proxy.size.width - resolvedOrigin.x, resolvedOrigin.y),
-                        hypot(resolvedOrigin.x, proxy.size.height - resolvedOrigin.y),
-                        hypot(proxy.size.width - resolvedOrigin.x, proxy.size.height - resolvedOrigin.y)
-                    ) + 44
-                    let diameter = radius * 2 * min(max(progress, 0), 1)
-
-                    ZStack {
-                        Rectangle()
-                        Circle()
-                            .frame(width: diameter, height: diameter)
-                            .position(resolvedOrigin)
-                            .blendMode(.destinationOut)
-                    }
-                    .compositingGroup()
-                }
-                .ignoresSafeArea()
-            }
-        }
-    }
-}
-
-private struct AppModeKeepAliveModifier: AnimatableModifier {
-    var progress: CGFloat
-
-    var animatableData: CGFloat {
-        get { progress }
-        set { progress = newValue }
-    }
-
-    func body(content: Content) -> some View {
-        content.opacity(1)
-    }
-}
-
-#if canImport(Kingfisher)
-
-#endif
-
-private extension AnyTransition {
-
-    static var eclipseMediaModeReturn: AnyTransition {
-        .asymmetric(
-            insertion: .identity,
-            removal: .modifier(
-                active: AppModeKeepAliveModifier(progress: 1),
-                identity: AppModeKeepAliveModifier(progress: 0)
-            )
-        )
-    }
-
-    static func eclipseModeWave(origin: CGPoint?) -> AnyTransition {
-        .asymmetric(
-            insertion: .modifier(
-                active: AppModeWaveRevealModifier(progress: 0, origin: origin),
-                identity: AppModeWaveRevealModifier(progress: 1, origin: origin)
-            ),
-            removal: .modifier(
-                active: AppModeWaveCutoutModifier(progress: 1, origin: origin),
-                identity: AppModeWaveCutoutModifier(progress: 0, origin: origin)
-            )
-        )
-    }
-}
-
-
-#endif

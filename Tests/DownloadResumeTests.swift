@@ -773,6 +773,83 @@ final class DownloadResumeTests: XCTestCase {
         XCTAssertNil(HLSDownloader.resumeManifestFingerprint("#EXTM3U\nsegment.ts", playlistURL: upstream, keyData: nil))
     }
 
+    func testHLSMediaSequenceDrivesTheDefaultAES128IV() {
+        XCTAssertEqual(
+            HLSDownloadCompatibility.mediaSequenceNumber(in: "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:42\n#EXTINF:1,\nsegment.ts"),
+            42
+        )
+        XCTAssertEqual(
+            HLSDownloadCompatibility.mediaSequenceNumber(in: "#EXTM3U\n#EXTINF:1,\nsegment.ts"),
+            0
+        )
+        XCTAssertNil(HLSDownloadCompatibility.mediaSequenceNumber(
+            in: "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:42\n#EXT-X-MEDIA-SEQUENCE:43"
+        ))
+        XCTAssertEqual(HLSDownloadCompatibility.sequenceNumber(base: 42, segmentIndex: 2), 44)
+        XCTAssertNil(HLSDownloadCompatibility.sequenceNumber(base: UInt64.max, segmentIndex: 1))
+
+        XCTAssertEqual(
+            HLSDownloadCompatibility.defaultAES128IV(sequenceNumber: 0x0102030405060708),
+            Data([0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8])
+        )
+    }
+
+    func testHLSRejectsUnsupportedEncryptionAndKeyRotation() {
+        let sampleAES = "#EXTM3U\n#EXT-X-KEY:METHOD=SAMPLE-AES,URI=\"key\"\n#EXTINF:1,\nsegment.ts"
+        XCTAssertNotNil(HLSDownloadCompatibility.unsupportedEncryptionLayout(in: sampleAES))
+
+        let fairPlay = "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,KEYFORMAT=\"com.apple.streamingkeydelivery\",URI=\"skd://asset\"\n#EXTINF:1,\nsegment.ts"
+        XCTAssertNotNil(HLSDownloadCompatibility.unsupportedEncryptionLayout(in: fairPlay))
+
+        let rotated = "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"key-one\"\n#EXTINF:1,\nfirst.ts\n#EXT-X-KEY:METHOD=AES-128,URI=\"key-two\"\n#EXTINF:1,\nsecond.ts"
+        XCTAssertNotNil(HLSDownloadCompatibility.unsupportedEncryptionLayout(in: rotated))
+
+        let reset = "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"key\"\n#EXTINF:1,\nfirst.ts\n#EXT-X-KEY:METHOD=NONE\n#EXTINF:1,\nsecond.ts"
+        XCTAssertNotNil(HLSDownloadCompatibility.unsupportedEncryptionLayout(in: reset))
+
+        let supported = "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"key\",KEYFORMAT=\"identity\"\n#EXTINF:1,\nsegment.ts"
+        XCTAssertNil(HLSDownloadCompatibility.unsupportedEncryptionLayout(in: supported))
+        XCTAssertNil(HLSDownloadCompatibility.unsupportedEncryptionLayout(in: "#EXTM3U\n#EXTINF:1,\nsegment.ts"))
+    }
+
+    func testHLSRejectsMalformedEncryptionDeclarationsAndKeyURLs() throws {
+        let missingMethod = "#EXTM3U\n#EXT-X-KEY:URI=\"key.bin\"\n#EXTINF:1,\nsegment.ts"
+        XCTAssertNotNil(HLSDownloadCompatibility.unsupportedEncryptionLayout(in: missingMethod))
+
+        let base = try XCTUnwrap(URL(string: "https://cdn.example/path/playlist.m3u8"))
+        XCTAssertTrue(HLSDownloadCompatibility.isValidAES128KeyURL("key.bin", relativeTo: base))
+        XCTAssertTrue(HLSDownloadCompatibility.isValidAES128KeyURL("https://keys.example/key.bin", relativeTo: base))
+        XCTAssertFalse(HLSDownloadCompatibility.isValidAES128KeyURL("http://keys.example/key.bin", relativeTo: base))
+        XCTAssertFalse(HLSDownloadCompatibility.isValidAES128KeyURL("file:///private/key.bin", relativeTo: base))
+        XCTAssertFalse(HLSDownloadCompatibility.isValidAES128KeyURL("skd://asset", relativeTo: base))
+        XCTAssertFalse(HLSDownloadCompatibility.isValidAES128KeyURL("https://user:pass@keys.example/key.bin", relativeTo: base))
+
+        let httpBase = try XCTUnwrap(URL(string: "http://cdn.example/path/playlist.m3u8"))
+        XCTAssertTrue(HLSDownloadCompatibility.isValidAES128KeyURL("http://keys.example/key.bin", relativeTo: httpBase))
+    }
+
+    func testHLSRequiresExactly128BitHexInitializationVectors() {
+        XCTAssertTrue(HLSDownloadCompatibility.isValidAES128IV("0x00000000000000000000000000000001"))
+        XCTAssertTrue(HLSDownloadCompatibility.isValidAES128IV("00000000000000000000000000000001"))
+        XCTAssertFalse(HLSDownloadCompatibility.isValidAES128IV("0x0001"))
+        XCTAssertFalse(HLSDownloadCompatibility.isValidAES128IV("0x000000000000000000000000000000001"))
+        XCTAssertFalse(HLSDownloadCompatibility.isValidAES128IV("0x0000000000000000000000000000000G"))
+    }
+
+    func testHLSRedirectPolicyRejectsHTTPSDowngradesAndCredentialURLs() throws {
+        let secure = try XCTUnwrap(URL(string: "https://cdn.example/playlist.m3u8"))
+        let insecure = try XCTUnwrap(URL(string: "http://cdn.example/playlist.m3u8"))
+        let secureTarget = try XCTUnwrap(URL(string: "https://cdn.example/redirected.m3u8"))
+        let credentialTarget = try XCTUnwrap(URL(string: "https://user:pass@cdn.example/redirected.m3u8"))
+        let invalidScheme = try XCTUnwrap(URL(string: "file:///private/playlist.m3u8"))
+
+        XCTAssertFalse(HLSDownloadCompatibility.permitsRedirect(from: secure, to: insecure))
+        XCTAssertTrue(HLSDownloadCompatibility.permitsRedirect(from: secure, to: secureTarget))
+        XCTAssertTrue(HLSDownloadCompatibility.permitsRedirect(from: insecure, to: secureTarget))
+        XCTAssertFalse(HLSDownloadCompatibility.permitsRedirect(from: secure, to: credentialTarget))
+        XCTAssertFalse(HLSDownloadCompatibility.permitsRedirect(from: secure, to: invalidScheme))
+    }
+
     func testHLSSelectsMuxedAudioVariantAndPreservesInBandAudioGroups() throws {
         let base = try XCTUnwrap(URL(string: "https://hls-resume.example/playlist.m3u8"))
         let downloader = HLSDownloader(streamURL: base, headers: [:], destinationURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString), downloadId: UUID().uuidString)
@@ -784,6 +861,32 @@ final class DownloadResumeTests: XCTestCase {
         let inBand = external.replacingOccurrences(of: ",URI=\"audio.m3u8\"", with: "")
         XCTAssertEqual(downloader.selectBestVariant(downloader.parseMasterPlaylist(inBand, baseURL: base))?.url.lastPathComponent, "video.m3u8")
         XCTAssertNil(HLSDownloadCompatibility.unsupportedMediaLayout(in: "#EXTM3U\n#EXT-X-MAP:URI=\"init.mp4\"\n#EXTINF:1,\nsegment.m4s\n#EXT-X-ENDLIST"))
+    }
+
+    func testHLSRejectsChangingOrMalformedInitializationSections() {
+        let changing = "#EXTM3U\n#EXT-X-MAP:URI=\"init-one.mp4\"\n#EXTINF:1,\nfirst.m4s\n#EXT-X-MAP:URI=\"init-two.mp4\"\n#EXTINF:1,\nsecond.m4s"
+        let malformed = "#EXTM3U\n#EXT-X-MAP:BYTERANGE=\"100@0\"\n#EXTINF:1,\nsegment.m4s"
+        XCTAssertNotNil(HLSDownloadCompatibility.unsupportedMediaLayout(in: changing))
+        XCTAssertNotNil(HLSDownloadCompatibility.unsupportedMediaLayout(in: malformed))
+    }
+
+    func testHLSRejectsInvalidSegmentURLsInsteadOfSilentlySkippingThem() throws {
+        let base = try XCTUnwrap(URL(string: "https://hls-resume.example/playlist.m3u8"))
+        let downloader = HLSDownloader(
+            streamURL: base,
+            headers: [:],
+            destinationURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString),
+            downloadId: UUID().uuidString
+        )
+        XCTAssertThrowsError(try downloader.parseMediaPlaylist(
+            "#EXTM3U\nvalid.ts\nfile:///private/segment.ts",
+            baseURL: base
+        ))
+        let segments = try downloader.parseMediaPlaylist(
+            "#EXTM3U\nfirst.ts\nsecond.ts",
+            baseURL: base
+        )
+        XCTAssertEqual(segments.map(\.lastPathComponent), ["first.ts", "second.ts"])
     }
 
     @MainActor

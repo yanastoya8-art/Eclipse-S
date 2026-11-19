@@ -68,15 +68,127 @@ enum HLSDownloadCompatibility {
         return groups[group] != true
     }
 
+    static func mediaSequenceNumber(in playlist: String) -> UInt64? {
+        let prefix = "#EXT-X-MEDIA-SEQUENCE:"
+        let declarations = playlist.components(separatedBy: .newlines).compactMap { line -> String? in
+            let line = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard line.hasPrefix(prefix) else { return nil }
+            return String(line.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        guard declarations.count <= 1 else { return nil }
+        guard let declaration = declarations.first else { return 0 }
+        return UInt64(declaration)
+    }
+
+    static func sequenceNumber(base: UInt64, segmentIndex: Int) -> UInt64? {
+        guard segmentIndex >= 0 else { return nil }
+        let (sequence, overflow) = base.addingReportingOverflow(UInt64(segmentIndex))
+        return overflow ? nil : sequence
+    }
+
+    static func defaultAES128IV(sequenceNumber: UInt64) -> Data {
+        var bytes = [UInt8](repeating: 0, count: 16)
+        var value = sequenceNumber
+        for index in stride(from: 15, through: 8, by: -1) {
+            bytes[index] = UInt8(value & 0xff)
+            value >>= 8
+        }
+        return Data(bytes)
+    }
+
+    static func isValidAES128KeyURL(_ value: String, relativeTo baseURL: URL) -> Bool {
+        guard let url = URL(string: value, relativeTo: baseURL)?.absoluteURL,
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              url.host != nil,
+              url.user == nil,
+              url.password == nil else { return false }
+        let sourceScheme = baseURL.scheme?.lowercased()
+        return !(sourceScheme == "https" && scheme == "http")
+    }
+
+    static func permitsRedirect(from source: URL, to destination: URL) -> Bool {
+        guard let sourceScheme = source.scheme?.lowercased(),
+              sourceScheme == "http" || sourceScheme == "https",
+              let destinationScheme = destination.scheme?.lowercased(),
+              destinationScheme == "http" || destinationScheme == "https",
+              destination.host != nil,
+              destination.user == nil,
+              destination.password == nil else { return false }
+        return !(sourceScheme == "https" && destinationScheme == "http")
+    }
+
+    static func isValidAES128IV(_ value: String) -> Bool {
+        let digits = value.hasPrefix("0x") || value.hasPrefix("0X")
+            ? String(value.dropFirst(2))
+            : value
+        return digits.count == 32 && digits.allSatisfy(\.isHexDigit)
+    }
+
+    static func unsupportedEncryptionLayout(in playlist: String) -> String? {
+        var activeKeySignature: String?
+        var hasSeenActiveKey = false
+
+        for line in playlist.components(separatedBy: .newlines) {
+            let line = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard line.hasPrefix("#EXT-X-KEY:") else { continue }
+            let values = attributes(String(line.dropFirst("#EXT-X-KEY:".count)))
+            guard let rawMethod = values["METHOD"], !rawMethod.isEmpty else {
+                return "This HLS stream has an invalid encryption declaration and cannot be packaged safely for offline playback. Choose another stream."
+            }
+            let method = rawMethod.uppercased()
+
+            if method == "NONE" {
+                // The downloader currently uses one key for the whole media
+                // playlist. A later key reset would leave earlier segments
+                // encrypted because it cannot map keys to individual segments.
+                if hasSeenActiveKey {
+                    return "This HLS stream changes encryption keys within the playlist, which cannot be packaged safely for offline playback. Choose another stream."
+                }
+                continue
+            }
+
+            guard method == "AES-128",
+                  values["URI"]?.isEmpty == false,
+                  values["KEYFORMAT"]?.lowercased() == nil
+                    || values["KEYFORMAT"]?.lowercased() == "identity" else {
+                return "This HLS stream uses an encryption method that cannot be packaged safely for offline playback. Choose another stream."
+            }
+
+            let signature = [
+                method,
+                values["URI"] ?? "",
+                values["IV"] ?? "",
+                values["KEYFORMAT"]?.lowercased() ?? "identity"
+            ].joined(separator: "|")
+            if let activeKeySignature, activeKeySignature != signature {
+                return "This HLS stream rotates encryption keys, which cannot be packaged safely for offline playback. Choose another stream."
+            }
+            activeKeySignature = signature
+            hasSeenActiveKey = true
+        }
+        return nil
+    }
+
     static func unsupportedMediaLayout(in playlist: String) -> String? {
+        var initializationURI: String?
         for line in playlist.components(separatedBy: .newlines) {
             let line = line.trimmingCharacters(in: .whitespacesAndNewlines)
             if line.hasPrefix("#EXT-X-BYTERANGE:") {
                 return "This HLS stream uses byte ranges that cannot be packaged for offline playback. Choose another stream."
             }
-            if line.hasPrefix("#EXT-X-MAP:"),
-               attributes(String(line.dropFirst("#EXT-X-MAP:".count)))["BYTERANGE"] != nil {
-                return "This HLS stream uses an initialization byte range that cannot be packaged for offline playback. Choose another stream."
+            if line.hasPrefix("#EXT-X-MAP:") {
+                let values = attributes(String(line.dropFirst("#EXT-X-MAP:".count)))
+                if values["BYTERANGE"] != nil {
+                    return "This HLS stream uses an initialization byte range that cannot be packaged for offline playback. Choose another stream."
+                }
+                guard let uri = values["URI"], !uri.isEmpty else {
+                    return "This HLS stream has an invalid initialization section and cannot be packaged safely for offline playback. Choose another stream."
+                }
+                if let initializationURI, initializationURI != uri {
+                    return "This HLS stream changes initialization sections, which cannot be packaged safely for offline playback. Choose another stream."
+                }
+                initializationURI = uri
             }
         }
         return nil
@@ -87,6 +199,24 @@ struct HLSEncryptionKey {
     let method: String
     let keyURL: URL
     let iv: Data?
+}
+
+private final class HLSRedirectPolicyDelegate: NSObject, URLSessionTaskDelegate {
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        guard let source = response.url,
+              let destination = request.url,
+              HLSDownloadCompatibility.permitsRedirect(from: source, to: destination) else {
+            completionHandler(nil)
+            return
+        }
+        completionHandler(request)
+    }
 }
 
 struct HLSDownloadCheckpoint {
@@ -189,7 +319,11 @@ final class HLSDownloader: @unchecked Sendable {
         config.httpMaximumConnectionsPerHost = 4
         config.timeoutIntervalForRequest = 30
         config.timeoutIntervalForResource = 600
-        self.session = URLSession(configuration: config)
+        self.session = URLSession(
+            configuration: config,
+            delegate: HLSRedirectPolicyDelegate(),
+            delegateQueue: nil
+        )
     }
 
     deinit {
@@ -273,7 +407,13 @@ final class HLSDownloader: @unchecked Sendable {
                 if let reason = HLSDownloadCompatibility.unsupportedMediaLayout(in: mediaPlaylistContent) {
                     throw HLSError.unsupportedLayout(reason: reason)
                 }
-                let segments = self.parseMediaPlaylist(mediaPlaylistContent, baseURL: mediaPlaylistURL)
+                if let reason = HLSDownloadCompatibility.unsupportedEncryptionLayout(in: mediaPlaylistContent) {
+                    throw HLSError.unsupportedLayout(reason: reason)
+                }
+                guard let mediaSequenceNumber = HLSDownloadCompatibility.mediaSequenceNumber(in: mediaPlaylistContent) else {
+                    throw HLSError.unsupportedLayout(reason: "This HLS playlist has an invalid media sequence number and cannot be packaged safely for offline playback.")
+                }
+                let segments = try self.parseMediaPlaylist(mediaPlaylistContent, baseURL: mediaPlaylistURL)
                 guard !segments.isEmpty else {
                     throw HLSError.noSegmentsFound
                 }
@@ -295,7 +435,7 @@ final class HLSDownloader: @unchecked Sendable {
                     throw HLSError.resumePlaylistChanged
                 }
 
-                let encryptionKey = self.parseEncryptionKey(from: mediaPlaylistContent, baseURL: mediaPlaylistURL)
+                let encryptionKey = try self.parseEncryptionKey(from: mediaPlaylistContent, baseURL: mediaPlaylistURL)
                 var keyData: Data? = nil
                 if let encKey = encryptionKey, encKey.method == "AES-128" {
                     self.publishStage("Downloading encryption key")
@@ -307,7 +447,7 @@ final class HLSDownloader: @unchecked Sendable {
                     Logger.shared.log("HLS: Downloaded AES-128 encryption key", type: "Download")
                 }
 
-                let initSegmentURL = self.parseInitSegment(from: mediaPlaylistContent, baseURL: mediaPlaylistURL)
+                let initSegmentURL = try self.parseInitSegment(from: mediaPlaylistContent, baseURL: mediaPlaylistURL)
                 let manifestSHA256 = Self.resumeManifestFingerprint(
                     mediaPlaylistContent,
                     playlistURL: mediaPlaylistURL,
@@ -725,7 +865,7 @@ final class HLSDownloader: @unchecked Sendable {
         return variants.filter { !$0.requiresExternalAudio }.max(by: { $0.bandwidth < $1.bandwidth })
     }
 
-    func parseMediaPlaylist(_ content: String, baseURL: URL) -> [URL] {
+    func parseMediaPlaylist(_ content: String, baseURL: URL) throws -> [URL] {
         var segments: [URL] = []
         let lines = content.components(separatedBy: .newlines)
 
@@ -734,15 +874,16 @@ final class HLSDownloader: @unchecked Sendable {
 
             if trimmed.isEmpty || trimmed.hasPrefix("#") { continue }
 
-            if let segmentURL = resolveURL(trimmed, baseURL: baseURL) {
-                segments.append(segmentURL)
+            guard let segmentURL = resolveURL(trimmed, baseURL: baseURL) else {
+                throw HLSError.unsupportedLayout(reason: "This HLS playlist contains an invalid segment URL and cannot be packaged safely for offline playback. Choose another stream.")
             }
+            segments.append(segmentURL)
         }
 
         return segments
     }
 
-    private func parseEncryptionKey(from content: String, baseURL: URL) -> HLSEncryptionKey? {
+    private func parseEncryptionKey(from content: String, baseURL: URL) throws -> HLSEncryptionKey? {
         let lines = content.components(separatedBy: .newlines)
 
         var lastKey: HLSEncryptionKey? = nil
@@ -752,7 +893,11 @@ final class HLSDownloader: @unchecked Sendable {
             guard trimmed.hasPrefix("#EXT-X-KEY:") else { continue }
 
             let attributes = trimmed.replacingOccurrences(of: "#EXT-X-KEY:", with: "")
-            let method = parseAttribute(attributes, key: "METHOD") ?? "NONE"
+            guard let rawMethod = parseAttribute(attributes, key: "METHOD"),
+                  !rawMethod.isEmpty else {
+                throw HLSError.unsupportedLayout(reason: "This HLS stream has an invalid encryption declaration and cannot be packaged safely for offline playback. Choose another stream.")
+            }
+            let method = rawMethod.uppercased()
 
             if method == "NONE" {
                 lastKey = nil
@@ -760,11 +905,19 @@ final class HLSDownloader: @unchecked Sendable {
             }
 
             guard let uriString = parseAttribute(attributes, key: "URI"),
-                  let keyURL = resolveURL(uriString, baseURL: baseURL) else { continue }
+                  HLSDownloadCompatibility.isValidAES128KeyURL(uriString, relativeTo: baseURL),
+                  let keyURL = resolveURL(uriString, baseURL: baseURL) else {
+                throw HLSError.unsupportedLayout(reason: "This HLS stream has an invalid AES-128 key URL and cannot be packaged safely for offline playback. Choose another stream.")
+            }
 
             var ivData: Data? = nil
             if let ivString = parseAttribute(attributes, key: "IV") {
-                ivData = hexStringToData(ivString)
+                guard HLSDownloadCompatibility.isValidAES128IV(ivString),
+                      let parsedIV = hexStringToData(ivString),
+                      parsedIV.count == kCCBlockSizeAES128 else {
+                    throw HLSError.unsupportedLayout(reason: "This HLS stream has an invalid AES-128 initialization vector and cannot be packaged safely for offline playback. Choose another stream.")
+                }
+                ivData = parsedIV
             }
 
             lastKey = HLSEncryptionKey(method: method, keyURL: keyURL, iv: ivData)
@@ -773,7 +926,7 @@ final class HLSDownloader: @unchecked Sendable {
         return lastKey
     }
 
-    private func parseInitSegment(from content: String, baseURL: URL) -> URL? {
+    private func parseInitSegment(from content: String, baseURL: URL) throws -> URL? {
         let lines = content.components(separatedBy: .newlines)
 
         for line in lines {
@@ -781,10 +934,11 @@ final class HLSDownloader: @unchecked Sendable {
             guard trimmed.hasPrefix("#EXT-X-MAP:") else { continue }
 
             let attributes = trimmed.replacingOccurrences(of: "#EXT-X-MAP:", with: "")
-            if let uriString = parseAttribute(attributes, key: "URI"),
-               let initURL = resolveURL(uriString, baseURL: baseURL) {
-                return initURL
+            guard let uriString = parseAttribute(attributes, key: "URI"),
+                  let initURL = resolveURL(uriString, baseURL: baseURL) else {
+                throw HLSError.unsupportedLayout(reason: "This HLS stream has an invalid initialization segment URL and cannot be packaged safely for offline playback. Choose another stream.")
             }
+            return initURL
         }
 
         return nil
@@ -879,7 +1033,13 @@ final class HLSDownloader: @unchecked Sendable {
                 try ensureDiskCapacity()
                 let initData = try await fetchDataWithRetry(url: initURL)
                 try checkCancelled()
-                let decrypted = try decryptIfNeeded(data: initData, key: encryptionKey, keyData: keyData, segmentIndex: -1)
+                // Encrypted EXT-X-MAP sections require an explicit IV.
+                let decrypted = try decryptIfNeeded(
+                    data: initData,
+                    key: encryptionKey,
+                    keyData: keyData,
+                    defaultSequenceNumber: nil
+                )
                 try ensureDiskCapacity(additionalBytes: Int64(decrypted.count))
                 try fileHandle.write(contentsOf: decrypted)
             }
@@ -895,7 +1055,18 @@ final class HLSDownloader: @unchecked Sendable {
 
                 let segmentData = try await fetchSegmentWithRetry(url: segments[index], maxRetries: 3)
                 try checkCancelled()
-                let decrypted = try decryptIfNeeded(data: segmentData, key: encryptionKey, keyData: keyData, segmentIndex: index)
+                guard let sequenceNumber = HLSDownloadCompatibility.sequenceNumber(
+                    base: mediaSequenceNumber,
+                    segmentIndex: index
+                ) else {
+                    throw HLSError.unsupportedLayout(reason: "This HLS playlist's media sequence number is too large to decrypt safely.")
+                }
+                let decrypted = try decryptIfNeeded(
+                    data: segmentData,
+                    key: encryptionKey,
+                    keyData: keyData,
+                    defaultSequenceNumber: sequenceNumber
+                )
                 try ensureDiskCapacity(additionalBytes: Int64(decrypted.count))
 
                 try fileHandle.write(contentsOf: decrypted)
@@ -988,23 +1159,25 @@ final class HLSDownloader: @unchecked Sendable {
         try await fetchDataWithRetry(url: url, maxRetries: maxRetries)
     }
 
-    private func decryptIfNeeded(data: Data, key: HLSEncryptionKey?, keyData: Data?, segmentIndex: Int) throws -> Data {
-        guard let encKey = key, encKey.method == "AES-128", let keyBytes = keyData else {
-            return data
+    private func decryptIfNeeded(
+        data: Data,
+        key: HLSEncryptionKey?,
+        keyData: Data?,
+        defaultSequenceNumber: UInt64?
+    ) throws -> Data {
+        guard let encKey = key else { return data }
+        guard encKey.method == "AES-128", let keyBytes = keyData else {
+            throw HLSError.unsupportedLayout(reason: "This HLS stream uses encryption that cannot be decrypted safely for offline playback.")
         }
 
         let iv: Data
         if let explicitIV = encKey.iv {
             iv = explicitIV
         } else {
-
-            var ivBytes = [UInt8](repeating: 0, count: 16)
-            let seqNum = UInt32(max(segmentIndex, 0))
-            ivBytes[12] = UInt8((seqNum >> 24) & 0xFF)
-            ivBytes[13] = UInt8((seqNum >> 16) & 0xFF)
-            ivBytes[14] = UInt8((seqNum >> 8) & 0xFF)
-            ivBytes[15] = UInt8(seqNum & 0xFF)
-            iv = Data(ivBytes)
+            guard let defaultSequenceNumber else {
+                throw HLSError.unsupportedLayout(reason: "This encrypted HLS initialization section is missing its required explicit IV.")
+            }
+            iv = HLSDownloadCompatibility.defaultAES128IV(sequenceNumber: defaultSequenceNumber)
         }
 
         return try aes128Decrypt(data: data, key: keyBytes, iv: iv)
@@ -1118,7 +1291,9 @@ final class HLSDownloader: @unchecked Sendable {
     private func resolveURL(_ urlString: String, baseURL: URL) -> URL? {
         guard let url = URL(string: urlString, relativeTo: baseURL)?.absoluteURL,
               let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
-              url.host != nil else { return nil }
+              url.host != nil,
+              url.user == nil,
+              url.password == nil else { return nil }
         return url
     }
 

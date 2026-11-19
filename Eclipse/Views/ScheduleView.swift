@@ -30,32 +30,42 @@ struct ScheduleView: View {
     @State private var loadingItemId: String?
 
     @State private var kidsBlockedScheduleIds: Set<Int> = []
-    @State private var allAgesBlockedScheduleEntryIDs: Set<String> = []
-    @State private var allAgesScheduleFilterGeneration = 0
+    @State private var ageBlockedScheduleEntryIDs: Set<String> = []
+    @State private var scheduleAgeFilterGeneration = 0
 
     @State private var resolvedKidsScheduleIds: Set<Int> = []
 
     @State private var kidsScheduleFilterGeneration = 0
     @State private var scheduleNeedsFilterRefresh = false
 
-    private func refreshAllAgesScheduleFilter(_ entries: [ScheduleEntry]) {
-        allAgesScheduleFilterGeneration &+= 1
-        let generation = allAgesScheduleFilterGeneration
+    private func refreshScheduleAgeFilter(_ entries: [ScheduleEntry]) {
+        scheduleAgeFilterGeneration &+= 1
+        let generation = scheduleAgeFilterGeneration
+        let filter = TMDBContentFilter.shared
+
+        // Apply already-cached ratings immediately. Minimum-age filters fail
+        // closed for unresolved entries, so a newly loaded schedule cannot
+        // briefly display titles that will be removed after metadata resolves.
+        ageBlockedScheduleEntryIDs = Set(
+            entries
+                .filter { filter.scheduleEntryIsBlockedByConfiguredAgeFilter($0) }
+                .map(\.id)
+        )
 
         Task { @MainActor in
-            await TMDBContentFilter.shared.prepareScheduleAgeRatings(for: entries)
+            await filter.prepareScheduleAgeRatings(for: entries)
 
-            guard generation == allAgesScheduleFilterGeneration else { return }
-            allAgesBlockedScheduleEntryIDs = Set(
+            guard generation == scheduleAgeFilterGeneration else { return }
+            ageBlockedScheduleEntryIDs = Set(
                 entries
-                    .filter { TMDBContentFilter.shared.scheduleEntryIsAllAges($0) }
+                    .filter { filter.scheduleEntryIsBlockedByConfiguredAgeFilter($0) }
                     .map(\.id)
             )
         }
     }
 
     private func visibleToProfile(_ entries: [ScheduleEntry]) -> [ScheduleEntry] {
-        let ageFilteredEntries = entries.filter { !allAgesBlockedScheduleEntryIDs.contains($0.id) }
+        let ageFilteredEntries = entries.filter { !ageBlockedScheduleEntryIDs.contains($0.id) }
         let profileEntries = UserDefaults.standard.bool(forKey: "catalogHideAnime")
             ? ageFilteredEntries.filter { $0.source != .anime }
             : ageFilteredEntries
@@ -196,7 +206,7 @@ struct ScheduleView: View {
             await viewModel.loadSchedule(mode: selectedScheduleMode, localTimeZone: showLocalScheduleTime, forceRefresh: true)
         }
         .onChangeComp(of: viewModel.scheduleEntriesRevision) { _, _ in
-            refreshAllAgesScheduleFilter(viewModel.scheduleEntries)
+            refreshScheduleAgeFilter(viewModel.scheduleEntries)
             refreshKidsScheduleFilter(viewModel.scheduleEntries)
         }
         .onReceive(NotificationCenter.default.publisher(for: MyDubListDubFilter.didRefreshNotification)) { _ in
@@ -233,18 +243,18 @@ struct ScheduleView: View {
         }
 
         .onAppear {
-            refreshAllAgesScheduleFilter(viewModel.scheduleEntries)
+            refreshScheduleAgeFilter(viewModel.scheduleEntries)
             refreshKidsScheduleFilter(viewModel.scheduleEntries)
         }
         .onReceive(NotificationCenter.default.publisher(for: TMDBContentFilter.catalogFiltersDidChangeNotification)) { _ in
             guard isActive else { return }
-            refreshAllAgesScheduleFilter(viewModel.scheduleEntries)
+            refreshScheduleAgeFilter(viewModel.scheduleEntries)
         }
         .onChangeComp(of: contentFilter.isKidsProfileActive) { _, _ in
             refreshKidsScheduleFilter(viewModel.scheduleEntries)
         }
         .onChangeComp(of: contentFilter.maturityRatingRevision) { _, _ in
-            refreshAllAgesScheduleFilter(viewModel.scheduleEntries)
+            refreshScheduleAgeFilter(viewModel.scheduleEntries)
             refreshKidsScheduleFilter(viewModel.scheduleEntries)
         }
 
