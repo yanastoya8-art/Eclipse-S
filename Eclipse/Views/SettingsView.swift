@@ -1268,7 +1268,7 @@ private final class EclipseRatingsFixtureStore: ObservableObject {
             TMDBSearchResult(id: 98213, mediaType: "tv", title: nil, name: "Conflict Fixture Show", overview: nil,
                 posterPath: nil, backdropPath: nil, releaseDate: nil, firstAirDate: nil, voteAverage: nil,
                 popularity: 0, adult: false, genreIds: nil),
-            TMDBSearchResult(id: 98214, mediaType: "tv", title: nil, name: "Reader Collision Fixture Show", overview: nil,
+            TMDBSearchResult(id: 98214, mediaType: "tv", title: nil, name: "Legacy ID Fixture Show", overview: nil,
                 posterPath: nil, backdropPath: nil, releaseDate: nil, firstAirDate: nil, voteAverage: nil,
                 popularity: 0, adult: false, genreIds: nil)
         ]
@@ -1304,7 +1304,7 @@ private final class EclipseRatingsFixtureStore: ObservableObject {
         manager.setRating(8, for: 98213, isMovie: false)
         manager.setNote("Current conflicting note", for: 98213, isMovie: false)
         manager.setRating(5, for: 98214)
-        manager.setNote("Reader collision note", for: 98214)
+        manager.setNote("Legacy ID note", for: 98214)
         manager.setRating(7.5, for: 98215)
         manager.setNote("Bulk lookup fixture note", for: 98215)
         manager.setRating(6, for: 98216)
