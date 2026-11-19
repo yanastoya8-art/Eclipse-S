@@ -85,9 +85,9 @@ struct StretchyHeaderView: View {
     var preservesArtworkComposition: Bool = false
     var artworkScaleX: CGFloat = 1.0
     var artworkScaleY: CGFloat = 1.0
-    // Landscape detail uses the extended hero-bleed compositor outside this
-    // view. Suppress this local 100pt fade there to avoid a stacked gradient
-    // that can read as a hard seam at the poster/content boundary.
+    // Fade the image edge into its extracted ambient colour. Landscape
+    // detail supplies a longer fade that reaches the same opacity as the
+    // extended hero-bleed background.
     var showsBottomFade: Bool = true
     var bottomFadeHeight: CGFloat = 100
     var bottomFadeEndOpacity: Double = 0.6
