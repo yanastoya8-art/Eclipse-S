@@ -171,6 +171,15 @@ struct SoraApp: App {
 
 
     init() {
+        // Register the age-filter defaults before any catalog or schedule
+        // service reads UserDefaults. AppStorage's view-level fallback alone
+        // does not guarantee these values are visible to non-UI filter code
+        // on a fresh install.
+        UserDefaults.standard.register(defaults: [
+            "catalogHideBelowPG13Movies": true,
+            "catalogHideBelowTV14Shows": true,
+            "catalogHideBelowPG13Anime": true
+        ])
 
         OnboardingState.bootstrapIfNeeded()
         _ = AppPerformanceRuntimeContext.shared
