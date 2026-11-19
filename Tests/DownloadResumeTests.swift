@@ -813,7 +813,7 @@ final class DownloadResumeTests: XCTestCase {
     }
 
     func testHLSRejectsMalformedEncryptionDeclarationsAndKeyURLs() throws {
-        let missingMethod = "#EXTM3U\\n#EXT-X-KEY:URI=\\"key.bin\\"\\n#EXTINF:1,\\nsegment.ts"
+        let missingMethod = "#EXTM3U\n#EXT-X-KEY:URI=\"key.bin\"\n#EXTINF:1,\nsegment.ts"
         XCTAssertNotNil(HLSDownloadCompatibility.unsupportedEncryptionLayout(in: missingMethod))
 
         let base = try XCTUnwrap(URL(string: "https://cdn.example/path/playlist.m3u8"))
