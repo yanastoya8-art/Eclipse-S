@@ -8,6 +8,20 @@ final class MaturityRatingRegionTests: XCTestCase {
         XCTAssertTrue(MaturityRating.classify(certification: "A", region: "IN").isBlockedForKids)
     }
 
+    func testDescriptiveAllAgesLabelsAreClassifiedAsGeneral() {
+        for label in ["All Ages", "ALL AGES", "All-Ages", "G - All Ages", "General Audience", "Everyone"] {
+            XCTAssertEqual(
+                MaturityRating.classify(certification: label),
+                .general,
+                "\(label) must be treated as an explicit All Ages rating"
+            )
+        }
+        XCTAssertTrue(ScheduleAllAgesPolicy.shouldExclude(
+            rating: MaturityRating.classify(certification: "All Ages"),
+            enabled: true
+        ))
+    }
+
     func testAllAgesBoardsKeepTheirMeaning() {
         for region in ["ES", "SE", "JP"] {
             XCTAssertEqual(
