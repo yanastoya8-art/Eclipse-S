@@ -401,6 +401,12 @@ final class HomeViewModel: ObservableObject {
             await MainActor.run {
                 guard self.loadGeneration == generation else { return }
                 self.unfilteredCatalogResults = rawTMDBLoadedCatalogs
+                if enabledCatalogIds.contains("bestTVShows") {
+                    self.unfilteredCatalogResults["bestTVShows"] = rawTMDBLoadedCatalogs["topRatedTVShows"] ?? []
+                }
+                if enabledCatalogIds.contains("bestMovies") {
+                    self.unfilteredCatalogResults["bestMovies"] = rawTMDBLoadedCatalogs["topRatedMovies"] ?? []
+                }
             }
             await contentFilter.prepareMaturityRatings(
                 for: Array(rawTMDBLoadedCatalogs.values.joined())
@@ -473,6 +479,9 @@ final class HomeViewModel: ObservableObject {
             await MainActor.run {
                 guard self.loadGeneration == generation else { return }
                 self.unfilteredCatalogResults.merge(rawAnimeByCatalogID) { _, anime in anime }
+                if enabledCatalogIds.contains("bestAnime") {
+                    self.unfilteredCatalogResults["bestAnime"] = rawAnimeByCatalogID["topRatedAnime"] ?? []
+                }
             }
             let trendingAnime = animeCatalogs[.trending] ?? []
             let popularAnime = animeCatalogs[.popular] ?? []
