@@ -1986,7 +1986,6 @@ struct HomeView: View {
         }
 
         let identity = hero.stableIdentity
-        let isAnimeHero = hero.isAnimeHint == true || hero.animeLogoURL != nil
         guard heroArtworkIsActive,
               homeViewModel.heroContent?.stableIdentity == identity,
               selectedLanguage == language else { return }
@@ -2027,9 +2026,27 @@ struct HomeView: View {
                 }
                 return (lhs.voteAverage ?? 0) > (rhs.voteAverage ?? 0)
             }
-            return rankedLogos.first(where: { $0.iso6391?.lowercased() == "en" })?.fullURL
+            if let logo = rankedLogos.first(where: { $0.iso6391?.lowercased() == "en" })?.fullURL
                 ?? rankedLogos.first(where: { $0.iso6391?.lowercased() == "es" })?.fullURL
-                ?? rankedLogos.first(where: { $0.iso6391 == nil || $0.iso6391 == "" })?.fullURL
+                ?? rankedLogos.first(where: { $0.iso6391 == nil || $0.iso6391 == "" })?.fullURL {
+                return logo
+            }
+
+            // TMDB does not have a transparent logo for every title. Try
+            // Fanart.tv using the external ID from the already cached detail
+            // endpoint before leaving the hero without title artwork.
+            if hero.isMovie {
+                let detail = try? await tmdbService.getMovieDetails(id: hero.id)
+                return await FanartTVLogoService.shared.logoURL(
+                    imdbID: detail?.imdbId,
+                    tvdbID: nil
+                )
+            }
+            let detail = try? await tmdbService.getTVShowWithSeasons(id: hero.id)
+            return await FanartTVLogoService.shared.logoURL(
+                imdbID: nil,
+                tvdbID: detail?.externalIds?.tvdbId
+            )
         }()
 
         if let imageURL = heroImageURL(for: hero) {
