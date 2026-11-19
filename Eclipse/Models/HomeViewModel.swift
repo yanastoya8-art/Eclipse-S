@@ -38,6 +38,33 @@ enum HomeCatalogLoadPolicy {
         recommendations.isEmpty ? trending : recommendations
     }
 
+    static func visibleCatalogCount(
+        _ catalogs: [String: [TMDBSearchResult]],
+        enabledCatalogIDs: Set<String>
+    ) -> Int {
+        catalogs.filter { enabledCatalogIDs.contains($0.key) && !$0.value.isEmpty }.count
+    }
+
+    static func visibleWidgetCatalogCount(
+        _ catalogs: [String: [TMDBSearchResult]],
+        enabledCatalogIDs: Set<String>
+    ) -> Int {
+        catalogs.filter { id, results in
+            guard !results.isEmpty else { return false }
+            let parentID: String
+            if id.hasPrefix("network_") {
+                parentID = "networks"
+            } else if id.hasPrefix("genre_") {
+                parentID = "genres"
+            } else if id.hasPrefix("company_") {
+                parentID = "companies"
+            } else {
+                parentID = id
+            }
+            return enabledCatalogIDs.contains(parentID)
+        }.count
+    }
+
     static func hasLoadedContent(
         tmdbCatalogCount: Int,
         animeCatalogCount: Int,
@@ -486,15 +513,24 @@ final class HomeViewModel: ObservableObject {
             if enabledCatalogIds.contains("bestMovies") {
                 tmdbLoadedCatalogs["bestMovies"] = tmdbLoadedCatalogs["topRatedMovies"] ?? []
             }
-            let tmdbLoadedCatalogCount = tmdbLoadedCatalogs.values.filter { !$0.isEmpty }.count
+            let tmdbLoadedCatalogCount = HomeCatalogLoadPolicy.visibleCatalogCount(
+                tmdbLoadedCatalogs,
+                enabledCatalogIDs: enabledCatalogIds
+            )
+            let tmdbHasAnySeedResults = tmdbLoadedCatalogs.values.contains { !$0.isEmpty }
 
-            if tmdbLoadedCatalogCount > 0 {
+            if tmdbHasAnySeedResults {
                 await MainActor.run {
                     guard self.loadGeneration == generation else { return }
+                    // Keep hidden seed shelves in the backing snapshot for
+                    // recommendations and hero selection, but do not let them
+                    // make an otherwise empty Home appear ready.
                     self.catalogResults = tmdbLoadedCatalogs
                     self.applyHeroBannerSelection()
                     self.errorMessage = nil
-                    self.hasRenderableStartupContent = true
+                    if tmdbLoadedCatalogCount > 0 {
+                        self.hasRenderableStartupContent = true
+                    }
                 }
             }
 
@@ -537,7 +573,10 @@ final class HomeViewModel: ObservableObject {
                 animeLoadedCatalogs["bestAnime"] = topRatedAnime
             }
             let loadedCatalogs = tmdbLoadedCatalogs.merging(animeLoadedCatalogs) { _, anime in anime }
-            let loadedCatalogCount = loadedCatalogs.values.filter { !$0.isEmpty }.count
+            let loadedCatalogCount = HomeCatalogLoadPolicy.visibleCatalogCount(
+                loadedCatalogs,
+                enabledCatalogIDs: enabledCatalogIds
+            )
 
             await MainActor.run {
                 guard self.loadGeneration == generation else { return }
@@ -697,13 +736,35 @@ final class HomeViewModel: ObservableObject {
                     self.catalogResults.merge(filteredTraktCatalogs) { _, trakt in trakt }
                 }
 
-                let finalLoadedCount = self.catalogResults.values.filter { !$0.isEmpty }.count
-                    + self.widgetData.values.filter { !$0.isEmpty }.count
-                let tmdbCatalogCount = rawTMDBLoadedCatalogs.values.filter { !$0.isEmpty }.count
-                let animeCatalogCount = rawAnimeCatalogs.values.filter { !$0.isEmpty }.count
-                let stremioCatalogCount = loadedStremioCatalogs.values.filter { !$0.isEmpty }.count
-                let traktCatalogCount = loadedTraktCatalogs.values.filter { !$0.isEmpty }.count
-                let widgetCatalogCount = self.unfilteredWidgetData.values.filter { !$0.isEmpty }.count
+                // Count only shelves that are actually enabled and can be
+                // rendered. Hidden Trending/Anime seed data is retained for
+                // recommendations and hero selection but is not Home content.
+                let visibleCatalogCount = HomeCatalogLoadPolicy.visibleCatalogCount(
+                    self.catalogResults,
+                    enabledCatalogIDs: currentlyEnabledCatalogIds
+                )
+                let visibleWidgetCatalogCount = HomeCatalogLoadPolicy.visibleWidgetCatalogCount(
+                    self.widgetData,
+                    enabledCatalogIDs: currentlyEnabledCatalogIds
+                )
+                let finalLoadedCount = visibleCatalogCount + visibleWidgetCatalogCount
+                let tmdbCatalogCount = HomeCatalogLoadPolicy.visibleCatalogCount(
+                    tmdbLoadedCatalogs,
+                    enabledCatalogIDs: currentlyEnabledCatalogIds
+                )
+                let animeCatalogCount = HomeCatalogLoadPolicy.visibleCatalogCount(
+                    animeLoadedCatalogs,
+                    enabledCatalogIDs: currentlyEnabledCatalogIds
+                )
+                let stremioCatalogCount = HomeCatalogLoadPolicy.visibleCatalogCount(
+                    filteredStremioCatalogs,
+                    enabledCatalogIDs: currentlyEnabledCatalogIds
+                )
+                let traktCatalogCount = HomeCatalogLoadPolicy.visibleCatalogCount(
+                    filteredTraktCatalogs,
+                    enabledCatalogIDs: currentlyEnabledCatalogIds
+                )
+                let widgetCatalogCount = visibleWidgetCatalogCount
                 self.applyHeroBannerSelection()
                 self.isLoading = false
                 let permitsEmptyResults = enabledCatalogSnapshot.allSatisfy { $0.source == .local }
