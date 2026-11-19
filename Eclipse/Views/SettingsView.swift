@@ -192,7 +192,7 @@ struct SettingsView: View {
             .init(id: "appearance-background-style", title: "Background Style", location: "Appearance > Theme", icon: "rectangle.fill", color: .purple, keywords: ["gradient", "solid", "background"], action: .destination(.appearanceTarget(.backgroundStyle))),
             .init(id: "appearance-background-intensity", title: "Background Intensity", location: "Appearance > Theme", icon: "sun.max", color: .purple, keywords: ["lighten", "darken", "background brightness"], action: .destination(.appearanceTarget(.backgroundIntensity))),
             .init(id: "appearance-interface", title: "Interface", location: "Appearance > Interface", icon: "rectangle.3.group", color: .purple, keywords: ["modern", "classic", "restart", "layout style"], action: .destination(.appearanceTarget(.interface))),
-            .init(id: "appearance-global", title: "Global Appearance", location: "Appearance > Interface", icon: "paintbrush", color: .purple, keywords: ["media mode", "reader mode", "shared theme"], action: .destination(.appearanceTarget(.globalAppearance))),
+            .init(id: "appearance-global", title: "Global Appearance", location: "Appearance > Interface", icon: "paintbrush", color: .purple, keywords: ["media mode", "shared theme"], action: .destination(.appearanceTarget(.globalAppearance))),
             .init(id: "appearance-accent", title: "Accent Color", location: "Appearance > Interface", icon: "paintpalette", color: .purple, keywords: ["tint", "buttons", "links", "interactive color"], action: .destination(.appearanceTarget(.accentColor))),
             .init(id: "appearance-animated-background", title: "Animated Background", location: "Appearance > Motion & Startup", icon: "sparkles", color: .purple, keywords: ["ambient motion", "background animation", "motion"], action: .destination(.appearanceTarget(.animatedBackground))),
             .init(id: "appearance-animation-quality", title: "Animation Quality", location: "Appearance > Motion & Startup", icon: "dial.medium", color: .purple, keywords: ["low", "medium", "high", "FPS", "background quality"], action: .destination(.appearanceTarget(.animationQuality))),
@@ -1350,7 +1350,7 @@ private struct EclipseRatingsFixtureContentView: View {
 
                     NavigationLink("Ratings & Notes") {
                         RatingsSettingsView(manager: store.manager, metadata: store.metadata,
-                            excludedReaderIDs: [98214], lookupTitle: store.lookupTitle)
+                            lookupTitle: store.lookupTitle)
                     }
                     .accessibilityIdentifier("ratings.fixture.settings")
 
@@ -1381,7 +1381,6 @@ private struct EclipseRatingsFixtureContentView: View {
 private struct RatingsSettingsView: View {
     private let ratingManager: UserRatingManager
     private let suppliedMetadata: [TMDBSearchResult]
-    private let suppliedReaderIDs: Set<Int>
     private let lookupTitle: @Sendable (Int, Bool) async -> RatingTitleLookup
 
     @AppStorage("ratingsFollowSeasonSelection") private var followSeasonSelection = true
@@ -1391,7 +1390,6 @@ private struct RatingsSettingsView: View {
     @State private var authority: ProviderPlaybackScopeAuthority?
     @State private var reloadID = UUID()
     @State private var storeUnreadable = false
-    @State private var excludedReaderIDs: Set<Int> = []
     @State private var matchingContextReadable = false
     @State private var automaticallyMatchedCount = 0
     @State private var legacyTitleMatches: [String: [TMDBSearchResult]] = [:]
@@ -1402,13 +1400,12 @@ private struct RatingsSettingsView: View {
     @State private var lookupTotal = 0
     @State private var lookupSummary: String?
 
-    init(manager: UserRatingManager = .shared, metadata: [TMDBSearchResult] = [], excludedReaderIDs: Set<Int> = [],
+    init(manager: UserRatingManager = .shared, metadata: [TMDBSearchResult] = [],
          lookupTitle: @escaping @Sendable (Int, Bool) async -> RatingTitleLookup = { id, isMovie in
              await RatingTitleLookupPolicy.lookup(tmdbID: id, isMovie: isMovie)
          }) {
         ratingManager = manager
         suppliedMetadata = metadata
-        suppliedReaderIDs = excludedReaderIDs
         self.lookupTitle = lookupTitle
     }
 
@@ -1429,7 +1426,7 @@ private struct RatingsSettingsView: View {
                             .font(.subheadline)
                             .accessibilityIdentifier("settings.ratings.automatically-matched")
                     }
-                    if entries.contains(where: { $0.isMovie == nil && !excludedReaderIDs.contains($0.tmdbID) }) {
+                    if entries.contains(where: { $0.isMovie == nil }) {
                         if isLookingUpReviews {
                             ProgressView("Looking up older reviews: \(lookedUpCount) of \(lookupTotal)", value: Double(lookedUpCount), total: Double(max(lookupTotal, 1)))
                         } else if matchingContextReadable {
@@ -1437,7 +1434,7 @@ private struct RatingsSettingsView: View {
                                 .accessibilityIdentifier("settings.ratings.lookup-remaining")
                         }
                         Text(matchingContextReadable
-                             ? "Saved titles are matched automatically. Bulk lookup attaches reviews with one confirmed movie or show match. Multiple matches, Reader overlaps, and conflicting reviews stay for you to choose."
+                             ? "Saved titles are matched automatically. Bulk lookup attaches reviews with one confirmed movie or show match. Multiple matches and conflicting reviews stay for you to choose."
                              : "Automatic matching is unavailable while saved title data cannot be checked. Existing reviews have been kept.")
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -1465,7 +1462,6 @@ private struct RatingsSettingsView: View {
                             ratingManager: ratingManager,
                             libraryMatches: libraryResults[entry.tmdbID] ?? [],
                             resolvedLegacyMatches: legacyTitleMatches[entry.id],
-                            overlapsReader: excludedReaderIDs.contains(entry.tmdbID),
                             lookupTitle: lookupTitle,
                             authority: authority,
                             isKidsProfile: profileManager.isKidsModeActive
@@ -1506,7 +1502,6 @@ private struct RatingsSettingsView: View {
         storeUnreadable = ratingManager.hasUnreadableStore
         let originalEntries = ratingManager.allEntries()
         let context = matchingContext(profileID: capturedAuthority.profileID)
-        excludedReaderIDs = context.readerIDs
         matchingContextReadable = context.readable
         var results: [Int: [TMDBSearchResult]] = [:]
         for result in context.metadata {
@@ -1519,7 +1514,7 @@ private struct RatingsSettingsView: View {
             let matches = UserRatingManager.automaticLegacyAttachments(
                 entries: originalEntries,
                 knownMediaTypes: results.mapValues { Set($0.map(\.isMovie)) },
-                excludedReaderIDs: context.readerIDs
+                excludedReaderIDs: []
             )
             automaticallyMatchedCount += ratingManager.attachLegacyEntries(matches, expectedProfileID: capturedAuthority.profileID)
         }
@@ -1530,13 +1525,13 @@ private struct RatingsSettingsView: View {
     }
 
     @MainActor
-    private func matchingContext(profileID: UUID) -> (metadata: [TMDBSearchResult], readerIDs: Set<Int>, readable: Bool) {
+    private func matchingContext(profileID: UUID) -> (metadata: [TMDBSearchResult], readable: Bool) {
         guard ratingManager === UserRatingManager.shared else {
-            return (suppliedMetadata, suppliedReaderIDs, true)
+            return (suppliedMetadata, true)
         }
         guard let collections = LibraryManager.shared.collections(forProfile: profileID),
               let progress = ProgressManager.shared.progressData(forProfile: profileID) else {
-            return ([], [], false)
+            return ([], false)
         }
         var metadata = collections.flatMap(\.items).map(\.searchResult)
         metadata += progress.movieProgress.map {
@@ -1549,17 +1544,7 @@ private struct RatingsSettingsView: View {
                 posterPath: nil, backdropPath: nil, releaseDate: nil, firstAirDate: nil, voteAverage: nil,
                 popularity: 0, adult: nil, genreIds: nil)
         }
-#if os(tvOS)
-        return (metadata, [], false)
-#else
-        guard let readerCollections = MangaLibraryManager.shared.collectionsSnapshot(forProfile: profileID),
-              !MangaLibraryManager.hasPreservedQuarantinedCollections(forProfile: profileID),
-              let readerProgress = MangaReadingProgressManager.shared.progressSnapshot(forProfile: profileID) else {
-            return (metadata, [], false)
-        }
-        let readerIDs = Set(readerCollections.flatMap(\.items).map(\.id)).union(readerProgress.keys)
-        return (metadata, readerIDs, true)
-#endif
+        return (metadata, true)
     }
 
     private struct LegacyLookupResult: Sendable {
@@ -1579,7 +1564,7 @@ private struct RatingsSettingsView: View {
     private func lookUpRemainingReviews() {
         guard let authority, authority.isCurrent, !profileManager.isKidsModeActive,
               matchingContextReadable, !isLookingUpReviews else { return }
-        let remaining = entries.filter { $0.isMovie == nil && !excludedReaderIDs.contains($0.tmdbID) }
+        let remaining = entries.filter { $0.isMovie == nil }
         guard !remaining.isEmpty else { return }
         let operationID = UUID()
         bulkMatchingID = operationID
@@ -1631,8 +1616,7 @@ private struct RatingsSettingsView: View {
             let currentMediaTypes = Dictionary(grouping: context.metadata.filter { $0.isMovie || $0.isTVShow }, by: \.id)
                 .mapValues { Set($0.map(\.isMovie)) }
             attachments.removeAll { attachment in
-                context.readerIDs.contains(attachment.entry.tmdbID)
-                    || currentMediaTypes[attachment.entry.tmdbID].map { $0 != Set([attachment.isMovie]) } == true
+                currentMediaTypes[attachment.entry.tmdbID].map { $0 != Set([attachment.isMovie]) } == true
             }
             let attached = ratingManager.attachLegacyEntries(attachments, expectedProfileID: authority.profileID)
             lookupSummary = "Matched \(attached) older reviews. Entries without a clear match or with conflicting reviews have been kept."
@@ -1654,7 +1638,6 @@ private struct RatingSettingsEntryRow: View {
     let ratingManager: UserRatingManager
     let libraryMatches: [TMDBSearchResult]
     let resolvedLegacyMatches: [TMDBSearchResult]?
-    let overlapsReader: Bool
     let lookupTitle: @Sendable (Int, Bool) async -> RatingTitleLookup
     let authority: ProviderPlaybackScopeAuthority
     let isKidsProfile: Bool
