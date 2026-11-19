@@ -27,6 +27,10 @@ enum HomeCatalogFilterPolicy {
 }
 
 enum HomeCatalogLoadPolicy {
+    static func requiresTrendingSeed(enabledCatalogIDs: Set<String>) -> Bool {
+        enabledCatalogIDs.contains("trending") || enabledCatalogIDs.contains("forYou")
+    }
+
     static func hasLoadedContent(
         tmdbCatalogCount: Int,
         animeCatalogCount: Int,
