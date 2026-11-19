@@ -6978,7 +6978,8 @@ final class AniListService {
             anilistId: anime.id,
             malId: anime.idMal,
             kitsuId: anime.kitsuId,
-            format: anime.format
+            format: anime.format,
+            animeTags: anime.tags?.map(\.name)
         ).sanitizedForPersistence
     }
 
@@ -9955,7 +9956,8 @@ final class AniListService {
                             anilistId: anime.id,
                             malId: anime.idMal,
                             kitsuId: anime.kitsuId,
-                            format: anime.format
+                            format: anime.format,
+                            animeTags: anime.tags?.map(\.name)
                         )
                     ).withAnimeArtworkURL(anime.coverImage?.preferredURL()).withAnimeTags(anime.tags?.map(\.name))
                 }
@@ -10006,7 +10008,8 @@ final class AniListService {
                         anilistId: anime.id,
                         malId: anime.idMal,
                         kitsuId: anime.kitsuId,
-                        format: anime.format
+                        format: anime.format,
+                        animeTags: anime.tags?.map(\.name)
                     )
                 ).withAnimeArtworkURL(anime.coverImage?.preferredURL()).withAnimeTags(anime.tags?.map(\.name))
                 return (anime.id, seededResult, nil)
@@ -10091,7 +10094,8 @@ final class AniListService {
                     anilistId: anime.id,
                     malId: anime.idMal,
                     kitsuId: anime.kitsuId,
-                    format: anime.format
+                    format: anime.format,
+                    animeTags: anime.tags?.map(\.name)
                 )
             ).withAnimeArtworkURL(anime.coverImage?.preferredURL()).withAnimeTags(anime.tags?.map(\.name))
             let cacheRecord = result != nil || lookupCompleted
