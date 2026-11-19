@@ -2289,9 +2289,6 @@ private struct BrowseMediaView: View {
                 // Previously Browse performed the same provider lookup here
                 // and again while applying the age/dub filters, delaying the
                 // first usable Anime grid by a second round of network calls.
-                let combinedRawResults = replacing
-                    ? pageResult.results
-                    : existingRawResults + pageResult.results
                 // The browse-type filter owns anime identity resolution. Running
                 // the resolver here as well repeated provider lookups on every page.
                 // Resolve only the newly fetched page. Existing pages already carry
