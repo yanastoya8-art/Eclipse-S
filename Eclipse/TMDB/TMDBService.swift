@@ -3287,11 +3287,17 @@ actor FanartTVLogoService {
                   data.count <= 2 * 1_024 * 1_024 else { return nil }
             let payload = try JSONDecoder().decode(TVResponse.self, from: data)
             let logos = (payload.hdtvlogo ?? []) + (payload.clearlogo ?? [])
-            let best = logos.sorted { lhs, rhs in
+            let eligibleLogos = logos.filter { logo in
+                guard let language = logo.lang?.lowercased(), !language.isEmpty, language != "00" else {
+                    return true
+                }
+                return language == "en" || language == "es"
+            }
+            let best = eligibleLogos.sorted { lhs, rhs in
                 func rank(_ language: String?) -> Int {
                     switch language?.lowercased() {
                     case "en": return 0
-                    case nil, "", "00": return 1
+                    case "es": return 1
                     default: return 2
                     }
                 }
@@ -3330,11 +3336,17 @@ actor FanartTVLogoService {
                   data.count <= 2 * 1_024 * 1_024 else { return nil }
             let payload = try JSONDecoder().decode(MovieResponse.self, from: data)
             let logos = (payload.hdmovielogo ?? []) + (payload.movielogo ?? [])
-            let best = logos.sorted { lhs, rhs in
+            let eligibleLogos = logos.filter { logo in
+                guard let language = logo.lang?.lowercased(), !language.isEmpty, language != "00" else {
+                    return true
+                }
+                return language == "en" || language == "es"
+            }
+            let best = eligibleLogos.sorted { lhs, rhs in
                 func rank(_ language: String?) -> Int {
                     switch language?.lowercased() {
                     case "en": return 0
-                    case nil, "", "00": return 1
+                    case "es": return 1
                     default: return 2
                     }
                 }
