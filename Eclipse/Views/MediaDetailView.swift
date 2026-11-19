@@ -47,6 +47,14 @@ struct MediaDetailInitialNotificationSelection: Equatable {
 #endif
 }
 
+private struct MediaDetailHeroContentHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
 enum MediaDetailEpisodeAnchor {
     static func id(for episode: TMDBEpisode) -> String {
         "episode-\(episode.seasonNumber)-\(episode.episodeNumber)-\(episode.id)"
@@ -547,6 +555,7 @@ struct MediaDetailContentView: View {
     @State private var isLoadingTraktComments = false
     @State private var hasLoadedContent = false
     @State private var detailViewportSize: CGSize = .zero
+    @State private var measuredHeroHeaderContentHeight: CGFloat = 0
     @State private var isDetailVisible = false
     @State private var detailLoadedLanguage: String?
     @State private var detailLoadedIdentity: String?
@@ -697,7 +706,7 @@ struct MediaDetailContentView: View {
     }
 
     private var mediaDetailHeroBleedTail: CGFloat {
-        guard usesWideDetailLayout else { return headerHeight * 0.62 }
+        guard usesWideDetailLayout else { return heroSectionHeight * 0.62 }
         // Keep the colour bleed visible in landscape, but scale its tail to
         // the shorter viewport instead of forcing a 680pt minimum extension.
         if usesLandscapeDetailComposition {
@@ -1095,6 +1104,33 @@ struct MediaDetailContentView: View {
         let measuredHeight = min(max(detailViewportHeight * 0.76, 620), 780)
         return usesWideDetailLayout ? 640 : max(measuredHeight, portraitPosterHeight + 80)
 #endif
+    }
+
+    /// The hero's artwork must cover both its reserved poster area and the
+    /// overlaid metadata/actions. Previously the VStack's fixed spacer plus
+    /// header content made the hero section taller than the image and bleed
+    /// frames, exposing a hard horizontal seam below the poster.
+    private var heroArtworkReservationHeight: CGFloat {
+        guard ExperimentalFeatureState.isEnabledAtLaunch else { return headerHeight }
+        if usesLandscapeDetailComposition {
+            return min(max(headerHeight * 0.64, 210), 340)
+        }
+        return usesWideDetailLayout
+            ? headerHeight * 0.78
+            : min(EclipseViewport.bounds.width * 1.5, headerHeight - 40)
+    }
+
+    private var heroHeaderContentHeight: CGFloat {
+        guard ExperimentalFeatureState.isEnabledAtLaunch else { return 0 }
+        let fallback = usesLandscapeDetailComposition ? 250 : 260
+        return measuredHeroHeaderContentHeight > 0
+            ? measuredHeroHeaderContentHeight
+            : CGFloat(fallback)
+    }
+
+    private var heroSectionHeight: CGFloat {
+        guard ExperimentalFeatureState.isEnabledAtLaunch else { return headerHeight }
+        return heroArtworkReservationHeight + heroHeaderContentHeight
     }
 
     private var minHeaderHeight: CGFloat {
@@ -1948,10 +1984,14 @@ struct MediaDetailContentView: View {
                         // Match Home: keep the colour field behind the complete
                         // scroll content so its tail fades beneath the overview.
                         // Portrait retains its existing experimental behaviour.
+                        // Landscape uses the single gradient painted over the
+                        // hero artwork below. A second scroll-content bleed layer
+                        // blended a different colour at the hero boundary and made
+                        // the landscape transition look like a horizontal line.
                         color: usesLandscapeDetailComposition
-                            ? mediaDetailHeroBleedColor
+                            ? nil
                             : (ExperimentalFeatureState.isEnabledAtLaunch ? mediaDetailHeroBleedColor : nil),
-                        heroHeight: headerHeight,
+                        heroHeight: heroSectionHeight,
                         tail: mediaDetailHeroBleedTail,
                         strength: mediaDetailHeroBleedStrength
                     )
@@ -2610,25 +2650,32 @@ struct MediaDetailContentView: View {
 
             ZStack(alignment: .top) {
                 heroBackdrop
-                    .frame(height: headerHeight)
+                    .frame(height: heroSectionHeight)
 
                 VStack(spacing: 0) {
-                    // Portrait posters are shown at their natural 2:3 presentation ratio.
-                    // Reserve their full display height before placing metadata/actions.
+                    // Reserve the artwork area, then measure the real metadata
+                    // stack. The backdrop and colour bleed use their combined
+                    // height so neither ends while the controls are still visible.
                     Spacer(minLength: 0)
-                        .frame(height: usesLandscapeDetailComposition
-                            ? min(max(headerHeight * 0.64, 210), 340)
-                            : (usesWideDetailLayout
-                                ? headerHeight * 0.78
-                                : min(EclipseViewport.bounds.width * 1.5, headerHeight - 40)))
+                        .frame(height: heroArtworkReservationHeight)
                     headerSection
-                        // Keep the overview group centred against the visible landscape viewport.
-                        // The artwork extends beneath the horizontal safe areas, but the controls
-                        // must use a symmetric, full-width layout rather than inheriting that offset.
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.horizontal, usesLandscapeDetailComposition ? 0 : (usesWideDetailLayout ? 48 : 0))
+                        .background {
+                            GeometryReader { geometry in
+                                Color.clear.preference(
+                                    key: MediaDetailHeroContentHeightPreferenceKey.self,
+                                    value: geometry.size.height
+                                )
+                            }
+                        }
                 }
                 .frame(maxWidth: .infinity, alignment: .top)
+            }
+            .onPreferenceChange(MediaDetailHeroContentHeightPreferenceKey.self) { height in
+                guard height.isFinite, height > 0,
+                      abs(measuredHeroHeaderContentHeight - height) > 1 else { return }
+                measuredHeroHeaderContentHeight = height
             }
         } else {
             ZStack(alignment: .bottom) {
@@ -2643,7 +2690,7 @@ struct MediaDetailContentView: View {
             let image = StretchyHeaderView(
                 backdropURL: detailHeroImageURL,
                 isMovie: searchResult.isMovie,
-                headerHeight: headerHeight,
+                headerHeight: heroSectionHeight,
                 minHeaderHeight: minHeaderHeight,
                 onAmbientColorExtracted: { color in
                     ambientColor = color
@@ -2672,7 +2719,7 @@ struct MediaDetailContentView: View {
                 width: usesLandscapeDetailComposition
                     ? max(detailViewportWidth, EclipseViewport.bounds.width)
                     : nil,
-                height: usesLandscapeDetailComposition ? headerHeight : nil
+                height: usesLandscapeDetailComposition ? heroSectionHeight : nil
             )
             .clipped()
 #if DEBUG
@@ -2755,7 +2802,7 @@ struct MediaDetailContentView: View {
             // scroll-content stack. Keeping a second layer on the artwork
             // creates an abrupt overlap at the poster/content boundary.
             color: usesLandscapeDetailComposition ? nil : mediaDetailHeroBleedColor,
-            heroHeight: headerHeight,
+            heroHeight: heroSectionHeight,
             tail: mediaDetailHeroBleedTail,
             strength: mediaDetailHeroBleedStrength
         )
@@ -2829,7 +2876,7 @@ struct MediaDetailContentView: View {
             // deliberately clipped to the hero bounds so it never follows
             // the scroll into the episode list.
             let gradientHeight = usesLandscapeDetailComposition
-                ? headerHeight * 0.72
+                ? heroSectionHeight
                 : max(designMetrics.heroBottomFadeHeight + 90, usesWideDetailLayout ? 560 : 430)
 
             LinearGradient(
@@ -2868,7 +2915,7 @@ struct MediaDetailContentView: View {
                 ? (mediaDetailHeroBleedColor ?? atmosphereColor)
                 : atmosphereColor
             let legacyGradientHeight = usesLandscapeDetailComposition
-                ? headerHeight * 0.72
+                ? heroSectionHeight
                 : 120
 
             LinearGradient(
@@ -7399,7 +7446,7 @@ struct MediaDetailContentView: View {
               let url = URL(string: imageURL) else { return }
         let decodeSize = CGSize(
             width: max(EclipseViewport.bounds.width * EclipseViewport.scale, 1),
-            height: max(headerHeight * EclipseViewport.scale, 1)
+            height: max(heroSectionHeight * EclipseViewport.scale, 1)
         )
         KingfisherManager.shared.retrieveImage(
             with: url,

@@ -27,6 +27,14 @@ enum DubLanguageSelectionPolicy {
     }
 }
 
+enum ScheduleAllAgesPolicy {
+    /// Only an explicit general-audience classification is excluded. Missing
+    /// or unknown ratings are not silently treated as All Ages.
+    static func shouldExclude(rating: MaturityRating?, enabled: Bool) -> Bool {
+        enabled && rating == .general
+    }
+}
+
 enum MyDubListLanguage: String, CaseIterable, Identifiable, Sendable {
     case english, spanish, german, french, italian, chinese, portuguese, korean
     case tagalog, arabic, polish, hindi, hungarian, hebrew, swedish, norwegian
@@ -444,6 +452,14 @@ class TMDBContentFilter: ObservableObject {
 
     private let animeEligibilityLock = NSLock()
     private var animeAgeRatingsByID: [Int: MaturityRating] = [:]
+    // MAL-only schedule rows use a negative sourceMediaId, not an AniList ID.
+    // Keep their resolved rating by stable schedule-entry ID so they still
+    // participate in the All Ages calendar filter.
+    private var scheduleAnimeAgeRatingsByEntryID: [String: MaturityRating] = [:]
+    // TVMaze episode rows do not carry a TMDB ID. Resolve exact title matches
+    // once per show so the Series All Ages filter can still use TMDB ratings.
+    private var scheduleSeriesAgeRatingsByEntryID: [String: MaturityRating] = [:]
+    private var scheduleSeriesTMDBIDsByTitle: [String: Int] = [:]
     private var animeAgeCheckedIDs: Set<Int> = []
     private var animeAgeLoadingIDs: Set<Int> = []
     private var animeAgeRetryAfterByID: [Int: Date] = [:]
@@ -673,6 +689,31 @@ class TMDBContentFilter: ObservableObject {
             await resolveAnimeAgeRatings(
                 identities: animeEntries.map { ($0.sourceMediaId, $0.animeMALID) }
             )
+
+            let malOnlyEntries = animeEntries.compactMap { entry -> (String, Int)? in
+                guard entry.sourceMediaId <= 0 else { return nil }
+                let malID = entry.animeMALID ?? (entry.sourceMediaId < 0 ? -entry.sourceMediaId : nil)
+                guard let malID, malID > 0 else { return nil }
+                return (entry.id, malID)
+            }
+            if MALMetadataService.shared.isConfigured, !malOnlyEntries.isEmpty {
+                await withTaskGroup(of: (String, MaturityRating?).self) { group in
+                    for (entryID, malID) in malOnlyEntries {
+                        group.addTask {
+                            (entryID, await MALMetadataService.shared.fetchMaturityRating(malID: malID))
+                        }
+                    }
+                    for await (entryID, rating) in group {
+                        animeEligibilityLock.lock()
+                        if let rating, rating != .unknown {
+                            scheduleAnimeAgeRatingsByEntryID[entryID] = rating
+                        } else {
+                            scheduleAnimeAgeRatingsByEntryID.removeValue(forKey: entryID)
+                        }
+                        animeEligibilityLock.unlock()
+                    }
+                }
+            }
         }
 
         let tmdbEntries = entries.compactMap { entry -> (isMovie: Bool, id: Int)? in
@@ -685,6 +726,89 @@ class TMDBContentFilter: ObservableObject {
         if !tmdbEntries.isEmpty {
             await TMDBMaturityRatingStore.shared.resolve(tmdbEntries)
         }
+
+        let seriesWithoutTMDBIDs = entries.filter {
+            $0.source == .western && !$0.isMovie && $0.tmdbId == nil
+                && defaults.bool(forKey: "catalogHideAllAgesSeries")
+        }
+        if !seriesWithoutTMDBIDs.isEmpty {
+            var uniqueShows: [String: ScheduleEntry] = [:]
+            for entry in seriesWithoutTMDBIDs {
+                let key = Self.normalizedScheduleTitle(entry.title)
+                guard !key.isEmpty, uniqueShows[key] == nil else { continue }
+                uniqueShows[key] = entry
+            }
+
+            animeEligibilityLock.lock()
+            let cachedMatches = uniqueShows.keys.compactMap { key -> (String, Int)? in
+                guard let id = scheduleSeriesTMDBIDsByTitle[key] else { return nil }
+                return (key, id)
+            }
+            animeEligibilityLock.unlock()
+            var matches = Dictionary(uniqueKeysWithValues: cachedMatches)
+
+            let unresolvedShows = uniqueShows.filter { matches[$0.key] == nil }
+            let newlyFound = await withTaskGroup(of: (String, Int?).self) { group in
+                for (titleKey, entry) in unresolvedShows {
+                    group.addTask {
+                        guard !Task.isCancelled,
+                              let candidates = try? await TMDBService.shared.searchTVShows(query: entry.title) else {
+                            return (titleKey, nil)
+                        }
+                        let exactMatches = candidates.filter {
+                            Self.normalizedScheduleTitle($0.name) == titleKey
+                        }
+                        guard !exactMatches.isEmpty else { return (titleKey, nil) }
+                        let year = entry.releaseYear
+                        let selected = exactMatches.first { candidate in
+                            guard let year, let firstAirDate = candidate.firstAirDate,
+                                  firstAirDate.count >= 4 else { return false }
+                            return Int(firstAirDate.prefix(4)) == year
+                        } ?? exactMatches.first
+                        return (titleKey, selected?.id)
+                    }
+                }
+
+                var values: [String: Int] = [:]
+                for await (titleKey, tmdbID) in group {
+                    if let tmdbID, tmdbID > 0 { values[titleKey] = tmdbID }
+                }
+                return values
+            }
+            matches.merge(newlyFound) { _, new in new }
+            animeEligibilityLock.lock()
+            for (titleKey, tmdbID) in newlyFound {
+                scheduleSeriesTMDBIDsByTitle[titleKey] = tmdbID
+            }
+            animeEligibilityLock.unlock()
+
+            let resolvedIDs = Array(Set(matches.values))
+            if !resolvedIDs.isEmpty {
+                await TMDBMaturityRatingStore.shared.resolve(
+                    resolvedIDs.map { (isMovie: false, id: $0) }
+                )
+            }
+
+            animeEligibilityLock.lock()
+            for entry in seriesWithoutTMDBIDs {
+                let key = Self.normalizedScheduleTitle(entry.title)
+                guard let tmdbID = matches[key],
+                      let rating = TMDBMaturityRatingStore.shared.rating(isMovie: false, id: tmdbID),
+                      rating != .unknown else {
+                    scheduleSeriesAgeRatingsByEntryID.removeValue(forKey: entry.id)
+                    continue
+                }
+                scheduleSeriesAgeRatingsByEntryID[entry.id] = rating
+            }
+            animeEligibilityLock.unlock()
+        }
+    }
+
+    private static func normalizedScheduleTitle(_ title: String) -> String {
+        title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
     }
 
     func scheduleEntryIsAllAges(_ entry: ScheduleEntry) -> Bool {
@@ -692,16 +816,25 @@ class TMDBContentFilter: ObservableObject {
         if entry.source == .anime {
             guard defaults.bool(forKey: "catalogHideAllAgesAnime") else { return false }
             let id = entry.sourceMediaId
-            guard id > 0 else { return false }
             animeEligibilityLock.lock()
-            let rating = animeAgeRatingsByID[id]
+            let rating = scheduleAnimeAgeRatingsByEntryID[entry.id]
+                ?? (id > 0 ? animeAgeRatingsByID[id] : nil)
             animeEligibilityLock.unlock()
-            return rating == .general
+            return ScheduleAllAgesPolicy.shouldExclude(rating: rating, enabled: true)
         }
 
         let key = entry.isMovie ? "catalogHideAllAgesMovies" : "catalogHideAllAgesSeries"
-        guard defaults.bool(forKey: key), let id = entry.tmdbId, id > 0 else { return false }
-        return TMDBMaturityRatingStore.shared.rating(isMovie: entry.isMovie, id: id) == .general
+        guard defaults.bool(forKey: key) else { return false }
+        if let id = entry.tmdbId, id > 0 {
+            return ScheduleAllAgesPolicy.shouldExclude(
+                rating: TMDBMaturityRatingStore.shared.rating(isMovie: entry.isMovie, id: id),
+                enabled: true
+            )
+        }
+        animeEligibilityLock.lock()
+        let rating = scheduleSeriesAgeRatingsByEntryID[entry.id]
+        animeEligibilityLock.unlock()
+        return ScheduleAllAgesPolicy.shouldExclude(rating: rating, enabled: true)
     }
 
     private func resolveAnimeAgeRatings(for results: [TMDBSearchResult]) async {
