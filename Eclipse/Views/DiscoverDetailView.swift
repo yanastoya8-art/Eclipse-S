@@ -295,7 +295,7 @@ struct DiscoverDetailView: View {
     @ViewBuilder
     private func phoneDiscoverCard(_ item: TMDBSearchResult) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            KFImage(URL(string: item.fullPosterURL ?? ""))
+            KFImage(item.fullPosterURL.flatMap(URL.init(string:)))
                 .placeholder {
                     FallbackImageView(
                         isMovie: item.isMovie,
