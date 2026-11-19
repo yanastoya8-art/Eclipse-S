@@ -391,8 +391,6 @@ jobs:
       - name: Build unsigned archive
         env:
           BUILD_NUMBER: ${{ github.run_number }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           set -euo pipefail
 
@@ -417,8 +415,6 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            INFOPLIST_KEY_GeminiAPIKey="$GEMINI_API_KEY" \
-            INFOPLIST_KEY_OpenAIAPIKey="$OPENAI_API_KEY" \
             AD_HOC_CODE_SIGNING_ALLOWED=NO \
             ECLIPSE_SOURCE_REVISION="$GITHUB_SHA" \
             ECLIPSE_MPVKIT_SOURCE_REVISION="$MPVKIT_SOURCE_REVISION" \

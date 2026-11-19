@@ -997,8 +997,9 @@ actor SpanishDubAIResearchService {
         }
     }
 
-    /// Keys are supplied by GitHub Actions and injected into the generated app Info.plist.
-    /// A key embedded in an iOS app can be extracted; production deployments should use a server proxy.
+    /// Optional local developer override only. Do not inject provider keys through CI or ship
+    /// them in a shared app bundle: resources in an iOS app can be extracted. Use a server-side
+    /// proxy before enabling this provider in a shared or release build.
     private static func apiKey(for provider: SpanishDubAIProvider) -> String? {
         let infoKey: String
         switch provider {

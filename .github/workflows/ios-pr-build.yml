@@ -253,9 +253,6 @@ jobs:
           xcrun simctl boot "$DEVICE_ID" || true
 
       - name: Build and run iOS unit tests
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           set -euo pipefail
           xcodebuild test \
@@ -270,6 +267,4 @@ jobs:
             -skipMacroValidation \
             -parallel-testing-enabled NO \
             CODE_SIGNING_ALLOWED=NO \
-            INFOPLIST_KEY_GeminiAPIKey="$GEMINI_API_KEY" \
-            INFOPLIST_KEY_OpenAIAPIKey="$OPENAI_API_KEY" \
             ENABLE_USER_SCRIPT_SANDBOXING=NO
