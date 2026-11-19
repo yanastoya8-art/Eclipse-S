@@ -6669,3 +6669,36 @@ final class AnimeScheduleCategoryTagFilterTests: XCTestCase {
         ))
     }
 }
+
+final class TMDBSearchResultAnimeTagsTests: XCTestCase {
+    func testAniListTagsSurviveMetadataCopiesAndCodableRoundTrip() throws {
+        let result = TMDBSearchResult(
+            id: 42,
+            mediaType: "tv",
+            title: nil,
+            name: "Example Series",
+            overview: "Example synopsis",
+            posterPath: nil,
+            backdropPath: nil,
+            releaseDate: nil,
+            firstAirDate: nil,
+            voteAverage: nil,
+            popularity: 0,
+            adult: nil,
+            genreIds: nil,
+            animeTags: [" Hentai ", "Yuri", "hentai", ""]
+        )
+
+        XCTAssertEqual(result.animeTags, ["Hentai", "Yuri"])
+
+        let copied = result
+            .withAnimeIdentitySeed(nil)
+            .withAnimeArtworkURL(nil)
+            .withTVMazePosterURL(nil)
+        XCTAssertEqual(copied.animeTags, ["Hentai", "Yuri"])
+
+        let data = try JSONEncoder().encode(copied)
+        let decoded = try JSONDecoder().decode(TMDBSearchResult.self, from: data)
+        XCTAssertEqual(decoded.animeTags, ["Hentai", "Yuri"])
+    }
+}
