@@ -12,6 +12,20 @@ import UIKit
 #endif
 
 
+enum HomeCatalogFilterPolicy {
+    private static let animeCatalogIDs: Set<String> = [
+        "trendingAnime", "popularAnime", "topRatedAnime", "airingAnime", "bestAnime"
+    ]
+
+    static func usesAnimeFiltering(catalogID: String) -> Bool {
+        animeCatalogIDs.contains(catalogID)
+    }
+
+    static func allowsUpcomingContent(catalogID: String) -> Bool {
+        catalogID == "upcomingMovies" || catalogID == "upcomingTV"
+    }
+}
+
 enum HomeCatalogLoadPolicy {
     static func hasLoadedContent(
         tmdbCatalogCount: Int,
@@ -262,7 +276,18 @@ final class HomeViewModel: ObservableObject {
               loadGeneration == loadGenerationSnapshot,
               hasLoadedContent else { return }
 
-        catalogResults = catalogSnapshot.mapValues { contentFilter.filterSearchResults($0) }
+        var filteredCatalogSnapshot: [String: [TMDBSearchResult]] = [:]
+        for (catalogID, items) in catalogSnapshot {
+            if HomeCatalogFilterPolicy.usesAnimeFiltering(catalogID: catalogID) {
+                filteredCatalogSnapshot[catalogID] = contentFilter.filterFastAnimeSearchResults(items)
+            } else {
+                filteredCatalogSnapshot[catalogID] = contentFilter.filterSearchResults(
+                    items,
+                    allowUpcomingContent: HomeCatalogFilterPolicy.allowsUpcomingContent(catalogID: catalogID)
+                )
+            }
+        }
+        catalogResults = filteredCatalogSnapshot
         widgetData = widgetSnapshot.mapValues { contentFilter.filterSearchResults($0) }
         let renderableCount = catalogResults.values.filter { !$0.isEmpty }.count
             + widgetData.values.filter { !$0.isEmpty }.count
