@@ -557,7 +557,7 @@ jobs:
           import sys
 
           path = pathlib.Path(sys.argv[1])
-          bundle_id, version, build, min_os, size, download_url, commit = sys.argv[2:]
+          bundle_id, version, build, min_os, size, download_url, commit = sys.argv[2:9]
           release_date = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
           # Unsigned builds have no code-signing entitlements. Derive privacy
           # declarations from the actual packaged Info.plist for AltStore checks.
@@ -610,12 +610,6 @@ jobs:
           allowed_app = required_app | {"subtitle", "tintColor", "category", "screenshots", "patreon"}
           required_version = {"version", "buildVersion", "date", "downloadURL", "size"}
           allowed_version = required_version | {"localizedDescription", "minOSVersion", "maxOSVersion", "marketingVersion"}
-          required_source = {"name", "identifier", "apps"}
-          allowed_source = required_source | {"news", "sourceURL"}
-          required_app = {"name", "bundleIdentifier", "developerName", "localizedDescription", "iconURL", "versions"}
-          allowed_app = required_app | {"beta", "downloadURL", "permissions", "screenshotURLs", "size", "subtitle", "tintColor", "version", "versionDate", "versionDescription"}
-          required_version = {"version", "date", "downloadURL", "size"}
-          allowed_version = required_version | {"localizedDescription", "minOSVersion", "maxOSVersion"}
           if not required_source.issubset(feed) or not set(feed).issubset(allowed_source):
               raise SystemExit("Invalid AltStore/SideStore source keys")
           if len(feed["apps"]) != 1:
