@@ -157,6 +157,42 @@ final class AnimeScheduleFallbackTests: XCTestCase {
         ), "An empty but resolved provider response should show the genuine no-dub state.")
         XCTAssertFalse(AnimeDubEpisodeMetadataLoadingPolicy.shouldShowLoading(
             isAnime: true,
+            hasSelectedLanguages: true,
+            hasResolvedCounts: false,
+            hasFailure: true
+        ), "A failed provider request should show retry guidance, not spin forever.")
+        XCTAssertTrue(AnimeDubEpisodeMetadataLoadingPolicy.shouldShowFailure(
+            isAnime: true,
+            hasSelectedLanguages: true,
+            hasFailure: true
+        ))
+        XCTAssertFalse(AnimeDubEpisodeMetadataLoadingPolicy.shouldShowFailure(
+            isAnime: true,
+            hasSelectedLanguages: true,
+            hasFailure: false
+        ))
+        XCTAssertFalse(AnimeDubEpisodeMetadataLoadingPolicy.hasUsableProviderResponse(
+            taizenSucceeded: false,
+            anidubSucceeded: false,
+            selectedLanguages: [MyDubListLanguage.english.rawValue]
+        ))
+        XCTAssertTrue(AnimeDubEpisodeMetadataLoadingPolicy.hasUsableProviderResponse(
+            taizenSucceeded: false,
+            anidubSucceeded: true,
+            selectedLanguages: [MyDubListLanguage.spanish.rawValue]
+        ))
+        XCTAssertFalse(AnimeDubEpisodeMetadataLoadingPolicy.hasUsableProviderResponse(
+            taizenSucceeded: false,
+            anidubSucceeded: true,
+            selectedLanguages: [MyDubListLanguage.english.rawValue, MyDubListLanguage.spanish.rawValue]
+        ))
+        XCTAssertTrue(AnimeDubEpisodeMetadataLoadingPolicy.hasUsableProviderResponse(
+            taizenSucceeded: true,
+            anidubSucceeded: false,
+            selectedLanguages: [MyDubListLanguage.english.rawValue, MyDubListLanguage.spanish.rawValue]
+        ))
+        XCTAssertFalse(AnimeDubEpisodeMetadataLoadingPolicy.shouldShowLoading(
+            isAnime: true,
             hasSelectedLanguages: false,
             hasResolvedCounts: false
         ))
