@@ -1740,7 +1740,7 @@ class TMDBContentFilter: ObservableObject {
                             let detail = try await TMDBService.shared.getTVShowDetails(id: result.id)
                             names = detail.productionCompanies?.map(\.name) ?? []
                         }
-                        return (key, names, true)
+                        return (key, names, !names.isEmpty)
                     } catch {
                         return (key, nil, false)
                     }
@@ -1770,7 +1770,7 @@ class TMDBContentFilter: ObservableObject {
                                 let detail = try await TMDBService.shared.getTVShowDetails(id: result.id)
                                 names = detail.productionCompanies?.map(\.name) ?? []
                             }
-                            return (nextKey, names, true)
+                            return (nextKey, names, !names.isEmpty)
                         } catch {
                             return (nextKey, nil, false)
                         }
