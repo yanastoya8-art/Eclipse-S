@@ -1683,7 +1683,7 @@ class TMDBContentFilter: ObservableObject {
         return rating != .unknown && rating >= minimum
     }
 
-    private func runtimeCacheKey(for result: TMDBSearchResult) -> String {
+    private static func runtimeCacheKey(for result: TMDBSearchResult) -> String {
         "\(result.isMovie ? "movie" : "tv")-\(result.id)"
     }
     private func shouldIncludeUnofficialProduction(
@@ -1694,7 +1694,7 @@ class TMDBContentFilter: ObservableObject {
         guard UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent") else { return true }
         if Self.isUnofficialCreatorContent(title: title, overview: overview) { return false }
 
-        let key = runtimeCacheKey(for: result)
+        let key = Self.runtimeCacheKey(for: result)
         runtimeMetadataLock.lock()
         let isChecked = productionMetadataCheckedKeys.contains(key)
         let companyNames = productionCompaniesByKey[key] ?? []
@@ -1730,7 +1730,7 @@ class TMDBContentFilter: ObservableObject {
             for _ in 0..<min(6, pending.count) {
                 guard let result = iterator.next() else { continue }
                 group.addTask {
-                    let key = self.runtimeCacheKey(for: result)
+                    let key = Self.runtimeCacheKey(for: result)
                     do {
                         let names: [String]
                         if result.isMovie {
