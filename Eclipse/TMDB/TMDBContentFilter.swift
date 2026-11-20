@@ -542,6 +542,7 @@ class TMDBContentFilter: ObservableObject {
     private var productionCompaniesByKey: [String: [String]] = [:]
     private var productionMetadataCheckedKeys = Set<String>()
     private var productionMetadataLoadingKeys = Set<String>()
+    private var productionMetadataRetryAfterByKey: [String: Date] = [:]
 
     private var cancellables = Set<AnyCancellable>()
 
@@ -1719,6 +1720,9 @@ class TMDBContentFilter: ObservableObject {
             if productionMetadataCheckedKeys.contains(key) || productionMetadataLoadingKeys.contains(key) {
                 continue
             }
+            if let retryAfter = productionMetadataRetryAfterByKey[key], retryAfter > Date() {
+                continue
+            }
             productionMetadataLoadingKeys.insert(key)
             pending.append(result)
         }
@@ -1751,10 +1755,13 @@ class TMDBContentFilter: ObservableObject {
             while let (key, names, succeeded) = await group.next() {
                 runtimeMetadataLock.lock()
                 productionMetadataLoadingKeys.remove(key)
-                if succeeded {
-                    productionCompaniesByKey[key] = names ?? []
+                if succeeded, let names, !names.isEmpty {
+                    productionCompaniesByKey[key] = names
                     productionMetadataCheckedKeys.insert(key)
+                    productionMetadataRetryAfterByKey.removeValue(forKey: key)
                     didResolveAny = true
+                } else {
+                    productionMetadataRetryAfterByKey[key] = Date().addingTimeInterval(5 * 60)
                 }
                 runtimeMetadataLock.unlock()
 
