@@ -298,4 +298,45 @@ final class HomeCatalogFailurePresentationTests: XCTestCase {
         XCTAssertTrue(message.contains("internet connection"))
         XCTAssertTrue(message.contains("Retry"))
     }
+
+    func testBrowsePaginationKeepsFailedPageAvailableForRetry() {
+        let cursor = DiscoverPaginationCursor()
+        XCTAssertEqual(cursor.nextPage, 2)
+        XCTAssertEqual(cursor.currentPage, 1)
+        XCTAssertTrue(cursor.hasMorePages)
+    }
+
+    func testBrowsePaginationAdvancesOnlyAfterSuccessfulPage() {
+        var cursor = DiscoverPaginationCursor()
+        cursor.didLoadPage(hasUniqueItems: true)
+
+        XCTAssertEqual(cursor.currentPage, 2)
+        XCTAssertEqual(cursor.nextPage, 3)
+        XCTAssertEqual(cursor.consecutiveEmptyPages, 0)
+        XCTAssertTrue(cursor.hasMorePages)
+    }
+
+    func testBrowsePaginationStopsAfterBoundedFilteredEmptyPages() {
+        var cursor = DiscoverPaginationCursor()
+        for _ in 0..<DiscoverPaginationCursor.maximumConsecutiveEmptyPages {
+            cursor.didLoadPage(hasUniqueItems: false)
+        }
+
+        XCTAssertEqual(cursor.currentPage, 5)
+        XCTAssertEqual(cursor.consecutiveEmptyPages, DiscoverPaginationCursor.maximumConsecutiveEmptyPages)
+        XCTAssertFalse(cursor.hasMorePages)
+    }
+
+    func testBrowsePaginationResetsWhenCategoryChanges() {
+        var cursor = DiscoverPaginationCursor()
+        cursor.didLoadPage(hasUniqueItems: true)
+        cursor.didLoadPage(hasUniqueItems: false)
+
+        cursor.reset()
+
+        XCTAssertEqual(cursor.currentPage, 1)
+        XCTAssertEqual(cursor.nextPage, 2)
+        XCTAssertEqual(cursor.consecutiveEmptyPages, 0)
+        XCTAssertTrue(cursor.hasMorePages)
+    }
 }
