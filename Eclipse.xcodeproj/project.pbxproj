@@ -567,6 +567,8 @@
 		8BFBAD99F2CE4A8E9922DC33 /* SimklAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C457B1373844E498074EA0E /* SimklAPITests.swift */; };
 		70F4C4CB054F4F97A6B29132 /* SimklAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BE4A6651E3841FE821D23A0 /* SimklAPI.swift */; };
 		B5A0C0DE0000000000000001 /* HomeCatalogLoadPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A0C0DE0000000000000002 /* HomeCatalogLoadPolicyTests.swift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXCopyFilesBuildPhase section */
 		12F745372EB539F000889684 /* Embed Frameworks */ = {
 			isa = PBXCopyFilesBuildPhase;
@@ -1245,7 +1247,6 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
-;
 		13E1EDB82ED9E65F00087629 /* utils */ = {
 			isa = PBXGroup;
 			children = (
