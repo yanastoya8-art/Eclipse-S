@@ -1184,6 +1184,9 @@ class TMDBContentFilter: ObservableObject {
 
     func filterFastAnimeSearchResults(_ results: [TMDBSearchResult]) -> [TMDBSearchResult] {
         let animeResults = results.map { $0.withAnimeHint(true) }
+        if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
+            Task(priority: .utility) { await self.resolveRuntimeMetadata(for: animeResults) }
+        }
         if UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent") {
             Task(priority: .utility) { await self.resolveProductionMetadata(for: animeResults) }
         }
