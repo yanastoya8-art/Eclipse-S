@@ -5487,7 +5487,7 @@ private struct ProductionsSettingsView: View {
                 Toggle("Hide fan-made and YouTuber productions", isOn: $hideUnofficialContent)
                     .accessibilityIdentifier("settings.contentFilters.hideFanmade")
             } footer: {
-                Text("Uses title and description indicators such as fan-made, unofficial, YouTuber and YouTube-original. This is a best-effort metadata filter; entries without those indicators may remain visible.")
+                Text("Checks titles, descriptions, schedule metadata and TMDB production-company names for fan-made, YouTuber, YouTube-original and unofficial-production indicators. Catalog and schedule entries remain hidden while production metadata is being checked.")
             }
         }
         .onChange(of: hideUnofficialContent) { _ in filtersDidChange() }
