@@ -375,3 +375,52 @@ final class CatalogContentFilterRegressionTests: XCTestCase {
         ))
     }
 }
+
+final class CatalogRuntimeAndProductionFilterPolicyTests: XCTestCase {
+    func testMinimumRuntimeRejectsUnknownAndShortEpisodes() {
+        XCTAssertFalse(CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: nil))
+        XCTAssertFalse(CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: 0))
+        XCTAssertFalse(CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: 19))
+        XCTAssertTrue(CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: 20))
+        XCTAssertTrue(CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: 45))
+    }
+
+    func testSeriesRuntimeUsesShortestReportedEpisode() {
+        XCTAssertEqual(CatalogRuntimeFilterPolicy.shortestReportedRuntime([42, 18, 45]), 18)
+        XCTAssertEqual(CatalogRuntimeFilterPolicy.shortestReportedRuntime([20, 24, 42]), 20)
+        XCTAssertNil(CatalogRuntimeFilterPolicy.shortestReportedRuntime([0, -1, nil].compactMap { $0 }))
+        XCTAssertNil(CatalogRuntimeFilterPolicy.shortestReportedRuntime(nil))
+    }
+
+    func testUnofficialProductionDetectionIncludesProductionCompanyMetadata() {
+        XCTAssertTrue(TMDBContentFilter.isUnofficialCreatorContent(
+            title: "A New Series",
+            overview: "An original scripted show",
+            productionCompanies: ["YouTuber Studios"]
+        ))
+        XCTAssertTrue(TMDBContentFilter.isUnofficialCreatorContent(
+            title: "A Fan Project",
+            overview: nil,
+            productionCompanies: ["Independent Web Animation"]
+        ))
+        XCTAssertFalse(TMDBContentFilter.isUnofficialCreatorContent(
+            title: "A New Series",
+            overview: "An original scripted show",
+            productionCompanies: ["Warner Bros. Television"]
+        ))
+    }
+
+    func testUnofficialProductionDetectionCatchesCreatorPlatformTerms() {
+        XCTAssertTrue(TMDBContentFilter.isUnofficialCreatorContent(
+            title: "Creator Original",
+            overview: "A series made for YouTube by a digital creator",
+            productionCompanies: []
+        ))
+        XCTAssertTrue(TMDBContentFilter.isUnofficialCreatorContent(
+            title: "Fan Series",
+            overview: "An independent web series",
+            productionCompanies: []
+        ))
+    }
+}
+
