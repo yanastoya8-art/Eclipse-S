@@ -592,25 +592,38 @@ jobs:
           IPA_SIZE="$(stat -f%z "$IPA_PATH")"
           DOWNLOAD_URL="https://yanastoya8-art.github.io/Eclipse-S/ipa/$UNIQUE_IPA_NAME"
 
-          python3 - "$SITE_DIR/alt-source.json" "$BUNDLE_ID" "$SHORT_VERSION" "$BUILD_VERSION" "$MIN_OS_VERSION" "$IPA_SIZE" "$DOWNLOAD_URL" "$COMMIT_SHA" <<'PY'
+          python3 - "$SITE_DIR/alt-source.json" "$BUNDLE_ID" "$SHORT_VERSION" "$BUILD_VERSION" "$MIN_OS_VERSION" "$IPA_SIZE" "$DOWNLOAD_URL" "$COMMIT_SHA" "$INFO_PLIST" <<'PY'
           import datetime
           import json
           import pathlib
           import sys
 
           path = pathlib.Path(sys.argv[1])
-          bundle_id, version, build, min_os, size, download_url, commit = sys.argv[2:]
+          bundle_id, version, build, min_os, size, download_url, commit = sys.argv[2:9]
           release_date = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+          # Unsigned builds have no code-signing entitlements. Derive privacy
+          # declarations from the actual packaged Info.plist for AltStore checks.
+          import plistlib
+          with open(sys.argv[9], "rb") as handle:
+              info = plistlib.load(handle)
+          privacy = {
+              key: value for key, value in info.items()
+              if key.endswith("UsageDescription") and isinstance(value, str)
+          }
+
           app = {
               "name": "Eclipse",
               "bundleIdentifier": bundle_id,
               "developerName": "yanastoya8-art",
               "subtitle": "Movies, series and anime in one place",
-              "localizedDescription": "Eclipse is a media discovery and streaming app. This source automatically tracks the latest successful unsigned iOS build.",
+              "localizedDescription": "Eclipse is a media discovery and streaming app for iPhone and iPad.",
               "iconURL": "https://yanastoya8-art.github.io/Eclipse-S/app-icon.png",
               "tintColor": "#7C4DFF",
+              "category": "entertainment",
+              "appPermissions": {"entitlements": [], "privacy": privacy},
               "versions": [{
                   "version": version,
+                  "buildVersion": build,
                   "date": release_date,
                   "downloadURL": download_url,
                   "size": int(size),
@@ -619,35 +632,42 @@ jobs:
               }]
           }
           feed = {
-              "name": "Eclipse SideStore Source",
+              "name": "Eclipse",
+              "subtitle": "Eclipse for iPhone and iPad",
+              "description": "Install Eclipse using AltStore Classic or SideStore. The feed is updated after a successful IPA publication.",
+              "website": "https://github.com/yanastoya8-art/Eclipse-S",
+              "tintColor": "#7C4DFF",
+              "nsfw": False,
+              # SideStore-specific keys are retained for backwards compatibility.
               "identifier": "app.eclipse.soupy.sidestore-source",
               "sourceURL": "https://yanastoya8-art.github.io/Eclipse-S/alt-source.json",
-              "apps": [app]
+              "apps": [app],
+              "news": []
           }
 
-          # Validate against SideStore's strict source shape before publishing.
-          required_source = {"name", "identifier", "apps"}
-          allowed_source = required_source | {"news", "sourceURL"}
-          required_app = {"name", "bundleIdentifier", "developerName", "localizedDescription", "iconURL", "versions"}
-          allowed_app = required_app | {"beta", "downloadURL", "permissions", "screenshotURLs", "size", "subtitle", "tintColor", "version", "versionDate", "versionDescription"}
-          required_version = {"version", "date", "downloadURL", "size"}
-          allowed_version = required_version | {"localizedDescription", "minOSVersion", "maxOSVersion"}
+          # Validate the shared AltStore Classic + SideStore source contract.
+          required_source = {"name", "apps", "news"}
+          allowed_source = required_source | {"subtitle", "description", "website", "iconURL", "headerURL", "tintColor", "nsfw", "featuredApps", "identifier", "sourceURL"}
+          required_app = {"name", "bundleIdentifier", "developerName", "localizedDescription", "iconURL", "versions", "appPermissions"}
+          allowed_app = required_app | {"subtitle", "tintColor", "category", "screenshots", "patreon"}
+          required_version = {"version", "buildVersion", "date", "downloadURL", "size"}
+          allowed_version = required_version | {"localizedDescription", "minOSVersion", "maxOSVersion", "marketingVersion"}
           if not required_source.issubset(feed) or not set(feed).issubset(allowed_source):
-              raise SystemExit("Invalid SideStore source keys")
+              raise SystemExit("Invalid AltStore/SideStore source keys")
           if len(feed["apps"]) != 1:
               raise SystemExit("SideStore source must contain exactly one Eclipse app")
           app_entry = feed["apps"][0]
           if not required_app.issubset(app_entry) or not set(app_entry).issubset(allowed_app):
-              raise SystemExit("Invalid SideStore app keys")
+              raise SystemExit("Invalid AltStore Classic app keys")
           if not app_entry["versions"]:
               raise SystemExit("SideStore app must include at least one version")
           for version_entry in app_entry["versions"]:
               if not required_version.issubset(version_entry) or not set(version_entry).issubset(allowed_version):
-                  raise SystemExit("Invalid SideStore version keys")
+                  raise SystemExit("Invalid AltStore Classic version keys")
           path.write_text(json.dumps(feed, indent=2, ensure_ascii=False) + "\n")
           parsed = json.loads(path.read_text())
           if parsed != feed:
-              raise SystemExit("SideStore source JSON round-trip validation failed")
+              raise SystemExit("AltStore/SideStore source JSON round-trip validation failed")
           parsed_app = parsed["apps"][0]
           parsed_version = parsed_app["versions"][0]
           if not parsed_app["bundleIdentifier"] or not parsed_version["downloadURL"].endswith(".ipa"):
