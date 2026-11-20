@@ -745,12 +745,6 @@
 		13E1EDB12ED9E65F00087629 /* KanzenModuleRunner.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KanzenModuleRunner.swift; sourceTree = "<group>"; };
 		13E1EDB22ED9E65F00087629 /* KanzenEngine.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KanzenEngine.swift; sourceTree = "<group>"; };
 		13E1EDB42ED9E65F00087629 /* KanzenRunnerController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KanzenRunnerController.swift; sourceTree = "<group>"; };
-		13E1EDC02ED9E65F00087629 /* kanzenSettings.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = kanzenSettings.swift; sourceTree = "<group>"; };
-		13E1EDC22ED9E65F00087629 /* kanzenGeneralSettings.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = kanzenGeneralSettings.swift; sourceTree = "<group>"; };
-		13E1EDC72ED9E65F00087629 /* contentCell.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = contentCell.swift; sourceTree = "<group>"; };
-		13E1EDC82ED9E65F00087629 /* circularLoading.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = circularLoading.swift; sourceTree = "<group>"; };
-		13E1EDC92ED9E65F00087629 /* contentView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = contentView.swift; sourceTree = "<group>"; };
-		13E1EDD02ED9E65F00087629 /* kanzenModuleView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = kanzenModuleView.swift; sourceTree = "<group>"; };
 		13E1EDF32ED9E67000087629 /* ContentModel.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = ContentModel.xcdatamodel; sourceTree = "<group>"; };
 		13F0725B2E4B2D3300EF90EB /* Eclipse.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Eclipse.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13F0725E2E4B2D3300EF90EB /* SoraApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoraApp.swift; sourceTree = "<group>"; };
@@ -845,17 +839,12 @@
 		FF1111102F30000000FF1110 /* AniListMangaService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AniListMangaService.swift; sourceTree = "<group>"; };
 		FF2222202F30000000FF2220 /* MangaCatalogManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MangaCatalogManager.swift; sourceTree = "<group>"; };
 		FF3333302F30000000FF3330 /* MangaHomeViewModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MangaHomeViewModel.swift; sourceTree = "<group>"; };
-		KCC2000000000000000CAT01 /* KanzenCustomCatalogsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KanzenCustomCatalogsView.swift; sourceTree = "<group>"; };
-		KCB1000000000000000BLD01 /* KanzenCatalogBuilderView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KanzenCatalogBuilderView.swift; sourceTree = "<group>"; };
 		KCC1000000000000000CAT01 /* KanzenCustomCatalog.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KanzenCustomCatalog.swift; sourceTree = "<group>"; };
 		KAM1000000000000000MIG01 /* KanzenAidokuMigration.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KanzenAidokuMigration.swift; sourceTree = "<group>"; };
 		KMG1000000000000000VW01 /* KanzenAidokuMigrationView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KanzenAidokuMigrationView.swift; sourceTree = "<group>"; };
 		KMG2000000000000000PR01 /* KanzenAidokuMigrationPrompt.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KanzenAidokuMigrationPrompt.swift; sourceTree = "<group>"; };
 		KCP1000000000000000PRE01 /* KanzenCatalogPresets.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KanzenCatalogPresets.swift; sourceTree = "<group>"; };
 		FF4444402F30000000FF4440 /* MangaSourceFinder.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MangaSourceFinder.swift; sourceTree = "<group>"; };
-		FF5555502F30000000FF5550 /* KanzenHomeView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KanzenHomeView.swift; sourceTree = "<group>"; };
-		FF5555512F30000000FF5551 /* KanzenHistoryView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KanzenHistoryView.swift; sourceTree = "<group>"; };
-		FF6666602F30000000FF6660 /* KanzenGlobalSearchView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KanzenGlobalSearchView.swift; sourceTree = "<group>"; };
 		FAA111002F40000000FAA110 /* MangaLibraryItem.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MangaLibraryItem.swift; sourceTree = "<group>"; };
 		FBB222002F40000000FBB220 /* MangaLibraryCollection.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MangaLibraryCollection.swift; sourceTree = "<group>"; };
 		FCC333002F40000000FCC330 /* MangaLibraryManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MangaLibraryManager.swift; sourceTree = "<group>"; };
@@ -1293,7 +1282,6 @@
 		13E1EDBF2ED9E65F00087629 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
-				13E1EDC02ED9E65F00087629 /* kanzenSettings.swift */,
 				13E1EDC12ED9E65F00087629 /* subSettings */,
 			);
 			path = Settings;
@@ -1302,9 +1290,6 @@
 		13E1EDC12ED9E65F00087629 /* subSettings */ = {
 			isa = PBXGroup;
 			children = (
-				13E1EDC22ED9E65F00087629 /* kanzenGeneralSettings.swift */,
-				KCC2000000000000000CAT01 /* KanzenCustomCatalogsView.swift */,
-				KCB1000000000000000BLD01 /* KanzenCatalogBuilderView.swift */,
 			);
 			path = subSettings;
 			sourceTree = "<group>";
@@ -1312,9 +1297,6 @@
 		13E1EDC42ED9E65F00087629 /* Util */ = {
 			isa = PBXGroup;
 			children = (
-				13E1EDC72ED9E65F00087629 /* contentCell.swift */,
-				13E1EDC82ED9E65F00087629 /* circularLoading.swift */,
-				13E1EDC92ED9E65F00087629 /* contentView.swift */,
 			);
 			path = Util;
 			sourceTree = "<group>";
@@ -1329,7 +1311,6 @@
 		13E1EDCC2ED9E65F00087629 /* Search */ = {
 			isa = PBXGroup;
 			children = (
-				FF6666602F30000000FF6660 /* KanzenGlobalSearchView.swift */,
 			);
 			path = Search;
 			sourceTree = "<group>";
@@ -1337,7 +1318,6 @@
 		13E1EDCE2ED9E65F00087629 /* Browse */ = {
 			isa = PBXGroup;
 			children = (
-				13E1EDD02ED9E65F00087629 /* kanzenModuleView.swift */,
 			);
 			path = Browse;
 			sourceTree = "<group>";
@@ -1345,8 +1325,6 @@
 		FF9999902F30000000FF9990 /* Home */ = {
 			isa = PBXGroup;
 			children = (
-				FF5555502F30000000FF5550 /* KanzenHomeView.swift */,
-				FF5555512F30000000FF5551 /* KanzenHistoryView.swift */,
 			);
 			path = Home;
 			sourceTree = "<group>";
