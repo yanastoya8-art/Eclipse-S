@@ -1432,8 +1432,8 @@ final class ScheduleViewModel: ObservableObject {
                     if hideShortRuntime && resolved[index].runtimeMinutes == nil {
                         resolved[index].runtimeMinutes = detail.runtime
                     }
-                    if hideUnofficial {
-                        resolved[index].productionCompanyNames = detail.productionCompanies?.map(\.name) ?? []
+                    if hideUnofficial, let names = detail.productionCompanies?.map(\.name), !names.isEmpty {
+                        resolved[index].productionCompanyNames = names
                         resolved[index].productionMetadataChecked = true
                     }
                 }
@@ -1455,8 +1455,8 @@ final class ScheduleViewModel: ObservableObject {
                             )
                         }
                     }
-                    if hideUnofficial {
-                        resolved[index].productionCompanyNames = detail.productionCompanies?.map(\.name) ?? []
+                    if hideUnofficial, let names = detail.productionCompanies?.map(\.name), !names.isEmpty {
+                        resolved[index].productionCompanyNames = names
                         resolved[index].productionMetadataChecked = true
                     }
                 }
