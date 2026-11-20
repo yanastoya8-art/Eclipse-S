@@ -1715,7 +1715,7 @@ class TMDBContentFilter: ObservableObject {
         var pending: [TMDBSearchResult] = []
         runtimeMetadataLock.lock()
         for result in candidates {
-            let key = runtimeCacheKey(for: result)
+            let key = Self.runtimeCacheKey(for: result)
             if productionMetadataCheckedKeys.contains(key) || productionMetadataLoadingKeys.contains(key) {
                 continue
             }
@@ -1760,7 +1760,7 @@ class TMDBContentFilter: ObservableObject {
 
                 if let result = iterator.next() {
                     group.addTask {
-                        let nextKey = self.runtimeCacheKey(for: result)
+                        let nextKey = Self.runtimeCacheKey(for: result)
                         do {
                             let names: [String]
                             if result.isMovie {
@@ -1798,7 +1798,7 @@ class TMDBContentFilter: ObservableObject {
         var pending: [(result: TMDBSearchResult, key: String)] = []
         runtimeMetadataLock.lock()
         for result in candidates {
-            let key = runtimeCacheKey(for: result)
+            let key = Self.runtimeCacheKey(for: result)
             if runtimeCheckedKeys.contains(key) || runtimeLoadingKeys.contains(key) { continue }
             runtimeLoadingKeys.insert(key)
             pending.append((result, key))
@@ -1885,7 +1885,7 @@ class TMDBContentFilter: ObservableObject {
             // metadata resolver will publish a filter-change notification
             // when the runtime is available, and the catalog will re-evaluate.
             guard CatalogRuntimeFilterPolicy.shouldInclude(
-                    runtimeMinutes: cachedRuntimeMinutes(for: runtimeCacheKey(for: result))
+                    runtimeMinutes: cachedRuntimeMinutes(for: Self.runtimeCacheKey(for: result))
                   ) else {
                 return false
             }
