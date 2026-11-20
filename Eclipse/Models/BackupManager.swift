@@ -3529,43 +3529,29 @@ struct BackupData: Codable {
         return source.rawValue
     }
 
+    // Reader UI/types were removed from the app. Keep these legacy backup
+    // fields as plain values so older backups remain decodable without
+    // reintroducing the retired reader implementation.
     static func defaultKanzenReaderModeRawValue() -> String {
-#if !os(tvOS)
-        return KanzenReaderMode.currentDefault().rawValue
-#else
-        return "webtoon"
-#endif
+        "webtoon"
     }
 
     static func sanitizedKanzenReaderMode(_ value: String?) -> String {
-#if !os(tvOS)
-        guard let value,
-              let mode = KanzenReaderMode(rawValue: value) else {
+        guard let value else { return defaultKanzenReaderModeRawValue() }
+        switch value {
+        case "ltr", "rtl", "vertical", "webtoon":
+            return value
+        default:
             return defaultKanzenReaderModeRawValue()
-        }
-        return mode.rawValue
-#else
-        let allowed = Set(["ltr", "rtl", "webtoon"])
-        guard let value, allowed.contains(value) else { return "webtoon" }
-        return value
-#endif
-    }
-
-    static func readingModeRawValue(forKanzenReaderMode value: String) -> Int {
-        switch sanitizedKanzenReaderMode(value) {
-        case "ltr": return ReadingMode.LTR.rawValue
-        case "rtl": return ReadingMode.RTL.rawValue
-        case "vertical": return ReadingMode.VERTICAL.rawValue
-        default: return ReadingMode.WEBTOON.rawValue
         }
     }
 
     static func kanzenReaderModeRawValue(forReadingMode value: Int) -> String {
-        switch ReadingMode(rawValue: value) ?? .WEBTOON {
-        case .LTR: return "ltr"
-        case .RTL: return "rtl"
-        case .VERTICAL: return "vertical"
-        case .WEBTOON: return "webtoon"
+        switch value {
+        case 0: return "ltr"
+        case 1: return "rtl"
+        case 3: return "vertical"
+        default: return "webtoon"
         }
     }
 
@@ -11162,7 +11148,7 @@ private struct ScopedSettingsDefaults {
         let mediaColumnsPortrait = userDefaults.object(forKey: "mediaColumnsPortrait") != nil ? userDefaults.integer(forKey: "mediaColumnsPortrait") : 3
         let mediaColumnsLandscape = userDefaults.object(forKey: "mediaColumnsLandscape") != nil ? userDefaults.integer(forKey: "mediaColumnsLandscape") : 5
 
-        let readingMode = userDefaults.object(forKey: "readingMode") != nil ? userDefaults.integer(forKey: "readingMode") : ReadingMode.WEBTOON.rawValue
+        let readingMode = userDefaults.object(forKey: "readingMode") != nil ? userDefaults.integer(forKey: "readingMode") : 2
         let kanzenReaderMode = BackupData.sanitizedKanzenReaderMode(userDefaults.string(forKey: "kanzenReaderMode") ?? BackupData.defaultKanzenReaderModeRawValue())
         let userDefaultsSnapshot = userDefaults.dictionaryRepresentation()
         let kanzenReaderModeOverrides = BackupData.sanitizedKanzenReaderModeOverrides(
@@ -11790,7 +11776,7 @@ private struct ScopedSettingsDefaults {
         }
         if useSafeCloudSkyStreamSnapshot {
             backupWithProfiles.excludeDeviceLocalMangayomiSelections(
-                using: .init(store: ProfileSettingsStore.services)
+                using: MangayomiMediaLocalSelectionSnapshot(store: ProfileSettingsStore.services)
             )
         }
         guard activeProfileScopeIsCurrent(capturedScope) else {
