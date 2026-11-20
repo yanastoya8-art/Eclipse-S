@@ -222,7 +222,26 @@ jobs:
         run: |
           set -euo pipefail
           SOURCE_PACKAGES_DIR="$RUNNER_TEMP/SourcePackages"
-          xcodebuild -resolvePackageDependencies \
+
+          # GitHub-hosted macOS runners can lose connections while SwiftPM
+          # fetches Git checkouts or large binary XCFramework artifacts. Retry
+          # transient resolver failures without discarding the warm package cache.
+          resolve_packages_with_retry() {
+            local attempt
+            for attempt in 1 2 3 4; do
+              echo "Swift package resolution attempt $attempt/4"
+              if xcodebuild -resolvePackageDependencies "$@" -scmProvider system; then
+                return 0
+              fi
+              if [ "$attempt" -lt 4 ]; then
+                echo "SwiftPM resolution failed; retrying after a short backoff." >&2
+                sleep $((attempt * 15))
+              fi
+            done
+            echo "::error::Swift package resolution failed after 4 attempts." >&2
+            return 1
+          }
+          resolve_packages_with_retry \
             -project Eclipse.xcodeproj \
             -scheme Eclipse \
             -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" \
@@ -303,7 +322,7 @@ jobs:
           PY
 
           export MPVKIT_LOCAL_ARTIFACTS_DIR
-          xcodebuild -resolvePackageDependencies \
+          resolve_packages_with_retry \
             -project Eclipse.xcodeproj \
             -scheme Eclipse \
             -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" \
