@@ -681,12 +681,15 @@ final class ScheduleViewModel: ObservableObject {
                 dayCount: requestedDayCount,
                 forceRefresh: forceRefresh
             )
+            // Resolve the same runtime and production-company metadata used by
+            // Home and Browse before publishing any schedule provider's rows.
+            let preparedScheduleEntries = await applyShortRuntimeScheduleFilter(loadResult.entries)
             // Populate schedule-specific age metadata before evaluating the
             // exclusion predicate. Without this call the predicate only sees
             // cached ratings and silently misses MAL-only anime and TVMaze rows.
-            await TMDBContentFilter.shared.prepareScheduleAgeRatings(for: loadResult.entries)
+            await TMDBContentFilter.shared.prepareScheduleAgeRatings(for: preparedScheduleEntries)
             let hideUnofficialContent = UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent")
-            let entries = loadResult.entries.filter { entry in
+            let entries = preparedScheduleEntries.filter { entry in
                 // Enforce age exclusions before publishing the new schedule
                 // snapshot. ScheduleView also refreshes its visible filter state,
                 // but doing the policy here prevents a new page of all-ages or
@@ -699,6 +702,7 @@ final class ScheduleViewModel: ObservableObject {
                 // Include them (and the episode's format/overview) in the same
                 // policy used by Home and Browse; title-only checks miss fan
                 // productions whose title does not identify their origin.
+                if entry.tmdbId != nil && !entry.productionMetadataChecked { return false }
                 let searchableMetadata = [
                     entry.title,
                     entry.englishTitle,
@@ -711,7 +715,8 @@ final class ScheduleViewModel: ObservableObject {
                     + " " + entry.metadataTags.joined(separator: " ")
                 return !TMDBContentFilter.isUnofficialCreatorContent(
                     title: searchableMetadata,
-                    overview: entry.overview
+                    overview: entry.overview,
+                    productionCompanies: entry.productionCompanyNames
                 )
             }
             let didPublish = await MainActor.run { () -> Bool in
