@@ -1210,8 +1210,9 @@ class TMDBContentFilter: ObservableObject {
             guard !shouldExcludeAnimeSpecialOrOVA(movieResult) else { return false }
             if UserDefaults.standard.bool(forKey: "catalogHideAnime"), movieAnime { return false }
             if movieAnime, !shouldIncludeAnimeCategoryFilters(movie.asSearchResult) { return false }
-            if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent"),
-               let runtime = cachedRuntimeMinutes(for: "movie-\(movie.id)"), runtime < 20 { return false }
+            if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
+                guard let runtime = cachedRuntimeMinutes(for: "movie-\(movie.id)"), runtime >= 20 else { return false }
+            }
             guard !Self.shouldHideForReleaseDate(
                 rawDate: movie.releaseDate,
                 isAnime: false,
@@ -1263,8 +1264,9 @@ class TMDBContentFilter: ObservableObject {
                     || tvShow.originCountry?.contains(where: { animeCountries.contains($0) }) == true)
             if UserDefaults.standard.bool(forKey: "catalogHideAnime"), isAnime { return false }
             if isAnime, !shouldIncludeAnimeCategoryFilters(tvShow.asSearchResult) { return false }
-            if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent"),
-               let runtime = cachedRuntimeMinutes(for: "tv-\(tvShow.id)"), runtime < 20 { return false }
+            if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
+                guard let runtime = cachedRuntimeMinutes(for: "tv-\(tvShow.id)"), runtime >= 20 else { return false }
+            }
             guard !Self.shouldHideForReleaseDate(
                 rawDate: tvShow.firstAirDate,
                 isAnime: isAnime,
@@ -1718,13 +1720,9 @@ class TMDBContentFilter: ObservableObject {
         }
         do {
             let detail = try await TMDBService.shared.getTVShowDetails(id: result.id)
-            let values = (detail.episodeRunTime ?? []).filter { $0 > 0 }.sorted()
-            guard !values.isEmpty else { return (key, nil, true) }
-            let middle = values.count / 2
-            let median = values.count.isMultiple(of: 2)
-                ? (values[middle - 1] + values[middle]) / 2
-                : values[middle]
-            return (key, median, true)
+            let values = (detail.episodeRunTime ?? []).filter { $0 > 0 }
+            guard let shortestReportedEpisode = values.min() else { return (key, nil, true) }
+            return (key, shortestReportedEpisode, true)
         } catch {
             return (key, nil, false)
         }
@@ -1745,10 +1743,14 @@ class TMDBContentFilter: ObservableObject {
         let defaults = UserDefaults.standard
         let isAnime = Self.isAnimeResult(result)
         if defaults.bool(forKey: "catalogHideAnime"), isAnime { return false }
-        if defaults.bool(forKey: "catalogHideUnder20MinuteContent"),
-           let runtime = cachedRuntimeMinutes(for: runtimeCacheKey(for: result)),
-           runtime < 20 {
-            return false
+        if defaults.bool(forKey: "catalogHideUnder20MinuteContent") {
+            // Do not show an item while its runtime is unknown. The async
+            // metadata resolver will publish a filter-change notification
+            // when the runtime is available, and the catalog will re-evaluate.
+            guard let runtime = cachedRuntimeMinutes(for: runtimeCacheKey(for: result)),
+                  runtime >= 20 else {
+                return false
+            }
         }
 
         if isAnime {
