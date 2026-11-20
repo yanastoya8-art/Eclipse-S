@@ -71,6 +71,7 @@ enum HomeCatalogLoadPolicy {
         stremioCatalogCount: Int,
         traktCatalogCount: Int,
         widgetCatalogCount: Int,
+        recommendationCatalogCount: Int = 0,
         permitsEmptyResults: Bool
     ) -> Bool {
         permitsEmptyResults
@@ -79,6 +80,7 @@ enum HomeCatalogLoadPolicy {
             || stremioCatalogCount > 0
             || traktCatalogCount > 0
             || widgetCatalogCount > 0
+            || recommendationCatalogCount > 0
     }
 }
 
@@ -765,18 +767,24 @@ final class HomeViewModel: ObservableObject {
                     enabledCatalogIDs: currentlyEnabledCatalogIds
                 )
                 let widgetCatalogCount = visibleWidgetCatalogCount
+                let recommendationCatalogCount = HomeCatalogLoadPolicy.visibleCatalogCount(
+                    self.catalogResults.filter { $0.key == "forYou" || $0.key == "becauseYouWatched" },
+                    enabledCatalogIDs: currentlyEnabledCatalogIds
+                )
                 self.applyHeroBannerSelection()
                 self.isLoading = false
                 let permitsEmptyResults = enabledCatalogSnapshot.allSatisfy { $0.source == .local }
-                // Count every provider that can render Home content. In particular,
-                // AniList-only profiles must not be treated as an unsuccessful load
-                // just because their TMDB catalog snapshot is empty.
+                // Count every visible source, including locally generated
+                // recommendation shelves. A first-run "Just For You" shelf can
+                // be populated from Trending even when the profile has no
+                // watch history and every other provider returns an empty list.
                 self.hasLoadedContent = HomeCatalogLoadPolicy.hasLoadedContent(
                     tmdbCatalogCount: tmdbCatalogCount,
                     animeCatalogCount: animeCatalogCount,
                     stremioCatalogCount: stremioCatalogCount,
                     traktCatalogCount: traktCatalogCount,
                     widgetCatalogCount: widgetCatalogCount,
+                    recommendationCatalogCount: recommendationCatalogCount,
                     permitsEmptyResults: permitsEmptyResults
                 )
                 if self.hasLoadedContent && self.pendingCatalogFilterRefresh {
