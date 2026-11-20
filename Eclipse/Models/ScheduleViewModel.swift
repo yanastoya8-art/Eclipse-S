@@ -250,6 +250,7 @@ struct ScheduleEntry: Identifiable, Sendable {
     var scheduleSourceURL: String? = nil
     let releaseYear: Int?
     var runtimeMinutes: Int?
+    var productionCompanyNames: [String] = []
     let animeMALID: Int?
     let airingTimeWithdrawn: Bool
     let isMovie: Bool
@@ -1017,7 +1018,8 @@ final class ScheduleViewModel: ObservableObject {
             + " " + entry.metadataTags.joined(separator: " ")
         return !TMDBContentFilter.isUnofficialCreatorContent(
             title: searchableMetadata,
-            overview: entry.overview
+            overview: entry.overview,
+            productionCompanies: entry.productionCompanyNames
         )
     }
 
@@ -1408,38 +1410,63 @@ final class ScheduleViewModel: ObservableObject {
     }
 
     private func applyShortRuntimeScheduleFilter(_ entries: [ScheduleEntry]) async -> [ScheduleEntry] {
-        guard UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") else {
-            return entries
-        }
+        let defaults = UserDefaults.standard
+        let hideShortRuntime = defaults.bool(forKey: "catalogHideUnder20MinuteContent")
+        let hideUnofficial = defaults.bool(forKey: "catalogHideUnofficialContent")
+        guard hideShortRuntime || hideUnofficial else { return entries }
 
         var resolved = entries
-        let missingSeasonKeys = Set(entries.compactMap { entry -> String? in
-            guard entry.runtimeMinutes == nil,
-                  let tmdbID = entry.tmdbId,
-                  let season = entry.season else { return nil }
-            return "\(tmdbID)|\(season)"
+        // Resolve title-level metadata once per distinct TMDB title. This is
+        // shared by the runtime and production filters so one detail request
+        // supplies both decisions wherever possible.
+        let titleKeys = Set(entries.compactMap { entry -> String? in
+            guard let id = entry.tmdbId, id > 0 else { return nil }
+            return "\(entry.isMovie ? "movie" : "tv")-\(id)"
         })
 
-        for key in missingSeasonKeys {
-            let parts = key.split(separator: "|")
-            guard parts.count == 2,
-                  let tmdbID = Int(parts[0]),
-                  let season = Int(parts[1]),
-                  let detail = try? await TMDBService.shared.getSeasonDetails(
-                    tvShowId: tmdbID,
-                    seasonNumber: season
-                  ) else { continue }
-            for index in resolved.indices where resolved[index].tmdbId == tmdbID
-                && resolved[index].season == season && resolved[index].runtimeMinutes == nil {
-                resolved[index].runtimeMinutes = detail.episodes.first {
-                    $0.episodeNumber == resolved[index].episode
-                }?.runtime
+        for key in titleKeys {
+            let parts = key.split(separator: "-")
+            guard parts.count == 2, let id = Int(parts[1]) else { continue }
+            if parts[0] == "movie" {
+                guard let detail = try? await TMDBService.shared.getMovieDetails(id: id) else { continue }
+                for index in resolved.indices where resolved[index].tmdbId == id && resolved[index].isMovie {
+                    if resolved[index].runtimeMinutes == nil { resolved[index].runtimeMinutes = detail.runtime }
+                    resolved[index].productionCompanyNames = detail.productionCompanies?.map(\.name) ?? []
+                }
+            } else {
+                guard let detail = try? await TMDBService.shared.getTVShowDetails(id: id) else { continue }
+                for index in resolved.indices where resolved[index].tmdbId == id && !resolved[index].isMovie {
+                    if resolved[index].runtimeMinutes == nil {
+                        if let season = resolved[index].season,
+                           let seasonDetail = try? await TMDBService.shared.getSeasonDetails(
+                            tvShowId: id,
+                            seasonNumber: season
+                           ) {
+                            resolved[index].runtimeMinutes = seasonDetail.episodes.first {
+                                $0.episodeNumber == resolved[index].episode
+                            }?.runtime
+                        } else {
+                            resolved[index].runtimeMinutes = detail.episodeRunTime?.filter { $0 > 0 }.min()
+                        }
+                    }
+                    resolved[index].productionCompanyNames = detail.productionCompanies?.map(\.name) ?? []
+                }
             }
         }
 
-        // Missing episode runtimes must not bypass an enabled minimum-runtime
-        // filter. Only confirmed episodes of at least 20 minutes remain.
-        return resolved.filter { ($0.runtimeMinutes ?? 0) >= 20 }
+        return resolved.filter { entry in
+            if hideShortRuntime, (entry.runtimeMinutes ?? 0) < 20 { return false }
+            if hideUnofficial,
+               TMDBContentFilter.isUnofficialCreatorContent(
+                title: [entry.title, entry.englishTitle, entry.romajiTitle, entry.nativeTitle, entry.format]
+                    .compactMap { $0 }.joined(separator: " "),
+                overview: entry.overview,
+                productionCompanies: entry.productionCompanyNames
+               ) {
+                return false
+            }
+            return true
+        }
     }
 
     private func scheduleCacheIsFresh(
