@@ -194,7 +194,7 @@ struct AnimeMediaIdentitySeed: Codable, Equatable, Sendable {
         self.malId = malId
         self.kitsuId = kitsuId
         self.format = format
-        self.animeTags = Self.sanitizedAnimeTags(animeTags ?? animeIdentitySeed?.animeTags)
+        self.animeTags = Self.sanitizedAnimeTags(animeTags)
     }
 
     private static func sanitizedAnimeTags(_ values: [String]?) -> [String]? {
