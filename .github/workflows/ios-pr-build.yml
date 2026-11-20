@@ -78,8 +78,16 @@ jobs:
         id: xcode-version
         run: |
           set -euo pipefail
-          VERSION="$(xcodebuild -version | awk '/^Xcode / { print $2; exit }')"
-          test -n "$VERSION"
+          # xcodebuild can crash with SIGPIPE when awk exits after the first line.
+          # Capture the complete output before parsing it so the producer is never piped
+          # into an early-exiting consumer under pipefail.
+          XCODE_VERSION_OUTPUT="$(xcodebuild -version)"
+          VERSION="$(printf '%s\\n' "$XCODE_VERSION_OUTPUT" | sed -n 's/^Xcode \\([^ ]*\\)$/\\1/p' | head -n 1)"
+          if [[ -z "$VERSION" ]]; then
+            echo "::error::Could not determine the selected Xcode version."
+            printf '%s\\n' "$XCODE_VERSION_OUTPUT"
+            exit 1
+          fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Create local build config from repository secrets
