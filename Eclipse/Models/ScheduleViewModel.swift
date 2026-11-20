@@ -251,6 +251,7 @@ struct ScheduleEntry: Identifiable, Sendable {
     let releaseYear: Int?
     var runtimeMinutes: Int?
     var productionCompanyNames: [String] = []
+    var productionMetadataChecked = false
     let animeMALID: Int?
     let airingTimeWithdrawn: Bool
     let isMovie: Bool
@@ -1006,6 +1007,7 @@ final class ScheduleViewModel: ObservableObject {
         guard UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent") else {
             return true
         }
+        if entry.tmdbId != nil && !entry.productionMetadataChecked { return false }
         let searchableMetadata = [
             entry.title,
             entry.englishTitle,
@@ -1430,13 +1432,21 @@ final class ScheduleViewModel: ObservableObject {
             if parts[0] == "movie" {
                 guard let detail = try? await TMDBService.shared.getMovieDetails(id: id) else { continue }
                 for index in resolved.indices where resolved[index].tmdbId == id && resolved[index].isMovie {
-                    if resolved[index].runtimeMinutes == nil { resolved[index].runtimeMinutes = detail.runtime }
-                    resolved[index].productionCompanyNames = detail.productionCompanies?.map(\.name) ?? []
+                    if hideShortRuntime && resolved[index].runtimeMinutes == nil {
+                        resolved[index].runtimeMinutes = detail.runtime
+                    }
+                    if hideUnofficial {
+                        if hideUnofficial {
+                        resolved[index].productionCompanyNames = detail.productionCompanies?.map(\.name) ?? []
+                        resolved[index].productionMetadataChecked = true
+                    }
+                        resolved[index].productionMetadataChecked = true
+                    }
                 }
             } else {
                 guard let detail = try? await TMDBService.shared.getTVShowDetails(id: id) else { continue }
                 for index in resolved.indices where resolved[index].tmdbId == id && !resolved[index].isMovie {
-                    if resolved[index].runtimeMinutes == nil {
+                    if hideShortRuntime && resolved[index].runtimeMinutes == nil {
                         if let season = resolved[index].season,
                            let seasonDetail = try? await TMDBService.shared.getSeasonDetails(
                             tvShowId: id,
