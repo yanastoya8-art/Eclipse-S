@@ -684,9 +684,13 @@ final class ScheduleViewModel: ObservableObject {
             await TMDBContentFilter.shared.prepareScheduleAgeRatings(for: loadResult.entries)
             let hideUnofficialContent = UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent")
             let entries = loadResult.entries.filter { entry in
-                // All-ages exclusions are preference-driven and are applied by
-                // the configured age-filter policy in ScheduleView. Do not
-                // remove every all-ages title here unconditionally.
+                // Enforce age exclusions before publishing the new schedule
+                // snapshot. ScheduleView also refreshes its visible filter state,
+                // but doing the policy here prevents a new page of all-ages or
+                // below-minimum entries from appearing during that async refresh.
+                guard !TMDBContentFilter.shared.scheduleEntryIsBlockedByConfiguredAgeFilter(entry) else {
+                    return false
+                }
                 guard hideUnofficialContent else { return true }
                 // Anime schedule providers include production/category tags.
                 // Include them (and the episode's format/overview) in the same
@@ -954,7 +958,8 @@ final class ScheduleViewModel: ObservableObject {
             // enabling these catalog filters left incompatible anime visible.
             guard !TMDBContentFilter.shouldExcludeAnimeCategory(
                 title: searchableTitle,
-                overview: entry.overview
+                overview: entry.overview,
+                tags: entry.metadataTags
             ) else { return false }
             if UserDefaults.standard.bool(forKey: "catalogHidePre1994Anime"),
                let year = entry.releaseYear, year < 1994 {
@@ -994,26 +999,63 @@ final class ScheduleViewModel: ObservableObject {
     }
 
     @MainActor
+    private func scheduleEntryPassesConfiguredFilters(_ entry: ScheduleEntry) -> Bool {
+        guard !TMDBContentFilter.shared.scheduleEntryIsBlockedByConfiguredAgeFilter(entry) else {
+            return false
+        }
+        guard UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent") else {
+            return true
+        }
+        let searchableMetadata = [
+            entry.title,
+            entry.englishTitle,
+            entry.romajiTitle,
+            entry.nativeTitle,
+            entry.format
+        ]
+        .compactMap { $0 }
+        .joined(separator: " ")
+            + " " + entry.metadataTags.joined(separator: " ")
+        return !TMDBContentFilter.isUnofficialCreatorContent(
+            title: searchableMetadata,
+            overview: entry.overview
+        )
+    }
+
+    @MainActor
     private func mergeSpanishDubResearchEntries(
         _ additions: [ScheduleEntry],
         into currentResult: AnimeScheduleLoadResult,
         dayCount: Int
-    ) {
+    ) async {
         guard !additions.isEmpty else { return }
 
         // Merge by shared AniList/MAL identity so fallback rows cannot
         // duplicate an episode merely because the providers use different IDs.
         let mergedEntries = ScheduleEntryMergePolicy.earliestByEpisode(currentResult.entries + additions)
+
+        // Spanish research runs after the first calendar paint. Re-run the
+        // complete anime policy (language, specials/OVAs, categories, era and
+        // runtime) against the merged raw snapshot, then resolve ratings and
+        // reapply age/unofficial filters before publishing. Otherwise this
+        // late merge can reintroduce entries excluded by the initial load.
         let mergedResult = AnimeScheduleLoadResult(
             entries: mergedEntries,
             isAuthoritativeForNotifications: currentResult.isAuthoritativeForNotifications,
             notice: currentResult.notice
         )
+        let filteredResult = filteredAnimeScheduleResult(mergedResult)
+        await TMDBContentFilter.shared.prepareScheduleAgeRatings(for: filteredResult.entries)
+        let visibleAnimeEntries = filteredResult.entries.filter {
+            scheduleEntryPassesConfiguredFilters($0)
+        }
         animeScheduleResult = mergedResult
 
         guard loadedScheduleMode == .anime || loadedScheduleMode == .combined else { return }
-        let nonAnimeEntries = scheduleEntries.filter { $0.source != .anime }
-        scheduleEntries = (mergedEntries + nonAnimeEntries).sorted { $0.airingAt < $1.airingAt }
+        let nonAnimeEntries = scheduleEntries.filter {
+            $0.source != .anime && scheduleEntryPassesConfiguredFilters($0)
+        }
+        scheduleEntries = (visibleAnimeEntries + nonAnimeEntries).sorted { $0.airingAt < $1.airingAt }
         updateBuckets(
             with: scheduleEntries,
             localTimeZone: currentLocalTimeZone,
@@ -1154,12 +1196,13 @@ final class ScheduleViewModel: ObservableObject {
                                           let self,
                                           self.animeScheduleCachedPolicyKey == policyKey,
                                           self.animeScheduleDayCount == dayCount,
-                                          let currentResult = self.animeScheduleResult else { return }
+                                          self.animeScheduleResult != nil else { return }
                                     let scheduleWindow = ScheduleDateWindow.envelope(dayCount: dayCount)
                                     let confirmedEntries = researched
                                         .filter { $0.airingAt >= scheduleWindow.start && $0.airingAt < scheduleWindow.end }
                                         .map(ScheduleEntry.init(animeEntry:))
-                                    self.mergeSpanishDubResearchEntries(
+                                    guard let currentResult = self.animeScheduleResult else { return }
+                                    await self.mergeSpanishDubResearchEntries(
                                         confirmedEntries,
                                         into: currentResult,
                                         dayCount: dayCount

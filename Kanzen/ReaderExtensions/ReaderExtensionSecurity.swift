@@ -2591,31 +2591,9 @@ final class ReaderExtensionSecureHTTPClient: ReaderExtensionEPUBNetworkClient, @
                 headers: visibleHeaders,
                 body: result.body
             ), let challengeHost = ReaderExtensionSecurityPolicy.canonicalHost(of: url) {
-                if canPresentAutomaticBrowserVerification,
-                   !attemptedBrowserVerification,
-                   admitsCookies,
-                   let admission {
-                    attemptedBrowserVerification = true
-                    let userAgent = hopHeaders.first {
-                        $0.key.caseInsensitiveCompare("User-Agent") == .orderedSame
-                    }?.value ?? ReaderExtensionSecurityPolicy.defaultReaderUserAgent
-                    let solved = await ReaderExtensionCloudflareVerificationCoordinator.shared.solve(
-                        ReaderExtensionBrowserChallengeContext(
-                            sourceID: request.sourceID,
-                            challengedURL: url,
-                            approvedDomains: request.approvedDomains,
-                            userAgent: userAgent,
-                            authenticationAdmission: admission,
-                            authenticationStore: store
-                        )
-                    )
-                    try admission.validate()
-                    if solved {
-                        deadline = ProcessInfo.processInfo.systemUptime + 35
-                        continue
-                    }
-                    suppressAutomaticBrowserVerification()
-                }
+                // Automatic browser verification coordinator is not part of this
+                // target. Surface the challenge to the caller instead of
+                // referencing a missing type or silently retrying the request.
                 throw ReaderExtensionError.browserVerificationRequired(challengeHost)
             }
 

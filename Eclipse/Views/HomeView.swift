@@ -805,11 +805,10 @@ struct HomeView: View {
                 noEnabledCatalogsView
             } else if let errorMessage = homeViewModel.errorMessage,
                       !homeViewModel.hasRenderableStartupContent,
-                      homeViewModel.catalogResults.values.allSatisfy(\.isEmpty),
-                      homeViewModel.widgetData.values.allSatisfy(\.isEmpty) {
-                // A failed optional catalog must not replace already-rendered
-                // shelves with a full-screen connection error. Home catalogs
-                // are independent; keep every successful result visible.
+                      homeViewModel.hasCompletedInitialLoad {
+                // Hidden recommendation/hero seed data is not a visible shelf.
+                // Only show the empty-state error after every enabled catalog
+                // has completed without producing renderable content.
                 errorView(errorMessage)
             } else {
                 mainScrollView
@@ -1986,14 +1985,13 @@ struct HomeView: View {
         }
 
         let identity = hero.stableIdentity
-        let isAnimeHero = hero.isAnimeHint == true || hero.animeLogoURL != nil
         guard heroArtworkIsActive,
               homeViewModel.heroContent?.stableIdentity == identity,
               selectedLanguage == language else { return }
         heroArtworkIdentity = identity
-        // Anime provider logo URLs do not carry a reliable language tag.
-        // Do not display a Japanese/native-script logo in an English UI.
-        heroLogoURL = isAnimeHero ? nil : prefetchedHeroLogoURLs[identity]
+        // Use only language-verified English/Spanish or language-neutral
+        // artwork for every media type, including anime.
+        heroLogoURL = prefetchedHeroLogoURLs[identity]
         heroLogoLookupComplete = heroLogoURL != nil
         heroAlternatePosterURL = nil
 
@@ -2001,23 +1999,53 @@ struct HomeView: View {
         // implementation only used AniList's optional logo URL, so movie and
         // TV heroes never received the TMDB transparent title artwork.
         async let logoLookup: String? = { () async -> String? in
-            if !isAnimeHero, let cached = prefetchedHeroLogoURLs[identity] { return cached }
-            do {
-                let images = try await (hero.isMovie
-                    ? tmdbService.getMovieImages(id: hero.id, preferredLanguage: "en")
-                    : tmdbService.getTVShowImages(id: hero.id, preferredLanguage: "en"))
-                let rankedLogos = (images.logos ?? []).sorted {
-                    if ($0.voteCount ?? 0) != ($1.voteCount ?? 0) {
-                        return ($0.voteCount ?? 0) > ($1.voteCount ?? 0)
+            if let cached = prefetchedHeroLogoURLs[identity] { return cached }
+            async let englishImages: TMDBImagesResponse? = try? (hero.isMovie
+                ? tmdbService.getMovieImages(id: hero.id, preferredLanguage: "en")
+                : tmdbService.getTVShowImages(id: hero.id, preferredLanguage: "en"))
+            async let spanishImages: TMDBImagesResponse? = try? (hero.isMovie
+                ? tmdbService.getMovieImages(id: hero.id, preferredLanguage: "es")
+                : tmdbService.getTVShowImages(id: hero.id, preferredLanguage: "es"))
+            let (english, spanish) = await (englishImages, spanishImages)
+            let logos = (english?.logos ?? []) + (spanish?.logos ?? [])
+            let rankedLogos = logos.sorted { lhs, rhs in
+                func languageRank(_ code: String?) -> Int {
+                    switch code?.lowercased() {
+                    case "en": return 0
+                    case "es": return 1
+                    case nil, "": return 2
+                    default: return 3
                     }
-                    return ($0.voteAverage ?? 0) > ($1.voteAverage ?? 0)
                 }
-                return rankedLogos.first(where: { $0.iso6391?.lowercased() == "en" })?.fullURL
-                    ?? rankedLogos.first(where: { $0.iso6391 == nil || $0.iso6391 == "" })?.fullURL
-            } catch {
-                Logger.shared.log("Home hero title-logo lookup failed: id=\(hero.id) error=\(error.localizedDescription)", type: "TMDB")
-                return nil
+                let left = languageRank(lhs.iso6391)
+                let right = languageRank(rhs.iso6391)
+                if left != right { return left < right }
+                if (lhs.voteCount ?? 0) != (rhs.voteCount ?? 0) {
+                    return (lhs.voteCount ?? 0) > (rhs.voteCount ?? 0)
+                }
+                return (lhs.voteAverage ?? 0) > (rhs.voteAverage ?? 0)
             }
+            if let logo = rankedLogos.first(where: { $0.iso6391?.lowercased() == "en" })?.fullURL
+                ?? rankedLogos.first(where: { $0.iso6391?.lowercased() == "es" })?.fullURL
+                ?? rankedLogos.first(where: { $0.iso6391 == nil || $0.iso6391 == "" })?.fullURL {
+                return logo
+            }
+
+            // TMDB does not have a transparent logo for every title. Try
+            // Fanart.tv using the external ID from the already cached detail
+            // endpoint before leaving the hero without title artwork.
+            if hero.isMovie {
+                let detail = try? await tmdbService.getMovieDetails(id: hero.id)
+                return await FanartTVLogoService.shared.logoURL(
+                    imdbID: detail?.imdbId,
+                    tvdbID: nil
+                )
+            }
+            let detail = try? await tmdbService.getTVShowWithSeasons(id: hero.id)
+            return await FanartTVLogoService.shared.logoURL(
+                imdbID: nil,
+                tvdbID: detail?.externalIds?.tvdbId
+            )
         }()
 
         if let imageURL = heroImageURL(for: hero) {
@@ -2112,6 +2140,7 @@ struct HomeView: View {
         initialItems: [TMDBSearchResult]
     ) -> DiscoverDetailView {
         DiscoverDetailView(
+            catalogID: catalog.id,
             title: title,
             initialItems: initialItems,
             loadMore: sectionLoadMoreHandler(for: catalog),
@@ -2119,29 +2148,29 @@ struct HomeView: View {
         )
     }
 
-    private func sectionLoadMoreHandler(for catalog: Catalog) -> ((Int) async -> [TMDBSearchResult])? {
+    private func sectionLoadMoreHandler(for catalog: Catalog) -> ((Int) async throws -> [TMDBSearchResult])? {
         switch catalog.id {
         case "trending":
             return { page in
-                await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
+                try await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
                     try await tmdbService.getTrending(page: page)
                 }
             }
         case "popularMovies":
             return { page in
-                await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
+                try await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
                     try await tmdbService.getPopularMovies(page: page).map(\.asSearchResult)
                 }
             }
         case "nowPlayingMovies":
             return { page in
-                await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
+                try await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
                     try await tmdbService.getNowPlayingMovies(page: page).map(\.asSearchResult)
                 }
             }
         case "upcomingMovies":
             return { page in
-                await loadFilteredSectionPage(
+                try await loadFilteredSectionPage(
                     catalogId: catalog.id,
                     page: page,
                     allowUpcomingContent: true
@@ -2151,7 +2180,7 @@ struct HomeView: View {
             }
         case "upcomingTV":
             return { page in
-                await loadFilteredSectionPage(
+                try await loadFilteredSectionPage(
                     catalogId: catalog.id,
                     page: page,
                     allowUpcomingContent: true
@@ -2161,31 +2190,31 @@ struct HomeView: View {
             }
         case "popularTVShows":
             return { page in
-                await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
+                try await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
                     try await tmdbService.getPopularTVShows(page: page).map(\.asSearchResult)
                 }
             }
         case "onTheAirTV":
             return { page in
-                await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
+                try await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
                     try await tmdbService.getOnTheAirTVShows(page: page).map(\.asSearchResult)
                 }
             }
         case "airingTodayTV":
             return { page in
-                await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
+                try await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
                     try await tmdbService.getAiringTodayTVShows(page: page).map(\.asSearchResult)
                 }
             }
         case "topRatedTVShows":
             return { page in
-                await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
+                try await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
                     try await tmdbService.getTopRatedTVShows(page: page).map(\.asSearchResult)
                 }
             }
         case "topRatedMovies":
             return { page in
-                await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
+                try await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
                     try await tmdbService.getTopRatedMovies(page: page).map(\.asSearchResult)
                 }
             }
@@ -2207,7 +2236,7 @@ struct HomeView: View {
         page: Int,
         allowUpcomingContent: Bool = false,
         fetch: () async throws -> [TMDBSearchResult]
-    ) async -> [TMDBSearchResult] {
+    ) async throws -> [TMDBSearchResult] {
         do {
             return await contentFilter.filterSearchResultsResolvingRatings(
                 try await fetch(),
@@ -2215,16 +2244,16 @@ struct HomeView: View {
             )
         } catch {
             Logger.shared.log("HomeView: section \(catalogId) page \(page) failed: \(error.localizedDescription)", type: "TMDB")
-            return []
+            throw error
         }
     }
 
     private func animeSectionLoadMoreHandler(
         for kind: AniListService.AniListCatalogKind,
         catalogId: String
-    ) -> ((Int) async -> [TMDBSearchResult]) {
+    ) -> ((Int) async throws -> [TMDBSearchResult]) {
         { page in
-            await loadAnimeSectionPage(kind: kind, catalogId: catalogId, page: page)
+            try await loadAnimeSectionPage(kind: kind, catalogId: catalogId, page: page)
         }
     }
 
@@ -2232,7 +2261,7 @@ struct HomeView: View {
         kind: AniListService.AniListCatalogKind,
         catalogId: String,
         page: Int
-    ) async -> [TMDBSearchResult] {
+    ) async throws -> [TMDBSearchResult] {
         let pageSize = 20
         let boundedPage = max(page, 1)
 
@@ -2245,7 +2274,7 @@ struct HomeView: View {
             return Array(results.dropFirst(offset))
         } catch {
             Logger.shared.log("HomeView: anime section \(catalogId) page \(page) failed: \(error.localizedDescription)", type: "AniList")
-            return []
+            throw error
         }
     }
 
@@ -2262,7 +2291,7 @@ struct HomeView: View {
         }
     }
 
-    private func expandingSourceLoadMoreHandler(for catalog: Catalog) -> ((Int) async -> [TMDBSearchResult])? {
+    private func expandingSourceLoadMoreHandler(for catalog: Catalog) -> ((Int) async throws -> [TMDBSearchResult])? {
         switch catalog.source {
         case .stremio:
             return { page in
@@ -3103,6 +3132,7 @@ struct ExperimentalMediaCard: View {
     let metrics: ExperimentalMediaDesignMetrics
 
     @Environment(\.heroNamespace) private var heroNamespace
+    @State private var posterTitleLogoURL: String?
 
     private var resolvedStyle: ExperimentalMediaShelfStyle {
         switch preferredStyle {
@@ -3195,8 +3225,25 @@ struct ExperimentalMediaCard: View {
                     .frame(width: cardSize.width, height: cardSize.height)
             }
 
+            if resolvedStyle == .poster {
+                CenteredPosterTitleOverlay(
+                    title: result.displayTitle,
+                    logoURL: posterTitleLogoURL
+                )
+            }
         }
         .frame(width: cardSize.width, height: cardSize.height)
+        .task(id: "\(result.stableIdentity):\(resolvedStyle)") {
+            guard resolvedStyle == .poster else {
+                posterTitleLogoURL = nil
+                return
+            }
+            posterTitleLogoURL = nil
+            posterTitleLogoURL = await SearchResultTitleLogoCache.shared.logoURL(
+                mediaType: result.isMovie ? "movie" : "tv",
+                id: result.id
+            )
+        }
         .clipShape(RoundedRectangle(cornerRadius: metrics.cardRadius, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: metrics.cardRadius, style: .continuous)
@@ -3250,6 +3297,7 @@ struct MediaCard: View {
     var metrics: ExperimentalMediaDesignMetrics = .current
     var preferredStyle: ExperimentalMediaShelfStyle = .poster
     @Environment(\.heroNamespace) private var heroNamespace
+    @State private var posterTitleLogoURL: String?
 
     private var posterWidth: CGFloat { isTvOS ? 280 * metrics.mediaCardScale : 120 * iPadScale }
     private var posterHeight: CGFloat { isTvOS ? 380 * metrics.mediaCardScale : 180 * iPadScale }
@@ -3298,8 +3346,19 @@ struct MediaCard: View {
                 }
                 .frame(width: posterWidth, height: posterHeight)
 
+                CenteredPosterTitleOverlay(
+                    title: result.displayTitle,
+                    logoURL: posterTitleLogoURL
+                )
             }
             .frame(width: posterWidth, height: posterHeight)
+            .task(id: result.stableIdentity) {
+                posterTitleLogoURL = nil
+                posterTitleLogoURL = await SearchResultTitleLogoCache.shared.logoURL(
+                    mediaType: result.isMovie ? "movie" : "tv",
+                    id: result.id
+                )
+            }
             .tvos({ view in
                 view.clipShape(RoundedRectangle(cornerRadius: metrics.cardRadius, style: .continuous))
             }, else: { view in

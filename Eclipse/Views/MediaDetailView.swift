@@ -2178,9 +2178,12 @@ struct MediaDetailContentView: View {
 
     private func macDetailPoster(width: CGFloat) -> some View {
         let bestPoster = PosterArtworkURLResolver.bestPosterURL(for: searchResult)
+        // Do not use TMDB detail.posterPath as a fallback: it can contain
+        // a baked-in title. A clean provider poster or titleless backdrop is
+        // the only acceptable artwork source here.
         let candidates: [String?] = searchResult.isMovie
-            ? [bestPoster, movieDetail?.fullPosterURL, movieDetail?.fullBackdropURL, searchResult.fullBackdropURL]
-            : [bestPoster, tvShowDetail?.fullPosterURL, tvShowDetail?.fullBackdropURL, searchResult.fullBackdropURL]
+            ? [bestPoster, movieDetail?.fullBackdropURL, searchResult.fullBackdropURL]
+            : [bestPoster, tvShowDetail?.fullBackdropURL, searchResult.fullBackdropURL]
         return ResilientArtworkImage(
             urls: candidates.compactMap { $0 },
             decodeSize: homeImageDecodeSize(width: width, height: width * 1.5),
@@ -2687,48 +2690,59 @@ struct MediaDetailContentView: View {
 
     private var heroBackdrop: some View {
         ZStack(alignment: .bottom) {
-            let image = StretchyHeaderView(
-                backdropURL: detailHeroImageURL,
-                isMovie: searchResult.isMovie,
-                headerHeight: heroSectionHeight,
-                minHeaderHeight: minHeaderHeight,
-                onAmbientColorExtracted: { color in
-                    ambientColor = color
-                },
-                placeholderColor: shouldAnalyzeAlternatePoster ? .clear : Color.gray.opacity(0.3),
-                fallbackImageURLs: detailHeroFallbackImageURLs,
-                // The hero is a banner surface, not an intrinsic poster
-                // canvas. Always fill its measured bounds so portrait/Reader
-                // layouts cannot leave an empty strip when the poster ratio
-                // differs from the hero frame. Keep the artwork single-layered.
-                preservesArtworkComposition: false,
-                artworkScaleX: usesLandscapeDetailComposition
-                    ? CGFloat(min(max(landscapeHeroHorizontalStretch, 0.85), 1.5))
-                    : 1.0,
-                artworkScaleY: usesLandscapeDetailComposition
-                    ? CGFloat(min(max(landscapeHeroVerticalStretch, 0.85), 1.5))
-                    : 1.0,
-                showsBottomFade: true,
-                bottomFadeHeight: usesLandscapeDetailComposition
-                    ? min(max(heroSectionHeight * 0.30, 120), 200)
-                    : 100,
-                bottomFadeEndOpacity: usesLandscapeDetailComposition
-                    ? min(max(mediaDetailHeroBleedStrength, 0), 1)
-                    : 0.6,
-                bottomFadeColor: usesLandscapeDetailComposition ? mediaDetailHeroBleedColor : nil,
-                scrollCoordinateSpaceName: "mediaDetailScroll"
-            )
-            // StretchyHeaderView can initially report its intrinsic artwork
-            // size before the first scroll-layout pass. Give landscape artwork
-            // the final full-screen banner bounds immediately, not only after
-            // the scroll view recalculates its stretchy geometry.
-            .frame(
-                width: usesLandscapeDetailComposition
-                    ? max(detailViewportWidth, EclipseViewport.bounds.width)
-                    : nil,
-                height: usesLandscapeDetailComposition ? heroSectionHeight : nil
-            )
-            .clipped()
+            let image = Group {
+                if usesLandscapeDetailComposition {
+                    // Landscape detail is a fixed, full-bleed banner rather
+                    // than a stretchy poster. Render it directly at the
+                    // measured viewport size: StretchyHeaderView's nested
+                    // GeometryReader and scroll offsets could leave a top or
+                    // leading strip on rotation/safe-area changes.
+                    ResilientArtworkImage(
+                        urls: ([detailHeroImageURL].compactMap { $0 } + detailHeroFallbackImageURLs),
+                        decodeSize: CGSize(
+                            width: max(detailViewportWidth * EclipseViewport.scale, 1),
+                            height: max(heroSectionHeight * EclipseViewport.scale, 1)
+                        ),
+                        contentMode: .fill,
+                        onImageLoaded: { color in ambientColor = color }
+                    ) {
+                        Rectangle().fill(shouldAnalyzeAlternatePoster ? .clear : Color.gray.opacity(0.3))
+                    }
+                    // Preserve the user's landscape artwork stretch controls.
+                    // The fixed full-bleed renderer replaced StretchyHeaderView,
+                    // so apply the same bounded scale here rather than silently
+                    // ignoring the saved horizontal/vertical values.
+                    .scaleEffect(
+                        x: CGFloat(min(max(landscapeHeroHorizontalStretch, 0.85), 1.5)),
+                        y: CGFloat(min(max(landscapeHeroVerticalStretch, 0.85), 1.5)),
+                        anchor: .center
+                    )
+                    .frame(
+                        width: max(detailViewportWidth, EclipseViewport.bounds.width),
+                        height: heroSectionHeight
+                    )
+                    .clipped()
+                } else {
+                    StretchyHeaderView(
+                        backdropURL: detailHeroImageURL,
+                        isMovie: searchResult.isMovie,
+                        headerHeight: heroSectionHeight,
+                        minHeaderHeight: minHeaderHeight,
+                        onAmbientColorExtracted: { color in
+                            ambientColor = color
+                        },
+                        placeholderColor: shouldAnalyzeAlternatePoster ? .clear : Color.gray.opacity(0.3),
+                        fallbackImageURLs: detailHeroFallbackImageURLs,
+                        preservesArtworkComposition: false,
+                        showsBottomFade: true,
+                        bottomFadeHeight: 100,
+                        bottomFadeEndOpacity: 0.6,
+                        scrollCoordinateSpaceName: "mediaDetailScroll"
+                    )
+                    .frame(maxWidth: .infinity)
+                    .clipped()
+                }
+            }
 #if DEBUG
             if ProcessInfo.processInfo.environment["ECLIPSE_UI_POSTER_AUDIT"] == "1" {
                 let state = alternatePosterWasResolved ? "resolved" : posterAuditSelectorIsPending ? "pending" : "loading"
@@ -2745,11 +2759,12 @@ struct MediaDetailContentView: View {
             image
 #endif
 
-            // Portrait retains its existing lower artwork overlay.
-            // Landscape fades the artwork itself into the extracted-colour
-            // bleed behind it, so the transition is visible before the image
-            // ends instead of appearing as a hard horizontal seam.
-            if !usesLandscapeDetailComposition {
+            // Fade both orientations into the same extracted-colour field.
+            // Landscape uses a longer, stronger fade so the full-bleed banner
+            // blends into the overview instead of ending at a hard line.
+            if usesLandscapeDetailComposition {
+                landscapeHeroFadeOverlay
+            } else {
                 gradientOverlay
             }
 
@@ -2859,6 +2874,25 @@ struct MediaDetailContentView: View {
                 endPoint: UnitPoint(x: 0.5, y: 0.34)
             )
         }
+    }
+
+    private var landscapeHeroFadeOverlay: some View {
+        let bleedColor = mediaDetailHeroBleedColor ?? heroBlendColor
+        let strength = min(max(mediaDetailHeroBleedStrength, 0), 1)
+        return LinearGradient(
+            gradient: Gradient(stops: [
+                .init(color: .clear, location: 0.0),
+                .init(color: bleedColor.opacity(0.10 * strength), location: 0.18),
+                .init(color: bleedColor.opacity(0.28 * strength), location: 0.42),
+                .init(color: bleedColor.opacity(0.62 * strength), location: 0.72),
+                .init(color: bleedColor.opacity(1.0 * strength), location: 1.0)
+            ]),
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .frame(height: min(max(heroSectionHeight * 0.42, 150), 260))
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .allowsHitTesting(false)
     }
 
     @ViewBuilder
@@ -7383,6 +7417,7 @@ struct MediaDetailContentView: View {
             async let romajiResult = tmdbService.getRomajiTitle(for: isMovie ? "movie" : "tv", id: id)
             async let creditsResult: TMDBCreditsResponse? = try? loadOptionalPresentationCredits(id: id, isMovie: isMovie)
             async let titleImagesResult: TMDBImagesResponse? = try? loadOptionalTitleArtworkImages(id: id, isMovie: isMovie, language: "en")
+            async let spanishTitleImagesResult: TMDBImagesResponse? = try? loadOptionalTitleArtworkImages(id: id, isMovie: isMovie, language: "es")
             async let fanartLogoResult: String? = FanartTVLogoService.shared.logoURL(
                 imdbID: isMovie ? movieDetail?.imdbId : nil,
                 tvdbID: isMovie ? nil : tvShowDetail?.externalIds?.tvdbId
@@ -7394,14 +7429,16 @@ struct MediaDetailContentView: View {
             let romaji = await romajiResult
             let credits = await creditsResult
             let titleImages = await titleImagesResult
+            let spanishTitleImages = await spanishTitleImagesResult
             let fanartLogoURL = await fanartLogoResult
             let preloadedLogoURL = await preloadedLogoResult
-            let rankedLogos = (titleImages?.logos ?? []).sorted { lhs, rhs in
+            let rankedLogos = ((titleImages?.logos ?? []) + (spanishTitleImages?.logos ?? [])).sorted { lhs, rhs in
                 func languageRank(_ value: String?) -> Int {
                     switch value?.lowercased() {
                     case "en": return 0
-                    case nil, "": return 1
-                    default: return 2
+                    case "es": return 1
+                    case nil, "": return 2
+                    default: return 3
                     }
                 }
                 let leftRank = languageRank(lhs.iso6391)
@@ -7412,19 +7449,13 @@ struct MediaDetailContentView: View {
                 }
                 return (lhs.voteAverage ?? 0) > (rhs.voteAverage ?? 0)
             }
-            // Anime identity providers expose logo URLs without a reliable
-            // language tag; those URLs can be Japanese/native-script artwork.
-            // Prefer explicitly English TMDB logos, then language-neutral TMDB
-            // artwork, then Fanart.tv. Never fall back to an untagged provider
-            // logo or a cached logo of unknown language for anime.
+            // Do not use provider logos without a language tag for anime:
+            // they can be Japanese/native-script artwork. Across every media
+            // type, choose English first, Spanish second, then language-neutral.
             let selectedTMDBLogo = rankedLogos.first(where: { $0.iso6391?.lowercased() == "en" })?.fullURL
+                ?? rankedLogos.first(where: { $0.iso6391?.lowercased() == "es" })?.fullURL
                 ?? rankedLogos.first(where: { $0.iso6391 == nil || $0.iso6391 == "" })?.fullURL
-            let resolvedLogoURL: String?
-            if isAnimeShow {
-                resolvedLogoURL = selectedTMDBLogo ?? fanartLogoURL
-            } else {
-                resolvedLogoURL = fanartLogoURL ?? preloadedLogoURL ?? selectedTMDBLogo ?? rankedLogos.first?.fullURL
-            }
+            let resolvedLogoURL = selectedTMDBLogo ?? fanartLogoURL ?? preloadedLogoURL
 
             guard !Task.isCancelled, isDetailVisible, optionalPresentationGeneration == generation,
                   searchResult.stableIdentity == identity, selectedLanguage == language else { return }
@@ -7438,7 +7469,9 @@ struct MediaDetailContentView: View {
             // A missing logo is not a successful lookup: keep the enrichment
             // retryable so transient provider/API failures do not become a
             // permanent cached "no logo" result.
-            optionalPresentationIsComplete = credits != nil && titleImages != nil && resolvedLogoURL != nil
+            optionalPresentationIsComplete = credits != nil
+                && (titleImages != nil || spanishTitleImages != nil)
+                && resolvedLogoURL != nil
             cacheOptionalPresentation(key: cacheKey)
 
             let elapsedMs = Int(((ProcessInfo.processInfo.systemUptime - startedAt) * 1_000).rounded())
@@ -7788,6 +7821,11 @@ struct MediaDetailContentView: View {
                         self.detailLoadedLanguage = detailLanguage
                         self.isLoading = false
                         self.hasLoadedContent = true
+                        // Start title artwork as soon as the TMDB-backed detail
+                        // shell is ready. Waiting for optional anime identity,
+                        // season, and provider hydration made ordinary TV logos
+                        // appear late or not at all when those providers stalled.
+                        self.resumeOptionalPresentationIfNeeded()
                         Logger.shared.log(
                             "MediaDetailTiming: tmdbId=\(detail.id) medium=tv stage=tmdb-first-render-ready elapsedMs=\(primaryDetailElapsedMs)",
                             type: "TMDB"

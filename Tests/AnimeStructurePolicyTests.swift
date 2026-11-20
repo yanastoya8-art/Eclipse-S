@@ -6631,3 +6631,94 @@ final class AnimeOpenEndedActualInventoryTests: XCTestCase {
     }
 
 }
+
+final class AnimeScheduleCategoryTagFilterTests: XCTestCase {
+    func testAnimeCategoryFiltersInspectProviderTags() {
+        let suiteName = "AnimeScheduleCategoryTagFilterTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        defaults.set(true, forKey: "catalogHideHentai")
+        XCTAssertTrue(TMDBContentFilter.shouldExcludeAnimeCategory(
+            title: "Example Series",
+            tags: ["Hentai"],
+            defaults: defaults
+        ))
+
+        defaults.set(false, forKey: "catalogHideHentai")
+        defaults.set(true, forKey: "catalogHideYuri")
+        XCTAssertTrue(TMDBContentFilter.shouldExcludeAnimeCategory(
+            title: "Example Series",
+            tags: ["Girls' Love", "Yuri"],
+            defaults: defaults
+        ))
+
+        defaults.set(false, forKey: "catalogHideYuri")
+        defaults.set(true, forKey: "catalogHideYaoi")
+        XCTAssertTrue(TMDBContentFilter.shouldExcludeAnimeCategory(
+            title: "Example Series",
+            tags: ["Boys' Love", "Yaoi"],
+            defaults: defaults
+        ))
+
+        defaults.set(false, forKey: "catalogHideYaoi")
+        XCTAssertFalse(TMDBContentFilter.shouldExcludeAnimeCategory(
+            title: "Example Series",
+            tags: ["Action", "Adventure"],
+            defaults: defaults
+        ))
+    }
+}
+
+final class TMDBSearchResultAnimeTagsTests: XCTestCase {
+    func testAniListTagsSurviveMetadataCopiesAndCodableRoundTrip() throws {
+        let result = TMDBSearchResult(
+            id: 42,
+            mediaType: "tv",
+            title: nil,
+            name: "Example Series",
+            overview: "Example synopsis",
+            posterPath: nil,
+            backdropPath: nil,
+            releaseDate: nil,
+            firstAirDate: nil,
+            voteAverage: nil,
+            popularity: 0,
+            adult: nil,
+            genreIds: nil,
+            animeTags: [" Hentai ", "Yuri", "hentai", ""]
+        )
+
+        XCTAssertEqual(result.animeTags, ["Hentai", "Yuri"])
+
+        let copied = result
+            .withAnimeIdentitySeed(nil)
+            .withAnimeArtworkURL(nil)
+            .withTVMazePosterURL(nil)
+        XCTAssertEqual(copied.animeTags, ["Hentai", "Yuri"])
+
+        let data = try JSONEncoder().encode(copied)
+        let decoded = try JSONDecoder().decode(TMDBSearchResult.self, from: data)
+        XCTAssertEqual(decoded.animeTags, ["Hentai", "Yuri"])
+    }
+}
+
+final class AnimeUnofficialTagFilterTests: XCTestCase {
+    func testFanmadeProductionFilterInspectsAniListTags() {
+        XCTAssertTrue(TMDBContentFilter.isUnofficialCreatorContent(
+            title: "Example Series",
+            overview: "An ordinary synopsis.",
+            tags: ["Fan Made", "Doujin"]
+        ))
+        XCTAssertTrue(TMDBContentFilter.isUnofficialCreatorContent(
+            title: "Example Series",
+            overview: "An ordinary synopsis.",
+            tags: ["Doujinshi"]
+        ))
+        XCTAssertFalse(TMDBContentFilter.isUnofficialCreatorContent(
+            title: "Example Series",
+            overview: "An ordinary synopsis.",
+            tags: ["Action", "Adventure"]
+        ))
+    }
+}
