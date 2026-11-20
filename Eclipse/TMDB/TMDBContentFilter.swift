@@ -2045,7 +2045,10 @@ class TMDBContentFilter: ObservableObject {
             "fan studio", "fan studios", "fanmade studio", "fanmade studios",
             "unofficial studio", "unofficial studios", "youtube originals",
             "youtuber studio", "youtuber studios", "youtuber production",
-            "web creator", "video creator", "creator production"
+            "web creator", "video creator", "creator production",
+            "dhar mann", "mrbeast", "smosh", "the try guys", "watcher entertainment",
+            "rooster teeth", "jubilee media", "dude perfect", "the soul publishing",
+            "alan chikin chow", "studio71", "jellysmack", "mythical entertainment"
         ]
         return indicators.contains { indicator in
             text.range(of: " " + normalizedCatalogText(indicator) + " ") != nil
