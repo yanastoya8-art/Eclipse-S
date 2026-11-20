@@ -314,7 +314,8 @@ struct ScheduleEntry: Identifiable, Sendable {
         nativeTitle = nil
         format = nil
         overview = westernEpisode.show.summary
-        metadataTags = []
+        metadataTags = [westernEpisode.show.network?.name, westernEpisode.show.webChannel?.name]
+            .compactMap { $0 }
         hasKnownAiringTime = airing.hasKnownAiringTime
         isStreamingRelease = westernEpisode.show.webChannel != nil
         tmdbId = nil
@@ -2624,6 +2625,7 @@ fileprivate struct TVMazeImage: Decodable {
 }
 
 fileprivate struct TVMazeChannel: Decodable {
+    let name: String?
     let country: TVMazeCountry?
 }
 
