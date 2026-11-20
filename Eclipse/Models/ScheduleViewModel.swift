@@ -1473,8 +1473,8 @@ final class ScheduleViewModel: ObservableObject {
             }
             if hideUnofficial,
                TMDBContentFilter.isUnofficialCreatorContent(
-                title: [entry.title, entry.englishTitle, entry.romajiTitle, entry.nativeTitle, entry.format]
-                    .compactMap { $0 }.joined(separator: " "),
+                title: ([entry.title, entry.englishTitle, entry.romajiTitle, entry.nativeTitle, entry.format]
+                    .compactMap { $0 } + entry.metadataTags).joined(separator: " "),
                 overview: entry.overview,
                 productionCompanies: entry.productionCompanyNames
                ) {
