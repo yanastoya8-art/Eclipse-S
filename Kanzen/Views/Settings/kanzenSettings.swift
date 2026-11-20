@@ -168,36 +168,6 @@ private struct KanzenTrackerSettingsView: View {
                 KanzenRootHeader("Trackers")
                     .padding(.horizontal, -20)
 
-                GlassSection(header: "Reader Sync") {
-                    VStack(spacing: 0) {
-                        GlassSettingsRow(icon: "arrow.triangle.2.circlepath", iconColor: .blue, title: "Enable Reader Sync") {
-                            Toggle("", isOn: Binding(
-                                get: { trackerManager.trackerState.readerSyncEnabled },
-                                set: { trackerManager.setReaderSyncEnabled($0) }
-                            ))
-                            .labelsHidden()
-                        }
-
-                        GlassDivider()
-
-                        GlassSettingsRow(icon: "star.fill", iconColor: .yellow, title: "Auto Sync Reader Ratings") {
-                            Toggle("", isOn: Binding(
-                                get: { trackerManager.trackerState.autoSyncReaderRatings },
-                                set: { trackerManager.setAutoSyncReaderRatings($0) }
-                            ))
-                            .labelsHidden()
-                        }
-
-                        Text("Reader sync is independent from Media mode. Automatic Reader rating sync only sends the score after a confident AniList/MAL manga match. Notes sync only when you tap a tracker button on a Reader detail page.")
-                            .font(.caption)
-                            .foregroundColor(.white.opacity(0.68))
-                            .multilineTextAlignment(.leading)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 16)
-                            .padding(.bottom, 12)
-                    }
-                }
-
                 GlassSection(header: "Accounts") {
                     VStack(spacing: 0) {
                         trackerRow(
