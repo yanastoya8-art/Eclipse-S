@@ -9,21 +9,6 @@ import Combine
 import Foundation
 
 enum CatalogNativeAudioPolicy {
-    /// Returns whether the original audio language is English or Spanish.
-    /// Accepts BCP-47 tags (for example, en-US and es-MX) and rejects
-    /// missing, blank, or unrelated language identifiers.
-    static func hasEnglishOrSpanishAudio(_ originalLanguage: String?) -> Bool {
-        guard let originalLanguage else { return false }
-        let normalized = originalLanguage
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        guard !normalized.isEmpty else { return false }
-        let primaryLanguage = normalized
-            .split(whereSeparator: { $0 == "-" || $0 == "_" })
-            .first
-        return primaryLanguage == "en" || primaryLanguage == "es"
-    }
-
     /// Only skip a dub lookup when the title's native language already
     /// satisfies the user's selected audio languages. An English or Spanish
     /// original must still be checked for the other selected language's dub.

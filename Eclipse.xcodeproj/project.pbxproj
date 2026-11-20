@@ -1982,7 +1982,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				0AFAB08008FA49A2B9706EE7 /* MediaLanguageCatalog.swift in Sources */,
+				0AFAB08008FA49A2B9706EE7 /* MediaLanguageCatalog.swift in Sources */
+				875F8B085A8258F2EC52B3CA /* Settings.swift in Sources */,,
 				FDAEAC35F9B540B7949CD347 /* AppCalendar.swift in Sources */,
 				512648D4E2AED610EC2CCF07 /* AutoModeCandidateSelectionPolicy.swift in Sources */,
 				50BFB53F60E4448F877D48C7 /* TrackerLibraryMediaResolver.swift in Sources */,
@@ -2066,7 +2067,8 @@
 				13F0729C2E4B2D9200EF90EB /* JavaScriptCore+Extensions.swift in Sources */,
 				13F072B22E4B2D9200EF90EB /* FallbackImageView.swift in Sources */,
 				13F072B62E4B2D9200EF90EB /* AmbientColor.swift in Sources */,
-				13E1EDD22ED9E65F00087629 /* ModuleManager.swift in Sources */,
+				13E1EDD22ED9E65F00087629 /* ModuleManager.swift in Sources */
+				89DC3637EDE36145F1436A14 /* ErrorDefinitions.swift in Sources */,,
 				13F187AE2E6F38CE00747F7E /* LibraryCollection.swift in Sources */,
 				13F0729E2E4B2D9200EF90EB /* JSController-Details.swift in Sources */,
 				13F187AF2E6F38CE00747F7E /* AddToCollectionView.swift in Sources */,
@@ -2083,7 +2085,8 @@
 				1324E7BB2E940BD70036B5F5 /* PlayerPreset.swift in Sources */,
 				12DF1FC22F040D6700E80375 /* AdaptiveConfirmationDialog.swift in Sources */,
 				13F072A82E4B2D9200EF90EB /* ContentView.swift in Sources */,
-				13F072B72E4B2D9200EF90EB /* Logger.swift in Sources */,
+				13F072B72E4B2D9200EF90EB /* Logger.swift in Sources */
+				6C0069D62A0B85374C4BA8D5 /* ReaderLogger.swift in Sources */,,
 				C0A5A0022FD1000000C0A502 /* CrashReportManager.swift in Sources */,
 				13B2E5742E7597B9009F3271 /* JSController-NetworkFetch.swift in Sources */,
 				CFB000022FE7000000CFB002 /* CloudflareBypassManager.swift in Sources */,
