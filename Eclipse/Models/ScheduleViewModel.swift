@@ -346,7 +346,7 @@ struct ScheduleEntry: Identifiable, Sendable {
         nativeTitle = nil
         format = nil
         overview = tmdbDetail?.overview
-        metadataTags = []
+        metadataTags = tmdbDetail?.productionCompanies?.map(\.name) ?? []
         hasKnownAiringTime = true
         isStreamingRelease = false
         tmdbId = traktItem.show.ids.tmdb
