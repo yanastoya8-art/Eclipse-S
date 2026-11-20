@@ -575,7 +575,7 @@ jobs:
               "developerName": "yanastoya8-art",
               "subtitle": "Movies, series and anime in one place",
               "localizedDescription": "Eclipse is a media discovery and streaming app for iPhone and iPad.",
-              "iconURL": "https://yanastoya8.github.io/Eclipse-S/app-icon.png",
+              "iconURL": "https://yanastoya8-art.github.io/Eclipse-S/app-icon.png",
               "tintColor": "#7C4DFF",
               "category": "entertainment",
               "appPermissions": {"entitlements": [], "privacy": privacy},
@@ -598,7 +598,7 @@ jobs:
               "nsfw": False,
               # SideStore-specific keys are retained for backwards compatibility.
               "identifier": "app.eclipse.soupy.sidestore-source",
-              "sourceURL": "https://yanastoya8.github.io/Eclipse-S/alt-source.json",
+              "sourceURL": "https://yanastoya8-art.github.io/Eclipse-S/alt-source.json",
               "apps": [app],
               "news": []
           }
