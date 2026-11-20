@@ -165,6 +165,30 @@ final class HomeCatalogLoadPolicyTests: XCTestCase {
         ))
     }
 
+    func testVisibleForYouRecommendationCountsAsLoadedWithoutRemoteCatalogResults() {
+        XCTAssertTrue(HomeCatalogLoadPolicy.hasLoadedContent(
+            tmdbCatalogCount: 0,
+            animeCatalogCount: 0,
+            stremioCatalogCount: 0,
+            traktCatalogCount: 0,
+            widgetCatalogCount: 0,
+            recommendationCatalogCount: 1,
+            permitsEmptyResults: false
+        ))
+    }
+
+    func testEmptyRecommendationShelfDoesNotMaskFailedRemoteCatalogs() {
+        XCTAssertFalse(HomeCatalogLoadPolicy.hasLoadedContent(
+            tmdbCatalogCount: 0,
+            animeCatalogCount: 0,
+            stremioCatalogCount: 0,
+            traktCatalogCount: 0,
+            widgetCatalogCount: 0,
+            recommendationCatalogCount: 0,
+            permitsEmptyResults: false
+        ))
+    }
+
     func testLocalOnlyConfigurationCanCompleteWithoutRemoteResults() {
         XCTAssertTrue(HomeCatalogLoadPolicy.hasLoadedContent(
             tmdbCatalogCount: 0,
