@@ -967,7 +967,7 @@ final class ScheduleViewModel: ObservableObject {
                 return false
             }
             if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
-                guard let runtime = entry.runtimeMinutes, runtime >= 20 else { return false }
+                guard CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: entry.runtimeMinutes) else { return false }
             }
 
             // With no dub-language filter selected, preserve the existing
@@ -1446,7 +1446,7 @@ final class ScheduleViewModel: ObservableObject {
                                 $0.episodeNumber == resolved[index].episode
                             }?.runtime
                         } else {
-                            resolved[index].runtimeMinutes = detail.episodeRunTime?.filter { $0 > 0 }.min()
+                            resolved[index].runtimeMinutes = CatalogRuntimeFilterPolicy.shortestReportedRuntime(detail.episodeRunTime)
                         }
                     }
                     resolved[index].productionCompanyNames = detail.productionCompanies?.map(\.name) ?? []
@@ -1455,7 +1455,10 @@ final class ScheduleViewModel: ObservableObject {
         }
 
         return resolved.filter { entry in
-            if hideShortRuntime, (entry.runtimeMinutes ?? 0) < 20 { return false }
+            if hideShortRuntime,
+               !CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: entry.runtimeMinutes) {
+                return false
+            }
             if hideUnofficial,
                TMDBContentFilter.isUnofficialCreatorContent(
                 title: [entry.title, entry.englishTitle, entry.romajiTitle, entry.nativeTitle, entry.format]
