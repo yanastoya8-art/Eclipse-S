@@ -1418,9 +1418,6 @@ final class ScheduleViewModel: ObservableObject {
         guard hideShortRuntime || hideUnofficial else { return entries }
 
         var resolved = entries
-        // Resolve title-level metadata once per distinct TMDB title. This is
-        // shared by the runtime and production filters so one detail request
-        // supplies both decisions wherever possible.
         let titleKeys = Set(entries.compactMap { entry -> String? in
             guard let id = entry.tmdbId, id > 0 else { return nil }
             return "\(entry.isMovie ? "movie" : "tv")-\(id)"
@@ -1436,10 +1433,7 @@ final class ScheduleViewModel: ObservableObject {
                         resolved[index].runtimeMinutes = detail.runtime
                     }
                     if hideUnofficial {
-                        if hideUnofficial {
                         resolved[index].productionCompanyNames = detail.productionCompanies?.map(\.name) ?? []
-                        resolved[index].productionMetadataChecked = true
-                    }
                         resolved[index].productionMetadataChecked = true
                     }
                 }
@@ -1456,10 +1450,15 @@ final class ScheduleViewModel: ObservableObject {
                                 $0.episodeNumber == resolved[index].episode
                             }?.runtime
                         } else {
-                            resolved[index].runtimeMinutes = CatalogRuntimeFilterPolicy.shortestReportedRuntime(detail.episodeRunTime)
+                            resolved[index].runtimeMinutes = CatalogRuntimeFilterPolicy.shortestReportedRuntime(
+                                detail.episodeRunTime
+                            )
                         }
                     }
-                    resolved[index].productionCompanyNames = detail.productionCompanies?.map(\.name) ?? []
+                    if hideUnofficial {
+                        resolved[index].productionCompanyNames = detail.productionCompanies?.map(\.name) ?? []
+                        resolved[index].productionMetadataChecked = true
+                    }
                 }
             }
         }
@@ -1467,6 +1466,9 @@ final class ScheduleViewModel: ObservableObject {
         return resolved.filter { entry in
             if hideShortRuntime,
                !CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: entry.runtimeMinutes) {
+                return false
+            }
+            if hideUnofficial, entry.tmdbId != nil && !entry.productionMetadataChecked {
                 return false
             }
             if hideUnofficial,
