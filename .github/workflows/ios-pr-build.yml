@@ -85,7 +85,7 @@ jobs:
           VERSION="${XCODE_VERSION_LINE#Xcode }"
           if [[ "$VERSION" == "$XCODE_VERSION_LINE" || -z "$VERSION" ]]; then
             echo "::error::Could not determine the selected Xcode version."
-            printf '%s\\n' "$XCODE_VERSION_OUTPUT"
+            echo "$XCODE_VERSION_OUTPUT"
             exit 1
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
