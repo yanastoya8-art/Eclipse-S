@@ -2140,6 +2140,7 @@ struct HomeView: View {
         initialItems: [TMDBSearchResult]
     ) -> DiscoverDetailView {
         DiscoverDetailView(
+            catalogID: catalog.id,
             title: title,
             initialItems: initialItems,
             loadMore: sectionLoadMoreHandler(for: catalog),
@@ -2147,29 +2148,29 @@ struct HomeView: View {
         )
     }
 
-    private func sectionLoadMoreHandler(for catalog: Catalog) -> ((Int) async -> [TMDBSearchResult])? {
+    private func sectionLoadMoreHandler(for catalog: Catalog) -> ((Int) async throws -> [TMDBSearchResult])? {
         switch catalog.id {
         case "trending":
             return { page in
-                await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
+                try await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
                     try await tmdbService.getTrending(page: page)
                 }
             }
         case "popularMovies":
             return { page in
-                await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
+                try await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
                     try await tmdbService.getPopularMovies(page: page).map(\.asSearchResult)
                 }
             }
         case "nowPlayingMovies":
             return { page in
-                await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
+                try await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
                     try await tmdbService.getNowPlayingMovies(page: page).map(\.asSearchResult)
                 }
             }
         case "upcomingMovies":
             return { page in
-                await loadFilteredSectionPage(
+                try await loadFilteredSectionPage(
                     catalogId: catalog.id,
                     page: page,
                     allowUpcomingContent: true
@@ -2179,7 +2180,7 @@ struct HomeView: View {
             }
         case "upcomingTV":
             return { page in
-                await loadFilteredSectionPage(
+                try await loadFilteredSectionPage(
                     catalogId: catalog.id,
                     page: page,
                     allowUpcomingContent: true
@@ -2189,31 +2190,31 @@ struct HomeView: View {
             }
         case "popularTVShows":
             return { page in
-                await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
+                try await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
                     try await tmdbService.getPopularTVShows(page: page).map(\.asSearchResult)
                 }
             }
         case "onTheAirTV":
             return { page in
-                await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
+                try await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
                     try await tmdbService.getOnTheAirTVShows(page: page).map(\.asSearchResult)
                 }
             }
         case "airingTodayTV":
             return { page in
-                await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
+                try await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
                     try await tmdbService.getAiringTodayTVShows(page: page).map(\.asSearchResult)
                 }
             }
         case "topRatedTVShows":
             return { page in
-                await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
+                try await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
                     try await tmdbService.getTopRatedTVShows(page: page).map(\.asSearchResult)
                 }
             }
         case "topRatedMovies":
             return { page in
-                await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
+                try await loadFilteredSectionPage(catalogId: catalog.id, page: page) {
                     try await tmdbService.getTopRatedMovies(page: page).map(\.asSearchResult)
                 }
             }
@@ -2235,7 +2236,7 @@ struct HomeView: View {
         page: Int,
         allowUpcomingContent: Bool = false,
         fetch: () async throws -> [TMDBSearchResult]
-    ) async -> [TMDBSearchResult] {
+    ) async throws -> [TMDBSearchResult] {
         do {
             return await contentFilter.filterSearchResultsResolvingRatings(
                 try await fetch(),
@@ -2243,16 +2244,16 @@ struct HomeView: View {
             )
         } catch {
             Logger.shared.log("HomeView: section \(catalogId) page \(page) failed: \(error.localizedDescription)", type: "TMDB")
-            return []
+            throw error
         }
     }
 
     private func animeSectionLoadMoreHandler(
         for kind: AniListService.AniListCatalogKind,
         catalogId: String
-    ) -> ((Int) async -> [TMDBSearchResult]) {
+    ) -> ((Int) async throws -> [TMDBSearchResult]) {
         { page in
-            await loadAnimeSectionPage(kind: kind, catalogId: catalogId, page: page)
+            try await loadAnimeSectionPage(kind: kind, catalogId: catalogId, page: page)
         }
     }
 
@@ -2260,7 +2261,7 @@ struct HomeView: View {
         kind: AniListService.AniListCatalogKind,
         catalogId: String,
         page: Int
-    ) async -> [TMDBSearchResult] {
+    ) async throws -> [TMDBSearchResult] {
         let pageSize = 20
         let boundedPage = max(page, 1)
 
@@ -2273,7 +2274,7 @@ struct HomeView: View {
             return Array(results.dropFirst(offset))
         } catch {
             Logger.shared.log("HomeView: anime section \(catalogId) page \(page) failed: \(error.localizedDescription)", type: "AniList")
-            return []
+            throw error
         }
     }
 
@@ -2290,7 +2291,7 @@ struct HomeView: View {
         }
     }
 
-    private func expandingSourceLoadMoreHandler(for catalog: Catalog) -> ((Int) async -> [TMDBSearchResult])? {
+    private func expandingSourceLoadMoreHandler(for catalog: Catalog) -> ((Int) async throws -> [TMDBSearchResult])? {
         switch catalog.source {
         case .stremio:
             return { page in
