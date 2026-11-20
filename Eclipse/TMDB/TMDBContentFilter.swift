@@ -8,6 +8,17 @@
 import Combine
 import Foundation
 
+enum CatalogRuntimeFilterPolicy {
+    static func shortestReportedRuntime(_ values: [Int]?) -> Int? {
+        values?.filter { $0 > 0 }.min()
+    }
+
+    static func shouldInclude(runtimeMinutes: Int?, minimumMinutes: Int = 20) -> Bool {
+        guard let runtimeMinutes, runtimeMinutes > 0 else { return false }
+        return runtimeMinutes >= minimumMinutes
+    }
+}
+
 enum CatalogNativeAudioPolicy {
     /// Only skip a dub lookup when the title's native language already
     /// satisfies the user's selected audio languages. An English or Spanish
@@ -1223,7 +1234,9 @@ class TMDBContentFilter: ObservableObject {
             if UserDefaults.standard.bool(forKey: "catalogHideAnime"), movieAnime { return false }
             if movieAnime, !shouldIncludeAnimeCategoryFilters(movie.asSearchResult) { return false }
             if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
-                guard let runtime = cachedRuntimeMinutes(for: "movie-\(movie.id)"), runtime >= 20 else { return false }
+                guard CatalogRuntimeFilterPolicy.shouldInclude(
+                    runtimeMinutes: cachedRuntimeMinutes(for: "movie-\(movie.id)")
+                ) else { return false }
             }
             guard !Self.shouldHideForReleaseDate(
                 rawDate: movie.releaseDate,
@@ -1283,7 +1296,9 @@ class TMDBContentFilter: ObservableObject {
             if UserDefaults.standard.bool(forKey: "catalogHideAnime"), isAnime { return false }
             if isAnime, !shouldIncludeAnimeCategoryFilters(tvShow.asSearchResult) { return false }
             if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
-                guard let runtime = cachedRuntimeMinutes(for: "tv-\(tvShow.id)"), runtime >= 20 else { return false }
+                guard CatalogRuntimeFilterPolicy.shouldInclude(
+                    runtimeMinutes: cachedRuntimeMinutes(for: "tv-\(tvShow.id)")
+                ) else { return false }
             }
             guard !Self.shouldHideForReleaseDate(
                 rawDate: tvShow.firstAirDate,
@@ -1839,8 +1854,8 @@ class TMDBContentFilter: ObservableObject {
         }
         do {
             let detail = try await TMDBService.shared.getTVShowDetails(id: result.id)
-            let values = (detail.episodeRunTime ?? []).filter { $0 > 0 }
-            guard let shortestReportedEpisode = values.min() else { return (key, nil, true) }
+            let shortestReportedEpisode = CatalogRuntimeFilterPolicy.shortestReportedRuntime(detail.episodeRunTime)
+            guard let shortestReportedEpisode else { return (key, nil, true) }
             return (key, shortestReportedEpisode, true)
         } catch {
             return (key, nil, false)
@@ -1866,8 +1881,9 @@ class TMDBContentFilter: ObservableObject {
             // Do not show an item while its runtime is unknown. The async
             // metadata resolver will publish a filter-change notification
             // when the runtime is available, and the catalog will re-evaluate.
-            guard let runtime = cachedRuntimeMinutes(for: runtimeCacheKey(for: result)),
-                  runtime >= 20 else {
+            guard CatalogRuntimeFilterPolicy.shouldInclude(
+                    runtimeMinutes: cachedRuntimeMinutes(for: runtimeCacheKey(for: result))
+                  ) else {
                 return false
             }
         }
@@ -2023,7 +2039,9 @@ class TMDBContentFilter: ObservableObject {
             "creator made series", "independent web series", "independent web animation",
             "independent animation", "independent anime", "youtube channel", "youtube studio",
             "youtube studios", "content creator", "creator studio", "creator studios",
-            "fan studio", "fan studios", "unofficial studio", "unofficial studios",
+            "fan studio", "fan studios", "fanmade studio", "fanmade studios",
+            "unofficial studio", "unofficial studios", "youtube originals",
+            "youtuber studio", "youtuber studios", "youtuber production",
             "web creator", "video creator", "creator production"
         ]
         return indicators.contains { indicator in
