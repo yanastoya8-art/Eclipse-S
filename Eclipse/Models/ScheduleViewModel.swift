@@ -965,9 +965,8 @@ final class ScheduleViewModel: ObservableObject {
                let year = entry.releaseYear, year < 1994 {
                 return false
             }
-            if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent"),
-               let runtime = entry.runtimeMinutes, runtime < 20 {
-                return false
+            if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
+                guard let runtime = entry.runtimeMinutes, runtime >= 20 else { return false }
             }
 
             // With no dub-language filter selected, preserve the existing
@@ -1438,7 +1437,9 @@ final class ScheduleViewModel: ObservableObject {
             }
         }
 
-        return resolved.filter { ($0.runtimeMinutes ?? 20) >= 20 }
+        // Missing episode runtimes must not bypass an enabled minimum-runtime
+        // filter. Only confirmed episodes of at least 20 minutes remain.
+        return resolved.filter { ($0.runtimeMinutes ?? 0) >= 20 }
     }
 
     private func scheduleCacheIsFresh(
