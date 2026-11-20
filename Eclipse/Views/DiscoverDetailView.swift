@@ -1,19 +1,51 @@
 import SwiftUI
 import Kingfisher
 
+/// Tracks only successfully fetched pages. A failed request leaves the cursor
+/// unchanged so Retry asks the provider for the same page again.
+struct DiscoverPaginationCursor: Equatable {
+    static let maximumConsecutiveEmptyPages = 4
+
+    private(set) var currentPage = 1
+    private(set) var consecutiveEmptyPages = 0
+    private(set) var hasMorePages = true
+
+    var nextPage: Int { currentPage + 1 }
+
+    mutating func didLoadPage(hasUniqueItems: Bool) {
+        currentPage = nextPage
+        consecutiveEmptyPages = hasUniqueItems ? 0 : consecutiveEmptyPages + 1
+        if consecutiveEmptyPages >= Self.maximumConsecutiveEmptyPages {
+            hasMorePages = false
+        }
+    }
+
+    mutating func reset() {
+        currentPage = 1
+        consecutiveEmptyPages = 0
+        hasMorePages = true
+    }
+
+    mutating func refreshFirstPage() {
+        consecutiveEmptyPages = 0
+        hasMorePages = true
+    }
+}
+
 struct DiscoverDetailView: View {
+    let catalogID: String
     let title: String
     let initialItems: [TMDBSearchResult]
     var heroItem: TMDBSearchResult? = nil
-    var loadMore: ((Int) async -> [TMDBSearchResult])? = nil
+    var loadMore: ((Int) async throws -> [TMDBSearchResult])? = nil
     var allowsUpcomingContent: Bool = false
 
     @State private var items: [TMDBSearchResult] = []
     @State private var initialPageItemCount = 0
     @State private var filterRefreshRevision = 0
-    @State private var currentPage = 1
+    @State private var paginationCursor = DiscoverPaginationCursor()
+    @State private var paginationError: String?
     @State private var isLoadingMore = false
-    @State private var hasMorePages = true
     @State private var loadGeneration = UUID()
     @StateObject private var contentFilter = TMDBContentFilter.shared
     @Environment(\.heroNamespace) private var heroNamespace
@@ -24,6 +56,10 @@ struct DiscoverDetailView: View {
             items,
             allowUpcomingContent: allowsUpcomingContent
         )
+    }
+
+    private var sectionIdentity: String {
+        "\(catalogID)|\(title)"
     }
 
     // Start fetching before the user reaches the final card. Lazy grids do not
@@ -83,17 +119,39 @@ struct DiscoverDetailView: View {
 
                 // A dedicated sentinel keeps pagination moving when the last
                 // card's onAppear is not re-fired after a page append.
-                if loadMore != nil && hasMorePages {
+                if loadMore != nil && paginationCursor.hasMorePages && paginationError == nil {
                     Color.clear
                         .frame(maxWidth: .infinity)
                         .frame(height: 1)
-                        .id("browse-pagination-\(items.count)-\(currentPage)")
+                        .id("browse-pagination-\(items.count)-\(paginationCursor.currentPage)")
                         .onAppear { loadNextPage() }
                 }
 
                 if isLoadingMore {
                     EclipseLoadingIndicator()
                         .padding(.vertical, 20)
+                }
+
+                if let paginationError {
+                    VStack(spacing: 10) {
+                        Text(paginationError)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                        Button("Retry") { loadNextPage() }
+                            .buttonStyle(.bordered)
+                            .accessibilityIdentifier("discover.paginationRetryButton")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 20)
+                    .padding(.horizontal, 24)
+                    .accessibilityIdentifier("discover.paginationRetry")
+                } else if filteredItems.isEmpty && !paginationCursor.hasMorePages && !isLoadingMore {
+                    Text("No results match the selected filters.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 28)
                 }
 
                 Spacer(minLength: 80)
@@ -115,7 +173,7 @@ struct DiscoverDetailView: View {
                 }
             }
         }
-        .onChangeComp(of: title) { _, _ in
+        .onChangeComp(of: sectionIdentity) { _, _ in
             // The same navigation destination can be reused while switching
             // between Anime, Movies and Series. Invalidate any in-flight page
             // request and discard the previous catalog's tail before loading
@@ -123,9 +181,9 @@ struct DiscoverDetailView: View {
             loadGeneration = UUID()
             items = initialItems
             initialPageItemCount = initialItems.count
-            currentPage = 1
+            paginationCursor.reset()
+            paginationError = nil
             isLoadingMore = false
-            hasMorePages = true
             filterRefreshRevision &+= 1
             if filteredItems.isEmpty {
                 loadNextPage()
@@ -142,7 +200,8 @@ struct DiscoverDetailView: View {
             let firstPageIDs = Set(initialItems.map(\.stableIdentity))
             items = initialItems + existingTail.filter { !firstPageIDs.contains($0.stableIdentity) }
             initialPageItemCount = initialItems.count
-            hasMorePages = true
+            paginationCursor.refreshFirstPage()
+            paginationError = nil
             if filteredItems.isEmpty {
                 loadNextPage()
             }
@@ -155,7 +214,7 @@ struct DiscoverDetailView: View {
                 // backing array here invalidates LazyVGrid's scroll layout,
                 // causing flashing and jumps back to the top.
                 filterRefreshRevision &+= 1
-                if filteredItems.isEmpty && hasMorePages {
+                if filteredItems.isEmpty && paginationCursor.hasMorePages && paginationError == nil {
                     loadNextPage()
                 }
             }
@@ -393,33 +452,36 @@ struct DiscoverDetailView: View {
     }
 
     private func loadNextPage() {
-        guard let loadMore = loadMore, !isLoadingMore, hasMorePages else { return }
+        guard let loadMore = loadMore,
+              !isLoadingMore,
+              paginationCursor.hasMorePages else { return }
         isLoadingMore = true
+        paginationError = nil
         let generation = UUID()
         loadGeneration = generation
         Task { @MainActor in
-            // A page can be non-empty at the provider but empty after strict
-            // language/age/production filters. Scan a few subsequent pages
-            // before declaring the catalog empty, rather than waiting for a
-            // card that does not exist to trigger pagination.
-            var consecutiveEmptyPages = 0
-            let maximumEmptyPagesToScan = 4
-            while consecutiveEmptyPages < maximumEmptyPagesToScan {
-                currentPage += 1
-                let newItems = await loadMore(currentPage)
-                guard generation == loadGeneration else { return }
-                let existingIds = Set(items.map { $0.stableIdentity })
-                let unique = newItems.filter { !existingIds.contains($0.stableIdentity) }
-                if unique.isEmpty {
-                    consecutiveEmptyPages += 1
-                } else {
-                    items.append(contentsOf: unique)
-                    consecutiveEmptyPages = 0
-                    break
+            // Skip a bounded number of pages removed by strict filters, but
+            // never treat a network failure as an empty page.
+            while paginationCursor.hasMorePages,
+                  paginationCursor.consecutiveEmptyPages < DiscoverPaginationCursor.maximumConsecutiveEmptyPages {
+                let requestedPage = paginationCursor.nextPage
+                do {
+                    let newItems = try await loadMore(requestedPage)
+                    guard generation == loadGeneration else { return }
+                    let existingIDs = Set(items.map { $0.stableIdentity })
+                    let unique = newItems.filter { !existingIDs.contains($0.stableIdentity) }
+                    paginationCursor.didLoadPage(hasUniqueItems: !unique.isEmpty)
+                    if !unique.isEmpty {
+                        items.append(contentsOf: unique)
+                        break
+                    }
+                } catch {
+                    guard generation == loadGeneration else { return }
+                    Logger.shared.log("DiscoverDetailView: page \(requestedPage) failed: \(error.localizedDescription)", type: "Browse")
+                    paginationError = "Couldn't load more results. Check your connection and try again."
+                    isLoadingMore = false
+                    return
                 }
-            }
-            if consecutiveEmptyPages >= maximumEmptyPagesToScan {
-                hasMorePages = false
             }
             guard generation == loadGeneration else { return }
             isLoadingMore = false
