@@ -1747,7 +1747,7 @@ class TMDBContentFilter: ObservableObject {
                             let detail = try await TMDBService.shared.getTVShowDetails(id: result.id)
                             names = detail.productionCompanies?.map(\.name) ?? []
                         }
-                        return (key, names, !names.isEmpty)
+                        return (key, names, true)
                     } catch {
                         return (key, nil, false)
                     }
@@ -1758,7 +1758,7 @@ class TMDBContentFilter: ObservableObject {
             while let (key, names, succeeded) = await group.next() {
                 runtimeMetadataLock.lock()
                 productionMetadataLoadingKeys.remove(key)
-                if succeeded, let names, !names.isEmpty {
+                if succeeded, let names {
                     productionCompaniesByKey[key] = names
                     productionMetadataCheckedKeys.insert(key)
                     productionMetadataRetryAfterByKey.removeValue(forKey: key)
@@ -1780,7 +1780,7 @@ class TMDBContentFilter: ObservableObject {
                                 let detail = try await TMDBService.shared.getTVShowDetails(id: result.id)
                                 names = detail.productionCompanies?.map(\.name) ?? []
                             }
-                            return (nextKey, names, !names.isEmpty)
+                            return (nextKey, names, true)
                         } catch {
                             return (nextKey, nil, false)
                         }
