@@ -340,3 +340,38 @@ final class HomeCatalogFailurePresentationTests: XCTestCase {
         XCTAssertTrue(cursor.hasMorePages)
     }
 }
+
+
+final class CatalogContentFilterRegressionTests: XCTestCase {
+    func testRuntimeFilterUsesShortestReportedEpisodeRuntime() {
+        XCTAssertEqual(CatalogRuntimeFilterPolicy.shortestReportedRuntime([24, 12, 22]), 12)
+        XCTAssertEqual(CatalogRuntimeFilterPolicy.shortestReportedRuntime([0, -1, 25]), 25)
+        XCTAssertNil(CatalogRuntimeFilterPolicy.shortestReportedRuntime(nil))
+    }
+
+    func testRuntimeFilterFailsClosedForUnknownRuntime() {
+        XCTAssertFalse(CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: nil))
+        XCTAssertFalse(CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: 0))
+        XCTAssertFalse(CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: 19))
+        XCTAssertTrue(CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: 20))
+        XCTAssertTrue(CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: 42))
+    }
+
+    func testUnofficialProductionFilterChecksProductionCompanyNames() {
+        XCTAssertTrue(TMDBContentFilter.isUnofficialCreatorContent(
+            title: "A New Web Series",
+            overview: nil,
+            productionCompanies: ["Example Creator Studio"]
+        ))
+        XCTAssertTrue(TMDBContentFilter.isUnofficialCreatorContent(
+            title: "Fan Project",
+            overview: nil,
+            productionCompanies: ["Independent Fanmade Studios"]
+        ))
+        XCTAssertFalse(TMDBContentFilter.isUnofficialCreatorContent(
+            title: "A Feature Film",
+            overview: nil,
+            productionCompanies: ["Studio Ghibli"]
+        ))
+    }
+}
