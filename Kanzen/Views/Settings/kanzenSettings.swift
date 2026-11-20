@@ -66,13 +66,6 @@ struct KanzenSettingsView: View {
                             if isAdministrable {
                                 GlassDivider()
 
-                                NavigationLink(destination: ReaderExtensionsSettingsView()) {
-                                    GlassSettingsRow(icon: "shippingbox.fill", iconColor: .orange, title: "Reader Sources")
-                                }
-                                .buttonStyle(.plain)
-
-                                GlassDivider()
-
                                 NavigationLink(destination: MangaCatalogSettingsView().environmentObject(moduleManager)) {
                                     GlassSettingsRow(icon: "slider.horizontal.3", iconColor: .green, title: "Home Sources")
                                 }
@@ -87,10 +80,6 @@ struct KanzenSettingsView: View {
 
                                 GlassDivider()
 
-                                NavigationLink(destination: ReaderDownloadsSettingsView()) {
-                                    GlassSettingsRow(icon: "arrow.down.circle.fill", iconColor: .blue, title: "Downloads")
-                                }
-                                .buttonStyle(.plain)
                             }
                         }
                     }
@@ -116,12 +105,6 @@ struct KanzenSettingsView: View {
                         }
                     }
 
-                    GlassSection(header: "Activity") {
-                        NavigationLink(destination: ReaderLoggerView()) {
-                            GlassSettingsRow(icon: "doc.text.fill", iconColor: .yellow, title: "Reader Logs")
-                        }
-                        .buttonStyle(.plain)
-                    }
                 }
                 .padding(.top, 16)
                 .padding(.bottom, 32)
