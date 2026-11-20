@@ -159,6 +159,7 @@
 		12E7AF602EB80775003B7664 /* Platform.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12E7AF5F2EB80771003B7664 /* Platform.swift */; };
 		1324E7BB2E940BD70036B5F5 /* PlayerPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1324E7B32E940BD70036B5F5 /* PlayerPreset.swift */; };
 		SCLRPOLIOSBUILD000000001 /* MPVScalerPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCLRPOLFILEREF0000000001 /* MPVScalerPolicy.swift */; };
+		MPVUSERSHADERIOSBUILD00000001 /* MPVUserShaderLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = MPVUSERSHADERFILEREF00000001 /* MPVUserShaderLibrary.swift */; };
 		SCLRPOLTVBUILD0000000001 /* MPVScalerPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCLRPOLFILEREF0000000001 /* MPVScalerPolicy.swift */; };
 		SHDRDIRIOSBUILD000000001 /* Shaders in Resources */ = {isa = PBXBuildFile; fileRef = SHDRDIRFILEREF0000000001 /* Shaders */; };
 		SHDRDIRTVBUILD0000000001 /* Shaders in Resources */ = {isa = PBXBuildFile; fileRef = SHDRDIRFILEREF0000000001 /* Shaders */; };
@@ -706,6 +707,7 @@
 		12E7AF5F2EB80771003B7664 /* Platform.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Platform.swift; sourceTree = "<group>"; };
 		1324E7B32E940BD70036B5F5 /* PlayerPreset.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PlayerPreset.swift; sourceTree = "<group>"; };
 		SCLRPOLFILEREF0000000001 /* MPVScalerPolicy.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MPVScalerPolicy.swift; sourceTree = "<group>"; };
+		MPVUSERSHADERFILEREF00000001 /* MPVUserShaderLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MPVUserShaderLibrary.swift; sourceTree = "<group>"; };
 		SHDRDIRFILEREF0000000001 /* Shaders */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Shaders; sourceTree = "<group>"; };
 		RDRLEGALFILEREF00000001 /* ReaderExtensionLicenses */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ReaderExtensionLicenses; path = Legal/ReaderExtensions; sourceTree = "<group>"; };
 		OSSLEGALFILEREF000000001 /* OpenSourceLicenses */ = {isa = PBXFileReference; lastKnownFileType = folder; name = OpenSourceLicenses; path = Legal/OpenSourceLicenses; sourceTree = "<group>"; };
@@ -1029,6 +1031,7 @@
 				1324E7B52E940BD70036B5F5 /* PlayerViewController.swift */,
 				1324E7B42E940BD70036B5F5 /* MPVNativeRenderer.swift */,
 				SCLRPOLFILEREF0000000001 /* MPVScalerPolicy.swift */,
+				MPVUSERSHADERFILEREF00000001 /* MPVUserShaderLibrary.swift */,
 				SHDRDIRFILEREF0000000001 /* Shaders */,
 				F9A1B2D12F90000100A1B2D1 /* MPVHeaderProxy.swift */,
 				1324E7B62E940BD70036B5F5 /* SampleBufferDisplayView.swift */,
@@ -2058,6 +2061,7 @@
 				13F072B52E4B2D9200EF90EB /* URLSession.swift in Sources */,
 				1324E7BC2E940BD70036B5F5 /* MPVNativeRenderer.swift in Sources */,
 				SCLRPOLIOSBUILD000000001 /* MPVScalerPolicy.swift in Sources */,
+				MPVUSERSHADERIOSBUILD00000001 /* MPVUserShaderLibrary.swift in Sources */,
 				1324E7BF2E940BD70036B5F5 /* MusicProgressSlider.swift in Sources */,
 				1324E7BB2E940BD70036B5F5 /* PlayerPreset.swift in Sources */,
 				12DF1FC22F040D6700E80375 /* AdaptiveConfirmationDialog.swift in Sources */,
