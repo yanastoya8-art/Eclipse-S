@@ -2021,7 +2021,7 @@ private struct BrowseMediaView: View {
                     Label("Search More Results", systemImage: "arrow.down.circle")
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(isLoading || isLoadingMore)
+                .disabled(isLoading)
             }
         }
         .frame(maxWidth: .infinity)
