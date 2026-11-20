@@ -120,9 +120,10 @@ jobs:
       - name: Parse all iOS app and test Swift sources
         run: |
           set -euo pipefail
-          while IFS= read -r -d '' source; do
-            swiftc -frontend -parse "$source"
-          done < <(find Eclipse Kanzen Tests EclipseUITests -type f -name '*.swift' -print0)
+          # Parse independent files concurrently; the previous serial loop made
+          # this preflight dominate the test job on the large app/test source set.
+          find Eclipse Kanzen Tests EclipseUITests -type f -name '*.swift' -print0 \
+            | xargs -0 -P 4 -n 1 swiftc -frontend -parse
 
       - name: Checkout pinned MPVKit
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
