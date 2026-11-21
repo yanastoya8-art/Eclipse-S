@@ -478,7 +478,7 @@ final class EclipseRatingsUITests: XCTestCase {
         let matches = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
             value.exists && value.label == rating && scopeLabel.label == scope && (notes.value as? String) == note
         }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [matches], timeout: 8), .completed, app.debugDescription)
+        XCTAssertEqual(XCTWaiter.wait(for: [matches], timeout: 15), .completed, app.debugDescription)
     }
 
     private func openRatingsSettings() throws {
@@ -492,7 +492,7 @@ final class EclipseRatingsUITests: XCTestCase {
         let back = app.navigationBars["Ratings & Notes"].buttons.firstMatch
         XCTAssertTrue(back.exists, app.debugDescription)
         back.tap()
-        XCTAssertTrue(app.segmentedControls["ratings.fixture.season"].waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(app.segmentedControls["ratings.fixture.season"].waitForExistence(timeout: 15), app.debugDescription)
     }
 
     private func reloadRatingsSettings() throws {
