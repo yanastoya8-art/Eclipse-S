@@ -73,22 +73,34 @@ enum MediaLanguageCatalog {
     static func filterLanguage(for value: String) -> Entry? {
         let key = lookupKey(value)
         let unwrapped = key.hasPrefix("language:") ? String(key.dropFirst("language:".count)) : key
+        // Explicit typed IDs must retain their exact meaning. In particular,
+        // language:es-419 is the Latino track, not the generic Spanish family.
         if key.hasPrefix("language:") {
-            if unwrapped == "es-419" || unwrapped == "es-es" || unwrapped.hasPrefix("es-") {
-                return language(for: "es")
-            }
             return language(for: value)
         }
-        let tokens = Set(unwrapped.split { !$0.isLetter && !$0.isNumber }.map(String.init))
-        let latinoMarkers: Set<String> = ["lat", "latin", "latino", "latam", "419", "latinoamerican", "latinamerican", "castellano", "castilian"]
-        // Treat every Spanish regional variant (Castellano, Latin American,
-        // and generic Spanish) as one filter language. The source metadata remains
-        // untouched so the actual audio-track region can still be displayed.
-        if !tokens.isDisjoint(with: latinoMarkers),
-           !tokens.isDisjoint(with: ["es", "spa", "spanish", "espanol", "lat", "latin", "latino", "latam", "castellano", "castilian"]) {
-            return language(for: "es")
+
+        // Keep legacy "lat" / "Latin" filter aliases distinct from the ISO
+        // Latin language ID. The canonical catalogue lookup still resolves
+        // those ISO aliases to "la"; only legacy filter rules mean Latino Spanish.
+        if ["lat", "latin", "latino", "latam", "419", "spanish (latino)",
+            "spanish (latin america)", "spanish latino", "latin american spanish",
+            "es-419", "es_419", "spa-latam"].contains(key) {
+            return language(for: "es-419")
         }
-        if unwrapped == "es-419" || unwrapped == "es-es" || unwrapped.hasPrefix("es-") {
+
+        // Preserve regional Spanish identity. Generic Spanish may include
+        // Castilian/Spain metadata, but it must not silently include the
+        // separate Latino filter ID.
+        if unwrapped == "es-es" || unwrapped.hasPrefix("es-es-") {
+            return language(for: "es-ES")
+        }
+        if unwrapped == "es-419" || unwrapped.hasPrefix("es-419-") {
+            return language(for: "es-419")
+        }
+        if unwrapped.hasPrefix("es-") {
+            return language(for: value)
+        }
+        if ["castellano", "castilian", "spanish", "espanol", "es", "spa"].contains(key) {
             return language(for: "es")
         }
         if ["cantonese", "mandarin"].contains(key) { return language(for: "zh") }
@@ -115,6 +127,9 @@ enum MediaLanguageCatalog {
         guard let rule = language(for: ruleID), let language = language(for: languageID) else { return false }
         if rule.id == language.id { return true }
         guard rule.id.count == 2 else { return false }
+        // Latino Spanish remains a distinct selectable track. A generic
+        // Spanish rule can match Castilian metadata, but not es-419.
+        if rule.id == "es", language.id == "es-419" { return false }
         if language.id.hasPrefix(rule.id + "-") { return true }
         if rule.id == "zh", ["cmn", "yue"].contains(language.id) { return true }
         if rule.id == "no", ["nb", "nn"].contains(language.id) { return true }
