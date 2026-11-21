@@ -2205,12 +2205,21 @@ final class EclipseFeatureUITests: XCTestCase {
             // The compact Quick Actions presentation can expose Settings
             // through its gear accessibility identifier. Do not toggle the
             // menu closed while its destination is animating into place.
-            let destination = settings.exists && settings.isHittable ? settings
-                : gear.exists && gear.isHittable ? gear
+            let settingsFrame = settings.exists ? settings.frame : .zero
+            let gearFrame = gear.exists ? gear.frame : .zero
+            let settingsVisible = settingsFrame.width > 0 && settingsFrame.height > 0
+                && app.frame.intersects(settingsFrame)
+            let gearVisible = gearFrame.width > 0 && gearFrame.height > 0
+                && app.frame.intersects(gearFrame)
+            let destination = settingsVisible ? settings : gearVisible ? gear
                 : settings.exists ? settings : gear
-            if destination.exists && destination.isHittable {
-                let frame = destination.frame
-                guard frame.width > 0, frame.height > 0 else { continue }
+            let destinationFrame = destination.exists ? destination.frame : .zero
+            let destinationIsVisible = destinationFrame.width > 0
+                && destinationFrame.height > 0
+                && app.frame.intersects(destinationFrame)
+            if destinationIsVisible {
+                // Use the visible frame directly. XCTest's isHittable query
+                // can throw for compact icon-only actions with stale frames.
                 destination.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
                 if app.navigationBars["Settings"].waitForExistence(timeout: 8) {
                     activeSettingsPage = "Settings"
@@ -2219,17 +2228,18 @@ final class EclipseFeatureUITests: XCTestCase {
                 continue
             }
 
-            let destinationFrame = destination.exists ? destination.frame : .zero
-            let destinationIsVisible = destinationFrame.width > 0
-                && destinationFrame.height > 0
-                && app.frame.intersects(destinationFrame)
-            if !destinationIsVisible && quickActions.isHittable {
+            let quickFrame = quickActions.frame
+            if quickActions.exists && quickFrame.width > 0 && quickFrame.height > 0
+                && app.frame.intersects(quickFrame) {
                 // A collapsed Quick Actions menu can leave its gear action in
                 // the accessibility tree with an invalid or off-screen frame.
                 quickActions.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
             }
             _ = waitUntil(timeout: 3, {
-                (settings.exists && settings.isHittable) || (gear.exists && gear.isHittable)
+                let settingsFrame = settings.exists ? settings.frame : .zero
+                let gearFrame = gear.exists ? gear.frame : .zero
+                return (settingsFrame.width > 0 && app.frame.intersects(settingsFrame))
+                    || (gearFrame.width > 0 && app.frame.intersects(gearFrame))
             })
         }
         throw UIInteractionError.unavailable("Quick Actions did not open Settings.")
