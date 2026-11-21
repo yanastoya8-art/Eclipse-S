@@ -7769,33 +7769,33 @@ final class StreamLanguageFilterTests: XCTestCase {
         )
         StreamLanguageFilter.setExtraRulesSourceIds([sourceID], defaults: defaults)
 
-        XCTAssertTrue(isHidden(languageHints: ["Latino"], defaults: defaults))
+        XCTAssertFalse(isHidden(languageHints: ["Latino"], defaults: defaults))
         XCTAssertFalse(isHidden(languageHints: ["English", "Spanish (Latino)"], defaults: defaults))
-        XCTAssertTrue(isHidden(languageHints: ["es-419"], defaults: defaults))
-        XCTAssertTrue(isHidden(languageHints: ["spa-LATAM"], defaults: defaults))
-        XCTAssertTrue(isHidden(metadata: ["WEB-DL Latino audio"], defaults: defaults))
+        XCTAssertFalse(isHidden(languageHints: ["es-419"], defaults: defaults))
+        XCTAssertFalse(isHidden(languageHints: ["spa-LATAM"], defaults: defaults))
+        XCTAssertFalse(isHidden(metadata: ["WEB-DL Latino audio"], defaults: defaults))
 
         XCTAssertFalse(isHidden(languageHints: ["English"], defaults: defaults))
         XCTAssertFalse(isHidden(languageHints: ["Spanish"], defaults: defaults))
         XCTAssertFalse(isHidden(languageHints: ["Bulgarian"], defaults: defaults))
     }
 
-    func testRegionalLatinoAliasesDoNotSupplyASeparateSpanishTrack() throws {
+    func testRegionalLatinoAliasesShareTheSpanishFilterFamily() throws {
         let suite = makeDefaults()
         let defaults = suite.defaults
         defer { defaults.removePersistentDomain(forName: suite.name) }
         for alias in ["es-419", "es_419", "spa-LATAM", "Spanish (Latino)", "Spanish (Latin America)"] {
             StreamLanguageFilter.setIncludedLanguages(["Spanish"], defaults: defaults)
             StreamLanguageFilter.setHiddenLanguages([], defaults: defaults)
-            XCTAssertTrue(isHidden(languageHints: [alias], defaults: defaults), alias)
-            XCTAssertTrue(isHidden(metadata: ["1080p\nAudio: \(alias)"], defaults: defaults), alias)
+            XCTAssertFalse(isHidden(languageHints: [alias], defaults: defaults), alias)
+            XCTAssertFalse(isHidden(metadata: ["1080p\nAudio: \(alias)"], defaults: defaults), alias)
             StreamLanguageFilter.setIncludedLanguages(["English", "Spanish"], defaults: defaults)
             XCTAssertFalse(isHidden(languageHints: ["English", alias], defaults: defaults), alias)
             XCTAssertFalse(isHidden(metadata: ["1080p\nAudio: English, \(alias)"], defaults: defaults), alias)
             StreamLanguageFilter.setIncludedLanguages([], defaults: defaults)
             StreamLanguageFilter.setHiddenLanguages(["Spanish"], defaults: defaults)
-            XCTAssertFalse(isHidden(languageHints: [alias], defaults: defaults), alias)
-            XCTAssertFalse(isHidden(metadata: ["1080p\nAudio: \(alias)"], defaults: defaults), alias)
+            XCTAssertTrue(isHidden(languageHints: [alias], defaults: defaults), alias)
+            XCTAssertTrue(isHidden(metadata: ["1080p\nAudio: \(alias)"], defaults: defaults), alias)
             StreamLanguageFilter.setHiddenLanguages(["Latino"], defaults: defaults)
             XCTAssertTrue(isHidden(languageHints: [alias], defaults: defaults), alias)
             XCTAssertTrue(isHidden(metadata: ["1080p\nAudio: \(alias)"], defaults: defaults), alias)
