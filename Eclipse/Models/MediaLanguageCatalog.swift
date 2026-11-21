@@ -79,13 +79,12 @@ enum MediaLanguageCatalog {
             return language(for: value)
         }
 
-        // Keep legacy "lat" / "Latin" filter aliases distinct from the ISO
-        // Latin language ID. The canonical catalogue lookup still resolves
-        // those ISO aliases to "la"; only legacy filter rules mean Latino Spanish.
+        // Legacy Latino and Latin-American aliases are part of the same
+        // Spanish content-filter family as Castellano and Spain Spanish.
         if ["lat", "latin", "latino", "latam", "419", "spanish (latino)",
             "spanish (latin america)", "spanish latino", "latin american spanish",
-            "es-419", "es_419", "spa-latam", "spanish (latino)", "spanish (latin america)", "spanish latino", "latin american spanish"].contains(key) {
-            return language(for: "es-419")
+            "es-419", "es_419", "spa-latam", "español latino", "espanol latino"].contains(key) {
+            return language(for: "es")
         }
 
         // Spanish is one selectable filter language in Eclipse. Castilian,
