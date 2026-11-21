@@ -138,7 +138,7 @@ jobs:
           path: |
             MPVKit/.build
             MPVKit/dist
-          key: mpvkit-${{ runner.os }}-${{ runner.arch }}-xcode-${{ steps.xcode-version.outputs.version }}-b951a22fc5ddbf708057ace059e3742dae685e4d-ios-gpl-0.41.0-v1
+          key: mpvkit-${{ runner.os }}-${{ runner.arch }}-xcode-${{ steps.xcode-version.outputs.version }}-b951a22fc5ddbf708057ace059e3742dae685e4d-ios-gpl-0.41.0-v2
 
       - name: Build patched MPVKit for iPhone and iPad
         run: |
@@ -175,6 +175,43 @@ jobs:
             else
               echo "All MPVKit build tools are already installed."
             fi
+
+            # The pinned MPVKit helper treats any non-empty ZIP as a completed
+            # download. GitHub release transfers can be interrupted after a partial
+            # response, leaving a corrupt archive that is then reused on every retry.
+            # Harden downloads and validate cached archives before the build starts.
+            python3 - <<'PY'
+            from pathlib import Path
+
+            source = Path("MPVKit/Sources/BuildScripts/XCFrameworkBuild/base.swift")
+            text = source.read_text()
+            old_download = 'arguments: ["-fL", "--retry", "3", "--retry-delay", "1", "-o", outputURL.path, url],'
+            new_download = 'arguments: ["-fL", "--retry", "5", "--retry-all-errors", "--retry-delay", "2", "--connect-timeout", "30", "--max-time", "240", "--speed-time", "30", "--speed-limit", "1024", "-o", outputURL.path, url],'
+            if old_download not in text:
+                raise SystemExit("Could not locate pinned MPVKit download implementation; refusing an unverified patch.")
+            text = text.replace(old_download, new_download, 1)
+            old_archive_check = '''        // delete invalid downloaded files
+                let attributes = try? FileManager.default.attributesOfItem(atPath: outputFile.path)
+                if let fileSize = attributes?[FileAttributeKey.size] as? UInt64, fileSize <= 0 {
+                    try? FileManager.default.removeItem(atPath: directoryURL.path)
+                }'''
+            new_archive_check = '''        // Reject partial/corrupt ZIPs, not merely zero-byte files. A failed
+                // transfer must never be mistaken for a completed dependency.
+                if FileManager.default.fileExists(atPath: outputFile.path) {
+                    let archiveIsValid = (try? Utility.launch(
+                        path: "/usr/bin/unzip",
+                        arguments: ["-t", outputFileName],
+                        currentDirectoryURL: directoryURL
+                    )) != nil
+                    if !archiveIsValid {
+                        try? FileManager.default.removeItem(at: outputFile)
+                    }
+                }'''
+            if old_archive_check not in text:
+                raise SystemExit("Could not locate pinned MPVKit ZIP validation block; refusing an unverified patch.")
+            text = text.replace(old_archive_check, new_archive_check, 1)
+            source.write_text(text)
+            PY
 
             MPVKIT_BUILD_VENV="$RUNNER_TEMP/mpvkit-build-venv"
             python3 -m venv "$MPVKIT_BUILD_VENV"
