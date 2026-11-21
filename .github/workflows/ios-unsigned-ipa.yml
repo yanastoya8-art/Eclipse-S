@@ -103,13 +103,10 @@ jobs:
           simulator_sdk="$(xcrun --sdk iphonesimulator --show-sdk-version)"
           echo "cache-key=xcode-${xcode_version}-ios-${device_sdk}-sim-${simulator_sdk}" >> "$GITHUB_OUTPUT"
 
-      - name: Cache patched MPVKit build products and sources
+      - name: Cache patched MPVKit iOS frameworks
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
-          path: |
-            MPVKit/.build
-            MPVKit/dist
-            ${{ runner.temp }}/mpvkit-build-venv
+          path: MPVKit/dist/release
           key: mpvkit-ios-${{ runner.os }}-${{ runner.arch }}-${{ steps.apple-sdk.outputs.cache-key }}-b951a22fc5ddbf708057ace059e3742dae685e4d-${{ hashFiles('MPVKit/Makefile', 'MPVKit/Sources/BuildScripts/**/*.swift', 'MPVKit/Sources/BuildScripts/patch/**/*.patch') }}
 
       - name: Build patched MPVKit for iPhone and iPad
@@ -174,22 +171,10 @@ jobs:
           else
             echo "::notice::MPVKit cache is missing or invalid; rebuilding the pinned source."
             rm -rf MPVKit/dist/release
-            missing=()
-            for formula in autoconf automake cmake libtool nasm ninja pkg-config; do
-              if ! brew list --versions "$formula" >/dev/null 2>&1; then
-                missing+=("$formula")
-              fi
-            done
-            if [[ "${#missing[@]}" -gt 0 ]]; then
-              brew install "${missing[@]}"
-            fi
+            brew install autoconf automake cmake libtool nasm ninja pkg-config
             MPVKIT_BUILD_VENV="$RUNNER_TEMP/mpvkit-build-venv"
-            if [[ ! -x "$MPVKIT_BUILD_VENV/bin/python" ]]; then
-              python3 -m venv "$MPVKIT_BUILD_VENV"
-            fi
-            if ! "$MPVKIT_BUILD_VENV/bin/python" -c 'import mesonbuild' >/dev/null 2>&1; then
-              "$MPVKIT_BUILD_VENV/bin/python" -m pip install --disable-pip-version-check meson==1.4.2
-            fi
+            python3 -m venv "$MPVKIT_BUILD_VENV"
+            "$MPVKIT_BUILD_VENV/bin/python" -m pip install --disable-pip-version-check meson==1.4.2
             export PATH="$MPVKIT_BUILD_VENV/bin:$PATH"
             MPVKIT_BUILD_SUCCEEDED=false
             for attempt in 1 2 3; do
@@ -315,10 +300,8 @@ jobs:
           path: |
             ${{ runner.temp }}/SourcePackages/repositories
             ${{ runner.temp }}/SourcePackages/artifacts
-            ${{ runner.temp }}/SourcePackages/checkouts
-          key: swiftpm-v2-${{ runner.os }}-${{ hashFiles('**/Package.resolved') }}-${{ hashFiles('Eclipse.xcodeproj/project.pbxproj') }}
+          key: swiftpm-${{ runner.os }}-${{ hashFiles('**/Package.resolved') }}-${{ hashFiles('Eclipse.xcodeproj/project.pbxproj') }}
           restore-keys: |
-            swiftpm-v2-${{ runner.os }}-
             swiftpm-${{ runner.os }}-
 
       - name: Resolve Swift packages
@@ -405,20 +388,6 @@ jobs:
           echo "MPVKIT_LOCAL_ARTIFACTS_DIR=$MPVKIT_LOCAL_ARTIFACTS_DIR" >> "$GITHUB_ENV"
           echo "Using local MPVKit checkout: $(git -C MPVKit rev-parse HEAD)"
 
-      - name: Cache Xcode compile intermediates
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: |
-            ${{ runner.temp }}/DerivedData/Build/Intermediates.noindex
-            ${{ runner.temp }}/DerivedData/Build/Products
-            ${{ runner.temp }}/DerivedData/ModuleCache.noindex
-          # This cache is deliberately isolated from the previous whole-module
-          # Release build products: the archive below uses incremental Swift
-          # compilation so independent source files can compile in parallel.
-          key: xcode-derived-v3-incremental-${{ runner.os }}-${{ steps.apple-sdk.outputs.cache-key }}-${{ github.sha }}-${{ hashFiles('Eclipse.xcodeproj/project.pbxproj', '**/Package.resolved') }}
-          restore-keys: |
-            xcode-derived-v3-incremental-${{ runner.os }}-${{ steps.apple-sdk.outputs.cache-key }}-
-
       - name: Build unsigned archive
         env:
           BUILD_NUMBER: ${{ github.run_number }}
@@ -429,17 +398,9 @@ jobs:
           DERIVED_DATA_PATH="$RUNNER_TEMP/DerivedData"
           MPVKIT_SOURCE_REVISION="$(git -C "$GITHUB_WORKSPACE/MPVKit" rev-parse HEAD)"
 
-          rm -rf "$ARCHIVE_PATH"
-          # Preserve restored compiler/module intermediates so Xcode can perform
-          # an incremental Release archive instead of recompiling every source file.
-          mkdir -p "$DERIVED_DATA_PATH"
-
-          BUILD_JOBS="$(sysctl -n hw.ncpu)"
-          echo "Using $BUILD_JOBS parallel Xcode build jobs."
+          rm -rf "$ARCHIVE_PATH" "$DERIVED_DATA_PATH"
 
           xcodebuild archive \
-            -jobs "$BUILD_JOBS" \
-            -showBuildTimingSummary \
             -project Eclipse.xcodeproj \
             -scheme Eclipse \
             -configuration Release \
@@ -460,7 +421,6 @@ jobs:
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
             MARKETING_VERSION="$SIDESTORE_MARKETING_VERSION" \
             'SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) ECLIPSE_UNSIGNED_BUILD' \
-            SWIFT_COMPILATION_MODE=incremental \
             ENABLE_USER_SCRIPT_SANDBOXING=NO
 
           APP_PATH="$(find "$ARCHIVE_PATH/Products/Applications" -maxdepth 1 -type d -name '*.app' -print -quit)"
@@ -545,9 +505,7 @@ jobs:
 
           (
             cd "$PACKAGE_ROOT"
-            # Fastest ZIP compression keeps IPA packaging from spending
-            # unnecessary time recompressing already-compressed app assets.
-            zip -qry -1 "$IPA_PATH" Payload
+            zip -qry "$IPA_PATH" Payload
           )
 
           echo "IPA_PATH=$IPA_PATH" >> "$GITHUB_ENV"
@@ -592,38 +550,25 @@ jobs:
           IPA_SIZE="$(stat -f%z "$IPA_PATH")"
           DOWNLOAD_URL="https://yanastoya8-art.github.io/Eclipse-S/ipa/$UNIQUE_IPA_NAME"
 
-          python3 - "$SITE_DIR/alt-source.json" "$BUNDLE_ID" "$SHORT_VERSION" "$BUILD_VERSION" "$MIN_OS_VERSION" "$IPA_SIZE" "$DOWNLOAD_URL" "$COMMIT_SHA" "$INFO_PLIST" <<'PY'
+          python3 - "$SITE_DIR/alt-source.json" "$BUNDLE_ID" "$SHORT_VERSION" "$BUILD_VERSION" "$MIN_OS_VERSION" "$IPA_SIZE" "$DOWNLOAD_URL" "$COMMIT_SHA" <<'PY'
           import datetime
           import json
           import pathlib
           import sys
 
           path = pathlib.Path(sys.argv[1])
-          bundle_id, version, build, min_os, size, download_url, commit = sys.argv[2:9]
+          bundle_id, version, build, min_os, size, download_url, commit = sys.argv[2:]
           release_date = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-          # Unsigned builds have no code-signing entitlements. Derive privacy
-          # declarations from the actual packaged Info.plist for AltStore checks.
-          import plistlib
-          with open(sys.argv[9], "rb") as handle:
-              info = plistlib.load(handle)
-          privacy = {
-              key: value for key, value in info.items()
-              if key.endswith("UsageDescription") and isinstance(value, str)
-          }
-
           app = {
               "name": "Eclipse",
               "bundleIdentifier": bundle_id,
               "developerName": "yanastoya8-art",
               "subtitle": "Movies, series and anime in one place",
-              "localizedDescription": "Eclipse is a media discovery and streaming app for iPhone and iPad.",
+              "localizedDescription": "Eclipse is a media discovery and streaming app. This source automatically tracks the latest successful unsigned iOS build.",
               "iconURL": "https://yanastoya8-art.github.io/Eclipse-S/app-icon.png",
               "tintColor": "#7C4DFF",
-              "category": "entertainment",
-              "appPermissions": {"entitlements": [], "privacy": privacy},
               "versions": [{
                   "version": version,
-                  "buildVersion": build,
                   "date": release_date,
                   "downloadURL": download_url,
                   "size": int(size),
@@ -632,42 +577,35 @@ jobs:
               }]
           }
           feed = {
-              "name": "Eclipse",
-              "subtitle": "Eclipse for iPhone and iPad",
-              "description": "Install Eclipse using AltStore Classic or SideStore. The feed is updated after a successful IPA publication.",
-              "website": "https://github.com/yanastoya8-art/Eclipse-S",
-              "tintColor": "#7C4DFF",
-              "nsfw": False,
-              # SideStore-specific keys are retained for backwards compatibility.
+              "name": "Eclipse SideStore Source",
               "identifier": "app.eclipse.soupy.sidestore-source",
               "sourceURL": "https://yanastoya8-art.github.io/Eclipse-S/alt-source.json",
-              "apps": [app],
-              "news": []
+              "apps": [app]
           }
 
-          # Validate the shared AltStore Classic + SideStore source contract.
-          required_source = {"name", "apps", "news"}
-          allowed_source = required_source | {"subtitle", "description", "website", "iconURL", "headerURL", "tintColor", "nsfw", "featuredApps", "identifier", "sourceURL"}
-          required_app = {"name", "bundleIdentifier", "developerName", "localizedDescription", "iconURL", "versions", "appPermissions"}
-          allowed_app = required_app | {"subtitle", "tintColor", "category", "screenshots", "patreon"}
-          required_version = {"version", "buildVersion", "date", "downloadURL", "size"}
-          allowed_version = required_version | {"localizedDescription", "minOSVersion", "maxOSVersion", "marketingVersion"}
+          # Validate against SideStore's strict source shape before publishing.
+          required_source = {"name", "identifier", "apps"}
+          allowed_source = required_source | {"news", "sourceURL"}
+          required_app = {"name", "bundleIdentifier", "developerName", "localizedDescription", "iconURL", "versions"}
+          allowed_app = required_app | {"beta", "downloadURL", "permissions", "screenshotURLs", "size", "subtitle", "tintColor", "version", "versionDate", "versionDescription"}
+          required_version = {"version", "date", "downloadURL", "size"}
+          allowed_version = required_version | {"localizedDescription", "minOSVersion", "maxOSVersion"}
           if not required_source.issubset(feed) or not set(feed).issubset(allowed_source):
-              raise SystemExit("Invalid AltStore/SideStore source keys")
+              raise SystemExit("Invalid SideStore source keys")
           if len(feed["apps"]) != 1:
               raise SystemExit("SideStore source must contain exactly one Eclipse app")
           app_entry = feed["apps"][0]
           if not required_app.issubset(app_entry) or not set(app_entry).issubset(allowed_app):
-              raise SystemExit("Invalid AltStore Classic app keys")
+              raise SystemExit("Invalid SideStore app keys")
           if not app_entry["versions"]:
               raise SystemExit("SideStore app must include at least one version")
           for version_entry in app_entry["versions"]:
               if not required_version.issubset(version_entry) or not set(version_entry).issubset(allowed_version):
-                  raise SystemExit("Invalid AltStore Classic version keys")
+                  raise SystemExit("Invalid SideStore version keys")
           path.write_text(json.dumps(feed, indent=2, ensure_ascii=False) + "\n")
           parsed = json.loads(path.read_text())
           if parsed != feed:
-              raise SystemExit("AltStore/SideStore source JSON round-trip validation failed")
+              raise SystemExit("SideStore source JSON round-trip validation failed")
           parsed_app = parsed["apps"][0]
           parsed_version = parsed_app["versions"][0]
           if not parsed_app["bundleIdentifier"] or not parsed_version["downloadURL"].endswith(".ipa"):
