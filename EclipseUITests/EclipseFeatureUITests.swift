@@ -2267,10 +2267,14 @@ final class EclipseFeatureUITests: XCTestCase {
                 continue
             }
 
-            if !settings.exists && !gear.exists && quickActions.isHittable {
-                quickActions.tap()
+            if quickActions.isHittable {
+                // A collapsed Quick Actions menu can leave its gear action in
+                // the accessibility tree with an invalid zero-sized frame.
+                // Re-open the menu whenever neither Settings destination can
+                // actually be activated, even if the hidden gear still exists.
+                quickActions.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
             }
-            _ = waitUntil(timeout: 5, {
+            _ = waitUntil(timeout: 3, {
                 (settings.exists && settings.isHittable) || (gear.exists && gear.isHittable)
             })
         }
