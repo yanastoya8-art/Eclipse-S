@@ -1330,3 +1330,42 @@ final class EnglishDubScheduleMergeTests: XCTestCase {
         XCTAssertEqual(result.entries.first?.scheduleProvider, .tsuzuki)
     }
 }
+
+final class AnimeScheduleCatalogScanPolicyTests: XCTestCase {
+    func testGlobalCatalogWarmupStopsAfterFourPagesWhenRoutesAreStillMissing() {
+        XCTAssertTrue(AnimeScheduleCatalogScanPolicy.shouldContinue(
+            page: 1, totalAmount: 900, receivedCount: 18, allWantedRoutesResolved: false
+        ))
+        XCTAssertTrue(AnimeScheduleCatalogScanPolicy.shouldContinue(
+            page: 3, totalAmount: 900, receivedCount: 18, allWantedRoutesResolved: false
+        ))
+        XCTAssertFalse(AnimeScheduleCatalogScanPolicy.shouldContinue(
+            page: 4, totalAmount: 900, receivedCount: 18, allWantedRoutesResolved: false
+        ))
+    }
+
+    func testGlobalCatalogWarmupStopsAsSoonAsAllRequestedRoutesAreResolved() {
+        XCTAssertFalse(AnimeScheduleCatalogScanPolicy.shouldContinue(
+            page: 1, totalAmount: 900, receivedCount: 18, allWantedRoutesResolved: true
+        ))
+    }
+
+    func testGlobalCatalogWarmupStopsWhenTheProviderHasNoMorePages() {
+        XCTAssertFalse(AnimeScheduleCatalogScanPolicy.shouldContinue(
+            page: 1, totalAmount: 18, receivedCount: 18, allWantedRoutesResolved: false
+        ))
+        XCTAssertFalse(AnimeScheduleCatalogScanPolicy.shouldContinue(
+            page: 1, totalAmount: 900, receivedCount: 0, allWantedRoutesResolved: false
+        ))
+        XCTAssertTrue(AnimeScheduleCatalogScanPolicy.catalogIsExhausted(
+            page: 1, totalAmount: 18, receivedCount: 18
+        ))
+        XCTAssertTrue(AnimeScheduleCatalogScanPolicy.catalogIsExhausted(
+            page: 1, totalAmount: 900, receivedCount: 0
+        ))
+        XCTAssertFalse(AnimeScheduleCatalogScanPolicy.catalogIsExhausted(
+            page: 4, totalAmount: 900, receivedCount: 18
+        ))
+    }
+}
+
