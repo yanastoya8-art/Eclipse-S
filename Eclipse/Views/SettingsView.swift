@@ -1552,7 +1552,7 @@ private struct RatingsSettingsView: View {
         let excludedReaderIDs = Set((readerCollections ?? []).flatMap(\.items).flatMap { item in
             [item.aniListId, item.trackerAniListId ?? 0, item.trackerMALId ?? 0]
         }.filter { $0 > 0 })
-        matchingContextReadable = context.readable
+        matchingContextReadable = context.readable && readerCollections != nil
         var results: [Int: [TMDBSearchResult]] = [:]
         for result in context.metadata {
             guard result.isMovie || result.isTVShow else { continue }
@@ -1560,7 +1560,7 @@ private struct RatingsSettingsView: View {
             results[result.id, default: []].append(result)
         }
         libraryResults = results
-        if context.readable, readerCollections != nil, !profileManager.isKidsModeActive, capturedAuthority.isCurrent {
+        if matchingContextReadable, !profileManager.isKidsModeActive, capturedAuthority.isCurrent {
             let matches = UserRatingManager.automaticLegacyAttachments(
                 entries: originalEntries,
                 knownMediaTypes: results.mapValues { Set($0.map(\.isMovie)) },
