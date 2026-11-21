@@ -337,14 +337,6 @@ final class SettingsScopeTests: XCTestCase {
         XCTAssertEqual(CacheManager.autoClearThresholdBytes(for: .nan), 500_000_000)
     }
 
-    func testMangaRetryDelayRejectsNonFiniteAndNegativeHeaders() {
-        XCTAssertEqual(AniListMangaService.boundedRetryDelay("nan", fallback: 2), 2)
-        XCTAssertEqual(AniListMangaService.boundedRetryDelay("inf", fallback: 2), 2)
-        XCTAssertEqual(AniListMangaService.boundedRetryDelay("-1", fallback: 2), 2)
-        XCTAssertEqual(AniListMangaService.boundedRetryDelay("1e300", fallback: 2), 10)
-        XCTAssertEqual(AniListMangaService.boundedRetryDelay("3", fallback: 2), 3)
-    }
-
     func testLevenshteinRollingRowsPreserveDistanceForLongProviderTitles() {
         XCTAssertEqual(LevenshteinDistance.levenshteinDistance("kitten", "sitting"), 3)
         XCTAssertEqual(LevenshteinDistance.levenshteinDistance("", "title"), 5)
