@@ -6664,7 +6664,7 @@ final class AnimeUnofficialProductionFilterTests: XCTestCase {
         XCTAssertTrue(TMDBContentFilter.isUnofficialCreatorContent(
             title: "Example Series",
             overview: "An ordinary synopsis.",
-            productionCompanies: ["Doujin Studio"]
+            productionCompanies: ["Fan Made Studio"]
         ))
         XCTAssertTrue(TMDBContentFilter.isUnofficialCreatorContent(
             title: "Example Series",
