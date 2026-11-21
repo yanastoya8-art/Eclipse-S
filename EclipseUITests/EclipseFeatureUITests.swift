@@ -673,7 +673,9 @@ final class EclipseFeatureUITests: XCTestCase {
     }
 
     func testDeepLibraryConnectedTrackerReads() throws {
-        app.launchArguments += ["-trackerDeepLibraryEnabled", "YES"]
+        // This test exercises the video tracker library, not the retired
+        // Reader library tab. Do not inherit a prior test's persisted mode.
+        app.launchArguments += ["-trackerDeepLibraryEnabled", "YES", "-showKanzen", "NO"]
         restartApp()
         try openLibraryTab()
         let sources = app.segmentedControls["trackerLibrarySourcePicker"]
