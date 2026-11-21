@@ -1125,9 +1125,9 @@ struct StremioStream: Codable, Identifiable, Hashable {
         if let description, !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             // Description-only addon rows use the first line as their compact
             // display name; retain the full description for detail/metadata.
-            return description.components(separatedBy: .newlines).first?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .nilIfEmpty ?? "Stream"
+            let firstLine = description.components(separatedBy: .newlines).first?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return firstLine.isEmpty ? "Stream" : firstLine
         }
         return "Stream"
     }
