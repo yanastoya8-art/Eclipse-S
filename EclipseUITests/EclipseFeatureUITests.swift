@@ -2257,7 +2257,9 @@ final class EclipseFeatureUITests: XCTestCase {
             // The compact Quick Actions presentation can expose Settings
             // through its gear accessibility identifier. Do not toggle the
             // menu closed while its destination is animating into place.
-            let destination = settings.exists ? settings : gear
+            let destination = settings.exists && settings.isHittable ? settings
+                : gear.exists && gear.isHittable ? gear
+                : settings.exists ? settings : gear
             if destination.exists && destination.isHittable {
                 let frame = destination.frame
                 guard frame.width > 0, frame.height > 0 else { continue }
