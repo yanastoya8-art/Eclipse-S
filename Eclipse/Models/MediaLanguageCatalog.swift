@@ -76,9 +76,9 @@ enum MediaLanguageCatalog {
         // Keep typed provider IDs exact for other languages, but collapse
         // every Spanish region to the single Spanish content-filter family.
         if key.hasPrefix("language:") {
-            if unwrapped == "es" || unwrapped.hasPrefix("es-") {
-                return language(for: "es")
-            }
+            // Typed IDs are provider-specific identities. Keep regional Spanish
+            // variants exact here; only untyped aliases collapse into the
+            // user's single Spanish content-filter preference.
             return language(for: value)
         }
 
