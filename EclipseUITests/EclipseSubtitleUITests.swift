@@ -10,7 +10,10 @@ final class EclipseSubtitleUITests: XCTestCase {
             "-experimentalICloudSyncEnabled", "NO",
             "-experimentalGoogleDriveSyncEnabled", "NO",
             "-experimentalOneDriveSyncEnabled", "NO",
-            "-eclipseSyncSettingsAcrossDevicesV1", "NO"
+            "-eclipseSyncSettingsAcrossDevicesV1", "NO",
+            "-eclipseProfileAsksOnLaunchV1", "NO",
+            "-eclipseOnboardingCompletedV1", "YES",
+            "-eclipseAppHubNoticeSeenV1", "YES"
         ]
     }
 
@@ -168,7 +171,10 @@ final class EclipseRatingsUITests: XCTestCase {
             "-experimentalICloudSyncEnabled", "NO",
             "-experimentalGoogleDriveSyncEnabled", "NO",
             "-experimentalOneDriveSyncEnabled", "NO",
-            "-eclipseSyncSettingsAcrossDevicesV1", "NO"
+            "-eclipseSyncSettingsAcrossDevicesV1", "NO",
+            "-eclipseProfileAsksOnLaunchV1", "NO",
+            "-eclipseOnboardingCompletedV1", "YES",
+            "-eclipseAppHubNoticeSeenV1", "YES"
         ]
         app.launchEnvironment["ECLIPSE_DEBUG_RATINGS_FIXTURE"] = "1"
         app.launch()
