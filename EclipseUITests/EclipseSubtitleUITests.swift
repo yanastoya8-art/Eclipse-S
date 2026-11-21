@@ -489,10 +489,17 @@ final class EclipseRatingsUITests: XCTestCase {
     }
 
     private func closeRatingsSettings() throws {
-        let back = app.navigationBars["Ratings & Notes"].buttons.firstMatch
-        XCTAssertTrue(back.exists, app.debugDescription)
+        let settingsNavigationBar = app.navigationBars["Ratings & Notes"]
+        let back = settingsNavigationBar.buttons.firstMatch
+        XCTAssertTrue(back.exists && back.isHittable, app.debugDescription)
         back.tap()
-        XCTAssertTrue(app.segmentedControls["ratings.fixture.season"].waitForExistence(timeout: 15), app.debugDescription)
+        let dismissed = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in !settingsNavigationBar.exists },
+            object: nil
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [dismissed], timeout: 10), .completed, app.debugDescription)
+        let season = app.segmentedControls["ratings.fixture.season"]
+        XCTAssertTrue(season.waitForExistence(timeout: 15) && season.isHittable, app.debugDescription)
     }
 
     private func reloadRatingsSettings() throws {
