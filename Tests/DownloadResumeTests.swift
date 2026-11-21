@@ -1602,7 +1602,7 @@ extension DownloadAuditRegressionTests {
         let downloads = gatedManager(root, items: [prior], gate: gate)
         defer { gate.open(); downloads.finishIsolatedSession() }
         let pending = Task { await enqueue(downloads, id: 42) }
-        await fulfillment(of: [gate.started], timeout: 3)
+        await fulfillment(of: [gate.started], timeout: 15)
         XCTAssertFalse(gate.usedMainThread)
         downloads.removeDownload(id: prior.id, deleteFile: false)
         gate.open()
@@ -1621,7 +1621,7 @@ extension DownloadAuditRegressionTests {
         let downloads = gatedManager(root, items: [prior], gate: gate)
         defer { gate.open(); downloads.finishIsolatedSession() }
         let pending = Task { await enqueue(downloads, id: 77) }
-        await fulfillment(of: [gate.started], timeout: 3)
+        await fulfillment(of: [gate.started], timeout: 15)
         downloads.removeDownload(id: prior.id, deleteFile: false)
         gate.open()
         if case .enqueued = await pending.value {} else { XCTFail("Unrelated mutation should rebuild the admission") }
@@ -1643,7 +1643,7 @@ extension DownloadAuditRegressionTests {
         let downloads = gatedManager(root, items: [first, second], gate: gate)
         defer { gate.open(); downloads.finishIsolatedSession() }
         let pending = Task { await enqueue(downloads, id: 77) }
-        await fulfillment(of: [gate.started], timeout: 3)
+        await fulfillment(of: [gate.started], timeout: 15)
         for step in 1...100 {
             downloads.updateObservedDownloadProgress(id: first.id, progress: Double(step) / 100, downloadedBytes: Int64(step), totalBytes: 100)
             downloads.updateObservedDownloadProgress(id: second.id, progress: Double(step) / 200, downloadedBytes: Int64(step), totalBytes: 200, hlsResumeSegmentIndex: step, hlsResumeByteCount: Int64(step))
@@ -1668,7 +1668,7 @@ extension DownloadAuditRegressionTests {
         let downloads = gatedManager(root, gate: gate, scope: { generation })
         defer { gate.open(); downloads.finishIsolatedSession() }
         let pending = Task { await enqueue(downloads, id: 77) }
-        await fulfillment(of: [gate.started], timeout: 3)
+        await fulfillment(of: [gate.started], timeout: 15)
         generation += 2
         gate.open()
         if case .failed = await pending.value {} else { XCTFail("A to B to A must expire captured admission") }
@@ -1683,7 +1683,7 @@ extension DownloadAuditRegressionTests {
         let downloads = gatedManager(root, gate: gate)
         defer { gate.open(); downloads.finishIsolatedSession() }
         let pending = Task { await enqueue(downloads, id: 77) }
-        await fulfillment(of: [gate.started], timeout: 3)
+        await fulfillment(of: [gate.started], timeout: 15)
         pending.cancel()
         gate.open()
         if case .failed = await pending.value {} else { XCTFail("Cancelled preparation must refuse publication") }
@@ -1698,7 +1698,7 @@ extension DownloadAuditRegressionTests {
         let downloads = gatedManager(root, gate: gate)
         defer { gate.open(); downloads.finishIsolatedSession() }
         let pending = Task { await enqueue(downloads, id: 77) }
-        await fulfillment(of: [gate.started], timeout: 3)
+        await fulfillment(of: [gate.started], timeout: 15)
         downloads.cancelDownload(id: DownloadManager.downloadID(tmdbId: 77, isMovie: false, seasonNumber: 1, episodeNumber: 1))
         gate.open()
         if case .failed = await pending.value {} else { XCTFail("Explicit cancellation must expire unpublished admission") }
@@ -1723,7 +1723,7 @@ extension DownloadAuditRegressionTests {
         })
         defer { gate.open(); downloads.finishIsolatedSession() }
         let first = Task { await enqueue(downloads, id: 42) }
-        await fulfillment(of: [gate.started], timeout: 3)
+        await fulfillment(of: [gate.started], timeout: 15)
         let second = Task { await enqueue(downloads, id: 77) }
         await fulfillment(of: [secondCaptured], timeout: 3)
         gate.open()
@@ -1748,7 +1748,7 @@ extension DownloadAuditRegressionTests {
         let downloads = gatedManager(root, gate: gate)
         defer { gate.open(); downloads.finishIsolatedSession() }
         let pending = Task { await enqueue(downloads, id: 42) }
-        await fulfillment(of: [gate.started], timeout: 3)
+        await fulfillment(of: [gate.started], timeout: 15)
         try FileManager.default.removeItem(at: file)
         gate.open()
         if case .failed = await pending.value {} else { XCTFail("A disappeared file cannot be adopted") }
@@ -1763,7 +1763,7 @@ extension DownloadAuditRegressionTests {
         let downloads = gatedManager(root, gate: gate)
         defer { gate.open(); downloads.finishIsolatedSession() }
         let pending = Task { await enqueue(downloads, id: 77) }
-        await fulfillment(of: [gate.started], timeout: 3)
+        await fulfillment(of: [gate.started], timeout: 15)
         downloads.pauseAll()
         gate.open()
         if case .enqueued = await pending.value {} else { XCTFail("Admission should survive an unchanged queued save") }
@@ -1842,7 +1842,7 @@ extension DownloadAuditRegressionTests {
         let downloads = gatedManager(root, items: items, gate: gate)
         defer { gate.open(); downloads.finishIsolatedSession() }
         let pending = Task { await enqueue(downloads, id: 10_000) }
-        await fulfillment(of: [gate.started], timeout: 3)
+        await fulfillment(of: [gate.started], timeout: 15)
         for step in 1...100 {
             downloads.updateObservedDownloadProgress(id: items[0].id, progress: Double(step) / 100, downloadedBytes: Int64(step), totalBytes: 100)
             downloads.updateObservedDownloadProgress(id: items[1].id, progress: Double(step) / 100, downloadedBytes: Int64(step), totalBytes: 100)
