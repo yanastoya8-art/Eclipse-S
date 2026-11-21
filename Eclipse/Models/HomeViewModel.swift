@@ -109,7 +109,7 @@ enum HomeCatalogFailurePresentation {
         let diagnostic = "\(error.localizedDescription) \(String(reflecting: error))"
         let normalized = diagnostic.lowercased()
 
-        if normalized.contains("missingapikey") || normalized.contains("missing api key") {
+        if normalized.contains("missingapikey") || normalized.contains("missing api key") || normalized.contains("api key is missing") {
             return missingAPIKeyMessage
         }
 
