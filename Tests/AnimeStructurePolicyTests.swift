@@ -5932,7 +5932,9 @@ final class AniMapLookupTimingPolicyTests: XCTestCase {
     func testSameHealthyDelayExceedsPreviousBudgetAndCancelsTheOperation() async {
         let events = Events()
         do {
-            let _: Int = try await AniMapLookupTimingPolicy.perform(timeout: 2,
+            // Leave a full second between the deadline and the healthy
+            // operation so a busy simulator cannot make the two timers race.
+            let _: Int = try await AniMapLookupTimingPolicy.perform(timeout: 1,
                 onTimeout: { await events.record("timeout") }) {
                 do {
                     try await Task.sleep(nanoseconds: 2_200_000_000)
