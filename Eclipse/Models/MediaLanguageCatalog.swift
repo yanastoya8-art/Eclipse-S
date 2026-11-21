@@ -84,7 +84,7 @@ enum MediaLanguageCatalog {
         // those ISO aliases to "la"; only legacy filter rules mean Latino Spanish.
         if ["lat", "latin", "latino", "latam", "419", "spanish (latino)",
             "spanish (latin america)", "spanish latino", "latin american spanish",
-            "es-419", "es_419", "spa-latam"].contains(key) {
+            "es-419", "es_419", "spa-latam", "spanish (latino)", "spanish (latin america)", "spanish latino", "latin american spanish"].contains(key) {
             return language(for: "es-419")
         }
 
