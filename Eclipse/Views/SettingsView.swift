@@ -1228,6 +1228,9 @@ private final class EclipseRatingsFixtureStore: ObservableObject {
     private let directory: URL
     private let profileID: UUID
     private let fileURL: URL
+    private let originalReaderCollections: [MangaLibraryCollection]
+    private let readerCollectionsStorageKey: String
+    private let originalReaderCollectionsData: Data?
     @Published private(set) var manager: UserRatingManager
     @Published private(set) var revision = 0
 
@@ -1244,11 +1247,36 @@ private final class EclipseRatingsFixtureStore: ObservableObject {
         let profileID = ProfileManager.shared.activeProfileID
         let fileURL = directory.appendingPathComponent("ratings.json")
         let manager = UserRatingManager(profileID: profileID, fileURL: fileURL)
+        let readerManager = MangaLibraryManager.shared
+        guard let originalReaderCollections = readerManager.collectionsSnapshot(forProfile: profileID) else {
+            try? FileManager.default.removeItem(at: directory)
+            UserDefaults.standard.removePersistentDomain(forName: suite)
+            return nil
+        }
+        let readerCollectionsStorageKey = MangaLibraryManager.storageKey(for: profileID)
+        let originalReaderCollectionsData = UserDefaults.standard.data(forKey: readerCollectionsStorageKey)
+        let readerCollision = MangaLibraryItem(
+            aniListId: 98214,
+            title: "Reader Collision Fixture Manga",
+            format: "MANGA",
+            totalChapters: 12
+        )
+        let readerFixtureCollection = MangaLibraryCollection(
+            name: "Ratings Reader Collision Fixture",
+            items: [readerCollision]
+        )
+        readerManager.applyRestoredCollections(
+            originalReaderCollections + [readerFixtureCollection],
+            forProfile: profileID
+        )
         self.defaults = defaults
         self.suiteName = suite
         self.directory = directory
         self.profileID = profileID
         self.fileURL = fileURL
+        self.originalReaderCollections = originalReaderCollections
+        self.readerCollectionsStorageKey = readerCollectionsStorageKey
+        self.originalReaderCollectionsData = originalReaderCollectionsData
         self.manager = manager
         let metadata = [
             TMDBSearchResult(id: Self.showID, mediaType: "tv", title: nil, name: "Ratings Fixture Show", overview: nil,
@@ -1318,11 +1346,24 @@ private final class EclipseRatingsFixtureStore: ObservableObject {
     }
 
     func cleanUp() {
+        MangaLibraryManager.shared.applyRestoredCollections(originalReaderCollections, forProfile: profileID)
+        if let originalReaderCollectionsData {
+            UserDefaults.standard.set(originalReaderCollectionsData, forKey: readerCollectionsStorageKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: readerCollectionsStorageKey)
+        }
         try? FileManager.default.removeItem(at: directory)
         UserDefaults.standard.removePersistentDomain(forName: suiteName)
     }
 
     deinit {
+        // Restore the exact persisted bytes even if the fixture is terminated
+        // without receiving its normal onDisappear cleanup callback.
+        if let originalReaderCollectionsData {
+            UserDefaults.standard.set(originalReaderCollectionsData, forKey: readerCollectionsStorageKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: readerCollectionsStorageKey)
+        }
         try? FileManager.default.removeItem(at: directory)
         UserDefaults.standard.removePersistentDomain(forName: suiteName)
     }
