@@ -6,6 +6,7 @@ import Libmpv
 import UIKit
 import AVFoundation
 import AVKit
+import VideoToolbox
 import Darwin
 import Network
 import UniformTypeIdentifiers
@@ -800,7 +801,8 @@ final class V221RendererLifecycleTests: XCTestCase {
             previousWindow?.makeKeyAndVisible()
         }
         let renderer = try XCTUnwrap(Mirror(reflecting: controller).children.compactMap { $0.value as? MPVGPUPlayerBridge }.first)
-        defer { renderer.stop() }
+        // stopSubtitleEpisode owns the renderer shutdown and awaits its
+        // asynchronous drain. A second synchronous stop here races deinit.
         var phase = "episode one playback"
         do {
             try await waitForSubtitleEpisode(renderer, duration: 6)
@@ -1324,16 +1326,36 @@ final class V221RendererLifecycleTests: XCTestCase {
         let compression: [String: Any] = [
             AVVideoAverageBitRateKey: max(200_000, width * height * 4),
             AVVideoMaxKeyFrameIntervalKey: 60,
-            AVVideoProfileLevelKey: AVVideoProfileLevelH264BaselineAutoLevel
+            AVVideoProfileLevelKey: AVVideoProfileLevelH264BaselineAutoLevel,
+            AVVideoAllowFrameReorderingKey: false
         ]
-        var outputSettings: [String: Any] = [
+        // GitHub's Intel simulator runner cannot consistently create the
+        // hardware H.264 encoder. Explicitly request VideoToolbox's software
+        // encoder so AVAssetWriter does not fail while archiving implicit
+        // hardware compression settings (NSCocoaErrorDomain 4864).
+        let encoderSpecification: [String: Any] = [
+            kVTVideoEncoderSpecification_EnableHardwareAcceleratedVideoEncoder as String: false
+        ]
+        let outputSettings: [String: Any] = [
             AVVideoCodecKey: AVVideoCodecType.h264,
             AVVideoWidthKey: width,
             AVVideoHeightKey: height,
-            AVVideoCompressionPropertiesKey: compression
+            AVVideoCompressionPropertiesKey: compression,
+            AVVideoEncoderSpecificationKey: encoderSpecification
+        ]
+        let pixelBufferAttributes: [String: Any] = [
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+            kCVPixelBufferWidthKey as String: width,
+            kCVPixelBufferHeightKey as String: height,
+            kCVPixelBufferIOSurfacePropertiesKey as String: [:],
+            kCVPixelBufferCGImageCompatibilityKey as String: true,
+            kCVPixelBufferCGBitmapContextCompatibilityKey as String: true
         ]
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: outputSettings)
-        let adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input, sourcePixelBufferAttributes: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA, kCVPixelBufferWidthKey as String: width, kCVPixelBufferHeightKey as String: height])
+        let adaptor = AVAssetWriterInputPixelBufferAdaptor(
+            assetWriterInput: input,
+            sourcePixelBufferAttributes: pixelBufferAttributes
+        )
         guard writer.canAdd(input) else { throw NSError(domain: "V221VideoFixture", code: 1) }
         writer.add(input)
         guard writer.startWriting() else { throw writer.error ?? NSError(domain: "V221VideoFixture", code: 2) }
@@ -1348,7 +1370,14 @@ final class V221RendererLifecycleTests: XCTestCase {
             }
             guard input.isReadyForMoreMediaData else { throw writer.error ?? NSError(domain: "V221VideoFixture", code: 3) }
             var buffer: CVPixelBuffer?
-            let result = CVPixelBufferCreate(kCFAllocatorDefault, width, height, kCVPixelFormatType_32BGRA, nil, &buffer)
+            let result = CVPixelBufferCreate(
+                kCFAllocatorDefault,
+                width,
+                height,
+                kCVPixelFormatType_32BGRA,
+                pixelBufferAttributes as CFDictionary,
+                &buffer
+            )
             guard result == kCVReturnSuccess, let buffer, CVPixelBufferLockBaseAddress(buffer, []) == kCVReturnSuccess else { throw NSError(domain: "V221VideoFixture", code: 4) }
             guard let base = CVPixelBufferGetBaseAddress(buffer) else {
                 CVPixelBufferUnlockBaseAddress(buffer, [])
