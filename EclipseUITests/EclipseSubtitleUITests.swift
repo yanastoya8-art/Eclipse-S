@@ -456,12 +456,10 @@ final class EclipseRatingsUITests: XCTestCase {
         let picker = app.segmentedControls["ratings.fixture.season"]
         try reveal(picker)
         let button = picker.buttons["Season \(season)"]
-        XCTAssertTrue(button.exists, app.debugDescription)
+        XCTAssertTrue(button.exists && button.isHittable, app.debugDescription)
         button.tap()
-        let selected = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            button.isSelected
-        }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [selected], timeout: 10), .completed, app.debugDescription)
+        // The visible scope label is the source of truth; SwiftUI segmented
+        // controls do not consistently expose isSelected through XCTest.
         let scope = app.staticTexts["ratings.scope"]
         let scopeChanged = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
             scope.exists && scope.label == "Season \(season)"
