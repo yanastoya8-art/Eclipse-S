@@ -73,8 +73,8 @@ enum MediaLanguageCatalog {
     static func filterLanguage(for value: String) -> Entry? {
         let key = lookupKey(value)
         let unwrapped = key.hasPrefix("language:") ? String(key.dropFirst("language:".count)) : key
-        // Keep typed provider IDs exact for other languages, but collapse
-        // every Spanish region to the single Spanish content-filter family.
+        // Typed provider IDs keep their exact identity. Untyped Spanish
+        // aliases collapse into the single Spanish content-filter family.
         if key.hasPrefix("language:") {
             // Typed IDs are provider-specific identities. Keep regional Spanish
             // variants exact here; only untyped aliases collapse into the
