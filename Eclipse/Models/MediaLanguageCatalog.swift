@@ -27,7 +27,7 @@ enum MediaLanguageCatalog {
         entries.append(contentsOf: [
             entry(id: "en-US", name: "American English", nativeName: "English (United States)", aliases: ["US English", "English US", "eng-US"]),
             entry(id: "en-GB", name: "British English", nativeName: "English (United Kingdom)", aliases: ["UK English", "English UK", "eng-GB"]),
-            entry(id: "es-ES", name: "Spanish (Spain)", nativeName: "Español (España)", aliases: ["Castilian Spanish", "European Spanish", "spa-ES"]),
+            entry(id: "es-ES", name: "Spanish (Spain)", nativeName: "Español (España)", aliases: ["Castilian Spanish", "Castilian", "Castellano", "Spanish (Castilian)", "European Spanish", "spa-ES"]),
             entry(id: "es-419", name: "Latin American Spanish", nativeName: "Español latinoamericano", aliases: ["Latino", "Latin", "lat", "latam", "es-419", "spa-LATAM", "Spanish (Latino)", "Spanish (Latin America)", "Spanish Latino", "Latinoamericano"]),
             entry(id: "pt-BR", name: "Brazilian Portuguese", nativeName: "Português (Brasil)", aliases: ["Portuguese (Brazil)", "Portuguese BR", "por-BR"]),
             entry(id: "pt-PT", name: "European Portuguese", nativeName: "Português (Portugal)", aliases: ["Portuguese (Portugal)", "Portuguese PT", "por-PT"]),
