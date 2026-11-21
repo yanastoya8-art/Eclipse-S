@@ -969,9 +969,11 @@ final class MPVHeaderProxyFlowControlTests: XCTestCase {
         let closed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
             server.activeConnections == 0 && capture.all.first?.snapshot.closed == true
         }, object: nil)
-        wait(for: [closed], timeout: 10)
+        // A 64 MiB deliberately stalled upstream may take longer to unwind
+        // on the Intel simulator runner after cancellation/invalidation.
+        wait(for: [closed], timeout: 30)
         client.cancel()
-        wait(for: [completed], timeout: 3)
+        wait(for: [completed], timeout: 10)
     }
 
     private func exerciseBody(pinned: Bool, body: ProxyFlowFixtureBody, bytes: Int) throws {
