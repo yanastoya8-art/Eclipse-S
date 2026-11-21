@@ -88,19 +88,14 @@ enum MediaLanguageCatalog {
             return language(for: "es-419")
         }
 
-        // Preserve regional Spanish identity. Generic Spanish may include
-        // Castilian/Spain metadata, but it must not silently include the
-        // separate Latino filter ID.
-        if unwrapped == "es-es" || unwrapped.hasPrefix("es-es-") {
-            return language(for: "es-ES")
-        }
-        if unwrapped == "es-419" || unwrapped.hasPrefix("es-419-") {
-            return language(for: "es-419")
-        }
-        if unwrapped.hasPrefix("es-") {
-            return language(for: value)
-        }
-        if ["castellano", "castilian", "spanish", "espanol", "es", "spa"].contains(key) {
+        // Spanish is one selectable filter language in Eclipse. Castilian,
+        // Latin-American, and country-specific Spanish metadata all satisfy
+        // the same Spanish preference; regional IDs remain in provider data.
+        if unwrapped == "es" || unwrapped.hasPrefix("es-")
+            || ["castellano", "castilian", "spanish", "espanol", "español", "spa",
+                "español latino", "espanol latino", "latino", "latam", "latin",
+                "latin american spanish", "spanish (latino)", "spanish (latin america)",
+                "spanish latino", "castilian spanish", "european spanish"].contains(key) {
             return language(for: "es")
         }
         if ["cantonese", "mandarin"].contains(key) { return language(for: "zh") }
@@ -127,9 +122,8 @@ enum MediaLanguageCatalog {
         guard let rule = language(for: ruleID), let language = language(for: languageID) else { return false }
         if rule.id == language.id { return true }
         guard rule.id.count == 2 else { return false }
-        // Latino Spanish remains a distinct selectable track. A generic
-        // Spanish rule can match Castilian metadata, but not es-419.
-        if rule.id == "es", language.id == "es-419" { return false }
+        // Spanish is a single filter family, including es-ES and es-419.
+        if rule.id == "es", language.id.hasPrefix("es-") { return true }
         if language.id.hasPrefix(rule.id + "-") { return true }
         if rule.id == "zh", ["cmn", "yue"].contains(language.id) { return true }
         if rule.id == "no", ["nb", "nn"].contains(language.id) { return true }
