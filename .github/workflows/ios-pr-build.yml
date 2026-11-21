@@ -191,22 +191,22 @@ jobs:
                 raise SystemExit("Could not locate pinned MPVKit download implementation; refusing an unverified patch.")
             text = text.replace(old_download, new_download, 1)
             old_archive_check = '''        // delete invalid downloaded files
-                let attributes = try? FileManager.default.attributesOfItem(atPath: outputFile.path)
-                if let fileSize = attributes?[FileAttributeKey.size] as? UInt64, fileSize <= 0 {
-                    try? FileManager.default.removeItem(atPath: directoryURL.path)
-                }'''
+        let attributes = try? FileManager.default.attributesOfItem(atPath: outputFile.path)
+        if let fileSize = attributes?[FileAttributeKey.size] as? UInt64, fileSize <= 0 {
+            try? FileManager.default.removeItem(atPath: directoryURL.path)
+        }'''
             new_archive_check = '''        // Reject partial/corrupt ZIPs, not merely zero-byte files. A failed
-                // transfer must never be mistaken for a completed dependency.
-                if FileManager.default.fileExists(atPath: outputFile.path) {
-                    let archiveIsValid = (try? Utility.launch(
-                        path: "/usr/bin/unzip",
-                        arguments: ["-t", outputFileName],
-                        currentDirectoryURL: directoryURL
-                    )) != nil
-                    if !archiveIsValid {
-                        try? FileManager.default.removeItem(at: outputFile)
-                    }
-                }'''
+        // transfer must never be mistaken for a completed dependency.
+        if FileManager.default.fileExists(atPath: outputFile.path) {
+            let archiveIsValid = (try? Utility.launch(
+                path: "/usr/bin/unzip",
+                arguments: ["-t", outputFileName],
+                currentDirectoryURL: directoryURL
+            )) != nil
+            if !archiveIsValid {
+                try? FileManager.default.removeItem(at: outputFile)
+            }
+        }'''
             if old_archive_check not in text:
                 raise SystemExit("Could not locate pinned MPVKit ZIP validation block; refusing an unverified patch.")
             text = text.replace(old_archive_check, new_archive_check, 1)
