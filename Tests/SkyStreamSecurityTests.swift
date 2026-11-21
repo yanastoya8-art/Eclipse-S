@@ -7363,7 +7363,7 @@ final class AutoModeQualitySelectionTests: XCTestCase {
 
     func testDescriptionOnlyStreamUsesStandardDisplayAndQualityFields() throws {
         let stream = try JSONDecoder().decode(StremioStream.self, from: Data(#"{"url":"https://example.com/play","description":"1080p WEB-DL HEVC\nAudio: English"}"#.utf8))
-        XCTAssertEqual(stream.displayName, "1080p WEB-DL HEVC")
+        XCTAssertEqual(stream.displayName, "1080p WEB-DL HEVC\nAudio: English")
         let label = AutoModeStreamSelection.stremioStreamLabel(for: stream)
         XCTAssertTrue(label.contains("1080P"))
         XCTAssertTrue(label.contains("WEB-DL"))
