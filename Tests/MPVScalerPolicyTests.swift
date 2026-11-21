@@ -1319,29 +1319,20 @@ final class V221RendererLifecycleTests: XCTestCase {
         defer {
             if writer.status == .writing || writer.status == .unknown { writer.cancelWriting() }
         }
-        // Use an explicit baseline H.264 profile and bounded bitrate. The
-        // simulator's default encoder configuration can fail while archiving
-        // its implicit compression settings (NSKeyedUnarchiver error 4864).
-        // Explicit settings keep the generated MOV fixtures deterministic.
+        // Keep the generated fixture settings within AVAssetWriter's
+        // supported iOS API surface. Encoder-specification keys are not
+        // available to iOS clients; AVAssetWriter selects a supported encoder.
         let compression: [String: Any] = [
             AVVideoAverageBitRateKey: max(200_000, width * height * 4),
             AVVideoMaxKeyFrameIntervalKey: 60,
             AVVideoProfileLevelKey: AVVideoProfileLevelH264BaselineAutoLevel,
             AVVideoAllowFrameReorderingKey: false
         ]
-        // GitHub's Intel simulator runner cannot consistently create the
-        // hardware H.264 encoder. Explicitly request VideoToolbox's software
-        // encoder so AVAssetWriter does not fail while archiving implicit
-        // hardware compression settings (NSCocoaErrorDomain 4864).
-        let encoderSpecification: [String: Any] = [
-            kVTVideoEncoderSpecification_EnableHardwareAcceleratedVideoEncoder as String: false
-        ]
         let outputSettings: [String: Any] = [
             AVVideoCodecKey: AVVideoCodecType.h264,
             AVVideoWidthKey: width,
             AVVideoHeightKey: height,
-            AVVideoCompressionPropertiesKey: compression,
-            AVVideoEncoderSpecificationKey: encoderSpecification
+            AVVideoCompressionPropertiesKey: compression
         ]
         let pixelBufferAttributes: [String: Any] = [
             kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
