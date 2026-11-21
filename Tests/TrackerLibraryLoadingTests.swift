@@ -1565,6 +1565,6 @@ final class TrackerLibraryCanonicalPlaybackTests: XCTestCase {
             backdropPath: "/feature.jpg", releaseDate: releaseDate, voteAverage: 7, popularity: 1,
             runtime: runtime, genres: [.init(id: 16, name: "Animation")], tagline: nil, status: "Released",
             budget: nil, revenue: nil, imdbId: imdb, originalLanguage: "ja", originalTitle: originalTitle,
-            adult: false, voteCount: 10, releaseDates: nil)
+            adult: false, voteCount: 10, releaseDates: nil, productionCompanies: [])
     }
 }
