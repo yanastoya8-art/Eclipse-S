@@ -1503,6 +1503,14 @@ private struct RatingsSettingsView: View {
         storeUnreadable = ratingManager.hasUnreadableStore
         let originalEntries = ratingManager.allEntries()
         let context = matchingContext(profileID: capturedAuthority.profileID)
+        // Reader collections are still a source of identity evidence even
+        // though the retired Reader interface is no longer exposed here.
+        // Never auto-attach an ambiguous legacy rating to TMDB when a
+        // positive AniList/MAL ID already belongs to a saved Reader item.
+        let readerCollections = MangaLibraryManager.shared.collectionsSnapshot(forProfile: capturedAuthority.profileID)
+        let excludedReaderIDs = Set((readerCollections ?? []).flatMap(\.items).flatMap { item in
+            [item.aniListId, item.trackerAniListId ?? 0, item.trackerMALId ?? 0]
+        }.filter { $0 > 0 })
         matchingContextReadable = context.readable
         var results: [Int: [TMDBSearchResult]] = [:]
         for result in context.metadata {
@@ -1511,11 +1519,11 @@ private struct RatingsSettingsView: View {
             results[result.id, default: []].append(result)
         }
         libraryResults = results
-        if context.readable, !profileManager.isKidsModeActive, capturedAuthority.isCurrent {
+        if context.readable, readerCollections != nil, !profileManager.isKidsModeActive, capturedAuthority.isCurrent {
             let matches = UserRatingManager.automaticLegacyAttachments(
                 entries: originalEntries,
                 knownMediaTypes: results.mapValues { Set($0.map(\.isMovie)) },
-                excludedReaderIDs: []
+                excludedReaderIDs: excludedReaderIDs
             )
             automaticallyMatchedCount += ratingManager.attachLegacyEntries(matches, expectedProfileID: capturedAuthority.profileID)
         }
