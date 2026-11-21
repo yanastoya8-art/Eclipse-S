@@ -458,12 +458,21 @@ final class EclipseRatingsUITests: XCTestCase {
         let button = picker.buttons["Season \(season)"]
         XCTAssertTrue(button.exists, app.debugDescription)
         button.tap()
-        XCTAssertTrue(button.isSelected, app.debugDescription)
+        let selected = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            button.isSelected
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [selected], timeout: 10), .completed, app.debugDescription)
+        let scope = app.staticTexts["ratings.scope"]
+        let scopeChanged = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            scope.exists && scope.label == "Season \(season)"
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [scopeChanged], timeout: 10), .completed, app.debugDescription)
     }
 
     private func assertReview(rating: String, note: String, scope: String) throws {
         let value = app.staticTexts["ratings.value"]
-        try reveal(value)
+        // Static text is read-only: it only needs to be visible, not hittable.
+        try reveal(value, requiresHittable: false)
         let scopeLabel = app.staticTexts["ratings.scope"]
         let notes = app.textViews["ratings.notes"]
         let matches = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
@@ -521,15 +530,20 @@ final class EclipseRatingsUITests: XCTestCase {
 
     private func revealEntry(_ key: String) throws -> XCUIElement {
         let row = app.descendants(matching: .any).matching(identifier: "settings.ratings.entry.\(key)").firstMatch
-        try reveal(row)
+        try reveal(row, requiresHittable: false)
         XCTAssertTrue(row.exists, app.debugDescription)
         return row
     }
 
-    private func reveal(_ element: XCUIElement, towardTop: Bool = false) throws {
+    private func reveal(_ element: XCUIElement, towardTop: Bool = false, requiresHittable: Bool = true) throws {
         for _ in 0..<12 {
-            if element.exists && element.isHittable { return }
             let viewport = app.windows.firstMatch.frame
+            if element.exists {
+                if requiresHittable && element.isHittable { return }
+                let visibleFrame = element.frame
+                if !requiresHittable, visibleFrame.width > 0, visibleFrame.height > 0,
+                   viewport.intersects(visibleFrame) { return }
+            }
             let frame = element.exists ? element.frame : .zero
             let moveDown = frame.height > 0 ? frame.midY < viewport.midY : towardTop
             let upper = app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.28))
