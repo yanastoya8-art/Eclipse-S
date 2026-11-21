@@ -19,7 +19,10 @@ final class EclipseFeatureUITests: XCTestCase {
             "-experimentalICloudSyncEnabled", "NO",
             "-experimentalGoogleDriveSyncEnabled", "NO",
             "-experimentalOneDriveSyncEnabled", "NO",
-            "-eclipseSyncSettingsAcrossDevicesV1", "NO"
+            "-eclipseSyncSettingsAcrossDevicesV1", "NO",
+            "-eclipseProfileAsksOnLaunchV1", "NO",
+            "-eclipseOnboardingCompletedV1", "YES",
+            "-eclipseAppHubNoticeSeenV1", "YES"
         ]
     }
 
