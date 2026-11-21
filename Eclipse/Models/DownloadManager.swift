@@ -2610,7 +2610,10 @@ final class DownloadManager: NSObject, ObservableObject {
     }
 
     func applicationDidBecomeActive() {
-        resumeHLSDownloadsInterruptedByBackgroundExpiration()
+        // Do not automatically restart a transfer that iOS explicitly expired.
+        // Its verified checkpoint remains available and the user can resume it
+        // deliberately. Orphaned workers without an expiration decision may
+        // still be recovered below.
         resumeOrphanedHLSDownloads()
         processQueue()
 #if os(iOS) && !targetEnvironment(macCatalyst)
