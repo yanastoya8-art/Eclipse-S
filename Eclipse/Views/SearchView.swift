@@ -1424,6 +1424,7 @@ private struct BrowseMediaView: View {
     @State private var activeBrowseLoadPage: Int?
     @State private var activeBrowseLoadReplacesResults = false
     @State private var interruptedBrowseLoad: (page: Int, replacing: Bool)?
+    @State private var failedBrowseLoad: (page: Int, replacing: Bool)?
     @State private var browseQueryGeneration = UUID()
 
     @State private var filterOwner: UUID
@@ -1622,7 +1623,7 @@ private struct BrowseMediaView: View {
 
                 if isLoading && results.isEmpty {
                     loadingState
-                } else if let errorMessage {
+                } else if let errorMessage, results.isEmpty {
                     errorState(errorMessage)
                 } else if results.isEmpty {
                     emptyState
@@ -1988,7 +1989,7 @@ private struct BrowseMediaView: View {
                 .multilineTextAlignment(.center)
 
             Button("Try Again") {
-                reloadResults()
+                retryBrowseLoad()
             }
             .padding(.top, 4)
         }
@@ -2008,7 +2009,7 @@ private struct BrowseMediaView: View {
                 .font(.title3.weight(.semibold))
                 .foregroundColor(.secondary)
 
-            if hasMorePages && currentPage < 8 {
+            if hasMorePages {
                 Text("Your filters may have excluded the first few pages.")
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -2033,7 +2034,8 @@ private struct BrowseMediaView: View {
                 ForEach(results, id: \.stableIdentity) { result in
                     SearchResultCard(result: result)
                         .onAppear {
-                            if result.stableIdentity == results.last?.stableIdentity {
+                            if result.stableIdentity == results.last?.stableIdentity,
+                           currentPage < Self.maximumAutomaticFilteredPages {
                                 loadNextPage()
                             }
                         }
@@ -2046,11 +2048,39 @@ private struct BrowseMediaView: View {
             // away and back. The page-based identity re-arms the sentinel after
             // each successful append. Keep the automatic scan bounded; the
             // final card remains a manual fallback for later pages.
-            if hasMorePages && currentPage < 8 {
+            if hasMorePages && currentPage < Self.maximumAutomaticFilteredPages {
                 Color.clear
                     .frame(height: 1)
                     .id("browse-search-pagination-\(currentPage)-\(results.count)")
                     .onAppear { loadNextPage() }
+            }
+
+            if hasMorePages && currentPage >= Self.maximumAutomaticFilteredPages {
+                Button {
+                    loadNextPage()
+                } label: {
+                    Label("Load More", systemImage: "arrow.down.circle")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .disabled(isLoading)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 12)
+            }
+
+            if let errorMessage {
+                HStack(spacing: 10) {
+                    Text(errorMessage)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                    Spacer(minLength: 8)
+                    Button("Retry") { retryBrowseLoad() }
+                        .font(.caption.weight(.semibold))
+                        .disabled(isLoading || !hasMorePages)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 12)
             }
 
             if isLoading {
@@ -2152,6 +2182,7 @@ private struct BrowseMediaView: View {
 
     private func reloadResults() {
         interruptedBrowseLoad = nil
+        failedBrowseLoad = nil
         requestSerial += 1
         browseQueryGeneration = UUID()
         filterRefreshGeneration += 1
@@ -2245,6 +2276,15 @@ private struct BrowseMediaView: View {
         loadPage(currentPage + 1, replacing: false)
     }
 
+    private func retryBrowseLoad() {
+        guard !isLoading else { return }
+        if let failedBrowseLoad {
+            loadPage(failedBrowseLoad.page, replacing: failedBrowseLoad.replacing)
+        } else {
+            reloadResults()
+        }
+    }
+
     private func loadPage(_ page: Int, replacing: Bool) {
         requestSerial += 1
         let serial = requestSerial
@@ -2264,6 +2304,7 @@ private struct BrowseMediaView: View {
         let existingRawResults = replacing ? [] : unfilteredResults
         activeBrowseLoadPage = page
         activeBrowseLoadReplacesResults = replacing
+        failedBrowseLoad = nil
         if replacing { browseQueryGeneration = UUID() }
         let queryGeneration = browseQueryGeneration
         filterRefreshGeneration += 1
@@ -2332,6 +2373,7 @@ private struct BrowseMediaView: View {
                     guard serial == requestSerial else { return }
                     loadTask = nil
                     activeBrowseLoadPage = nil
+                    failedBrowseLoad = nil
 
                     // Retain type/age-filtered rows with their resolved
                     // anime identities. Filter refreshes can now reuse the
@@ -2399,6 +2441,7 @@ private struct BrowseMediaView: View {
                     isLoading = false
                     guard !(error is CancellationError),
                           (error as? URLError)?.code != .cancelled else { return }
+                    failedBrowseLoad = (page: page, replacing: replacing)
                     errorMessage = error.localizedDescription
                 }
             }

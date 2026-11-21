@@ -2107,19 +2107,22 @@ class TMDBService: ObservableObject {
     func getBestLogo(from images: TMDBImagesResponse, preferredLanguage: String? = nil) -> TMDBImage? {
         guard let logos = images.logos, !logos.isEmpty else { return nil }
 
-        // Transparent title artwork should remain readable in the app's
-        // English-first presentation even when the catalogue/UI locale differs.
-        // Prefer English, then language-neutral artwork, then the requested
-        // locale, and only then other language-specific variants.
-        let langCode = (preferredLanguage ?? currentLanguage).components(separatedBy: "-").first?.lowercased() ?? "en"
-        func languageRank(_ logo: TMDBImage) -> Int {
-            let language = logo.iso6391?.lowercased()
-            if language == "en" { return 0 }
-            if language == nil || language?.isEmpty == true { return 1 }
-            if language == langCode { return 2 }
-            return 3
+        // Only use logos that match the app's supported title languages.
+        // Never silently select a Japanese or other unrelated-language logo.
+        let eligible = logos.filter { logo in
+            guard let language = logo.iso6391?.lowercased(), !language.isEmpty else { return true }
+            return language == "en" || language == "es"
         }
-        return logos.sorted { lhs, rhs in
+        guard !eligible.isEmpty else { return nil }
+
+        func languageRank(_ logo: TMDBImage) -> Int {
+            switch logo.iso6391?.lowercased() {
+            case "en": return 0
+            case "es": return 1
+            default: return 2
+            }
+        }
+        return eligible.sorted { lhs, rhs in
             let lhsRank = languageRank(lhs)
             let rhsRank = languageRank(rhs)
             if lhsRank != rhsRank { return lhsRank < rhsRank }
@@ -3242,6 +3245,29 @@ enum RatingTitleLookupPolicy {
 actor FanartTVLogoService {
     static let shared = FanartTVLogoService()
 
+    struct LookupResult {
+        let url: String?
+        let succeeded: Bool
+    }
+
+    /// Exposes whether a missing logo was a completed lookup or a transient
+    /// network failure, so callers do not permanently cache failed requests.
+    func lookup(imdbID: String?, tvdbID: Int?) async -> LookupResult {
+        let hasValidIMDbID = imdbID?.range(
+            of: #"^tt[0-9]{7,12}$"#,
+            options: .regularExpression
+        ) != nil
+        let hasValidTVDBID = tvdbID.map { $0 > 0 } ?? false
+        let url = await logoURL(imdbID: imdbID, tvdbID: tvdbID)
+        let movieSucceeded = !hasValidIMDbID || attempted.contains(imdbID ?? "")
+        let tvSucceeded = !hasValidTVDBID || attempted.contains("tvdb:\(tvdbID ?? 0)")
+        let hasNoLookupIDs = !hasValidIMDbID && !hasValidTVDBID
+        return LookupResult(
+            url: url,
+            succeeded: url != nil || hasNoLookupIDs || (movieSucceeded && tvSucceeded)
+        )
+    }
+
     private struct Logo: Decodable {
         let url: String
         let lang: String?
@@ -3279,16 +3305,26 @@ actor FanartTVLogoService {
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let http = response as? HTTPURLResponse,
-                  http.statusCode == 200,
-                  http.url?.host?.lowercased() == "webservice.fanart.tv",
+                  http.url?.host?.lowercased() == "webservice.fanart.tv" else { return nil }
+            if http.statusCode == 404 {
+                attempted.insert(cacheKey)
+                return nil
+            }
+            guard http.statusCode == 200,
                   data.count <= 2 * 1_024 * 1_024 else { return nil }
             let payload = try JSONDecoder().decode(TVResponse.self, from: data)
             let logos = (payload.hdtvlogo ?? []) + (payload.clearlogo ?? [])
-            let best = logos.sorted { lhs, rhs in
+            let eligibleLogos = logos.filter { logo in
+                guard let language = logo.lang?.lowercased(), !language.isEmpty, language != "00" else {
+                    return true
+                }
+                return language == "en" || language == "es"
+            }
+            let best = eligibleLogos.sorted { lhs, rhs in
                 func rank(_ language: String?) -> Int {
                     switch language?.lowercased() {
                     case "en": return 0
-                    case nil, "", "00": return 1
+                    case "es": return 1
                     default: return 2
                     }
                 }
@@ -3321,17 +3357,27 @@ actor FanartTVLogoService {
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let http = response as? HTTPURLResponse,
-                  http.statusCode == 200,
                   let host = http.url?.host?.lowercased(),
-                  host == "webservice.fanart.tv",
+                  host == "webservice.fanart.tv" else { return nil }
+            if http.statusCode == 404 {
+                attempted.insert(imdbID)
+                return nil
+            }
+            guard http.statusCode == 200,
                   data.count <= 2 * 1_024 * 1_024 else { return nil }
             let payload = try JSONDecoder().decode(MovieResponse.self, from: data)
             let logos = (payload.hdmovielogo ?? []) + (payload.movielogo ?? [])
-            let best = logos.sorted { lhs, rhs in
+            let eligibleLogos = logos.filter { logo in
+                guard let language = logo.lang?.lowercased(), !language.isEmpty, language != "00" else {
+                    return true
+                }
+                return language == "en" || language == "es"
+            }
+            let best = eligibleLogos.sorted { lhs, rhs in
                 func rank(_ language: String?) -> Int {
                     switch language?.lowercased() {
                     case "en": return 0
-                    case nil, "", "00": return 1
+                    case "es": return 1
                     default: return 2
                     }
                 }

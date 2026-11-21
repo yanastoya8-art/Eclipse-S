@@ -8,6 +8,17 @@
 import Combine
 import Foundation
 
+enum CatalogRuntimeFilterPolicy {
+    static func shortestReportedRuntime(_ values: [Int]?) -> Int? {
+        values?.filter { $0 > 0 }.min()
+    }
+
+    static func shouldInclude(runtimeMinutes: Int?, minimumMinutes: Int = 20) -> Bool {
+        guard let runtimeMinutes, runtimeMinutes > 0 else { return false }
+        return runtimeMinutes >= minimumMinutes
+    }
+}
+
 enum CatalogNativeAudioPolicy {
     /// Only skip a dub lookup when the title's native language already
     /// satisfies the user's selected audio languages. An English or Spanish
@@ -528,6 +539,10 @@ class TMDBContentFilter: ObservableObject {
     private var runtimeMinutesByKey: [String: Int] = [:]
     private var runtimeCheckedKeys = Set<String>()
     private var runtimeLoadingKeys = Set<String>()
+    private var productionCompaniesByKey: [String: [String]] = [:]
+    private var productionMetadataCheckedKeys = Set<String>()
+    private var productionMetadataLoadingKeys = Set<String>()
+    private var productionMetadataRetryAfterByKey: [String: Date] = [:]
 
     private var cancellables = Set<AnyCancellable>()
 
@@ -1157,6 +1172,9 @@ class TMDBContentFilter: ObservableObject {
         if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
             Task(priority: .utility) { await self.resolveRuntimeMetadata(for: results) }
         }
+        if UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent") {
+            Task(priority: .utility) { await self.resolveProductionMetadata(for: results) }
+        }
         scheduleAnimeAudioMetadataResolutionIfNeeded(for: results)
         scheduleCatalogAudioAvailabilityResolutionIfNeeded(for: results)
         return results.filter { result in
@@ -1166,6 +1184,12 @@ class TMDBContentFilter: ObservableObject {
 
     func filterFastAnimeSearchResults(_ results: [TMDBSearchResult]) -> [TMDBSearchResult] {
         let animeResults = results.map { $0.withAnimeHint(true) }
+        if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
+            Task(priority: .utility) { await self.resolveRuntimeMetadata(for: animeResults) }
+        }
+        if UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent") {
+            Task(priority: .utility) { await self.resolveProductionMetadata(for: animeResults) }
+        }
         scheduleAnimeAudioMetadataResolutionIfNeeded(for: animeResults)
         return animeResults.filter { result in
             shouldIncludeCatalogResult(result) && shouldIncludeFastAnimeResult(result)
@@ -1197,12 +1221,18 @@ class TMDBContentFilter: ObservableObject {
     func filterMovies(_ movies: [TMDBMovie]) -> [TMDBMovie] {
         let searchResults = movies.map(\.asSearchResult)
         Task(priority: .utility) { await self.prepareMaturityRatings(for: searchResults) }
+        if UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent") {
+            Task(priority: .utility) { await self.resolveProductionMetadata(for: searchResults) }
+        }
         if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
             scheduleAnimeAudioMetadataResolutionIfNeeded(for: movies.map(\.asSearchResult))
         }
         return movies.filter { movie in
-            guard !UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent")
-                || !Self.isUnofficialCreatorContent(title: movie.title, overview: movie.overview) else { return false }
+            guard shouldIncludeUnofficialProduction(
+                title: movie.title,
+                overview: movie.overview,
+                result: movie.asSearchResult
+            ) else { return false }
             guard movie.adult != true else { return false }
             guard shouldIncludeCatalogTitle(movie.title) else { return false }
             let movieResult = movie.asSearchResult
@@ -1210,8 +1240,11 @@ class TMDBContentFilter: ObservableObject {
             guard !shouldExcludeAnimeSpecialOrOVA(movieResult) else { return false }
             if UserDefaults.standard.bool(forKey: "catalogHideAnime"), movieAnime { return false }
             if movieAnime, !shouldIncludeAnimeCategoryFilters(movie.asSearchResult) { return false }
-            if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent"),
-               let runtime = cachedRuntimeMinutes(for: "movie-\(movie.id)"), runtime < 20 { return false }
+            if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
+                guard CatalogRuntimeFilterPolicy.shouldInclude(
+                    runtimeMinutes: cachedRuntimeMinutes(for: "movie-\(movie.id)")
+                ) else { return false }
+            }
             guard !Self.shouldHideForReleaseDate(
                 rawDate: movie.releaseDate,
                 isAnime: false,
@@ -1246,12 +1279,18 @@ class TMDBContentFilter: ObservableObject {
     func filterTVShows(_ tvShows: [TMDBTVShow]) -> [TMDBTVShow] {
         let searchResults = tvShows.map(\.asSearchResult)
         Task(priority: .utility) { await self.prepareMaturityRatings(for: searchResults) }
+        if UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent") {
+            Task(priority: .utility) { await self.resolveProductionMetadata(for: searchResults) }
+        }
         if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
             scheduleAnimeAudioMetadataResolutionIfNeeded(for: tvShows.map(\.asSearchResult))
         }
         return tvShows.filter { tvShow in
-            guard !UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent")
-                || !Self.isUnofficialCreatorContent(title: tvShow.name, overview: tvShow.overview) else { return false }
+            guard shouldIncludeUnofficialProduction(
+                title: tvShow.name,
+                overview: tvShow.overview,
+                result: tvShow.asSearchResult
+            ) else { return false }
             guard tvShow.adult != true else { return false }
             guard shouldIncludeCatalogTitle(tvShow.name) else { return false }
             let tvResult = tvShow.asSearchResult
@@ -1263,8 +1302,11 @@ class TMDBContentFilter: ObservableObject {
                     || tvShow.originCountry?.contains(where: { animeCountries.contains($0) }) == true)
             if UserDefaults.standard.bool(forKey: "catalogHideAnime"), isAnime { return false }
             if isAnime, !shouldIncludeAnimeCategoryFilters(tvShow.asSearchResult) { return false }
-            if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent"),
-               let runtime = cachedRuntimeMinutes(for: "tv-\(tvShow.id)"), runtime < 20 { return false }
+            if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
+                guard CatalogRuntimeFilterPolicy.shouldInclude(
+                    runtimeMinutes: cachedRuntimeMinutes(for: "tv-\(tvShow.id)")
+                ) else { return false }
+            }
             guard !Self.shouldHideForReleaseDate(
                 rawDate: tvShow.firstAirDate,
                 isAnime: isAnime,
@@ -1312,10 +1354,11 @@ class TMDBContentFilter: ObservableObject {
         allowUpcomingContent: Bool = false
     ) -> Bool {
         guard !shouldExcludeAnimeSpecialOrOVA(result) else { return false }
-        guard !UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent")
-            || !Self.isUnofficialCreatorContent(title: result.displayTitle, overview: result.overview) else {
-            return false
-        }
+        guard shouldIncludeUnofficialProduction(
+            title: result.displayTitle,
+            overview: result.overview,
+            result: result
+        ) else { return false }
         guard MyDubListDubFilter.shared.shouldInclude(result) else { return false }
         guard result.adult != true else { return false }
         if Self.isAnimeResult(result), !shouldIncludeAnimeCategoryFilters(result) { return false }
@@ -1644,9 +1687,115 @@ class TMDBContentFilter: ObservableObject {
         return rating != .unknown && rating >= minimum
     }
 
-    private func runtimeCacheKey(for result: TMDBSearchResult) -> String {
+    private static func runtimeCacheKey(for result: TMDBSearchResult) -> String {
         "\(result.isMovie ? "movie" : "tv")-\(result.id)"
     }
+    private func shouldIncludeUnofficialProduction(
+        title: String,
+        overview: String?,
+        result: TMDBSearchResult
+    ) -> Bool {
+        guard UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent") else { return true }
+        if Self.isUnofficialCreatorContent(title: title, overview: overview) { return false }
+
+        let key = Self.runtimeCacheKey(for: result)
+        runtimeMetadataLock.lock()
+        let isChecked = productionMetadataCheckedKeys.contains(key)
+        let companyNames = productionCompaniesByKey[key] ?? []
+        runtimeMetadataLock.unlock()
+
+        // Wait for TMDB production-company metadata instead of allowing
+        // unknown entries to bypass an enabled app-wide exclusion.
+        guard isChecked else { return false }
+        return !Self.isUnofficialCreatorContent(
+            title: title,
+            overview: overview,
+            productionCompanies: companyNames
+        )
+    }
+
+    private func resolveProductionMetadata(for results: [TMDBSearchResult]) async {
+        let candidates = results.filter { $0.id > 0 && ($0.isMovie || $0.isTVShow) }
+        var pending: [TMDBSearchResult] = []
+        runtimeMetadataLock.lock()
+        for result in candidates {
+            let key = Self.runtimeCacheKey(for: result)
+            if productionMetadataCheckedKeys.contains(key) || productionMetadataLoadingKeys.contains(key) {
+                continue
+            }
+            if let retryAfter = productionMetadataRetryAfterByKey[key], retryAfter > Date() {
+                continue
+            }
+            productionMetadataLoadingKeys.insert(key)
+            pending.append(result)
+        }
+        runtimeMetadataLock.unlock()
+        guard !pending.isEmpty else { return }
+
+        await withTaskGroup(of: (String, [String]?, Bool).self) { group in
+            var iterator = pending.makeIterator()
+            for _ in 0..<min(6, pending.count) {
+                guard let result = iterator.next() else { continue }
+                group.addTask {
+                    let key = Self.runtimeCacheKey(for: result)
+                    do {
+                        let names: [String]
+                        if result.isMovie {
+                            let detail = try await TMDBService.shared.getMovieDetails(id: result.id)
+                            names = detail.productionCompanies?.map(\.name) ?? []
+                        } else {
+                            let detail = try await TMDBService.shared.getTVShowDetails(id: result.id)
+                            names = detail.productionCompanies?.map(\.name) ?? []
+                        }
+                        return (key, names, true)
+                    } catch {
+                        return (key, nil, false)
+                    }
+                }
+            }
+
+            var didResolveAny = false
+            while let (key, names, succeeded) = await group.next() {
+                runtimeMetadataLock.lock()
+                productionMetadataLoadingKeys.remove(key)
+                if succeeded, let names {
+                    productionCompaniesByKey[key] = names
+                    productionMetadataCheckedKeys.insert(key)
+                    productionMetadataRetryAfterByKey.removeValue(forKey: key)
+                    didResolveAny = true
+                } else {
+                    productionMetadataRetryAfterByKey[key] = Date().addingTimeInterval(5 * 60)
+                }
+                runtimeMetadataLock.unlock()
+
+                if let result = iterator.next() {
+                    group.addTask {
+                        let nextKey = Self.runtimeCacheKey(for: result)
+                        do {
+                            let names: [String]
+                            if result.isMovie {
+                                let detail = try await TMDBService.shared.getMovieDetails(id: result.id)
+                                names = detail.productionCompanies?.map(\.name) ?? []
+                            } else {
+                                let detail = try await TMDBService.shared.getTVShowDetails(id: result.id)
+                                names = detail.productionCompanies?.map(\.name) ?? []
+                            }
+                            return (nextKey, names, true)
+                        } catch {
+                            return (nextKey, nil, false)
+                        }
+                    }
+                }
+            }
+            if didResolveAny {
+                NotificationCenter.default.post(
+                    name: TMDBContentFilter.catalogFiltersDidChangeNotification,
+                    object: nil
+                )
+            }
+        }
+    }
+
 
     private func cachedRuntimeMinutes(for key: String) -> Int? {
         runtimeMetadataLock.lock()
@@ -1659,7 +1808,7 @@ class TMDBContentFilter: ObservableObject {
         var pending: [(result: TMDBSearchResult, key: String)] = []
         runtimeMetadataLock.lock()
         for result in candidates {
-            let key = runtimeCacheKey(for: result)
+            let key = Self.runtimeCacheKey(for: result)
             if runtimeCheckedKeys.contains(key) || runtimeLoadingKeys.contains(key) { continue }
             runtimeLoadingKeys.insert(key)
             pending.append((result, key))
@@ -1718,13 +1867,9 @@ class TMDBContentFilter: ObservableObject {
         }
         do {
             let detail = try await TMDBService.shared.getTVShowDetails(id: result.id)
-            let values = (detail.episodeRunTime ?? []).filter { $0 > 0 }.sorted()
-            guard !values.isEmpty else { return (key, nil, true) }
-            let middle = values.count / 2
-            let median = values.count.isMultiple(of: 2)
-                ? (values[middle - 1] + values[middle]) / 2
-                : values[middle]
-            return (key, median, true)
+            let shortestReportedEpisode = CatalogRuntimeFilterPolicy.shortestReportedRuntime(detail.episodeRunTime)
+            guard let shortestReportedEpisode else { return (key, nil, true) }
+            return (key, shortestReportedEpisode, true)
         } catch {
             return (key, nil, false)
         }
@@ -1745,10 +1890,15 @@ class TMDBContentFilter: ObservableObject {
         let defaults = UserDefaults.standard
         let isAnime = Self.isAnimeResult(result)
         if defaults.bool(forKey: "catalogHideAnime"), isAnime { return false }
-        if defaults.bool(forKey: "catalogHideUnder20MinuteContent"),
-           let runtime = cachedRuntimeMinutes(for: runtimeCacheKey(for: result)),
-           runtime < 20 {
-            return false
+        if defaults.bool(forKey: "catalogHideUnder20MinuteContent") {
+            // Do not show an item while its runtime is unknown. The async
+            // metadata resolver will publish a filter-change notification
+            // when the runtime is available, and the catalog will re-evaluate.
+            guard CatalogRuntimeFilterPolicy.shouldInclude(
+                    runtimeMinutes: cachedRuntimeMinutes(for: Self.runtimeCacheKey(for: result))
+                  ) else {
+                return false
+            }
         }
 
         if isAnime {
@@ -1810,12 +1960,13 @@ class TMDBContentFilter: ObservableObject {
     static func shouldExcludeAnimeCategory(
         title: String,
         overview: String? = nil,
+        tags: [String] = [],
         defaults: UserDefaults = .standard
     ) -> Bool {
         guard defaults.bool(forKey: "catalogHideHentai")
                 || defaults.bool(forKey: "catalogHideYuri")
                 || defaults.bool(forKey: "catalogHideYaoi") else { return false }
-        let metadata = [title, overview ?? ""].joined(separator: " ")
+        let metadata = ([title, overview ?? ""] + tags).joined(separator: " ")
         if defaults.bool(forKey: "catalogHideHentai"),
            containsBlockedCatalogText(metadata, blockedTerms: [
                 "hentai", "ova hentai", "adult anime", "adult animation",
@@ -1885,8 +2036,12 @@ class TMDBContentFilter: ObservableObject {
             && calendar.startOfDay(for: releaseDate) > calendar.startOfDay(for: Date())
     }
 
-    static func isUnofficialCreatorContent(title: String, overview: String?) -> Bool {
-        let text = normalizedCatalogText([title, overview ?? ""].joined(separator: " "))
+    static func isUnofficialCreatorContent(
+        title: String,
+        overview: String?,
+        productionCompanies: [String] = []
+    ) -> Bool {
+        let text = normalizedCatalogText(([title, overview ?? ""] + productionCompanies).joined(separator: " "))
         let indicators = [
             "fan made", "fanmade", "fan film", "fan films", "fan fiction", "fanfiction",
             "fan work", "fan works", "fan production", "fan productions", "fan project", "fan projects",
@@ -1895,7 +2050,15 @@ class TMDBContentFilter: ObservableObject {
             "unofficial series", "unofficial film", "unofficial movie", "youtube original",
             "youtube series", "youtuber", "youtubers", "made for youtube", "creator made",
             "creator made series", "independent web series", "independent web animation",
-            "independent animation", "independent anime"
+            "independent animation", "independent anime", "youtube channel", "youtube studio",
+            "youtube studios", "content creator", "creator studio", "creator studios",
+            "fan studio", "fan studios", "fanmade studio", "fanmade studios",
+            "unofficial studio", "unofficial studios", "youtube originals",
+            "youtuber studio", "youtuber studios", "youtuber production",
+            "web creator", "video creator", "creator production",
+            "dhar mann", "mrbeast", "smosh", "the try guys", "watcher entertainment",
+            "rooster teeth", "jubilee media", "dude perfect", "the soul publishing",
+            "alan chikin chow", "studio71", "jellysmack", "mythical entertainment"
         ]
         return indicators.contains { indicator in
             text.range(of: " " + normalizedCatalogText(indicator) + " ") != nil

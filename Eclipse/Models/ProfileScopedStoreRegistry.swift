@@ -38,22 +38,6 @@ final class ServiceStoreScopeReclaimer: ProfileScopedStore {
 extension ServiceStoreScopeReclaimer {}
 
 #if !os(tvOS)
-
-final class ReaderUpscaleModelReclaimer: ProfileScopedStore {
-    static let shared = ReaderUpscaleModelReclaimer()
-    private init() {}
-
-    func switchProfile(to profileID: UUID) {
-
-    }
-
-    func discardStore(forProfile profileID: UUID) {
-        KanzenReaderUpscaleModelStore.discardModel(forProfile: profileID)
-    }
-}
-#endif
-
-#if !os(tvOS)
 extension MangaLibraryManager: ProfileScopedStore {}
 extension MangaReadingProgressManager: ProfileScopedStore {}
 extension MangaCatalogManager: ProfileScopedStore {}
@@ -78,9 +62,7 @@ enum ProfileScopedStoreRegistry {
             MangaLibraryManager.shared,
             MangaReadingProgressManager.shared,
             MangaCatalogManager.shared,
-            KanzenCustomCatalogManager.shared,
-            ReaderLocalEPUBLibrary.shared,
-            ReaderUpscaleModelReclaimer.shared
+            KanzenCustomCatalogManager.shared
         ] as [ProfileScopedStore])
         #endif
         return stores

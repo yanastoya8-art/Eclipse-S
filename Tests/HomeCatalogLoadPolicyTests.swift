@@ -3,6 +3,135 @@ import XCTest
 @testable import Eclipse
 
 final class HomeCatalogLoadPolicyTests: XCTestCase {
+    func testJustForYouCatalogRequestsItsHiddenTrendingSeed() {
+        XCTAssertTrue(HomeCatalogLoadPolicy.requiresTrendingSeed(enabledCatalogIDs: ["forYou"]))
+        XCTAssertTrue(HomeCatalogLoadPolicy.requiresTrendingSeed(enabledCatalogIDs: ["trending", "forYou"]))
+    }
+
+    func testHiddenTrendingSeedDoesNotCountAsAVisibleForYouShelf() {
+        let trending = TMDBSearchResult(
+            id: 550,
+            mediaType: "movie",
+            title: "Fight Club",
+            name: nil,
+            overview: nil,
+            posterPath: nil,
+            backdropPath: nil,
+            releaseDate: "1999-10-15",
+            firstAirDate: nil,
+            voteAverage: 8.4,
+            popularity: 100,
+            adult: false,
+            genreIds: [18]
+        )
+        let catalogs = ["trending": [trending]]
+
+        XCTAssertEqual(
+            HomeCatalogLoadPolicy.visibleCatalogCount(catalogs, enabledCatalogIDs: ["forYou"]),
+            0
+        )
+        XCTAssertEqual(
+            HomeCatalogLoadPolicy.visibleCatalogCount(catalogs, enabledCatalogIDs: ["trending"]),
+            1
+        )
+    }
+
+    func testDynamicWidgetResultsCountOnlyWhenTheirParentCatalogIsEnabled() {
+        let sample = TMDBSearchResult(
+            id: 550,
+            mediaType: "movie",
+            title: "Fight Club",
+            name: nil,
+            overview: nil,
+            posterPath: nil,
+            backdropPath: nil,
+            releaseDate: "1999-10-15",
+            firstAirDate: nil,
+            voteAverage: 8.4,
+            popularity: 100,
+            adult: false,
+            genreIds: [18]
+        )
+        let widgets = [
+            "network_213": [sample],
+            "genre_18": [sample],
+            "company_420": [sample],
+            "featured": [sample]
+        ]
+
+        XCTAssertEqual(
+            HomeCatalogLoadPolicy.visibleWidgetCatalogCount(
+                widgets,
+                enabledCatalogIDs: ["networks", "featured"]
+            ),
+            2
+        )
+    }
+
+    func testTrendingSeedIsNotRequestedWhenNeitherTrendingNorRecommendationsAreEnabled() {
+        XCTAssertFalse(HomeCatalogLoadPolicy.requiresTrendingSeed(enabledCatalogIDs: ["popularMovies", "featured"]))
+    }
+
+    func testJustForYouFallsBackToTrendingForProfilesWithoutTasteHistory() {
+        let trending = TMDBSearchResult(
+            id: 550,
+            mediaType: "movie",
+            title: "Fight Club",
+            name: nil,
+            overview: nil,
+            posterPath: nil,
+            backdropPath: nil,
+            releaseDate: "1999-10-15",
+            firstAirDate: nil,
+            voteAverage: 8.4,
+            popularity: 100,
+            adult: false,
+            genreIds: [18]
+        )
+
+        let results = HomeCatalogLoadPolicy.forYouResults(recommendations: [], trending: [trending])
+        XCTAssertEqual(results.map(\.id), [550])
+    }
+
+    func testPersonalizedRecommendationsTakePrecedenceOverTrendingFallback() {
+        let recommendation = TMDBSearchResult(
+            id: 1399,
+            mediaType: "tv",
+            title: nil,
+            name: "Game of Thrones",
+            overview: nil,
+            posterPath: nil,
+            backdropPath: nil,
+            releaseDate: nil,
+            firstAirDate: "2011-04-17",
+            voteAverage: 8.4,
+            popularity: 100,
+            adult: false,
+            genreIds: [18]
+        )
+        let trending = TMDBSearchResult(
+            id: 550,
+            mediaType: "movie",
+            title: "Fight Club",
+            name: nil,
+            overview: nil,
+            posterPath: nil,
+            backdropPath: nil,
+            releaseDate: "1999-10-15",
+            firstAirDate: nil,
+            voteAverage: 8.4,
+            popularity: 100,
+            adult: false,
+            genreIds: [18]
+        )
+
+        let results = HomeCatalogLoadPolicy.forYouResults(
+            recommendations: [recommendation],
+            trending: [trending]
+        )
+        XCTAssertEqual(results.map(\.id), [1399])
+    }
+
     func testAniListOnlyHomeCatalogsCountAsLoadedContent() {
         XCTAssertTrue(HomeCatalogLoadPolicy.hasLoadedContent(
             tmdbCatalogCount: 0,
@@ -32,6 +161,30 @@ final class HomeCatalogLoadPolicyTests: XCTestCase {
             stremioCatalogCount: 0,
             traktCatalogCount: 0,
             widgetCatalogCount: 0,
+            permitsEmptyResults: false
+        ))
+    }
+
+    func testVisibleForYouRecommendationCountsAsLoadedWithoutRemoteCatalogResults() {
+        XCTAssertTrue(HomeCatalogLoadPolicy.hasLoadedContent(
+            tmdbCatalogCount: 0,
+            animeCatalogCount: 0,
+            stremioCatalogCount: 0,
+            traktCatalogCount: 0,
+            widgetCatalogCount: 0,
+            recommendationCatalogCount: 1,
+            permitsEmptyResults: false
+        ))
+    }
+
+    func testEmptyRecommendationShelfDoesNotMaskFailedRemoteCatalogs() {
+        XCTAssertFalse(HomeCatalogLoadPolicy.hasLoadedContent(
+            tmdbCatalogCount: 0,
+            animeCatalogCount: 0,
+            stremioCatalogCount: 0,
+            traktCatalogCount: 0,
+            widgetCatalogCount: 0,
+            recommendationCatalogCount: 0,
             permitsEmptyResults: false
         ))
     }
@@ -145,4 +298,129 @@ final class HomeCatalogFailurePresentationTests: XCTestCase {
         XCTAssertTrue(message.contains("internet connection"))
         XCTAssertTrue(message.contains("Retry"))
     }
+
+    func testBrowsePaginationKeepsFailedPageAvailableForRetry() {
+        let cursor = DiscoverPaginationCursor()
+        XCTAssertEqual(cursor.nextPage, 2)
+        XCTAssertEqual(cursor.currentPage, 1)
+        XCTAssertTrue(cursor.hasMorePages)
+    }
+
+    func testBrowsePaginationAdvancesOnlyAfterSuccessfulPage() {
+        var cursor = DiscoverPaginationCursor()
+        cursor.didLoadPage(hasUniqueItems: true)
+
+        XCTAssertEqual(cursor.currentPage, 2)
+        XCTAssertEqual(cursor.nextPage, 3)
+        XCTAssertEqual(cursor.consecutiveEmptyPages, 0)
+        XCTAssertTrue(cursor.hasMorePages)
+    }
+
+    func testBrowsePaginationStopsAfterBoundedFilteredEmptyPages() {
+        var cursor = DiscoverPaginationCursor()
+        for _ in 0..<DiscoverPaginationCursor.maximumConsecutiveEmptyPages {
+            cursor.didLoadPage(hasUniqueItems: false)
+        }
+
+        XCTAssertEqual(cursor.currentPage, 5)
+        XCTAssertEqual(cursor.consecutiveEmptyPages, DiscoverPaginationCursor.maximumConsecutiveEmptyPages)
+        XCTAssertFalse(cursor.hasMorePages)
+    }
+
+    func testBrowsePaginationResetsWhenCategoryChanges() {
+        var cursor = DiscoverPaginationCursor()
+        cursor.didLoadPage(hasUniqueItems: true)
+        cursor.didLoadPage(hasUniqueItems: false)
+
+        cursor.reset()
+
+        XCTAssertEqual(cursor.currentPage, 1)
+        XCTAssertEqual(cursor.nextPage, 2)
+        XCTAssertEqual(cursor.consecutiveEmptyPages, 0)
+        XCTAssertTrue(cursor.hasMorePages)
+    }
 }
+
+
+final class CatalogContentFilterRegressionTests: XCTestCase {
+    func testRuntimeFilterUsesShortestReportedEpisodeRuntime() {
+        XCTAssertEqual(CatalogRuntimeFilterPolicy.shortestReportedRuntime([24, 12, 22]), 12)
+        XCTAssertEqual(CatalogRuntimeFilterPolicy.shortestReportedRuntime([0, -1, 25]), 25)
+        XCTAssertNil(CatalogRuntimeFilterPolicy.shortestReportedRuntime(nil))
+    }
+
+    func testRuntimeFilterFailsClosedForUnknownRuntime() {
+        XCTAssertFalse(CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: nil))
+        XCTAssertFalse(CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: 0))
+        XCTAssertFalse(CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: 19))
+        XCTAssertTrue(CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: 20))
+        XCTAssertTrue(CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: 42))
+    }
+
+    func testUnofficialProductionFilterChecksProductionCompanyNames() {
+        XCTAssertTrue(TMDBContentFilter.isUnofficialCreatorContent(
+            title: "A New Web Series",
+            overview: nil,
+            productionCompanies: ["Example Creator Studio"]
+        ))
+        XCTAssertTrue(TMDBContentFilter.isUnofficialCreatorContent(
+            title: "Fan Project",
+            overview: nil,
+            productionCompanies: ["Independent Fanmade Studios"]
+        ))
+        XCTAssertFalse(TMDBContentFilter.isUnofficialCreatorContent(
+            title: "A Feature Film",
+            overview: nil,
+            productionCompanies: ["Studio Ghibli"]
+        ))
+    }
+}
+
+final class CatalogRuntimeAndProductionFilterPolicyTests: XCTestCase {
+    func testMinimumRuntimeRejectsUnknownAndShortEpisodes() {
+        XCTAssertFalse(CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: nil))
+        XCTAssertFalse(CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: 0))
+        XCTAssertFalse(CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: 19))
+        XCTAssertTrue(CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: 20))
+        XCTAssertTrue(CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: 45))
+    }
+
+    func testSeriesRuntimeUsesShortestReportedEpisode() {
+        XCTAssertEqual(CatalogRuntimeFilterPolicy.shortestReportedRuntime([42, 18, 45]), 18)
+        XCTAssertEqual(CatalogRuntimeFilterPolicy.shortestReportedRuntime([20, 24, 42]), 20)
+        XCTAssertNil(CatalogRuntimeFilterPolicy.shortestReportedRuntime([0, -1, nil].compactMap { $0 }))
+        XCTAssertNil(CatalogRuntimeFilterPolicy.shortestReportedRuntime(nil))
+    }
+
+    func testUnofficialProductionDetectionIncludesProductionCompanyMetadata() {
+        XCTAssertTrue(TMDBContentFilter.isUnofficialCreatorContent(
+            title: "A New Series",
+            overview: "An original scripted show",
+            productionCompanies: ["YouTuber Studios"]
+        ))
+        XCTAssertTrue(TMDBContentFilter.isUnofficialCreatorContent(
+            title: "A Fan Project",
+            overview: nil,
+            productionCompanies: ["Independent Web Animation"]
+        ))
+        XCTAssertFalse(TMDBContentFilter.isUnofficialCreatorContent(
+            title: "A New Series",
+            overview: "An original scripted show",
+            productionCompanies: ["Warner Bros. Television"]
+        ))
+    }
+
+    func testUnofficialProductionDetectionCatchesCreatorPlatformTerms() {
+        XCTAssertTrue(TMDBContentFilter.isUnofficialCreatorContent(
+            title: "Creator Original",
+            overview: "A series made for YouTube by a digital creator",
+            productionCompanies: []
+        ))
+        XCTAssertTrue(TMDBContentFilter.isUnofficialCreatorContent(
+            title: "Fan Series",
+            overview: "An independent web series",
+            productionCompanies: []
+        ))
+    }
+}
+

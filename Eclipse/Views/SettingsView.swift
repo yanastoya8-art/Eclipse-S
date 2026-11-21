@@ -5487,7 +5487,7 @@ private struct ProductionsSettingsView: View {
                 Toggle("Hide fan-made and YouTuber productions", isOn: $hideUnofficialContent)
                     .accessibilityIdentifier("settings.contentFilters.hideFanmade")
             } footer: {
-                Text("Uses title and description indicators such as fan-made, unofficial, YouTuber and YouTube-original. This is a best-effort metadata filter; entries without those indicators may remain visible.")
+                Text("Checks titles, descriptions, schedule metadata and TMDB production-company names for fan-made, YouTuber, YouTube-original and unofficial-production indicators. Catalog and schedule entries remain hidden while production metadata is being checked.")
             }
         }
         .onChange(of: hideUnofficialContent) { _ in filtersDidChange() }
@@ -5557,7 +5557,7 @@ private struct RuntimeFiltersSettingsView: View {
                     .onChange(of: hideUnder20MinuteContent) { _ in filtersDidChange() }
                     .accessibilityIdentifier("settings.contentFilters.hideShortRuntime")
             } footer: {
-                Text("Movie runtime and typical TV episode runtime are read from TMDB. TV shows use the median of the reported episode runtimes. Only confirmed runtimes below 20 minutes are hidden; missing runtime data is not guessed.")
+                Text("Movie runtime and TV episode runtimes are read from TMDB. A series is excluded if any reported episode runtime is under 20 minutes. Titles with unresolved runtime metadata stay hidden until the lookup completes, so missing data cannot bypass the filter.")
             }
         }
         .eclipsePageTitle("Runtime Filters")

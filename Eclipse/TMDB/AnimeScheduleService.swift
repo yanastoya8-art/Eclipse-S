@@ -56,6 +56,29 @@ enum AnimeScheduleError: Error, LocalizedError {
     }
 }
 
+enum AnimeScheduleCatalogScanPolicy {
+    static let pageSize = 18
+    static let maximumWarmupPages = 4
+
+    static func catalogIsExhausted(page: Int, totalAmount: Int, receivedCount: Int) -> Bool {
+        page >= 1 && (receivedCount == 0 || page * pageSize >= totalAmount)
+    }
+
+    static func shouldContinue(
+        page: Int,
+        totalAmount: Int,
+        receivedCount: Int,
+        allWantedRoutesResolved: Bool
+    ) -> Bool {
+        guard page >= 1,
+              page < maximumWarmupPages,
+              totalAmount > page * pageSize,
+              receivedCount > 0,
+              !allWantedRoutesResolved else { return false }
+        return true
+    }
+}
+
 struct AnimeScheduleWeek: Hashable, Codable {
     let year: Int
     let week: Int
@@ -451,30 +474,40 @@ actor AnimeScheduleService {
     }
 
     private func fetchOngoingAnime(now: Date, wantedRoutes: Set<String>, deadline: Date) async throws {
-        for page in 1...32 {
+        for page in 1...AnimeScheduleCatalogScanPolicy.maximumWarmupPages {
             let data = try await request(path: "anime", query: [
                 URLQueryItem(name: "airing-statuses", value: "ongoing"),
                 URLQueryItem(name: "page", value: String(page))
             ], deadline: deadline)
             let result = try JSONDecoder().decode(AnimePage.self, from: data)
-            guard result.page == page, result.anime.count <= 18,
+            guard result.page == page, result.anime.count <= AnimeScheduleCatalogScanPolicy.pageSize,
                   result.totalAmount >= 0, result.totalAmount <= 10_000 else { throw AnimeScheduleError.invalidResponse }
             for anime in result.anime where wantedRoutes.contains(anime.route) {
                 cache.anime[anime.route] = CachedAnime(fetchedAt: now, anime: anime)
             }
 
-            // Schedule rows identify the exact anime routes needed for this
-            // window. Stop scanning the global ongoing catalog as soon as all
-            // of those routes are cached; walking every page can add many
-            // rate-limited requests even when page one already has every show.
-            if wantedRoutes.allSatisfy({ cachedAnime($0, now: now) != nil }) {
-                break
+            let allWantedRoutesResolved = wantedRoutes.allSatisfy {
+                cachedAnime($0, now: now) != nil
             }
-
-            if page * 18 >= result.totalAmount || result.anime.isEmpty {
+            let catalogExhausted = AnimeScheduleCatalogScanPolicy.catalogIsExhausted(
+                page: page,
+                totalAmount: result.totalAmount,
+                receivedCount: result.anime.count
+            )
+            if catalogExhausted {
                 catalogFetchedAt = now
                 break
             }
+
+            // This global catalog is only a cache warm-up. Exact route lookups
+            // below resolve any remaining schedule rows, so scanning dozens of
+            // unrelated pages only delays the useful per-show requests.
+            guard AnimeScheduleCatalogScanPolicy.shouldContinue(
+                page: page,
+                totalAmount: result.totalAmount,
+                receivedCount: result.anime.count,
+                allWantedRoutesResolved: allWantedRoutesResolved
+            ) else { break }
         }
     }
 

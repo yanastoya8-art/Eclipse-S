@@ -40,6 +40,7 @@ struct NetworkSectionWidget: View {
                         ForEach(availableNetworks) { network in
                             let items = widgetData["network_\(network.id)"] ?? []
                             NavigationLink(destination: DiscoverDetailView(
+                                catalogID: "network-\(network.id)",
                                 title: network.name,
                                 initialItems: items,
                                 loadMore: { page in
@@ -144,6 +145,7 @@ struct GenreSectionWidget: View {
                         ForEach(availableGenres) { genre in
                             let items = widgetData["genre_\(genre.id)"] ?? []
                             NavigationLink(destination: DiscoverDetailView(
+                                catalogID: "genre-\(genre.id)",
                                 title: genre.name,
                                 initialItems: items,
                                 loadMore: { page in
@@ -248,6 +250,7 @@ struct CompanySectionWidget: View {
                         ForEach(availableCompanies) { company in
                             let items = widgetData["company_\(company.id)"] ?? []
                             NavigationLink(destination: DiscoverDetailView(
+                                catalogID: "company-\(company.id)",
                                 title: company.name,
                                 initialItems: items,
                                 loadMore: { page in
@@ -324,6 +327,7 @@ struct RankedListWidget: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: isTvOS ? 50 : (ExperimentalFeatureState.isEnabledAtLaunch ? 22 : 16)) {
                     NavigationLink(destination: DiscoverDetailView(
+                        catalogID: catalogId,
                         title: title,
                         initialItems: items
                     )) {
@@ -525,6 +529,7 @@ struct FeaturedSpotlightWidget: View {
 
     private func spotlightDestination(items: [TMDBSearchResult]) -> DiscoverDetailView {
         DiscoverDetailView(
+            catalogID: "featured-\(genreName)",
             title: spotlightTitle,
             initialItems: items,
             heroItem: items.first,
