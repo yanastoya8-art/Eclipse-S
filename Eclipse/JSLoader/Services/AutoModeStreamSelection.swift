@@ -2212,14 +2212,30 @@ enum StreamLanguageFilter {
     }
 
     private static func languageKeys(in value: String) -> [String] {
-        if let id = MediaLanguageCatalog.canonicalID(for: value) { return [id] }
+        func catalogKeys(for candidate: String) -> [String]? {
+            guard MediaLanguageCatalog.filterCanonicalID(for: candidate) == "es" else {
+                return MediaLanguageCatalog.canonicalID(for: candidate).map { [$0] }
+            }
+            // Generic Spanish rules must match every regional Spanish track,
+            // while typed provider rules such as language:es-419 still need
+            // the exact regional ID. Do not let the ambiguous "Latino"/"Latin"
+            // aliases become the Latin language code (la).
+            var ids = ["es"]
+            if let canonicalID = MediaLanguageCatalog.canonicalID(for: candidate),
+               canonicalID.hasPrefix("es-") {
+                ids.append(canonicalID)
+            }
+            return ids
+        }
+
+        if let ids = catalogKeys(for: value) { return ids }
         var keys: [String] = []
         let candidates = [value] + AutoModeStreamSelection.splitStremioLanguageHint(value)
         for candidate in candidates {
             let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { continue }
-            if let id = MediaLanguageCatalog.canonicalID(for: trimmed) {
-                keys.append(id)
+            if let ids = catalogKeys(for: trimmed) {
+                keys.append(contentsOf: ids)
                 continue
             }
             if let normalized = AutoModeStreamSelection.normalizedStremioLanguageName(trimmed) {
