@@ -322,7 +322,7 @@ final class V221RendererLifecycleTests: XCTestCase {
         defer { if writer.status == .writing { writer.cancelWriting() } }
         guard writer.startWriting(), reader.startReading() else { throw writer.error ?? reader.error ?? URLError(.cannotCreateFile) }
         writer.startSession(atSourceTime: .zero)
-        let deadline = Date().addingTimeInterval(20)
+        let deadline = Date().addingTimeInterval(60)
         while let sample = output.copyNextSampleBuffer() {
             while !input.isReadyForMoreMediaData && writer.status == .writing && Date() < deadline {
                 Thread.sleep(forTimeInterval: 0.002)
@@ -1317,10 +1317,21 @@ final class V221RendererLifecycleTests: XCTestCase {
         defer {
             if writer.status == .writing || writer.status == .unknown { writer.cancelWriting() }
         }
-        var outputSettings: [String: Any] = [AVVideoCodecKey: AVVideoCodecType.h264, AVVideoWidthKey: width, AVVideoHeightKey: height]
-        if segmentDelegate != nil {
-            outputSettings[AVVideoCompressionPropertiesKey] = [AVVideoMaxKeyFrameIntervalKey: 60]
-        }
+        // Use an explicit baseline H.264 profile and bounded bitrate. The
+        // simulator's default encoder configuration can fail while archiving
+        // its implicit compression settings (NSKeyedUnarchiver error 4864).
+        // Explicit settings keep the generated MOV fixtures deterministic.
+        let compression: [String: Any] = [
+            AVVideoAverageBitRateKey: max(200_000, width * height * 4),
+            AVVideoMaxKeyFrameIntervalKey: 60,
+            AVVideoProfileLevelKey: AVVideoProfileLevelH264BaselineAutoLevel
+        ]
+        var outputSettings: [String: Any] = [
+            AVVideoCodecKey: AVVideoCodecType.h264,
+            AVVideoWidthKey: width,
+            AVVideoHeightKey: height,
+            AVVideoCompressionPropertiesKey: compression
+        ]
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: outputSettings)
         let adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input, sourcePixelBufferAttributes: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA, kCVPixelBufferWidthKey as String: width, kCVPixelBufferHeightKey as String: height])
         guard writer.canAdd(input) else { throw NSError(domain: "V221VideoFixture", code: 1) }
@@ -1365,9 +1376,17 @@ final class V221RendererLifecycleTests: XCTestCase {
         input.markAsFinished()
         let finished = DispatchSemaphore(value: 0)
         writer.finishWriting { finished.signal() }
-        guard finished.wait(timeout: .now() + 20) == .success, writer.status == .completed else {
+        guard finished.wait(timeout: .now() + 60) == .success, writer.status == .completed else {
+            let underlying = writer.error
             writer.cancelWriting()
-            throw writer.error ?? NSError(domain: "V221VideoFixture", code: 7)
+            throw NSError(
+                domain: "V221VideoFixture",
+                code: 7,
+                userInfo: [
+                    NSLocalizedDescriptionKey: "Local H.264 fixture writer did not finish successfully (status: \(writer.status.rawValue)).",
+                    NSUnderlyingErrorKey: underlying as Any
+                ]
+            )
         }
     }
 }
