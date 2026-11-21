@@ -2245,24 +2245,34 @@ final class EclipseFeatureUITests: XCTestCase {
             throw UIInteractionError.unavailable("Quick Actions is unavailable.")
         }
         let settings = app.buttons["Settings"].firstMatch
-        for _ in 0..<2 {
-            if !settings.exists || !settings.isHittable || settings.frame.width < 44 {
-                quickActions.tap()
-            }
-            var previousFrame = CGRect.zero
-            let settingsActionReady = waitUntil(timeout: 5, {
-                guard settings.exists, settings.isHittable else { return false }
-                let frame = settings.frame
-                let ready = frame.width >= 44 && frame.height >= 44 && frame == previousFrame
-                previousFrame = frame
-                return ready
-            })
-            if !settingsActionReady { continue }
-            settings.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-            if app.navigationBars["Settings"].waitForExistence(timeout: 5) {
+        let gear = app.buttons["gear"].firstMatch
+        for _ in 0..<3 {
+            if app.navigationBars["Settings"].exists {
                 activeSettingsPage = "Settings"
                 return
             }
+
+            // The compact Quick Actions presentation can expose Settings
+            // through its gear accessibility identifier. Do not toggle the
+            // menu closed while its destination is animating into place.
+            let destination = settings.exists ? settings : gear
+            if destination.exists && destination.isHittable {
+                let frame = destination.frame
+                guard frame.width > 0, frame.height > 0 else { continue }
+                destination.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+                if app.navigationBars["Settings"].waitForExistence(timeout: 8) {
+                    activeSettingsPage = "Settings"
+                    return
+                }
+                continue
+            }
+
+            if !settings.exists && !gear.exists && quickActions.isHittable {
+                quickActions.tap()
+            }
+            _ = waitUntil(timeout: 5, {
+                (settings.exists && settings.isHittable) || (gear.exists && gear.isHittable)
+            })
         }
         throw UIInteractionError.unavailable("Quick Actions did not open Settings.")
     }
