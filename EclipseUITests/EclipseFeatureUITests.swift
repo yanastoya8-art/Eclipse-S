@@ -2267,11 +2267,13 @@ final class EclipseFeatureUITests: XCTestCase {
                 continue
             }
 
-            if quickActions.isHittable {
+            let destinationFrame = destination.exists ? destination.frame : .zero
+            let destinationIsVisible = destinationFrame.width > 0
+                && destinationFrame.height > 0
+                && app.frame.intersects(destinationFrame)
+            if !destinationIsVisible && quickActions.isHittable {
                 // A collapsed Quick Actions menu can leave its gear action in
-                // the accessibility tree with an invalid zero-sized frame.
-                // Re-open the menu whenever neither Settings destination can
-                // actually be activated, even if the hidden gear still exists.
+                // the accessibility tree with an invalid or off-screen frame.
                 quickActions.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
             }
             _ = waitUntil(timeout: 3, {
