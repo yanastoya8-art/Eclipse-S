@@ -2849,15 +2849,39 @@ actor TaizenAnimeAgeRatingService {
             if let anime = payload["a\(index)"] as? [String: Any],
                let returnedID = anime["id"] as? NSNumber,
                returnedID.intValue == id,
-               let age = anime["ageRating"] as? [String: Any],
-               let raw = age["rating"] as? String {
-                rating = MaturityRating.ratingForFiltering(certification: raw)
+               let age = anime["ageRating"] as? [String: Any] {
+                if let raw = age["rating"] as? String {
+                    let malRating = MaturityRating.ratingForFiltering(certification: raw)
+                    if malRating != .unknown {
+                        rating = malRating
+                    } else {
+                        rating = Self.certificationFallback(from: age)
+                    }
+                } else {
+                    // MAL ratings are not imported for every anime. Taizen also
+                    // exposes official regional TMDB certifications; use those
+                    // only as a fallback so valid 13+/14+ titles do not vanish
+                    // from Browse solely because the MAL field is null.
+                    rating = Self.certificationFallback(from: age)
+                }
             } else {
                 rating = .unknown
             }
             ratings[id] = rating
         }
         return ratings
+    }
+
+    private static func certificationFallback(from age: [String: Any]) -> MaturityRating {
+        let certifications = age["certifications"] as? [[String: Any]] ?? []
+        var byRegion: [String: [String]] = [:]
+        for certification in certifications {
+            guard let region = certification["region"] as? String,
+                  let value = certification["rating"] as? String,
+                  !region.isEmpty, !value.isEmpty else { continue }
+            byRegion[region, default: []].append(value)
+        }
+        return MaturityRating.classify(certificationsByRegion: byRegion)
     }
 
     func rating(anilistID: Int) async throws -> MaturityRating {
@@ -2882,7 +2906,7 @@ actor TaizenAnimeAgeRatingService {
         for offset in stride(from: 0, to: missing.count, by: 20) {
             let batch = Array(missing[offset..<min(offset + 20, missing.count)])
             let fields = batch.enumerated().map { index, id in
-                "a\(index): anime(id: \(id)) { id ageRating { rating } }"
+                "a\(index): anime(id: \(id)) { id ageRating { rating certifications { region rating } } }"
             }.joined(separator: " ")
             let query = "{ \(fields) }"
             guard var components = URLComponents(string: "https://taizen.moe/api/graphql") else {
