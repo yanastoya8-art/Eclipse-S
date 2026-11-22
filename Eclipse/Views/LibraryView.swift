@@ -579,17 +579,13 @@ struct BookmarkItemCard: View {
                 urls: LibraryPosterArtwork.urls(for: item.searchResult),
                 decodeSize: CGSize(width: 480, height: 720),
                 contentMode: .fill
-            )
-                .placeholder {
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.3))
-                        .overlay(
-                            Image(systemName: item.searchResult.isMovie ? "tv" : "tv.and.mediabox")
-                                .font(.title2)
-                                .foregroundColor(.white.opacity(0.7))
-                        )
-                }
-                .resizable()
+            ) {
+                FallbackImageView(
+                    isMovie: item.searchResult.isMovie,
+                    size: CGSize(width: posterWidth, height: posterHeight),
+                    expandsToFillContainer: true
+                )
+            }
                 .aspectRatio(2/3, contentMode: .fill)
                 .frame(width: posterWidth, height: posterHeight)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -685,17 +681,13 @@ struct CollectionCard: View {
                 urls: LibraryPosterArtwork.urls(for: single.searchResult),
                 decodeSize: CGSize(width: 640, height: 640),
                 contentMode: .fill
-            )
-                .placeholder {
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.3))
-                        .overlay(
-                            Image(systemName: single.searchResult.isMovie ? "tv" : "tv.and.mediabox")
-                                .font(.title2)
-                                .foregroundColor(.white.opacity(0.7))
-                        )
-                }
-                .resizable()
+            ) {
+                FallbackImageView(
+                    isMovie: single.searchResult.isMovie,
+                    size: CGSize(width: cardSide, height: cardSide),
+                    expandsToFillContainer: true
+                )
+            }
                 .aspectRatio(contentMode: .fill)
                 .frame(width: cardSide, height: cardSide)
                 .id(single.id)
@@ -706,17 +698,13 @@ struct CollectionCard: View {
                         urls: LibraryPosterArtwork.urls(for: item.searchResult),
                         decodeSize: CGSize(width: 320, height: 320),
                         contentMode: .fill
-                    )
-                        .placeholder {
-                            Rectangle()
-                                .fill(Color.gray.opacity(0.3))
-                                .overlay(
-                                    Image(systemName: item.searchResult.isMovie ? "tv" : "tv.and.mediabox")
-                                        .font(.caption)
-                                        .foregroundColor(.white.opacity(0.7))
-                                )
-                        }
-                        .resizable()
+                    ) {
+                        FallbackImageView(
+                            isMovie: item.searchResult.isMovie,
+                            size: CGSize(width: previewTileSide, height: previewTileSide),
+                            expandsToFillContainer: true
+                        )
+                    }
                         .aspectRatio(contentMode: .fill)
                         .frame(width: previewTileSide, height: previewTileSide)
                         .clipped()
