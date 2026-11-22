@@ -75,7 +75,20 @@ enum MangayomiMediaAdapter {
     @MainActor
     static func videos(key: MangayomiMediaKey, source: MangayomiMediaSource) async throws -> ServiceStreamExtractionResult {
         let data = try await MangayomiMediaManager.shared.execute(source: source, operation: "videos", arguments: ["url": key.value])
-        return try streamExtraction(data, key: key, baseURL: source.baseURL)
+        // Mangayomi extensions commonly return paths relative to the episode page,
+        // not the repository's base URL. Opaque Mangayomi episode keys are not URLs,
+        // so retain the source base URL as the safe fallback for those keys.
+        let episodeURL = URL(string: key.value)
+        let episodeBaseURL: String?
+        if let episodeURL,
+           let scheme = episodeURL.scheme?.lowercased(),
+           ["http", "https"].contains(scheme),
+           episodeURL.host?.isEmpty == false {
+            episodeBaseURL = episodeURL.absoluteString
+        } else {
+            episodeBaseURL = source.baseURL
+        }
+        return try streamExtraction(data, key: key, baseURL: episodeBaseURL)
     }
 
     static func streamExtraction(
