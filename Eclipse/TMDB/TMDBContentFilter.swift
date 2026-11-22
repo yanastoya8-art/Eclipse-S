@@ -964,6 +964,71 @@ class TMDBContentFilter: ObservableObject {
         await resolveAnimeAgeRatings(identities: identities)
     }
 
+    /// Browse must finish the metadata required by active filters before it
+    /// publishes a page. The general catalogue path intentionally resolves some
+    /// metadata in the background; doing that here caused a filtered Anime grid
+    /// to publish as empty before its ratings/runtime/production data arrived.
+    func resolveBrowseFilterMetadata(
+        for results: [TMDBSearchResult],
+        requiresAnimeAgeRating: Bool = false
+    ) async {
+        let defaults = UserDefaults.standard
+        let animeResults = results.filter { Self.isAnimeResult($0) }
+        let nonAnimeResults = results.filter { !Self.isAnimeResult($0) }
+        let selectedLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
+        let needsAnimeAge = requiresAnimeAgeRating
+            || defaults.bool(forKey: "catalogHideBelowPG13Anime")
+            || defaults.bool(forKey: "catalogHideAllAgesAnime")
+            || kidsModeEnabled
+        let tmdbRatingResults = nonAnimeResults.filter { result in
+            let minimumEnabled = result.isMovie
+                ? Self.ageFilterEnabled("catalogHideBelowPG13Movies", defaults: defaults)
+                : Self.ageFilterEnabled("catalogHideBelowTV14Shows", defaults: defaults)
+            let allAgesEnabled = defaults.bool(
+                forKey: result.isMovie ? "catalogHideAllAgesMovies" : "catalogHideAllAgesSeries"
+            )
+            return minimumEnabled || allAgesEnabled || kidsModeEnabled
+        }
+
+        async let runtimeResolution: Void = {
+            if defaults.bool(forKey: "catalogHideUnder20MinuteContent") {
+                await self.resolveRuntimeMetadata(for: results)
+            }
+        }()
+        async let productionResolution: Void = {
+            if defaults.bool(forKey: "catalogHideUnofficialContent") {
+                await self.resolveProductionMetadata(for: results)
+            }
+        }()
+        async let animeAgeResolution: Void = {
+            if needsAnimeAge, !animeResults.isEmpty {
+                await self.resolveAnimeAgeRatings(for: animeResults)
+            }
+        }()
+        async let animeAudioResolution: Void = {
+            if !selectedLanguages.isEmpty, !animeResults.isEmpty {
+                await self.resolveAnimeAudioMetadata(
+                    for: animeResults,
+                    selectedLanguages: selectedLanguages
+                )
+            }
+        }()
+        async let tmdbAgeResolution: Void = {
+            if !tmdbRatingResults.isEmpty {
+                await TMDBMaturityRatingStore.shared.resolve(
+                    tmdbRatingResults.map { (isMovie: $0.isMovie, id: $0.id) }
+                )
+            }
+        }()
+        _ = await (
+            runtimeResolution,
+            productionResolution,
+            animeAgeResolution,
+            animeAudioResolution,
+            tmdbAgeResolution
+        )
+    }
+
     private func resolveAnimeAgeRatings(identities: [(Int, Int?)]) async {
         var malIDsByAnimeID: [Int: Int] = [:]
         var uniqueIDs = Set<Int>()
