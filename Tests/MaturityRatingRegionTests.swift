@@ -120,11 +120,11 @@ final class MaturityRatingRegionTests: XCTestCase {
         ))
     }
 
-    func testScheduleUnknownRatingsFailClosedOnlyForMinimumAgeRules() {
-        XCTAssertTrue(ScheduleAllAgesPolicy.shouldExclude(
+    func testScheduleUnknownRatingsRemainVisibleForMinimumAgeRules() {
+        XCTAssertFalse(ScheduleAllAgesPolicy.shouldExclude(
             rating: nil, minimum: .teen, hideAllAges: false
         ))
-        XCTAssertTrue(ScheduleAllAgesPolicy.shouldExclude(
+        XCTAssertFalse(ScheduleAllAgesPolicy.shouldExclude(
             rating: .unknown, minimum: .age14, hideAllAges: false
         ))
         XCTAssertFalse(ScheduleAllAgesPolicy.shouldExclude(
