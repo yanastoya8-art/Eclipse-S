@@ -2,7 +2,7 @@
 import ActivityKit
 import Foundation
 
-@available(iOS 16.1, *)
+@available(iOS 16.2, *)
 @MainActor
 enum DownloadLiveActivityController {
     private static var activities: [String: Activity<DownloadActivityAttributes>] {
