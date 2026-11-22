@@ -2045,9 +2045,8 @@ private struct BrowseMediaView: View {
             // the final card's onAppear. SwiftUI can keep that card alive when
             // a page is appended, leaving Browse stuck until the user scrolls
             // away and back. The page-based identity re-arms the sentinel after
-            // each successful append. Keep the automatic scan bounded; the
-            // final card remains a manual fallback for later pages.
-            // Re-arm the sentinel after every append so pagination remains
+            // each successful append. Re-arm the sentinel after every append
+            // so pagination remains
             // automatic at every depth without a manual "Load More" control.
             if hasMorePages {
                 Color.clear
