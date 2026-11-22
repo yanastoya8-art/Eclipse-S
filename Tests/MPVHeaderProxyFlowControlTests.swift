@@ -925,7 +925,10 @@ final class MPVHeaderProxyFlowControlTests: XCTestCase {
         defer { client.cancel() }
         try client.start(url: url)
         wait(for: [headers], timeout: 10)
-        waitForPressure(capture)
+        // A native send can briefly cross the watermark and drain before the
+        // predicate is polled. Use the recorded peak so this wait observes
+        // that real pressure event instead of waiting for a transient level.
+        waitForPressure(capture, usingRecordedPeak: true)
 
         let parallelDone = expectation(description: "Parallel range completes while original reader is paused")
         let parallel = ProxyFlowFixtureClient(paused: false, completed: parallelDone)
