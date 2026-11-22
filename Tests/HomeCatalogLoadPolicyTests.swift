@@ -299,6 +299,35 @@ final class HomeCatalogFailurePresentationTests: XCTestCase {
         XCTAssertTrue(message.contains("Retry"))
     }
 
+    func testNestedTMDBTransportErrorsAreClassifiedRecursively() {
+        let error = TMDBError.networkError(
+            TMDBError.networkError(URLError(.timedOut))
+        )
+
+        let message = HomeCatalogFailurePresentation.message(for: error)
+        XCTAssertTrue(message.contains("too long"))
+        XCTAssertTrue(message.contains("Retry"))
+    }
+
+    func testInvalidURLAndDecodingErrorsHaveDistinctGuidance() {
+        let invalidURL = HomeCatalogFailurePresentation.message(for: TMDBError.invalidURL)
+        let decoding = HomeCatalogFailurePresentation.message(for: TMDBError.decodingError)
+
+        XCTAssertTrue(invalidURL.contains("request URL"))
+        XCTAssertTrue(decoding.contains("could not read"))
+        XCTAssertFalse(invalidURL.contains("internet connection"))
+        XCTAssertFalse(decoding.contains("internet connection"))
+    }
+
+    func testBadRequestIsNotMisreportedAsConnectivityFailure() {
+        let message = HomeCatalogFailurePresentation.message(
+            for: TMDBError.httpError(statusCode: 400, path: "/discover/movie", message: "Invalid parameter")
+        )
+
+        XCTAssertTrue(message.contains("rejected a Home request"))
+        XCTAssertFalse(message.contains("internet connection"))
+    }
+
     func testBrowsePaginationKeepsFailedPageAvailableForRetry() {
         let cursor = DiscoverPaginationCursor()
         XCTAssertEqual(cursor.nextPage, 2)
