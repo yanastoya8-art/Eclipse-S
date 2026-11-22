@@ -75,17 +75,45 @@ enum MangayomiMediaAdapter {
     @MainActor
     static func videos(key: MangayomiMediaKey, source: MangayomiMediaSource) async throws -> ServiceStreamExtractionResult {
         let data = try await MangayomiMediaManager.shared.execute(source: source, operation: "videos", arguments: ["url": key.value])
-        return try streamExtraction(data, key: key)
+        return try streamExtraction(data, key: key, baseURL: source.baseURL)
     }
 
-    static func streamExtraction(_ data: Data, key: MangayomiMediaKey) throws -> ServiceStreamExtractionResult {
-        guard let rows = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+    static func streamExtraction(
+        _ data: Data,
+        key: MangayomiMediaKey,
+        baseURL: String? = nil
+    ) throws -> ServiceStreamExtractionResult {
+        let decoded = try JSONSerialization.jsonObject(with: data)
+        let rows: [[String: Any]]
+        if let array = decoded as? [[String: Any]] {
+            rows = array
+        } else if let object = decoded as? [String: Any] {
+            if let values = object["streams"] as? [[String: Any]] {
+                rows = values
+            } else if let values = object["sources"] as? [[String: Any]] {
+                rows = values
+            } else if let values = object["videos"] as? [[String: Any]] {
+                rows = values
+            } else if let value = object["stream"] as? [String: Any] {
+                rows = [value]
+            } else if let value = object["url"] as? String {
+                rows = [["url": value, "quality": object["quality"] ?? "Auto", "headers": object["headers"] ?? [:]]]
+            } else {
+                throw MangayomiMediaError.invalidData
+            }
+        } else {
             throw MangayomiMediaError.invalidData
         }
         let sources = rows.prefix(1_200).compactMap { row -> [String: Any]? in
-            guard let value = row["url"] as? String,
-                  NuvioPluginSupport.isDirectHTTPURL(value) else { return nil }
-            let quality = row["quality"] as? String ?? "Auto"
+            let rawURL = (row["url"] as? String)
+                ?? (row["streamUrl"] as? String)
+                ?? (row["file"] as? String)
+                ?? (row["link"] as? String)
+            guard let rawURL,
+                  let streamURL = resolvedHTTPURL(rawURL, relativeTo: baseURL),
+                  NuvioPluginSupport.isDirectHTTPURL(streamURL.absoluteString) else { return nil }
+            let value = streamURL.absoluteString
+            let quality = (row["quality"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "Auto"
             let label = key.audio.map { $0.isEmpty ? quality : quality + " · " + $0 } ?? quality
             var result: [String: Any] = [
                 "streamUrl": value,
@@ -127,6 +155,18 @@ enum MangayomiMediaAdapter {
         }
         let bounded = try JSONSerialization.data(withJSONObject: ["streams": sources])
         return try JSController.boundedStreamExtractionResult(from: bounded)
+    }
+
+    private static func resolvedHTTPURL(_ rawValue: String, relativeTo baseURL: String?) -> URL? {
+        let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty, value.utf8.count <= 64 * 1_024 else { return nil }
+        let base = baseURL.flatMap(URL.init(string:))
+        guard let url = URL(string: value, relativeTo: base)?.absoluteURL,
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              url.host?.isEmpty == false,
+              url.user == nil, url.password == nil else { return nil }
+        return url
     }
 }
 
