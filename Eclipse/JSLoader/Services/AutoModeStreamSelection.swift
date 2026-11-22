@@ -778,8 +778,19 @@ enum AutoModeStreamSelection {
         languages.append(contentsOf: detectedStremioLanguageNames(in: metadataSearchText)
             .map { normalizedStremioLanguageName($0) ?? $0 })
 
+        // Provider metadata can describe the same Spanish track with both a
+        // regional display name (for example, Spanish (Spain)) and the
+        // canonical filter-family name. Keep stream labels aligned with the
+        // single Spanish language choice used by Eclipse filters.
+        let canonicalLanguages = languages.map { language -> String in
+            guard let languageID = MediaLanguageCatalog.language(for: language)?.id,
+                  languageID == "es" || languageID.hasPrefix("es-") else {
+                return language
+            }
+            return "Latino"
+        }
         var seen = Set<String>()
-        let uniqueLanguages = languages.filter { seen.insert($0).inserted }
+        let uniqueLanguages = canonicalLanguages.filter { seen.insert($0).inserted }
         if uniqueLanguages.contains("Multi Audio") || uniqueLanguages.count > 3 {
             return "Multi Audio"
         }
