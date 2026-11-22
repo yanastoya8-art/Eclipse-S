@@ -81,17 +81,16 @@ enum ScheduleAllAgesPolicy {
         enabled && rating == .general
     }
 
-    /// Apply the same minimum-age gate used by Home and Browse. Unknown ratings
-    /// fail closed only when a minimum age is configured; an All Ages-only
-    /// filter continues to leave unrated entries visible.
+    /// Exclude only entries with a known rating below the requested minimum.
+    /// Missing/unknown certifications are not evidence that a title is too young;
+    /// keeping them visible avoids emptying a schedule when a provider omits age data.
     static func shouldExclude(
         rating: MaturityRating?,
         minimum: MaturityRating?,
         hideAllAges: Bool
     ) -> Bool {
         if hideAllAges, rating == .general { return true }
-        guard let minimum else { return false }
-        guard let rating, rating != .unknown else { return true }
+        guard let minimum, let rating, rating != .unknown else { return false }
         return rating < minimum
     }
 }
