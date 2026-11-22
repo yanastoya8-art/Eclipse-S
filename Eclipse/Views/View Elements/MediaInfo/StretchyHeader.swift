@@ -21,6 +21,7 @@ struct ResilientArtworkImage<Placeholder: View>: View {
     let contentMode: SwiftUI.ContentMode
     private let placeholder: () -> Placeholder
     private let onImageLoaded: ((Color) -> Void)?
+    private let onImageURLLoaded: ((String) -> Void)?
     @State private var failedURLs: Set<String> = []
 
     init(
@@ -28,12 +29,14 @@ struct ResilientArtworkImage<Placeholder: View>: View {
         decodeSize: CGSize,
         contentMode: SwiftUI.ContentMode = .fill,
         onImageLoaded: ((Color) -> Void)? = nil,
+        onImageURLLoaded: ((String) -> Void)? = nil,
         @ViewBuilder placeholder: @escaping () -> Placeholder
     ) {
         self.urls = urls
         self.decodeSize = decodeSize
         self.contentMode = contentMode
         self.onImageLoaded = onImageLoaded
+        self.onImageURLLoaded = onImageURLLoaded
         self.placeholder = placeholder
     }
 
@@ -57,6 +60,7 @@ struct ResilientArtworkImage<Placeholder: View>: View {
                     .onSuccess { result in
                         guard currentURL == imageURL else { return }
                         onImageLoaded?(Color.ambientColor(from: result.image))
+                        onImageURLLoaded?(imageURL)
                     }
 #endif
                     .onFailure { _ in
