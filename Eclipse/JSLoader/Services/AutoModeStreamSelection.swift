@@ -815,8 +815,11 @@ enum AutoModeStreamSelection {
         if isLatinoSpanishIdentifier(normalizedValue) {
             return "Latino"
         }
+        if MediaLanguageCatalog.filterCanonicalID(for: normalizedValue) == "es" {
+            return "Latino"
+        }
         if let language = MediaLanguageCatalog.language(for: normalizedValue) {
-            return language.id == "es-419" ? "Latino" : language.name
+            return language.name
         }
         let languageCode = normalizedValue.split(separator: "-", maxSplits: 1).first.map(String.init)
 
@@ -2208,7 +2211,20 @@ enum StreamLanguageFilter {
     private static func matcher(for value: String) -> Matcher {
         let keys = Set(languageKeys(in: value))
         let markers = markerCandidates(for: value, keys: keys)
-        return Matcher(keys: keys, markers: markers, languageIDs: Set(MediaLanguageCatalog.filterCanonicalID(for: value).map { [$0] } ?? []))
+        // "Latin" is a real language name/code (la), while "Latino" and
+        // Latin-American Spanish aliases belong to the shared Spanish filter.
+        // Resolve the exact Latin language before applying the Spanish-family
+        // filter alias mapping so hiding Latin never hides an actual "la" track.
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "_", with: "-")
+        let languageID: String?
+        if ["la", "language:la", "latin", "language:latin"].contains(normalized) {
+            languageID = MediaLanguageCatalog.canonicalID(for: "la")
+        } else {
+            languageID = MediaLanguageCatalog.filterCanonicalID(for: value)
+        }
+        return Matcher(keys: keys, markers: markers, languageIDs: Set(languageID.map { [$0] } ?? []))
     }
 
     private static func languageKeys(in value: String) -> [String] {
