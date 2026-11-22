@@ -2694,9 +2694,9 @@ struct MediaDetailContentView: View {
                 backdropURL: detailHeroImageURL,
                 isMovie: searchResult.isMovie,
                 headerHeight: heroSectionHeight,
-                minHeaderHeight: usesLandscapeDetailComposition
-                    ? max(220, heroSectionHeight * 0.58)
-                    : minHeaderHeight,
+                minHeaderHeight: ExperimentalFeatureState.isEnabledAtLaunch
+                    ? max(380, heroSectionHeight * 0.58)
+                    : 300,
                 onAmbientColorExtracted: { color in
                     ambientColor = color
                 },
@@ -2704,16 +2704,10 @@ struct MediaDetailContentView: View {
                     width: max(detailViewportWidth * EclipseViewport.scale, 1),
                     height: max(heroSectionHeight * EclipseViewport.scale, 1)
                 ),
-                artworkScaleX: usesLandscapeDetailComposition
-                    ? CGFloat(min(max(landscapeHeroHorizontalStretch, 0.85), 1.5)) : 1,
-                artworkScaleY: usesLandscapeDetailComposition
-                    ? CGFloat(min(max(landscapeHeroVerticalStretch, 0.85), 1.5)) : 1,
                 placeholderColor: shouldAnalyzeAlternatePoster ? .clear : Color.gray.opacity(0.3),
                 fallbackImageURLs: detailHeroFallbackImageURLs,
                 preservesArtworkComposition: false,
                 showsBottomFade: true,
-                bottomFadeHeight: usesLandscapeDetailComposition ? 120 : 100,
-                bottomFadeEndOpacity: usesLandscapeDetailComposition ? 0.72 : 0.6,
                 scrollCoordinateSpaceName: "mediaDetailScroll"
             )
             .frame(maxWidth: .infinity)
@@ -2737,11 +2731,9 @@ struct MediaDetailContentView: View {
             // Fade both orientations into the same extracted-colour field.
             // Landscape uses a longer, stronger fade so the full-bleed banner
             // blends into the overview instead of ending at a hard line.
-            if usesLandscapeDetailComposition {
-                landscapeHeroFadeOverlay
-            } else {
-                gradientOverlay
-            }
+            // Use the same gradient/bleed treatment in both orientations;
+            // gradientOverlay already accounts for the wide layout.
+            gradientOverlay
 
             // Use only transparent title artwork. Never synthesize ordinary
             // title text over a poster when a provider has no logo asset.
