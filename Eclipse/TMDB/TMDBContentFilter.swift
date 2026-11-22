@@ -1736,14 +1736,15 @@ class TMDBContentFilter: ObservableObject {
         )
         guard enabled || hideAllAges else { return true }
         guard let rating = TMDBMaturityRatingStore.shared.rating(isMovie: isMovie, id: id) else {
-            // A minimum-age filter fails closed for unresolved ratings. The
-            // all-ages-only filter leaves unknown ratings visible.
-            return !enabled
+            // The setting hides titles with a known rating below the threshold;
+            // an unavailable certificate must not collapse an entire Browse
+            // category to the few titles whose regional rating happened to load.
+            return true
         }
         if hideAllAges && rating == .general { return false }
-        guard enabled else { return true }
+        guard enabled, rating != .unknown else { return true }
         let minimum = isMovie ? MaturityRating.teen : .age14
-        return rating != .unknown && rating >= minimum
+        return rating >= minimum
     }
 
     private static func runtimeCacheKey(for result: TMDBSearchResult) -> String {
@@ -1969,13 +1970,13 @@ class TMDBContentFilter: ObservableObject {
             let hideAllAges = result.isMovie
                 ? defaults.bool(forKey: "catalogHideAllAgesMovies")
                 : defaults.bool(forKey: "catalogHideAllAgesSeries")
-            if hideBelowMinimum || hideAllAges,
-               let rating = TMDBMaturityRatingStore.shared.rating(isMovie: result.isMovie, id: result.id) {
+            if let rating = TMDBMaturityRatingStore.shared.rating(isMovie: result.isMovie, id: result.id) {
                 if hideAllAges && rating == .general { return false }
                 let minimum = result.isMovie ? MaturityRating.teen : .age14
-                if hideBelowMinimum && (rating == .unknown || rating < minimum) { return false }
-            } else if hideBelowMinimum {
-                return false
+                // A missing/unknown certificate is not proof that a title is
+                // below the configured minimum. Keep it visible and let a later
+                // verified certification refine the decision.
+                if hideBelowMinimum, rating != .unknown, rating < minimum { return false }
             }
         }
 
