@@ -90,14 +90,17 @@ enum MediaLanguageCatalog {
             return language(for: "es")
         }
 
-        // Spanish is one selectable filter language in Eclipse. Castilian,
-        // Latin-American, and country-specific Spanish metadata all satisfy
-        // the same Spanish preference; regional IDs remain in provider data.
-        if unwrapped == "es" || unwrapped.hasPrefix("es-")
-            || ["castellano", "castilian", "spanish", "espanol", "español", "spa",
-                "español latino", "espanol latino", "latino", "latam", "latin",
-                "latin american spanish", "spanish (latino)", "spanish (latin america)",
-                "spanish latino", "castilian spanish", "european spanish"].contains(key) {
+        // Spanish is a single selectable filter family in Eclipse. Collapse
+        // every resolved regional Spanish identity (including display names
+        // such as "Spanish (Spain)") while preserving typed provider IDs.
+        if let resolved = language(for: value),
+           resolved.id == "es" || resolved.id.hasPrefix("es-") {
+            return language(for: "es")
+        }
+        if ["castellano", "castilian", "spanish", "espanol", "español", "spa",
+            "español latino", "espanol latino", "latino", "latam", "latin",
+            "latin american spanish", "spanish (latino)", "spanish (latin america)",
+            "spanish latino", "castilian spanish", "european spanish"].contains(key) {
             return language(for: "es")
         }
         if ["cantonese", "mandarin"].contains(key) { return language(for: "zh") }
