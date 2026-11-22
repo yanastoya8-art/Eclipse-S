@@ -55,8 +55,12 @@ enum PosterArtworkURLResolver {
         return candidates.filter { seen.insert($0).inserted }
     }
 
+    static func hasCleanPoster(for result: TMDBSearchResult) -> Bool {
+        !candidates(for: result).isEmpty
+    }
+
     static func bestPosterURL(for result: TMDBSearchResult) -> String? {
-        candidates(for: result).first
+        candidates(for: result).first ?? result.fullPosterURL
     }
 }
 
@@ -309,7 +313,8 @@ struct SearchResultCard: View {
     private var posterImage: some View {
         ZStack {
             ResilientArtworkImage(
-                urls: PosterArtworkURLResolver.candidates(for: result),
+                urls: PosterArtworkURLResolver.candidates(for: result)
+                    + (PosterArtworkURLResolver.hasCleanPoster(for: result) ? [] : [result.fullPosterURL].compactMap { $0 }),
                 decodeSize: CGSize(width: posterDecodeWidth, height: posterDecodeWidth * 1.5),
                 contentMode: .fill
             ) {
@@ -322,7 +327,7 @@ struct SearchResultCard: View {
 
             CenteredPosterTitleOverlay(
                 title: result.displayTitle,
-                logoURL: titleLogoURL
+                logoURL: PosterArtworkURLResolver.hasCleanPoster(for: result) ? titleLogoURL : nil
             )
         }
         .aspectRatio(2/3, contentMode: .fill)
