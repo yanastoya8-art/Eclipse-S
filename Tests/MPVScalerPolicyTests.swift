@@ -751,9 +751,6 @@ final class V221RendererLifecycleTests: XCTestCase {
     }
 
     func testNextEpisodeDiscardsOpenSubtitlesAcrossPictureInPictureWarmupsAndLateLoads() async throws {
-#if targetEnvironment(simulator)
-        throw XCTSkip("MoltenVK GPU lifecycle integration requires a physical iOS device; the hosted simulator cannot allocate the Vulkan surface memory.")
-#endif
         guard MPVGPUPlayerBridge.isAvailable else { throw XCTSkip(MPVGPUPlayerBridge.unavailableReason ?? "GPU renderer unavailable") }
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first(where: { $0.activationState == .foregroundActive }))
         let previousWindow = scene.windows.first(where: \.isKeyWindow)
