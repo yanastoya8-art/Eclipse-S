@@ -4238,8 +4238,10 @@ private final class MPVHeaderProxyCore {
         private func signalRedirect(to redirect: URLRequest, response: HTTPURLResponse) {
             guard !finished, !stopped else { return }
             finished = true
+            // A redirect callback transfers the request to URLSession. Sending
+            // a cancellation failure immediately afterwards races that handoff
+            // and turns valid pinned-loopback redirects into a synthetic 502.
             client?.urlProtocol(self, wasRedirectedTo: redirect, redirectResponse: response)
-            client?.urlProtocol(self, didFailWithError: URLError(.cancelled))
             tearDownConnection()
         }
 
