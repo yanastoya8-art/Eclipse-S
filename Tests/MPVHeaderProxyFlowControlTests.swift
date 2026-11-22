@@ -892,19 +892,21 @@ final class MPVHeaderProxyFlowControlTests: XCTestCase {
         let pressure = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
             guard let flow = capture.all.first else { return false }
             let snapshot = flow.snapshot
+
+            // Native URLSession streams deliberately suspend at the low
+            // watermark (8 queued chunks), well before the hard queue limit
+            // (64 chunks / 8 MiB). Waiting for the hard limit deadlocks this
+            // test: correct backpressure prevents the queue from ever reaching
+            // it. The pinned transport uses the same early threshold as a
+            // reliable indication that the paused reader is exerting pressure.
             if usingRecordedPeak {
-                return snapshot.chunks > 0
-                    && (snapshot.peakChunks >= MPVHeaderProxyFlowControl.maximumChunks
-                        || snapshot.peakBytes >= MPVHeaderProxyFlowControl.maximumBytes)
+                return snapshot.peakChunks >= MPVHeaderProxyFlowControl.suspensionChunks
+                    || snapshot.peakBytes >= MPVHeaderProxyFlowControl.maximumBytes
             }
-            return snapshot.chunks >= MPVHeaderProxyFlowControl.maximumChunks
+            return snapshot.chunks >= MPVHeaderProxyFlowControl.suspensionChunks
                 || snapshot.bytes >= MPVHeaderProxyFlowControl.maximumBytes
         }, object: nil)
-        // The 64 MiB loopback fixture can take longer to reach the
-        // bounded queue threshold on a loaded hosted simulator. Keep this
-        // wait separate from the later resume/drain timeout so slow socket
-        // backpressure does not fail the test before pressure is established.
-        wait(for: [pressure], timeout: 60)
+        wait(for: [pressure], timeout: 30)
     }
 
     private func waitForPausedSendsToRemainPending(_ flow: MPVHeaderProxyFlowControl) {
