@@ -341,7 +341,7 @@ final class MPVHeaderProxyFlowControl {
     }
 
     static let maximumBytes = 8 * 1_024 * 1_024
-    static let maximumChunks = 8
+    static let maximumChunks = 64
     static let maximumOverflowBytes = 32 * 1_024 * 1_024
     static let maximumOverflowChunks = 256
     static let producerChunkBytes = 64 * 1_024
