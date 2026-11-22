@@ -2700,6 +2700,14 @@ struct MediaDetailContentView: View {
                 onAmbientColorExtracted: { color in
                     ambientColor = color
                 },
+                imageDecodeSize: CGSize(
+                    width: max(detailViewportWidth * EclipseViewport.scale, 1),
+                    height: max(heroSectionHeight * EclipseViewport.scale, 1)
+                ),
+                artworkScaleX: usesLandscapeDetailComposition
+                    ? CGFloat(min(max(landscapeHeroHorizontalStretch, 0.85), 1.5)) : 1,
+                artworkScaleY: usesLandscapeDetailComposition
+                    ? CGFloat(min(max(landscapeHeroVerticalStretch, 0.85), 1.5)) : 1,
                 placeholderColor: shouldAnalyzeAlternatePoster ? .clear : Color.gray.opacity(0.3),
                 fallbackImageURLs: detailHeroFallbackImageURLs,
                 preservesArtworkComposition: false,
