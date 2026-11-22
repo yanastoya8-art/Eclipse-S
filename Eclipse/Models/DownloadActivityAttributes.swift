@@ -1,7 +1,7 @@
 import ActivityKit
 import Foundation
 
-@available(iOS 16.1, *)
+@available(iOS 16.2, *)
 struct DownloadActivityAttributes: ActivityAttributes {
     struct ContentState: Codable, Hashable {
         var progress: Double
