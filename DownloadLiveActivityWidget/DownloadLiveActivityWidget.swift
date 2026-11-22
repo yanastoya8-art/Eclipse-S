@@ -2,7 +2,7 @@ import ActivityKit
 import SwiftUI
 import WidgetKit
 
-@available(iOSApplicationExtension 16.1, *)
+@available(iOSApplicationExtension 16.2, *)
 @main
 struct DownloadLiveActivityWidget: Widget {
     var body: some WidgetConfiguration {
