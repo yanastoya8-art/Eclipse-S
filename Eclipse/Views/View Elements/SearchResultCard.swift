@@ -59,8 +59,27 @@ enum PosterArtworkURLResolver {
         !candidates(for: result).isEmpty
     }
 
+    static func fallbackTMDBPosterURL(for result: TMDBSearchResult) -> String? {
+        guard let path = result.posterPath?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !path.isEmpty else { return nil }
+        return TMDBImageRequestPolicy.urlString(for: path, kind: .poster)
+    }
+
+    static func libraryCandidates(for result: TMDBSearchResult) -> [String] {
+        var values = candidates(for: result)
+        if let fallback = fallbackTMDBPosterURL(for: result) {
+            values.append(fallback)
+        }
+        var seen = Set<String>()
+        return values.filter { seen.insert($0).inserted }
+    }
+
+    static func libraryPosterURL(for result: TMDBSearchResult) -> String? {
+        libraryCandidates(for: result).first
+    }
+
     static func bestPosterURL(for result: TMDBSearchResult) -> String? {
-        candidates(for: result).first ?? result.fullPosterURL
+        candidates(for: result).first ?? fallbackTMDBPosterURL(for: result) ?? result.fullPosterURL
     }
 }
 
@@ -309,14 +328,17 @@ struct SearchResultCard: View {
     }
 
     @State private var titleLogoURL: String?
+    @State private var loadedPosterURL: String?
 
     private var posterImage: some View {
-        ZStack {
+        let cleanPosterURLs = PosterArtworkURLResolver.candidates(for: result)
+        let fallbackPosterURL = PosterArtworkURLResolver.fallbackTMDBPosterURL(for: result)
+        return ZStack {
             ResilientArtworkImage(
-                urls: PosterArtworkURLResolver.candidates(for: result)
-                    + (PosterArtworkURLResolver.hasCleanPoster(for: result) ? [] : [result.fullPosterURL].compactMap { $0 }),
+                urls: PosterArtworkURLResolver.libraryCandidates(for: result),
                 decodeSize: CGSize(width: posterDecodeWidth, height: posterDecodeWidth * 1.5),
-                contentMode: .fill
+                contentMode: .fill,
+                onImageURLLoaded: { loadedPosterURL = $0 }
             ) {
                 FallbackImageView(
                     isMovie: result.isMovie,
@@ -327,12 +349,13 @@ struct SearchResultCard: View {
 
             CenteredPosterTitleOverlay(
                 title: result.displayTitle,
-                logoURL: PosterArtworkURLResolver.hasCleanPoster(for: result) ? titleLogoURL : nil
+                logoURL: loadedPosterURL.map { cleanPosterURLs.contains($0) ? titleLogoURL : nil } ?? nil
             )
         }
         .aspectRatio(2/3, contentMode: .fill)
         .task(id: result.stableIdentity) {
             titleLogoURL = nil
+            loadedPosterURL = nil
             titleLogoURL = await SearchResultTitleLogoCache.shared.logoURL(
                 mediaType: result.isMovie ? "movie" : "tv",
                 id: result.id
