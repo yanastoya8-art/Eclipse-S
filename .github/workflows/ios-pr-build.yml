@@ -104,6 +104,14 @@ jobs:
           MAL_REDIRECT_URI: ${{ secrets.MAL_REDIRECT_URI }}
         run: |
           set -euo pipefail
+          # Home's built-in movie/TV catalogs require the public TMDB v3 API key.
+          # Never print the value: fail early with an actionable message if the
+          # repository secret is absent, instead of producing a simulator app
+          # whose Home screen can only show the missing-key error at runtime.
+          if [[ -z "${TMDB_API_KEY//[[:space:]]/}" ]]; then
+            echo "::error::TMDB_API_KEY is missing or blank in repository Actions secrets; Home TMDB catalogs cannot load."
+            exit 1
+          fi
           {
             printf 'TMDB_API_KEY = %s\n' "${TMDB_API_KEY:-}"
             printf 'FANART_TV_API_KEY = %s\n' "${FANART_TV_API_KEY:-}"
