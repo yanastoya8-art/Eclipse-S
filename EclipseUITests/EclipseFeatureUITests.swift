@@ -2238,8 +2238,8 @@ final class EclipseFeatureUITests: XCTestCase {
             _ = waitUntil(timeout: 3, {
                 let settingsFrame = settings.exists ? settings.frame : .zero
                 let gearFrame = gear.exists ? gear.frame : .zero
-                return (settingsFrame.width > 0 && app.frame.intersects(settingsFrame))
-                    || (gearFrame.width > 0 && app.frame.intersects(gearFrame))
+                return (settingsFrame.width > 0 && self.app.frame.intersects(settingsFrame))
+                    || (gearFrame.width > 0 && self.app.frame.intersects(gearFrame))
             })
         }
         throw UIInteractionError.unavailable("Quick Actions did not open Settings.")
