@@ -2810,9 +2810,8 @@ final class DownloadManager: NSObject, ObservableObject {
             }
             return
         }
-        guard let attempt = directBackgroundAttempts[id],
-              attempt.granted, !attempt.revoked,
-              let item = downloads.first(where: { $0.id == id }) else { return }
+        guard let item = downloads.first(where: { $0.id == id }) else { return }
+        let attempt = directBackgroundAttempts[id].flatMap { $0.granted && !$0.revoked ? $0 : nil }
         let total: Int64
         let completed: Int64
         let subtitle: String
@@ -2833,12 +2832,14 @@ final class DownloadManager: NSObject, ObservableObject {
                 ? "\(DownloadByteCountFormatter.string(fromByteCount: downloaded)) downloaded"
                 : stage
         }
-        hlsBackgroundScheduler?.updateProgress(
-            attemptID: attempt.attemptID,
-            completed: completed,
-            total: total,
-            subtitle: subtitle
-        )
+        if let attempt {
+            hlsBackgroundScheduler?.updateProgress(
+                attemptID: attempt.attemptID,
+                completed: completed,
+                total: total,
+                subtitle: subtitle
+            )
+        }
 #if os(iOS)
         if #available(iOS 16.1, *) {
             Task { @MainActor in
@@ -2945,11 +2946,13 @@ final class DownloadManager: NSObject, ObservableObject {
     }
 
     private func updateHLSBackgroundProgress(id: String, stage: String) {
-        guard let attempt = hlsBackgroundAttempts[id], attempt.granted, !attempt.revoked,
-              let item = downloads.first(where: { $0.id == id }) else { return }
+        guard let item = downloads.first(where: { $0.id == id }) else { return }
+        let attempt = hlsBackgroundAttempts[id].flatMap { $0.granted && !$0.revoked ? $0 : nil }
         let total = Int64(max(item.hlsTotalSegments ?? 1, 1)) + 1
         let completed = min(Int64(max(item.hlsResumeSegmentIndex ?? 0, 0)), total - 1)
-        hlsBackgroundScheduler?.updateProgress(attemptID: attempt.attemptID, completed: completed, total: total, subtitle: stage)
+        if let attempt {
+            hlsBackgroundScheduler?.updateProgress(attemptID: attempt.attemptID, completed: completed, total: total, subtitle: stage)
+        }
 #if os(iOS)
         if #available(iOS 16.1, *) {
             Task { @MainActor in
