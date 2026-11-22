@@ -128,11 +128,11 @@ struct StretchyHeaderView: View {
             let deltaY = frame.minY
             let artworkWidth = max(geometry.size.width, EclipseViewport.bounds.width)
             let height = headerHeight + max(0, deltaY)
-            // The detail ScrollView extends edge-to-edge, but SwiftUI can
-            // still place its content origin inside the safe-area insets.
-            // Pin the hero to the scroll viewport on both axes; the old
-            // min(0, -deltaY) left a visible top strip whenever minY was positive.
-            let offsetY = scrollCoordinateSpaceName == nil ? min(0, -deltaY) : -deltaY
+            // Match Home's hero behavior: stretch only during top overscroll,
+            // and never translate the banner down as the user scrolls back up.
+            // The previous detail-only -deltaY offset moved the artwork with the
+            // scroll content and exposed an empty strip above the hero.
+            let offsetY = min(0, -deltaY)
             let offsetX = scrollCoordinateSpaceName == nil ? 0 : -frame.minX
 
             ZStack(alignment: .bottom) {
