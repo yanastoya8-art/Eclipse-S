@@ -17058,12 +17058,18 @@ private enum LGWebOSDeviceDiscovery {
                   let address = interface.ifa_addr,
                   let mask = interface.ifa_netmask,
                   Int32(address.pointee.sa_family) == AF_INET else { continue }
-            let ip = address.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { ntohl($0.pointee.sin_addr.s_addr) }
-            let netmask = mask.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { ntohl($0.pointee.sin_addr.s_addr) }
-            let network = ip & netmask
-            let broadcast = network | ~netmask
-            let count = broadcast > network ? broadcast - network - 1 : 0
-            guard count > 0, count <= 512 else { continue }
+            // Convert the IPv4 address fields from network byte order without
+            // calling ntohl, which is exposed as an unavailable C macro in Swift.
+            let ip: UInt32 = address.withMemoryRebound(to: sockaddr_in.self, capacity: 1) {
+                UInt32(bigEndian: $0.pointee.sin_addr.s_addr)
+            }
+            let netmask: UInt32 = mask.withMemoryRebound(to: sockaddr_in.self, capacity: 1) {
+                UInt32(bigEndian: $0.pointee.sin_addr.s_addr)
+            }
+            let network: UInt32 = ip & netmask
+            let broadcast: UInt32 = network | ~netmask
+            let hostCount = broadcast > network ? Int(broadcast - network - 1) : 0
+            guard hostCount > 0, hostCount <= 512 else { continue }
             for value in (network + 1)..<broadcast where value != ip {
                 hosts.append("\((value >> 24) & 255).\((value >> 16) & 255).\((value >> 8) & 255).\(value & 255)")
             }
