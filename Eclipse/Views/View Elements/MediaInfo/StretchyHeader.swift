@@ -21,6 +21,7 @@ struct ResilientArtworkImage<Placeholder: View>: View {
     let contentMode: SwiftUI.ContentMode
     private let placeholder: () -> Placeholder
     private let onImageLoaded: ((Color) -> Void)?
+    private let onImageURLLoaded: ((String) -> Void)?
     @State private var failedURLs: Set<String> = []
 
     init(
@@ -28,12 +29,14 @@ struct ResilientArtworkImage<Placeholder: View>: View {
         decodeSize: CGSize,
         contentMode: SwiftUI.ContentMode = .fill,
         onImageLoaded: ((Color) -> Void)? = nil,
+        onImageURLLoaded: ((String) -> Void)? = nil,
         @ViewBuilder placeholder: @escaping () -> Placeholder
     ) {
         self.urls = urls
         self.decodeSize = decodeSize
         self.contentMode = contentMode
         self.onImageLoaded = onImageLoaded
+        self.onImageURLLoaded = onImageURLLoaded
         self.placeholder = placeholder
     }
 
@@ -57,6 +60,7 @@ struct ResilientArtworkImage<Placeholder: View>: View {
                     .onSuccess { result in
                         guard currentURL == imageURL else { return }
                         onImageLoaded?(Color.ambientColor(from: result.image))
+                        onImageURLLoaded?(imageURL)
                     }
 #endif
                     .onFailure { _ in
@@ -128,11 +132,11 @@ struct StretchyHeaderView: View {
             let deltaY = frame.minY
             let artworkWidth = max(geometry.size.width, EclipseViewport.bounds.width)
             let height = headerHeight + max(0, deltaY)
-            // The detail ScrollView extends edge-to-edge, but SwiftUI can
-            // still place its content origin inside the safe-area insets.
-            // Pin the hero to the scroll viewport on both axes; the old
-            // min(0, -deltaY) left a visible top strip whenever minY was positive.
-            let offsetY = scrollCoordinateSpaceName == nil ? min(0, -deltaY) : -deltaY
+            // Match Home's hero behavior: stretch only during top overscroll,
+            // and never translate the banner down as the user scrolls back up.
+            // The previous detail-only -deltaY offset moved the artwork with the
+            // scroll content and exposed an empty strip above the hero.
+            let offsetY = min(0, -deltaY)
             let offsetX = scrollCoordinateSpaceName == nil ? 0 : -frame.minX
 
             ZStack(alignment: .bottom) {

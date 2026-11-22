@@ -2690,59 +2690,28 @@ struct MediaDetailContentView: View {
 
     private var heroBackdrop: some View {
         ZStack(alignment: .bottom) {
-            let image = Group {
-                if usesLandscapeDetailComposition {
-                    // Landscape detail is a fixed, full-bleed banner rather
-                    // than a stretchy poster. Render it directly at the
-                    // measured viewport size: StretchyHeaderView's nested
-                    // GeometryReader and scroll offsets could leave a top or
-                    // leading strip on rotation/safe-area changes.
-                    ResilientArtworkImage(
-                        urls: ([detailHeroImageURL].compactMap { $0 } + detailHeroFallbackImageURLs),
-                        decodeSize: CGSize(
-                            width: max(detailViewportWidth * EclipseViewport.scale, 1),
-                            height: max(heroSectionHeight * EclipseViewport.scale, 1)
-                        ),
-                        contentMode: .fill,
-                        onImageLoaded: { color in ambientColor = color }
-                    ) {
-                        Rectangle().fill(shouldAnalyzeAlternatePoster ? .clear : Color.gray.opacity(0.3))
-                    }
-                    // Preserve the user's landscape artwork stretch controls.
-                    // The fixed full-bleed renderer replaced StretchyHeaderView,
-                    // so apply the same bounded scale here rather than silently
-                    // ignoring the saved horizontal/vertical values.
-                    .scaleEffect(
-                        x: CGFloat(min(max(landscapeHeroHorizontalStretch, 0.85), 1.5)),
-                        y: CGFloat(min(max(landscapeHeroVerticalStretch, 0.85), 1.5)),
-                        anchor: .center
-                    )
-                    .frame(
-                        width: max(detailViewportWidth, EclipseViewport.bounds.width),
-                        height: heroSectionHeight
-                    )
-                    .clipped()
-                } else {
-                    StretchyHeaderView(
-                        backdropURL: detailHeroImageURL,
-                        isMovie: searchResult.isMovie,
-                        headerHeight: heroSectionHeight,
-                        minHeaderHeight: minHeaderHeight,
-                        onAmbientColorExtracted: { color in
-                            ambientColor = color
-                        },
-                        placeholderColor: shouldAnalyzeAlternatePoster ? .clear : Color.gray.opacity(0.3),
-                        fallbackImageURLs: detailHeroFallbackImageURLs,
-                        preservesArtworkComposition: false,
-                        showsBottomFade: true,
-                        bottomFadeHeight: 100,
-                        bottomFadeEndOpacity: 0.6,
-                        scrollCoordinateSpaceName: "mediaDetailScroll"
-                    )
-                    .frame(maxWidth: .infinity)
-                    .clipped()
-                }
-            }
+            let image = StretchyHeaderView(
+                backdropURL: detailHeroImageURL,
+                isMovie: searchResult.isMovie,
+                headerHeight: heroSectionHeight,
+                minHeaderHeight: ExperimentalFeatureState.isEnabledAtLaunch
+                    ? max(380, heroSectionHeight * 0.58)
+                    : 300,
+                onAmbientColorExtracted: { color in
+                    ambientColor = color
+                },
+                imageDecodeSize: CGSize(
+                    width: max(detailViewportWidth * EclipseViewport.scale, 1),
+                    height: max(heroSectionHeight * EclipseViewport.scale, 1)
+                ),
+                placeholderColor: shouldAnalyzeAlternatePoster ? .clear : Color.gray.opacity(0.3),
+                fallbackImageURLs: detailHeroFallbackImageURLs,
+                preservesArtworkComposition: false,
+                showsBottomFade: true,
+                scrollCoordinateSpaceName: "mediaDetailScroll"
+            )
+            .frame(maxWidth: .infinity)
+            .clipped()
 #if DEBUG
             if ProcessInfo.processInfo.environment["ECLIPSE_UI_POSTER_AUDIT"] == "1" {
                 let state = alternatePosterWasResolved ? "resolved" : posterAuditSelectorIsPending ? "pending" : "loading"
@@ -2762,11 +2731,9 @@ struct MediaDetailContentView: View {
             // Fade both orientations into the same extracted-colour field.
             // Landscape uses a longer, stronger fade so the full-bleed banner
             // blends into the overview instead of ending at a hard line.
-            if usesLandscapeDetailComposition {
-                landscapeHeroFadeOverlay
-            } else {
-                gradientOverlay
-            }
+            // Use the same gradient/bleed treatment in both orientations;
+            // gradientOverlay already accounts for the wide layout.
+            gradientOverlay
 
             // Use only transparent title artwork. Never synthesize ordinary
             // title text over a poster when a provider has no logo asset.

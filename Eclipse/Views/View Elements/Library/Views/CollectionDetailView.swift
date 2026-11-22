@@ -254,22 +254,26 @@ struct CollectionDetailView: View {
 
     private func posterTile(_ item: LibraryItem, heroID: String) -> some View {
         VStack {
-            if let url = item.searchResult.fullPosterURL {
-                KFImage(URL(string: url))
-                    .placeholder {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.secondary.opacity(0.3))
-                    }
-                    .resizable()
-                    .aspectRatio(2/3, contentMode: .fill)
-                    .frame(
-                        width: isTvOS ? 220 : 120 * iPadScale,
-                        height: isTvOS ? 330 : 180 * iPadScale
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .shadow(color: .black.opacity(0.1), radius: 3, x: 0, y: 1)
-                    .heroSource(id: heroID, namespace: heroNamespace)
+            ResilientArtworkImage(
+                urls: PosterArtworkURLResolver.libraryCandidates(for: item.searchResult),
+                decodeSize: CGSize(width: 480, height: 720),
+                contentMode: .fill
+            ) {
+                FallbackImageView(
+                    isMovie: item.searchResult.isMovie,
+                    size: CGSize(width: isTvOS ? 220 : 120 * iPadScale,
+                                 height: isTvOS ? 330 : 180 * iPadScale),
+                    expandsToFillContainer: true
+                )
             }
+            .aspectRatio(2/3, contentMode: .fill)
+            .frame(
+                width: isTvOS ? 220 : 120 * iPadScale,
+                height: isTvOS ? 330 : 180 * iPadScale
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .shadow(color: .black.opacity(0.1), radius: 3, x: 0, y: 1)
+            .heroSource(id: heroID, namespace: heroNamespace)
 
             Text(item.searchResult.displayTitle)
                 .font(.caption)

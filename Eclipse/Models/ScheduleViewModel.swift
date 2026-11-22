@@ -57,7 +57,7 @@ enum AnimeScheduleProviderLanguagePolicy {
             )
         case .aiSpanishDub:
             return selectedLanguages.contains(MyDubListLanguage.spanish.rawValue)
-        case .dubOnly, .tsuzuki:
+        case .dubOnly, .tsuzuki, .seaDub:
             return selectedLanguages.contains(MyDubListLanguage.english.rawValue)
         default:
             return nil
@@ -166,6 +166,7 @@ enum ScheduleProvider: String, Codable, Sendable {
     case animeSchedule
     case dubOnly
     case tsuzuki
+    case seaDub
     case nativeLanguage
     case trakt
     case traktMovie
@@ -1154,16 +1155,15 @@ final class ScheduleViewModel: ObservableObject {
                             try await AnimeScheduleService.shared.fetchSchedule(daysAhead: dayCount)
                         }
                         async let tsuzukiResult: AnimeAiringScheduleResult? = try? await TsuzukiAnimeDubScheduleService.shared.fetchSchedule(daysAhead: dayCount)
-                        let (dubOnly, tsuzuki) = await (dubOnlyResult, tsuzukiResult)
+                        async let seaDubResult: AnimeAiringScheduleResult? = try? await SeaDubAnimeDubScheduleService.shared.fetchSchedule(daysAhead: dayCount)
+                        let (dubOnly, tsuzuki, seaDub) = await (dubOnlyResult, tsuzukiResult, seaDubResult)
                         try Task.checkCancellation()
-                        switch (dubOnly, tsuzuki) {
-                        case let (primary?, fallback?):
-                            result = AnimeScheduleFallback.mergeEnglishDubSchedules(primary: primary, fallback: fallback)
-                        case let (primary?, nil):
-                            result = primary
-                        case let (nil, fallback?):
-                            result = fallback
-                        case (nil, nil):
+                        let availableProviders = [dubOnly, tsuzuki, seaDub].compactMap { $0 }
+                        if let first = availableProviders.first {
+                            result = availableProviders.dropFirst().reduce(first) { merged, provider in
+                                AnimeScheduleFallback.mergeEnglishDubSchedules(primary: merged, fallback: provider)
+                            }
+                        } else {
                             result = AnimeAiringScheduleResult(
                                 entries: [],
                                 isAuthoritativeForNotifications: false,

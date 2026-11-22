@@ -48,7 +48,7 @@ enum AnimeScheduleError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .unconfigured: return "English dub schedule needs an AnimeSchedule API token. Add it in Settings → Language & Content Filters."
+        case .unconfigured: return "AnimeSchedule.net's public timetable API is not configured for this request."
         case .invalidResponse: return "The DubOnly English dub schedule returned an invalid response."
         case .http(let status): return "DubOnly English dub schedule request failed (HTTP \(status))."
         case .unavailable: return "DubOnly has no available English dub timetable for these dates."
@@ -367,7 +367,9 @@ actor AnimeScheduleService {
     }
 
     func fetchSchedule(daysAhead: Int, now: Date = Date(), preferredLanguageCode: String = "en") async throws -> AnimeAiringScheduleResult {
-        guard !token.isEmpty else { throw AnimeScheduleError.unconfigured }
+        // AnimeSchedule.net's documented v3 timetable endpoints are public.
+        // Do not make a user-supplied token a prerequisite: the website/API work
+        // without one, and a stale token can turn a healthy provider into 401s.
         guard (1...30).contains(daysAhead) else { throw AnimeScheduleError.invalidResponse }
         try Task.checkCancellation()
         loadCache(now: now)
@@ -524,7 +526,6 @@ actor AnimeScheduleService {
         guard let url = components.url else { throw AnimeScheduleError.invalidResponse }
         var request = URLRequest(url: url)
         request.timeoutInterval = min(12, max(0.1, deadline.timeIntervalSinceNow))
-        request.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("Eclipse/AnimeSchedule", forHTTPHeaderField: "User-Agent")
         let (data, response) = try await session.boundedData(for: request, maximumResponseBytes: 2 * 1024 * 1024)
@@ -716,6 +717,142 @@ actor TsuzukiAnimeDubScheduleService {
             notice: entries.isEmpty ? nil : "English dub dates supplemented by Tsuzuki's corrected schedule."
         )
         cached[cacheKey] = (Date(), result)
+        return result
+    }
+}
+
+actor SeaDubAnimeDubScheduleService {
+    static let shared = SeaDubAnimeDubScheduleService()
+
+    private struct Episode: Decodable {
+        let mediaId: Int
+        let idMal: Int?
+        let title: String
+        let episodeNumber: Int
+        let episodeDate: String
+        let format: String?
+        let image: String?
+        let delayed: Bool?
+        let delayedIndefinitely: Bool?
+        let verified: Bool?
+        let dateType: String?
+        let projected: Bool?
+        let batchStartEpisode: Int?
+        let batchEndEpisode: Int?
+    }
+
+    private var cached: [String: (fetchedAt: Date, result: AnimeAiringScheduleResult)] = [:]
+    private let cacheLifetime: TimeInterval = 15 * 60
+    private let feedURL = URL(string: "https://raw.githubusercontent.com/DefnoJae/SeaDub/main/raw/dub-schedule.json")!
+
+    func fetchSchedule(daysAhead: Int = 7) async throws -> AnimeAiringScheduleResult {
+        let days = min(max(daysAhead, 1), 31)
+        let now = Date()
+        let window = ScheduleDateWindow.envelope(dayCount: days, now: now)
+        let cacheKey = "\(Int(window.start.timeIntervalSince1970 / 86_400)):\(days)"
+        if let value = cached[cacheKey], now.timeIntervalSince(value.fetchedAt) < cacheLifetime {
+            return value.result
+        }
+
+        var request = URLRequest(url: feedURL)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 20
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Eclipse/SeaDubSchedule", forHTTPHeaderField: "User-Agent")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw AnimeScheduleError.invalidResponse
+        }
+        guard http.statusCode == 200 else {
+            throw AnimeScheduleError.http(http.statusCode)
+        }
+        guard data.count <= 10 * 1_024 * 1_024 else {
+            throw AnimeScheduleError.invalidResponse
+        }
+        let episodes = try JSONDecoder().decode([Episode].self, from: data)
+        guard episodes.count <= 20_000 else {
+            throw AnimeScheduleError.invalidResponse
+        }
+
+        var entriesByEpisode: [String: AniListAiringScheduleEntry] = [:]
+        for item in episodes {
+            guard item.verified == true,
+                  item.dateType?.lowercased() == "confirmed",
+                  item.projected != true,
+                  item.delayedIndefinitely != true,
+                  item.mediaId > 0, item.mediaId <= 1_000_000_000,
+                  item.episodeNumber > 0, item.episodeNumber <= 100_000,
+                  let date = AnimeScheduleEntryMapper.date(item.episodeDate),
+                  date >= window.start, date < window.end else { continue }
+
+            let firstEpisode = item.batchStartEpisode ?? item.episodeNumber
+            let lastEpisode = item.batchEndEpisode ?? item.episodeNumber
+            guard firstEpisode > 0, firstEpisode <= lastEpisode,
+                  lastEpisode <= 100_000, lastEpisode - firstEpisode < 200 else { continue }
+
+            let title = item.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !title.isEmpty, title.utf8.count <= 1_024 else { continue }
+
+            let coverImage: String? = {
+                guard let raw = item.image, raw.utf8.count <= 2_048,
+                      let url = URL(string: raw),
+                      url.scheme?.lowercased() == "https",
+                      let host = url.host?.lowercased(),
+                      host == "anilist.co" || host.hasSuffix(".anilist.co") else { return nil }
+                return url.absoluteString
+            }()
+            let validMALID = item.idMal.flatMap { (1...1_000_000_000).contains($0) ? $0 : nil }
+            let hasKnownTime = item.delayed != true
+
+            for episode in firstEpisode...lastEpisode {
+                let entry = AniListAiringScheduleEntry(
+                    id: item.mediaId * 100_001 + episode,
+                    mediaId: item.mediaId,
+                    title: title,
+                    airingAt: date,
+                    episode: episode,
+                    coverImage: coverImage,
+                    englishTitle: title,
+                    romajiTitle: nil,
+                    nativeTitle: nil,
+                    format: item.format,
+                    hasKnownAiringTime: hasKnownTime,
+                    scheduleProvider: .seaDub,
+                    malID: validMALID,
+                    airingTimeWithdrawn: !hasKnownTime
+                )
+                let key = "\(entry.mediaId):\(entry.episode)"
+                if let previous = entriesByEpisode[key],
+                   !ScheduleReleaseDatePolicy.shouldPrefer(
+                    candidateDate: entry.airingAt,
+                    candidateIsConfirmed: ScheduleReleaseDatePolicy.isConfirmedReleaseDate(
+                        provider: entry.scheduleProvider,
+                        hasKnownAiringTime: entry.hasKnownAiringTime,
+                        airingTimeWithdrawn: entry.airingTimeWithdrawn == true
+                    ),
+                    over: previous.airingAt,
+                    existingIsConfirmed: ScheduleReleaseDatePolicy.isConfirmedReleaseDate(
+                        provider: previous.scheduleProvider,
+                        hasKnownAiringTime: previous.hasKnownAiringTime,
+                        airingTimeWithdrawn: previous.airingTimeWithdrawn == true
+                    )
+                   ) { continue }
+                entriesByEpisode[key] = entry
+            }
+        }
+
+        let entries = entriesByEpisode.values.sorted {
+            if $0.airingAt != $1.airingAt { return $0.airingAt < $1.airingAt }
+            if $0.title != $1.title { return $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+            return $0.episode < $1.episode
+        }
+        let result = AnimeAiringScheduleResult(
+            entries: entries,
+            isAuthoritativeForNotifications: false,
+            notice: entries.isEmpty ? nil : "English dub dates supplemented by SeaDub's verified schedule feed."
+        )
+        cached[cacheKey] = (now, result)
         return result
     }
 }

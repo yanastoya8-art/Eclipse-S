@@ -6,6 +6,12 @@
 //
 
 import SwiftUI
+
+private enum LibraryPosterArtwork {
+    static func urls(for result: TMDBSearchResult) -> [String] {
+        PosterArtworkURLResolver.libraryCandidates(for: result)
+    }
+}
 import Kingfisher
 
 #if !os(tvOS)
@@ -568,17 +574,17 @@ struct BookmarkItemCard: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            KFImage(URL(string: item.searchResult.fullPosterURL ?? ""))
-                .placeholder {
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.3))
-                        .overlay(
-                            Image(systemName: item.searchResult.isMovie ? "tv" : "tv.and.mediabox")
-                                .font(.title2)
-                                .foregroundColor(.white.opacity(0.7))
-                        )
-                }
-                .resizable()
+            ResilientArtworkImage(
+                urls: LibraryPosterArtwork.urls(for: item.searchResult),
+                decodeSize: CGSize(width: 480, height: 720),
+                contentMode: .fill
+            ) {
+                FallbackImageView(
+                    isMovie: item.searchResult.isMovie,
+                    size: CGSize(width: posterWidth, height: posterHeight),
+                    expandsToFillContainer: true
+                )
+            }
                 .aspectRatio(2/3, contentMode: .fill)
                 .frame(width: posterWidth, height: posterHeight)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -670,34 +676,34 @@ struct CollectionCard: View {
             }
         } else if recentItems.count == 1 {
             let single = recentItems[0]
-            KFImage(URL(string: single.searchResult.fullPosterURL ?? ""))
-                .placeholder {
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.3))
-                        .overlay(
-                            Image(systemName: single.searchResult.isMovie ? "tv" : "tv.and.mediabox")
-                                .font(.title2)
-                                .foregroundColor(.white.opacity(0.7))
-                        )
-                }
-                .resizable()
+            ResilientArtworkImage(
+                urls: LibraryPosterArtwork.urls(for: single.searchResult),
+                decodeSize: CGSize(width: 640, height: 640),
+                contentMode: .fill
+            ) {
+                FallbackImageView(
+                    isMovie: single.searchResult.isMovie,
+                    size: CGSize(width: cardSide, height: cardSide),
+                    expandsToFillContainer: true
+                )
+            }
                 .aspectRatio(contentMode: .fill)
                 .frame(width: cardSide, height: cardSide)
                 .id(single.id)
         } else {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 2), spacing: 2) {
                 ForEach(recentItems) { item in
-                    KFImage(URL(string: item.searchResult.fullPosterURL ?? ""))
-                        .placeholder {
-                            Rectangle()
-                                .fill(Color.gray.opacity(0.3))
-                                .overlay(
-                                    Image(systemName: item.searchResult.isMovie ? "tv" : "tv.and.mediabox")
-                                        .font(.caption)
-                                        .foregroundColor(.white.opacity(0.7))
-                                )
-                        }
-                        .resizable()
+                    ResilientArtworkImage(
+                        urls: LibraryPosterArtwork.urls(for: item.searchResult),
+                        decodeSize: CGSize(width: 320, height: 320),
+                        contentMode: .fill
+                    ) {
+                        FallbackImageView(
+                            isMovie: item.searchResult.isMovie,
+                            size: CGSize(width: previewTileSide, height: previewTileSide),
+                            expandsToFillContainer: true
+                        )
+                    }
                         .aspectRatio(contentMode: .fill)
                         .frame(width: previewTileSide, height: previewTileSide)
                         .clipped()

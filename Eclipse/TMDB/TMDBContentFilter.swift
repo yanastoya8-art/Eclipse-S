@@ -964,6 +964,71 @@ class TMDBContentFilter: ObservableObject {
         await resolveAnimeAgeRatings(identities: identities)
     }
 
+    /// Browse must finish the metadata required by active filters before it
+    /// publishes a page. The general catalogue path intentionally resolves some
+    /// metadata in the background; doing that here caused a filtered Anime grid
+    /// to publish as empty before its ratings/runtime/production data arrived.
+    func resolveBrowseFilterMetadata(
+        for results: [TMDBSearchResult],
+        requiresAnimeAgeRating: Bool = false
+    ) async {
+        let defaults = UserDefaults.standard
+        let animeResults = results.filter { Self.isAnimeResult($0) }
+        let nonAnimeResults = results.filter { !Self.isAnimeResult($0) }
+        let selectedLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
+        let needsAnimeAge = requiresAnimeAgeRating
+            || defaults.bool(forKey: "catalogHideBelowPG13Anime")
+            || defaults.bool(forKey: "catalogHideAllAgesAnime")
+            || kidsModeEnabled
+        let tmdbRatingResults = nonAnimeResults.filter { result in
+            let minimumEnabled = result.isMovie
+                ? Self.ageFilterEnabled("catalogHideBelowPG13Movies", defaults: defaults)
+                : Self.ageFilterEnabled("catalogHideBelowTV14Shows", defaults: defaults)
+            let allAgesEnabled = defaults.bool(
+                forKey: result.isMovie ? "catalogHideAllAgesMovies" : "catalogHideAllAgesSeries"
+            )
+            return minimumEnabled || allAgesEnabled || kidsModeEnabled
+        }
+
+        async let runtimeResolution: Void = {
+            if defaults.bool(forKey: "catalogHideUnder20MinuteContent") {
+                await self.resolveRuntimeMetadata(for: results)
+            }
+        }()
+        async let productionResolution: Void = {
+            if defaults.bool(forKey: "catalogHideUnofficialContent") {
+                await self.resolveProductionMetadata(for: results)
+            }
+        }()
+        async let animeAgeResolution: Void = {
+            if needsAnimeAge, !animeResults.isEmpty {
+                await self.resolveAnimeAgeRatings(for: animeResults)
+            }
+        }()
+        async let animeAudioResolution: Void = {
+            if !selectedLanguages.isEmpty, !animeResults.isEmpty {
+                await self.resolveAnimeAudioMetadata(
+                    for: animeResults,
+                    selectedLanguages: selectedLanguages
+                )
+            }
+        }()
+        async let tmdbAgeResolution: Void = {
+            if !tmdbRatingResults.isEmpty {
+                await TMDBMaturityRatingStore.shared.resolve(
+                    tmdbRatingResults.map { (isMovie: $0.isMovie, id: $0.id) }
+                )
+            }
+        }()
+        _ = await (
+            runtimeResolution,
+            productionResolution,
+            animeAgeResolution,
+            animeAudioResolution,
+            tmdbAgeResolution
+        )
+    }
+
     private func resolveAnimeAgeRatings(identities: [(Int, Int?)]) async {
         var malIDsByAnimeID: [Int: Int] = [:]
         var uniqueIDs = Set<Int>()
@@ -2849,15 +2914,39 @@ actor TaizenAnimeAgeRatingService {
             if let anime = payload["a\(index)"] as? [String: Any],
                let returnedID = anime["id"] as? NSNumber,
                returnedID.intValue == id,
-               let age = anime["ageRating"] as? [String: Any],
-               let raw = age["rating"] as? String {
-                rating = MaturityRating.ratingForFiltering(certification: raw)
+               let age = anime["ageRating"] as? [String: Any] {
+                if let raw = age["rating"] as? String {
+                    let malRating = MaturityRating.ratingForFiltering(certification: raw)
+                    if malRating != .unknown {
+                        rating = malRating
+                    } else {
+                        rating = Self.certificationFallback(from: age)
+                    }
+                } else {
+                    // MAL ratings are not imported for every anime. Taizen also
+                    // exposes official regional TMDB certifications; use those
+                    // only as a fallback so valid 13+/14+ titles do not vanish
+                    // from Browse solely because the MAL field is null.
+                    rating = Self.certificationFallback(from: age)
+                }
             } else {
                 rating = .unknown
             }
             ratings[id] = rating
         }
         return ratings
+    }
+
+    private static func certificationFallback(from age: [String: Any]) -> MaturityRating {
+        let certifications = age["certifications"] as? [[String: Any]] ?? []
+        var byRegion: [String: [String]] = [:]
+        for certification in certifications {
+            guard let region = certification["region"] as? String,
+                  let value = certification["rating"] as? String,
+                  !region.isEmpty, !value.isEmpty else { continue }
+            byRegion[region, default: []].append(value)
+        }
+        return MaturityRating.classify(certificationsByRegion: byRegion)
     }
 
     func rating(anilistID: Int) async throws -> MaturityRating {
@@ -2882,7 +2971,7 @@ actor TaizenAnimeAgeRatingService {
         for offset in stride(from: 0, to: missing.count, by: 20) {
             let batch = Array(missing[offset..<min(offset + 20, missing.count)])
             let fields = batch.enumerated().map { index, id in
-                "a\(index): anime(id: \(id)) { id ageRating { rating } }"
+                "a\(index): anime(id: \(id)) { id ageRating { rating certifications { region rating } } }"
             }.joined(separator: " ")
             let query = "{ \(fields) }"
             guard var components = URLComponents(string: "https://taizen.moe/api/graphql") else {
