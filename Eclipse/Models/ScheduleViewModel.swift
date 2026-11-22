@@ -948,6 +948,16 @@ final class ScheduleViewModel: ObservableObject {
         }
     }
 
+    private func preparedFilteredAnimeScheduleResult(
+        _ result: AnimeScheduleLoadResult
+    ) async -> AnimeScheduleLoadResult {
+        // Resolve age metadata before the configured minimum-age gate runs.
+        // Without this step, every dubbed-provider entry with an unknown age
+        // rating was removed from Schedule even though its dub date was valid.
+        await TMDBContentFilter.shared.prepareScheduleAgeRatings(for: result.entries)
+        return filteredAnimeScheduleResult(result)
+    }
+
     private func filteredAnimeScheduleResult(_ result: AnimeScheduleLoadResult) -> AnimeScheduleLoadResult {
         let selectedLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
         let hideAnimeSpecials = UserDefaults.standard.bool(forKey: "catalogHideAnimeSpecialsAndOVAs")
@@ -1106,7 +1116,7 @@ final class ScheduleViewModel: ObservableObject {
                 requiredDayCount: dayCount
            ),
            let cached = cachedAnimeResult(for: dayCount) {
-            return filteredAnimeScheduleResult(cached)
+            return await preparedFilteredAnimeScheduleResult(cached)
         }
         if let animeScheduleLoadTask, animeScheduleLoadPolicyKey == policyKey {
             _ = try await animeScheduleLoadTask.value
@@ -1254,7 +1264,7 @@ final class ScheduleViewModel: ObservableObject {
                     self.animeScheduleLoadTask = nil
                     self.animeScheduleLoadID = nil
                 }
-                return filteredAnimeScheduleResult(loadResult)
+                return await preparedFilteredAnimeScheduleResult(loadResult)
             } catch {
                 if self.animeScheduleLoadID == loadID {
                     self.animeScheduleLastFailureAt = Date()
