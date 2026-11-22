@@ -25,6 +25,39 @@ final class MaturityRatingRegionTests: XCTestCase {
         XCTAssertFalse(ScheduleAllAgesPolicy.shouldExclude(rating: ratings[103], enabled: true))
     }
 
+    func testTaizenAgeRatingParserFallsBackToRegionalCertificationWhenMALRatingIsMissing() throws {
+        let data = try JSONSerialization.data(withJSONObject: [
+            "data": [
+                "a0": [
+                    "id": 104,
+                    "ageRating": [
+                        "rating": NSNull(),
+                        "certifications": [
+                            ["region": "US", "rating": "TV-14"]
+                        ]
+                    ]
+                ],
+                "a1": [
+                    "id": 105,
+                    "ageRating": [
+                        "rating": NSNull(),
+                        "certifications": [
+                            ["region": "US", "rating": "TV-MA"]
+                        ]
+                    ]
+                ]
+            ]
+        ])
+
+        let ratings = try TaizenAnimeAgeRatingService.parseRatings(
+            from: data,
+            identifiers: [104, 105]
+        )
+
+        XCTAssertEqual(ratings[104], .age14)
+        XCTAssertEqual(ratings[105], .age17)
+    }
+
     func testMALAnimeRatingParserKeepsPGSeparateFromAllAges() {
         XCTAssertEqual(MALMetadataService.parseMaturityRating("G - All Ages"), .general)
         XCTAssertEqual(MALMetadataService.parseMaturityRating("PG - Children"), .age10)
