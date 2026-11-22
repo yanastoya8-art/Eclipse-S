@@ -2034,8 +2034,7 @@ private struct BrowseMediaView: View {
                 ForEach(results, id: \.stableIdentity) { result in
                     SearchResultCard(result: result)
                         .onAppear {
-                            if result.stableIdentity == results.last?.stableIdentity,
-                           currentPage < Self.maximumAutomaticFilteredPages {
+                            if result.stableIdentity == results.last?.stableIdentity {
                                 loadNextPage()
                             }
                         }
@@ -2048,24 +2047,13 @@ private struct BrowseMediaView: View {
             // away and back. The page-based identity re-arms the sentinel after
             // each successful append. Keep the automatic scan bounded; the
             // final card remains a manual fallback for later pages.
-            if hasMorePages && currentPage < Self.maximumAutomaticFilteredPages {
+            // Re-arm the sentinel after every append so pagination remains
+            // automatic at every depth without a manual "Load More" control.
+            if hasMorePages {
                 Color.clear
                     .frame(height: 1)
                     .id("browse-search-pagination-\(currentPage)-\(results.count)")
                     .onAppear { loadNextPage() }
-            }
-
-            if hasMorePages && currentPage >= Self.maximumAutomaticFilteredPages {
-                Button {
-                    loadNextPage()
-                } label: {
-                    Label("Load More", systemImage: "arrow.down.circle")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .disabled(isLoading)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 12)
             }
 
             if let errorMessage {
@@ -2693,6 +2681,9 @@ private struct BrowseMediaView: View {
             MyDubListLanguage(rawValue: $0)?.taizenLanguageCode
         })
         let originalAudioFilterEnabled = UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
+        let globalAnimeAgeFilterEnabled =
+            UserDefaults.standard.bool(forKey: "catalogHideBelowPG13Anime")
+            || UserDefaults.standard.bool(forKey: "catalogHideAllAgesAnime")
 
         let candidates = results.enumerated().compactMap { index, result -> (Int, TMDBSearchResult, Bool)? in
             let hasTaizenPoster = result.animeArtworkURL?.contains("taizen.moe") == true
@@ -2708,8 +2699,9 @@ private struct BrowseMediaView: View {
             // when a selected dub/audio filter still needs AniList metadata.
             // Otherwise an anime with a Taizen poster and logo is incorrectly
             // discarded before the strict language filter can inspect it.
+            let needsAgeIdentity = globalAnimeAgeFilterEnabled
             if hasTaizenPoster, result.animeLogoURL != nil,
-               !needsDubIdentity, !needsAudioIdentity {
+               !needsDubIdentity, !needsAudioIdentity, !needsAgeIdentity {
                 return nil
             }
             let likelyAnime = result.isAnimeHint == true
@@ -2718,7 +2710,8 @@ private struct BrowseMediaView: View {
                         || result.originCountry?.contains(where: { ["JP", "CN", "KR", "TW"].contains($0) }) == true))
             // Taizen's fanart.tv poster is preferred for anime even when TMDB
             // already supplied an image. AniList remains the fallback.
-            guard needsDubIdentity || needsAudioIdentity || likelyAnime || result.fullPosterURL == nil else {
+            guard needsDubIdentity || needsAudioIdentity || needsAgeIdentity
+                || likelyAnime || result.fullPosterURL == nil else {
                 return nil
             }
             return (index, result, likelyAnime)
