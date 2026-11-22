@@ -14,19 +14,6 @@ final class TrackerLibraryContextTests: XCTestCase {
         XCTAssertEqual(TrackerLibraryContext.video.sources, [.local, .anilist, .myAnimeList, .trakt])
     }
 
-    func testReaderLibrariesExposeOnlyReadingTrackers() {
-#if os(tvOS)
-        XCTAssertTrue(TrackerLibraryContext.reader.kinds(for: .anilist).isEmpty)
-        XCTAssertTrue(TrackerLibraryContext.reader.kinds(for: .myAnimeList).isEmpty)
-        XCTAssertEqual(TrackerLibraryContext.reader.sources, [.local])
-#else
-        XCTAssertEqual(TrackerLibraryContext.reader.kinds(for: .anilist), [.manga, .lightNovel])
-        XCTAssertEqual(TrackerLibraryContext.reader.kinds(for: .myAnimeList), [.manga, .lightNovel])
-        XCTAssertEqual(TrackerLibraryContext.reader.sources, [.local, .anilist, .myAnimeList])
-#endif
-        XCTAssertTrue(TrackerLibraryContext.reader.kinds(for: .trakt).isEmpty)
-        XCTAssertTrue(TrackerLibraryContext.reader.kinds(for: .simkl).isEmpty)
-    }
 }
 
 final class TrackerLibraryMediaMatchTests: XCTestCase {

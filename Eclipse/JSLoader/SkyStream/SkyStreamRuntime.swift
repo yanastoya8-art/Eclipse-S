@@ -1283,7 +1283,7 @@ public actor SkyStreamRuntimePool {
             do {
                 let phaseState = SkyStreamWatchdogPhaseState()
                 result = try await withHardWatchdog(
-                    seconds: operationTimeout(operation, limits: configuration.limits) + 2,
+                    seconds: operationTimeout(operation, limits: configuration.limits),
                     phaseState: phaseState,
                     preparationSeconds: configuration.limits.providerTimeout + 2,
                     onOperationSettled: { [abiLimiter, sourceAdmission] in

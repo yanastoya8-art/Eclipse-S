@@ -315,7 +315,7 @@ final class MaturityRatingRegionTests: XCTestCase {
         XCTAssertEqual(MaturityRating.classify(certification: "7", region: "ES"), .age7)
         XCTAssertEqual(MaturityRating.classify(certification: "10", region: "FR"), .age10)
         XCTAssertEqual(MaturityRating.classify(certification: "11", region: "SE"), .age11)
-        XCTAssertFalse(MaturityRating.age11.isBlockedForKids)
+        XCTAssertTrue(MaturityRating.age11.isBlockedForKids)
         XCTAssertTrue(MaturityRating.age12.isBlockedForKids)
         XCTAssertFalse(MaturityRating.teen.isBlockedForKids)
     }
@@ -444,9 +444,9 @@ final class MaturityRatingRegionTests: XCTestCase {
     }
 
     func testBrowseAgeRatingUsesSharedMaturityTiersAndFailsClosedForUnknowns() {
-        XCTAssertEqual(BrowseAgeRating.general.title, "All Ages")
-        XCTAssertEqual(BrowseAgeRating.teen.title, "Up to 14+")
-        XCTAssertEqual(BrowseAgeRating.mature.title, "Up to 17+")
+        XCTAssertEqual(BrowseAgeRating.general.title, "All Ages (G / U)")
+        XCTAssertEqual(BrowseAgeRating.teen.title, "Up to 14 (PG-13 / TV-14)")
+        XCTAssertEqual(BrowseAgeRating.mature.title, "Up to 17 (R / TV-MA)")
         XCTAssertEqual(BrowseAgeRating.adult.title, "18+ Only")
         XCTAssertTrue(BrowseAgeRating.general.includes(.general))
         XCTAssertFalse(BrowseAgeRating.general.includes(.teen))
@@ -681,7 +681,7 @@ final class MaturityRatingRegionTests: XCTestCase {
         XCTAssertEqual(MaturityRating.classify(certification: "15", region: "GB"), .mature)
         XCTAssertEqual(MaturityRating.classify(certification: "R18", region: "GB"), .adult)
 
-        XCTAssertEqual(MaturityRating.classify(certification: "7", region: "ES"), .general)
+        XCTAssertEqual(MaturityRating.classify(certification: "7", region: "ES"), .age7)
         XCTAssertEqual(MaturityRating.classify(certification: "16", region: "ES"), .age16)
         XCTAssertEqual(MaturityRating.classify(certification: "18", region: "ES"), .adult)
 

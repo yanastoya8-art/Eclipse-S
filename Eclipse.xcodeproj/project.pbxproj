@@ -67,9 +67,7 @@
 
 		9C979BD3F58666134AED49DE /* TrackerLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B4748DB15E3A677562E065B /* TrackerLibraryView.swift */; };
 
-		81E4972C2544A4E9C1A1C9DC /* TrackerLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C5B68DF1AC05B5E801ADB60 /* TrackerLibrary.swift */; };
 
-		9AEEADF724824D3F3B45B749 /* TrackerLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C5B68DF1AC05B5E801ADB60 /* TrackerLibrary.swift */; };
 
 		2FA14291DDAF4BF51B3A5F5E /* RememberedPlaybackSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5A5D79A2E6C197EA2FBA882 /* RememberedPlaybackSelection.swift */; };
 
@@ -160,9 +158,8 @@
 		12DF1FC22F040D6700E80375 /* AdaptiveConfirmationDialog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12DF1FC12F040D6500E80375 /* AdaptiveConfirmationDialog.swift */; };
 		12E7AF602EB80775003B7664 /* Platform.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12E7AF5F2EB80771003B7664 /* Platform.swift */; };
 		1324E7BB2E940BD70036B5F5 /* PlayerPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1324E7B32E940BD70036B5F5 /* PlayerPreset.swift */; };
-		SHDRLIBIOSBUILD000000001 /* MPVUserShaderLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = SHDRLIBFILEREF0000000001 /* MPVUserShaderLibrary.swift */; };
-		SHDRLIBTVBUILD0000000001 /* MPVUserShaderLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = SHDRLIBFILEREF0000000001 /* MPVUserShaderLibrary.swift */; };
 		SCLRPOLIOSBUILD000000001 /* MPVScalerPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCLRPOLFILEREF0000000001 /* MPVScalerPolicy.swift */; };
+		MPVUSERSHADERIOSBUILD00000001 /* MPVUserShaderLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = MPVUSERSHADERFILEREF00000001 /* MPVUserShaderLibrary.swift */; };
 		SCLRPOLTVBUILD0000000001 /* MPVScalerPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCLRPOLFILEREF0000000001 /* MPVScalerPolicy.swift */; };
 		SHDRDIRIOSBUILD000000001 /* Shaders in Resources */ = {isa = PBXBuildFile; fileRef = SHDRDIRFILEREF0000000001 /* Shaders */; };
 		SHDRDIRTVBUILD0000000001 /* Shaders in Resources */ = {isa = PBXBuildFile; fileRef = SHDRDIRFILEREF0000000001 /* Shaders */; };
@@ -188,8 +185,6 @@
 		F9A1B2D22F90000100A1B2D2 /* MPVHeaderProxy.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9A1B2D12F90000100A1B2D1 /* MPVHeaderProxy.swift */; };
 		F9A1B2D32F90000100A1B2D3 /* MPVHeaderProxy.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9A1B2D12F90000100A1B2D1 /* MPVHeaderProxy.swift */; };
 		C0A5A0052FD1000000C0A505 /* CrashReporter in Frameworks */ = {isa = PBXBuildFile; productRef = C0A5A0042FD1000000C0A504 /* CrashReporter */; };
-		AD0000032FD9000000AD0003 /* AidokuSourceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD0000122FD9000000AD0012 /* AidokuSourceManager.swift */; };
-		AD0000052FD9000000AD0005 /* AidokuSourcesSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD0000142FD9000000AD0014 /* AidokuSourcesSettingsView.swift */; };
 		AD0000072FD9000000AD0007 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = AD0000232FD9000000AD0023 /* ZIPFoundation */; };
 		AD0000332FDA000000AD0033 /* Nuke in Frameworks */ = {isa = PBXBuildFile; productRef = AD0000322FDA000000AD0032 /* Nuke */; };
 		AD0000432FDB000000AD0043 /* AsyncDisplayKit in Frameworks */ = {isa = PBXBuildFile; productRef = AD0000422FDB000000AD0042 /* AsyncDisplayKit */; };
@@ -201,6 +196,39 @@
 		13DCC4F62E58B40F0028AE91 /* HybridSimilarity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13DCC4F52E58B40F0028AE91 /* HybridSimilarity.swift */; };
 		13E1EDD12ED9E65F00087629 /* Module.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E1ED9C2ED9E65F00087629 /* Module.swift */; };
 		13E1EDD22ED9E65F00087629 /* ModuleManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E1ED9E2ED9E65F00087629 /* ModuleManager.swift */; };
+		13E1EDD82ED9E65F00087629 /* Settings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E1EDA62ED9E65F00087629 /* Settings.swift */; };
+		F1E000000000000000000001 /* mangaData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E1EDA22ED9E65F00087629 /* mangaData.swift */; };
+		F1E000000000000000000004 /* KanzenCustomCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = KCC1000000000000000CAT01 /* KanzenCustomCatalog.swift */; };
+		F1E000000000000000000005 /* KanzenAidokuMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = KAM1000000000000000MIG01 /* KanzenAidokuMigration.swift */; };
+		F1E000000000000000000006 /* KanzenCatalogPresets.swift in Sources */ = {isa = PBXBuildFile; fileRef = KCP1000000000000000PRE01 /* KanzenCatalogPresets.swift */; };
+		F1E000000000000000000008 /* MangaLibraryItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA111002F40000000FAA110 /* MangaLibraryItem.swift */; };
+		F1E000000000000000000009 /* MangaLibraryCollection.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBB222002F40000000FBB220 /* MangaLibraryCollection.swift */; };
+		F1E000000000000000000010 /* MangaLibraryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCC333002F40000000FCC330 /* MangaLibraryManager.swift */; };
+		F1E000000000000000000011 /* ReaderContentFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = RCFFR0100000000000000001 /* ReaderContentFilter.swift */; };
+		F1E000000000000000000012 /* MangaReadingProgressManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABB999002F50000000ABB990 /* MangaReadingProgressManager.swift */; };
+		F1E000000000000000000013 /* ReaderLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD0000102FD9000000AD0010 /* ReaderLogger.swift */; };
+		F1E000000000000000000014 /* ReaderExtensionEPUB.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EADF13877DE4D51AA6BCDCD /* ReaderExtensionEPUB.swift */; };
+		F1E000000000000000000015 /* ReaderExtensionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = RXMODFR0000000000000001 /* ReaderExtensionModels.swift */; };
+		F1E000000000000000000016 /* ReaderExtensionNativeProviders.swift in Sources */ = {isa = PBXBuildFile; fileRef = RXNATFR0000000000000001 /* ReaderExtensionNativeProviders.swift */; };
+		F1E000000000000000000017 /* ReaderExtensionNovelSanitizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = RXNOVFR0000000000000001 /* ReaderExtensionNovelSanitizer.swift */; };
+		F1E000000000000000000018 /* ReaderExtensionPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = RXPERFR0000000000000001 /* ReaderExtensionPersistence.swift */; };
+		F1E000000000000000000019 /* ReaderExtensionProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = RXPRVFR0000000000000001 /* ReaderExtensionProvider.swift */; };
+		F1E000000000000000000020 /* ReaderExtensionSecurity.swift in Sources */ = {isa = PBXBuildFile; fileRef = RXSECFR0000000000000001 /* ReaderExtensionSecurity.swift */; };
+		F1E000000000000000000021 /* ReaderExtensionJavaScriptRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = RXJS0FR0000000000000001 /* ReaderExtensionJavaScriptRuntime.swift */; };
+		F1E000000000000000000022 /* ReaderExtensionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = RXMGRFR0000000000000001 /* ReaderExtensionManager.swift */; };
+		F1E000000000000000000023 /* ReaderExtensionCompatibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = RXCMPFR0000000000000001 /* ReaderExtensionCompatibility.swift */; };
+		F1E000000000000000000024 /* ReaderExtensionAppBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = RXAPPFR0000000000000001 /* ReaderExtensionAppBridge.swift */; };
+		F1E000000000000000000025 /* ReaderExtensionBrowserTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B2758602585D0CCD9503675 /* ReaderExtensionBrowserTransport.swift */; };
+		F1E000000000000000000027 /* ReaderDownloadManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5D100012FE1000000A5D001 /* ReaderDownloadManager.swift */; };
+		F1E000000000000000000028 /* pageData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E1EDA72ED9E65F00087629 /* pageData.swift */; };
+		F1E000000000000000000029 /* KanzenModuleRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E1EDB12ED9E65F00087629 /* KanzenModuleRunner.swift */; };
+		F1E000000000000000000030 /* KanzenEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E1EDB22ED9E65F00087629 /* KanzenEngine.swift */; };
+		F1E000000000000000000031 /* KanzenRunnerController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E1EDB42ED9E65F00087629 /* KanzenRunnerController.swift */; };
+		F1E000000000000000000032 /* KanzenOutputFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E1EDB02ED9E65F00087629 /* KanzenOutputFormatter.swift */; };
+		F1E000000000000000000033 /* ErrorDefinitions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E1EDAC2ED9E65F00087629 /* ErrorDefinitions.swift */; };
+		F1E000000000000000000034 /* JavaScriptCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E1EDAE2ED9E65F00087629 /* JavaScriptCore.swift */; };
+		F1E000000000000000000035 /* AidokuSourceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD0000122FD9000000AD0012 /* AidokuSourceManager.swift */; };
+		F1E000000000000000000036 /* ReaderNovelNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE5DD9065EB258BF39197DA7 /* ReaderNovelNavigation.swift */; };
 		13E1EDDA2ED9E65F00087629 /* bundle.js in Resources */ = {isa = PBXBuildFile; fileRef = 13E1EDAB2ED9E65F00087629 /* bundle.js */; };
 		13F0725F2E4B2D3300EF90EB /* SoraApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13F0725E2E4B2D3300EF90EB /* SoraApp.swift */; };
 		AD20000B2FE2000000AD200B /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD20000A2FE2000000AD200A /* Localization.swift */; };
@@ -446,9 +474,6 @@
 		3DCA59F4758620A0616EDDF1 = { isa = "PBXBuildFile"; productRef = "136C25C52EFE950300E37A6E"; };
 		8DC5FEA46869BB7A3BB8D238 = { isa = "PBXBuildFile"; productRef = "AD0000232FD9000000AD0023"; };
 		2F14830ACD1060265AFF8E51 = { isa = "PBXBuildFile"; productRef = "13A46CFF2EF5944C00423BC6"; };
-		32CDA4AFBC178B1267398586 = { isa = "PBXBuildFile"; fileRef = "DCD67B02EBEF0564A3D0D7F8"; };
-		2419381D4A39F938B2C21951 = { isa = "PBXBuildFile"; fileRef = "9B2758602585D0CCD9503675"; };
-		17522D6EB51BBCB18B051C2F = { isa = "PBXBuildFile"; fileRef = "AFEAB1B0B4307444E9F64051"; };
 		3CB17B816D2FD8729438EC76 = { isa = "PBXBuildFile"; fileRef = "B5897A1DEE07B58F6D29D5D3"; };
 		05CDBD53C4951EA02D1FB9E7 = { isa = "PBXBuildFile"; fileRef = "B5897A1DEE07B58F6D29D5D3"; };
 		2EC94F47B7978B95BC5C9476 = { isa = "PBXBuildFile"; fileRef = "90BF2D51A1E5A8DF4E57256A"; };
@@ -543,6 +568,11 @@
 		8BFBAD99F2CE4A8E9922DC33 /* SimklAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C457B1373844E498074EA0E /* SimklAPITests.swift */; };
 		70F4C4CB054F4F97A6B29132 /* SimklAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BE4A6651E3841FE821D23A0 /* SimklAPI.swift */; };
 		B5A0C0DE0000000000000001 /* HomeCatalogLoadPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A0C0DE0000000000000002 /* HomeCatalogLoadPolicyTests.swift */; };
+		ECA1B2C3D4E5F60718293001 /* TrackerLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECA1B2C3D4E5F60718293101 /* TrackerLibrary.swift */; };
+		ECA1B2C3D4E5F60718293002 /* MangaCatalogManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECA1B2C3D4E5F60718293102 /* MangaCatalogManager.swift */; };
+		ECA1B2C3D4E5F60718293003 /* MangaHomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECA1B2C3D4E5F60718293103 /* MangaHomeViewModel.swift */; };
+
+
 /* Begin PBXCopyFilesBuildPhase section */
 		12F745372EB539F000889684 /* Embed Frameworks */ = {
 			isa = PBXCopyFilesBuildPhase;
@@ -597,7 +627,6 @@
 		E6C1F0000000000000000008 /* PlaybackEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Eclipse/Player/PlaybackEngine.swift"; sourceTree = SOURCE_ROOT; };
 		E6C1F0000000000000000009 /* PlaybackLaunchContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Eclipse/Player/PlaybackLaunchContext.swift"; sourceTree = SOURCE_ROOT; };
 		E6C1F0000000000000000010 /* PlaybackRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Eclipse/Player/PlaybackRequest.swift"; sourceTree = SOURCE_ROOT; };
-		9E0CE323DA747526EDA48D66 /* ReaderLocalEPUBLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderLocalEPUBLibrary.swift; sourceTree = "<group>"; };
 		0B60EE14F4840E3FCED3B95A /* ReaderNovelNavigationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderNovelNavigationTests.swift; sourceTree = "<group>"; };
 		19C0057C714F40D28E5A1C15 /* AppCalendar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCalendar.swift; sourceTree = "<group>"; };
 		0A27CE30942D4BBAB9674419 /* AppCalendarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCalendarTests.swift; sourceTree = "<group>"; };
@@ -677,8 +706,8 @@
 		12DF1FC12F040D6500E80375 /* AdaptiveConfirmationDialog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveConfirmationDialog.swift; sourceTree = "<group>"; };
 		12E7AF5F2EB80771003B7664 /* Platform.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Platform.swift; sourceTree = "<group>"; };
 		1324E7B32E940BD70036B5F5 /* PlayerPreset.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PlayerPreset.swift; sourceTree = "<group>"; };
-		SHDRLIBFILEREF0000000001 /* MPVUserShaderLibrary.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MPVUserShaderLibrary.swift; sourceTree = "<group>"; };
 		SCLRPOLFILEREF0000000001 /* MPVScalerPolicy.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MPVScalerPolicy.swift; sourceTree = "<group>"; };
+		MPVUSERSHADERFILEREF00000001 /* MPVUserShaderLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MPVUserShaderLibrary.swift; sourceTree = "<group>"; };
 		SHDRDIRFILEREF0000000001 /* Shaders */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Shaders; sourceTree = "<group>"; };
 		RDRLEGALFILEREF00000001 /* ReaderExtensionLicenses */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ReaderExtensionLicenses; path = Legal/ReaderExtensions; sourceTree = "<group>"; };
 		OSSLEGALFILEREF000000001 /* OpenSourceLicenses */ = {isa = PBXFileReference; lastKnownFileType = folder; name = OpenSourceLicenses; path = Legal/OpenSourceLicenses; sourceTree = "<group>"; };
@@ -707,6 +736,8 @@
 		13E1ED9E2ED9E65F00087629 /* ModuleManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ModuleManager.swift; sourceTree = "<group>"; };
 		13E1EDA02ED9E65F00087629 /* mangaModel.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = mangaModel.xcdatamodel; sourceTree = "<group>"; };
 		13E1EDA22ED9E65F00087629 /* mangaData.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = mangaData.swift; sourceTree = "<group>"; };
+		ECA1B2C3D4E5F60718293102 /* MangaCatalogManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MangaCatalogManager.swift; sourceTree = "<group>"; };
+		ECA1B2C3D4E5F60718293103 /* MangaHomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MangaHomeViewModel.swift; sourceTree = "<group>"; };
 		13E1EDA32ED9E65F00087629 /* readingMode.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = readingMode.swift; sourceTree = "<group>"; };
 		13E1EDA42ED9E65F00087629 /* readerManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = readerManager.swift; sourceTree = "<group>"; };
 		13E1EDA52ED9E65F00087629 /* favouriteManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = favouriteManager.swift; sourceTree = "<group>"; };
@@ -719,18 +750,6 @@
 		13E1EDB12ED9E65F00087629 /* KanzenModuleRunner.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KanzenModuleRunner.swift; sourceTree = "<group>"; };
 		13E1EDB22ED9E65F00087629 /* KanzenEngine.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KanzenEngine.swift; sourceTree = "<group>"; };
 		13E1EDB42ED9E65F00087629 /* KanzenRunnerController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KanzenRunnerController.swift; sourceTree = "<group>"; };
-		13E1EDB72ED9E65F00087629 /* readerManagerView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = readerManagerView.swift; sourceTree = "<group>"; };
-		13E1EDB92ED9E65F00087629 /* chapterList.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = chapterList.swift; sourceTree = "<group>"; };
-		13E1EDBA2ED9E65F00087629 /* readerSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = readerSettingsView.swift; sourceTree = "<group>"; };
-		13E1EDBC2ED9E65F00087629 /* pagedViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = pagedViewController.swift; sourceTree = "<group>"; };
-		13E1EDBE2ED9E65F00087629 /* webToonViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = webToonViewController.swift; sourceTree = "<group>"; };
-		13E1EDC02ED9E65F00087629 /* kanzenSettings.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = kanzenSettings.swift; sourceTree = "<group>"; };
-		13E1EDC22ED9E65F00087629 /* kanzenGeneralSettings.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = kanzenGeneralSettings.swift; sourceTree = "<group>"; };
-		13E1EDC72ED9E65F00087629 /* contentCell.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = contentCell.swift; sourceTree = "<group>"; };
-		13E1EDC82ED9E65F00087629 /* circularLoading.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = circularLoading.swift; sourceTree = "<group>"; };
-		13E1EDC92ED9E65F00087629 /* contentView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = contentView.swift; sourceTree = "<group>"; };
-		13E1EDCB2ED9E65F00087629 /* Library.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Library.swift; sourceTree = "<group>"; };
-		13E1EDD02ED9E65F00087629 /* kanzenModuleView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = kanzenModuleView.swift; sourceTree = "<group>"; };
 		13E1EDF32ED9E67000087629 /* ContentModel.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = ContentModel.xcdatamodel; sourceTree = "<group>"; };
 		13F0725B2E4B2D3300EF90EB /* Eclipse.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Eclipse.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13F0725E2E4B2D3300EF90EB /* SoraApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoraApp.swift; sourceTree = "<group>"; };
@@ -822,36 +841,18 @@
 		DD4444402FB0000000DD4440 /* DownloadedShowDetailView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DownloadedShowDetailView.swift; sourceTree = "<group>"; };
 		AF00000000000000000000A2 /* AppHub.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppHub.swift; sourceTree = "<group>"; };
 		DD3333302FB0000000DD3330 /* FloatingSearchButton.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FloatingSearchButton.swift; sourceTree = "<group>"; };
-		FF1111102F30000000FF1110 /* AniListMangaService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AniListMangaService.swift; sourceTree = "<group>"; };
-		FF2222202F30000000FF2220 /* MangaCatalogManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MangaCatalogManager.swift; sourceTree = "<group>"; };
-		FF3333302F30000000FF3330 /* MangaHomeViewModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MangaHomeViewModel.swift; sourceTree = "<group>"; };
-		KCC2000000000000000CAT01 /* KanzenCustomCatalogsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KanzenCustomCatalogsView.swift; sourceTree = "<group>"; };
-		KCB1000000000000000BLD01 /* KanzenCatalogBuilderView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KanzenCatalogBuilderView.swift; sourceTree = "<group>"; };
 		KCC1000000000000000CAT01 /* KanzenCustomCatalog.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KanzenCustomCatalog.swift; sourceTree = "<group>"; };
 		KAM1000000000000000MIG01 /* KanzenAidokuMigration.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KanzenAidokuMigration.swift; sourceTree = "<group>"; };
 		KMG1000000000000000VW01 /* KanzenAidokuMigrationView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KanzenAidokuMigrationView.swift; sourceTree = "<group>"; };
 		KMG2000000000000000PR01 /* KanzenAidokuMigrationPrompt.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KanzenAidokuMigrationPrompt.swift; sourceTree = "<group>"; };
 		KCP1000000000000000PRE01 /* KanzenCatalogPresets.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KanzenCatalogPresets.swift; sourceTree = "<group>"; };
-		FF4444402F30000000FF4440 /* MangaSourceFinder.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MangaSourceFinder.swift; sourceTree = "<group>"; };
-		FF5555502F30000000FF5550 /* KanzenHomeView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KanzenHomeView.swift; sourceTree = "<group>"; };
-		FF5555512F30000000FF5551 /* KanzenHistoryView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KanzenHistoryView.swift; sourceTree = "<group>"; };
-		FF6666602F30000000FF6660 /* KanzenGlobalSearchView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KanzenGlobalSearchView.swift; sourceTree = "<group>"; };
-		KFE1000000000000000EDT01 /* ReaderExtensionFilterEditor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ReaderExtensionFilterEditor.swift; sourceTree = "<group>"; };
-		FF7777702F30000000FF7770 /* MangaDetailView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MangaDetailView.swift; sourceTree = "<group>"; };
-		FF8888802F30000000FF8880 /* MangaCatalogSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MangaCatalogSettingsView.swift; sourceTree = "<group>"; };
 		FAA111002F40000000FAA110 /* MangaLibraryItem.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MangaLibraryItem.swift; sourceTree = "<group>"; };
 		FBB222002F40000000FBB220 /* MangaLibraryCollection.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MangaLibraryCollection.swift; sourceTree = "<group>"; };
 		FCC333002F40000000FCC330 /* MangaLibraryManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MangaLibraryManager.swift; sourceTree = "<group>"; };
 		ABB999002F50000000ABB990 /* MangaReadingProgressManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MangaReadingProgressManager.swift; sourceTree = "<group>"; };
-		FDD444002F40000000FDD440 /* MangaAddToCollectionView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MangaAddToCollectionView.swift; sourceTree = "<group>"; };
-		FEE555002F40000000FEE550 /* MangaCreateCollectionView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MangaCreateCollectionView.swift; sourceTree = "<group>"; };
-		FFF666002F40000000FFF660 /* MangaCollectionDetailView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MangaCollectionDetailView.swift; sourceTree = "<group>"; };
-		GG1111002F60000000GG1110 /* NovelReaderView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NovelReaderView.swift; sourceTree = "<group>"; };
 		AD0000102FD9000000AD0010 /* ReaderLogger.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ReaderLogger.swift; sourceTree = "<group>"; };
 		AD0000112FD9000000AD0011 /* ReaderLoggerView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ReaderLoggerView.swift; sourceTree = "<group>"; };
 		AD0000122FD9000000AD0012 /* AidokuSourceManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AidokuSourceManager.swift; sourceTree = "<group>"; };
-		AD0000132FD9000000AD0013 /* AidokuMangaDetailView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AidokuMangaDetailView.swift; sourceTree = "<group>"; };
-		AD0000142FD9000000AD0014 /* AidokuSourcesSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AidokuSourcesSettingsView.swift; sourceTree = "<group>"; };
 		RXMODFR0000000000000001 /* ReaderExtensionModels.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ReaderExtensionModels.swift; sourceTree = "<group>"; };
 		RXNATFR0000000000000001 /* ReaderExtensionNativeProviders.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ReaderExtensionNativeProviders.swift; sourceTree = "<group>"; };
 		RXNOVFR0000000000000001 /* ReaderExtensionNovelSanitizer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ReaderExtensionNovelSanitizer.swift; sourceTree = "<group>"; };
@@ -863,7 +864,6 @@
 		RXMGRFR0000000000000001 /* ReaderExtensionManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ReaderExtensionManager.swift; sourceTree = "<group>"; };
 		RXCMPFR0000000000000001 /* ReaderExtensionCompatibility.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ReaderExtensionCompatibility.swift; sourceTree = "<group>"; };
 		A5D100012FE1000000A5D001 /* ReaderDownloadManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ReaderDownloadManager.swift; sourceTree = "<group>"; };
-		A5D100032FE1000000A5D003 /* ReaderDownloadsSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ReaderDownloadsSettingsView.swift; sourceTree = "<group>"; };
 		B5897A1DEE07B58F6D29D5D3 = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.swift"; path = "Eclipse/Player/PlayerSubtitleAppearance.swift"; sourceTree = "SOURCE_ROOT"; };
 		DCD67B02EBEF0564A3D0D7F8 = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.swift"; path = "Kanzen/Models/KanzenReaderUpscaleModelStore.swift"; sourceTree = "SOURCE_ROOT"; };
 		AFEAB1B0B4307444E9F64051 = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.swift"; path = "Kanzen/Models/KanzenSearchModels.swift"; sourceTree = "SOURCE_ROOT"; };
@@ -893,7 +893,7 @@
 		8881ADECC7A82AC17F49B09C = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.swift"; path = "Eclipse/Extensions/EclipseDataDirectories.swift"; sourceTree = "SOURCE_ROOT"; };
 		8881ADECC7A82AC17F49B09C = { isa = "PBXFileReference"; lastKnownFileType = "sourcecode.swift"; path = "Eclipse/Extensions/EclipseDataDirectories.swift"; sourceTree = "SOURCE_ROOT"; };
 		F5A5D79A2E6C197EA2FBA882 /* RememberedPlaybackSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Eclipse/Player/RememberedPlaybackSelection.swift"; sourceTree = SOURCE_ROOT; };
-		3C5B68DF1AC05B5E801ADB60 /* TrackerLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Eclipse/Tracking/Trackers/TrackerLibrary.swift"; sourceTree = SOURCE_ROOT; };
+		ECA1B2C3D4E5F60718293101 /* TrackerLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Eclipse/Tracking/Trackers/TrackerLibrary.swift"; sourceTree = SOURCE_ROOT; };
 		2B4748DB15E3A677562E065B /* TrackerLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Eclipse/Views/TrackerLibraryView.swift"; sourceTree = SOURCE_ROOT; };
 		9254900F9ACE73EA6FF07A2C /* TrackerLibraryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/TrackerLibraryTests.swift"; sourceTree = SOURCE_ROOT; };
 		B92FDB428729CE444EBBCCE9 /* RememberedPlaybackSelectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/RememberedPlaybackSelectionTests.swift"; sourceTree = SOURCE_ROOT; };
@@ -904,7 +904,6 @@
 		26F4AF6791DF4AAF8940CE79 /* TrackerLibraryMediaMatchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/TrackerLibraryMediaMatchTests.swift"; sourceTree = SOURCE_ROOT; };
 		0AE48FB1543547CCABA239F4 /* TrackerReaderMatchPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Kanzen/Models/TrackerReaderMatchPolicy.swift"; sourceTree = SOURCE_ROOT; };
 		C5C95EEC082E4FB5AE6331FA /* TrackerReaderResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Kanzen/Models/TrackerReaderResolver.swift"; sourceTree = SOURCE_ROOT; };
-		0463467F56D74B1D9B1BAC9E /* TrackerReaderDestinationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Kanzen/Views/Util/TrackerReaderDestinationView.swift"; sourceTree = SOURCE_ROOT; };
 		7B245017E3E84F5798CA91A6 /* TrackerReaderMatchPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/TrackerReaderMatchPolicyTests.swift"; sourceTree = SOURCE_ROOT; };
 		AC71185AD1E944D3B73A5397 /* PluginCloudConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginCloudConfiguration.swift; sourceTree = "<group>"; };
 		EB5AD989B389503CDA90E36A /* MangayomiMediaModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Eclipse/JSLoader/Mangayomi/MangayomiMediaModels.swift"; sourceTree = SOURCE_ROOT; };
@@ -1031,8 +1030,8 @@
 				13F315AF2EAD03F70025BD7A /* SubtitleLoader.swift */,
 				1324E7B52E940BD70036B5F5 /* PlayerViewController.swift */,
 				1324E7B42E940BD70036B5F5 /* MPVNativeRenderer.swift */,
-				SHDRLIBFILEREF0000000001 /* MPVUserShaderLibrary.swift */,
 				SCLRPOLFILEREF0000000001 /* MPVScalerPolicy.swift */,
+				MPVUSERSHADERFILEREF00000001 /* MPVUserShaderLibrary.swift */,
 				SHDRDIRFILEREF0000000001 /* Shaders */,
 				F9A1B2D12F90000100A1B2D1 /* MPVHeaderProxy.swift */,
 				1324E7B62E940BD70036B5F5 /* SampleBufferDisplayView.swift */,
@@ -1158,21 +1157,18 @@
 		13E1EDA12ED9E65F00087629 /* Models */ = {
 			isa = PBXGroup;
 			children = (
-				9E0CE323DA747526EDA48D66 /* ReaderLocalEPUBLibrary.swift */,
 				AE5DD9065EB258BF39197DA7 /* ReaderNovelNavigation.swift */,
-				13E1EDA22ED9E65F00087629 /* mangaData.swift */,
+						13E1EDA22ED9E65F00087629 /* mangaData.swift */,
+				ECA1B2C3D4E5F60718293102 /* MangaCatalogManager.swift */,
+				ECA1B2C3D4E5F60718293103 /* MangaHomeViewModel.swift */,
 				RXAPPFR0000000000000001 /* ReaderExtensionAppBridge.swift */,
 				13E1EDA32ED9E65F00087629 /* readingMode.swift */,
 				13E1EDA42ED9E65F00087629 /* readerManager.swift */,
 				13E1EDA52ED9E65F00087629 /* favouriteManager.swift */,
 				13E1EDA72ED9E65F00087629 /* pageData.swift */,
-				FF1111102F30000000FF1110 /* AniListMangaService.swift */,
-				FF2222202F30000000FF2220 /* MangaCatalogManager.swift */,
-				FF3333302F30000000FF3330 /* MangaHomeViewModel.swift */,
 				KCC1000000000000000CAT01 /* KanzenCustomCatalog.swift */,
 				KAM1000000000000000MIG01 /* KanzenAidokuMigration.swift */,
 				KCP1000000000000000PRE01 /* KanzenCatalogPresets.swift */,
-				FF4444402F30000000FF4440 /* MangaSourceFinder.swift */,
 				FAA111002F40000000FAA110 /* MangaLibraryItem.swift */,
 				FBB222002F40000000FBB220 /* MangaLibraryCollection.swift */,
 				FCC333002F40000000FCC330 /* MangaLibraryManager.swift */,
@@ -1262,23 +1258,9 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
-		13E1EDB62ED9E65F00087629 /* Reader */ = {
-			isa = PBXGroup;
-			children = (
-				13E1EDB72ED9E65F00087629 /* readerManagerView.swift */,
-				GG1111002F60000000GG1110 /* NovelReaderView.swift */,
-				13E1EDB82ED9E65F00087629 /* utils */,
-				13E1EDBB2ED9E65F00087629 /* Paged */,
-				13E1EDBD2ED9E65F00087629 /* WebToon */,
-			);
-			path = Reader;
-			sourceTree = "<group>";
-		};
 		13E1EDB82ED9E65F00087629 /* utils */ = {
 			isa = PBXGroup;
 			children = (
-				13E1EDB92ED9E65F00087629 /* chapterList.swift */,
-				13E1EDBA2ED9E65F00087629 /* readerSettingsView.swift */,
 			);
 			path = utils;
 			sourceTree = "<group>";
@@ -1286,7 +1268,6 @@
 		13E1EDBB2ED9E65F00087629 /* Paged */ = {
 			isa = PBXGroup;
 			children = (
-				13E1EDBC2ED9E65F00087629 /* pagedViewController.swift */,
 			);
 			path = Paged;
 			sourceTree = "<group>";
@@ -1294,7 +1275,6 @@
 		13E1EDBD2ED9E65F00087629 /* WebToon */ = {
 			isa = PBXGroup;
 			children = (
-				13E1EDBE2ED9E65F00087629 /* webToonViewController.swift */,
 			);
 			path = WebToon;
 			sourceTree = "<group>";
@@ -1302,7 +1282,6 @@
 		13E1EDBF2ED9E65F00087629 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
-				13E1EDC02ED9E65F00087629 /* kanzenSettings.swift */,
 				13E1EDC12ED9E65F00087629 /* subSettings */,
 			);
 			path = Settings;
@@ -1311,12 +1290,6 @@
 		13E1EDC12ED9E65F00087629 /* subSettings */ = {
 			isa = PBXGroup;
 			children = (
-				13E1EDC22ED9E65F00087629 /* kanzenGeneralSettings.swift */,
-				FF8888802F30000000FF8880 /* MangaCatalogSettingsView.swift */,
-				KCC2000000000000000CAT01 /* KanzenCustomCatalogsView.swift */,
-				KCB1000000000000000BLD01 /* KanzenCatalogBuilderView.swift */,
-				AD0000142FD9000000AD0014 /* AidokuSourcesSettingsView.swift */,
-				A5D100032FE1000000A5D003 /* ReaderDownloadsSettingsView.swift */,
 			);
 			path = subSettings;
 			sourceTree = "<group>";
@@ -1324,11 +1297,6 @@
 		13E1EDC42ED9E65F00087629 /* Util */ = {
 			isa = PBXGroup;
 			children = (
-				13E1EDC72ED9E65F00087629 /* contentCell.swift */,
-				13E1EDC82ED9E65F00087629 /* circularLoading.swift */,
-				13E1EDC92ED9E65F00087629 /* contentView.swift */,
-				FF7777702F30000000FF7770 /* MangaDetailView.swift */,
-				AD0000132FD9000000AD0013 /* AidokuMangaDetailView.swift */,
 			);
 			path = Util;
 			sourceTree = "<group>";
@@ -1336,10 +1304,6 @@
 		13E1EDCA2ED9E65F00087629 /* Library */ = {
 			isa = PBXGroup;
 			children = (
-				13E1EDCB2ED9E65F00087629 /* Library.swift */,
-				FDD444002F40000000FDD440 /* MangaAddToCollectionView.swift */,
-				FEE555002F40000000FEE550 /* MangaCreateCollectionView.swift */,
-				FFF666002F40000000FFF660 /* MangaCollectionDetailView.swift */,
 			);
 			path = Library;
 			sourceTree = "<group>";
@@ -1347,8 +1311,6 @@
 		13E1EDCC2ED9E65F00087629 /* Search */ = {
 			isa = PBXGroup;
 			children = (
-				FF6666602F30000000FF6660 /* KanzenGlobalSearchView.swift */,
-				KFE1000000000000000EDT01 /* ReaderExtensionFilterEditor.swift */,
 			);
 			path = Search;
 			sourceTree = "<group>";
@@ -1356,7 +1318,6 @@
 		13E1EDCE2ED9E65F00087629 /* Browse */ = {
 			isa = PBXGroup;
 			children = (
-				13E1EDD02ED9E65F00087629 /* kanzenModuleView.swift */,
 			);
 			path = Browse;
 			sourceTree = "<group>";
@@ -1364,8 +1325,6 @@
 		FF9999902F30000000FF9990 /* Home */ = {
 			isa = PBXGroup;
 			children = (
-				FF5555502F30000000FF5550 /* KanzenHomeView.swift */,
-				FF5555512F30000000FF5551 /* KanzenHistoryView.swift */,
 			);
 			path = Home;
 			sourceTree = "<group>";
@@ -1380,10 +1339,9 @@
 				6C457B1373844E498074EA0E /* SimklAPITests.swift */,
 				81ECB804A2424540A60DFE91,
 				2B4748DB15E3A677562E065B /* TrackerLibraryView.swift */,
-				3C5B68DF1AC05B5E801ADB60 /* TrackerLibrary.swift */,
+				ECA1B2C3D4E5F60718293101 /* TrackerLibrary.swift */,
 				4EE7ACE3590541AA8DD10E1E /* SimklAPI.swift */,
 				7B245017E3E84F5798CA91A6 /* TrackerReaderMatchPolicyTests.swift */,
-				0463467F56D74B1D9B1BAC9E /* TrackerReaderDestinationView.swift */,
 				C5C95EEC082E4FB5AE6331FA /* TrackerReaderResolver.swift */,
 				0AE48FB1543547CCABA239F4 /* TrackerReaderMatchPolicy.swift */,
 				26F4AF6791DF4AAF8940CE79 /* TrackerLibraryMediaMatchTests.swift */,
@@ -1983,14 +1941,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				0AFAB08008FA49A2B9706EE7 /* MediaLanguageCatalog.swift in Sources */,
-				875F8B085A8258F2EC52B3CA /* Settings.swift in Sources */,
 				FDAEAC35F9B540B7949CD347 /* AppCalendar.swift in Sources */,
 				512648D4E2AED610EC2CCF07 /* AutoModeCandidateSelectionPolicy.swift in Sources */,
+				ECA1B2C3D4E5F60718293001 /* TrackerLibrary.swift in Sources */,
 				50BFB53F60E4448F877D48C7 /* TrackerLibraryMediaResolver.swift in Sources */,
 				AB1120591DA841068D45B8A2 /* TrackerLibraryLoading.swift in Sources */,
 				EBA7D6E5C159413D9DA2C103,
 				9C979BD3F58666134AED49DE /* TrackerLibraryView.swift in Sources */,
-				9AEEADF724824D3F3B45B749 /* TrackerLibrary.swift in Sources */,
 				69BA46EE67CC69153D0B1216 /* RememberedPlaybackSelection.swift in Sources */,
 				A5C900010000000000000001,
 				SKYIOSBF0000000000000001 /* SkyStreamModels.swift in Sources */,
@@ -2068,7 +2025,31 @@
 				13F072B22E4B2D9200EF90EB /* FallbackImageView.swift in Sources */,
 				13F072B62E4B2D9200EF90EB /* AmbientColor.swift in Sources */,
 				13E1EDD22ED9E65F00087629 /* ModuleManager.swift in Sources */,
-				89DC3637EDE36145F1436A14 /* ErrorDefinitions.swift in Sources */,
+				13E1EDD82ED9E65F00087629 /* Settings.swift in Sources */,
+				F1E000000000000000000001 /* mangaData.swift in Sources */,
+				ECA1B2C3D4E5F60718293002 /* MangaCatalogManager.swift in Sources */,
+				ECA1B2C3D4E5F60718293003 /* MangaHomeViewModel.swift in Sources */,
+				F1E000000000000000000004 /* KanzenCustomCatalog.swift in Sources */,
+				F1E000000000000000000005 /* KanzenAidokuMigration.swift in Sources */,
+				F1E000000000000000000006 /* KanzenCatalogPresets.swift in Sources */,
+				F1E000000000000000000008 /* MangaLibraryItem.swift in Sources */,
+				F1E000000000000000000009 /* MangaLibraryCollection.swift in Sources */,
+				F1E000000000000000000010 /* MangaLibraryManager.swift in Sources */,
+				F1E000000000000000000011 /* ReaderContentFilter.swift in Sources */,
+				F1E000000000000000000012 /* MangaReadingProgressManager.swift in Sources */,
+				F1E000000000000000000013 /* ReaderLogger.swift in Sources */,
+				F1E000000000000000000014 /* ReaderExtensionEPUB.swift in Sources */,
+				F1E000000000000000000015 /* ReaderExtensionModels.swift in Sources */,
+				F1E000000000000000000016 /* ReaderExtensionNativeProviders.swift in Sources */,
+				F1E000000000000000000017 /* ReaderExtensionNovelSanitizer.swift in Sources */,
+				F1E000000000000000000018 /* ReaderExtensionPersistence.swift in Sources */,
+				F1E000000000000000000019 /* ReaderExtensionProvider.swift in Sources */,
+				F1E000000000000000000020 /* ReaderExtensionSecurity.swift in Sources */,
+				F1E000000000000000000021 /* ReaderExtensionJavaScriptRuntime.swift in Sources */,
+				F1E000000000000000000022 /* ReaderExtensionManager.swift in Sources */,
+				F1E000000000000000000023 /* ReaderExtensionCompatibility.swift in Sources */,
+				F1E000000000000000000024 /* ReaderExtensionAppBridge.swift in Sources */,
+				F1E000000000000000000025 /* ReaderExtensionBrowserTransport.swift in Sources */,
 				13F187AE2E6F38CE00747F7E /* LibraryCollection.swift in Sources */,
 				13F0729E2E4B2D9200EF90EB /* JSController-Details.swift in Sources */,
 				13F187AF2E6F38CE00747F7E /* AddToCollectionView.swift in Sources */,
@@ -2079,14 +2060,13 @@
 				13F072AA2E4B2D9200EF90EB /* CircularProgressBar.swift in Sources */,
 				13F072B52E4B2D9200EF90EB /* URLSession.swift in Sources */,
 				1324E7BC2E940BD70036B5F5 /* MPVNativeRenderer.swift in Sources */,
-				SHDRLIBIOSBUILD000000001 /* MPVUserShaderLibrary.swift in Sources */,
 				SCLRPOLIOSBUILD000000001 /* MPVScalerPolicy.swift in Sources */,
+				MPVUSERSHADERIOSBUILD00000001 /* MPVUserShaderLibrary.swift in Sources */,
 				1324E7BF2E940BD70036B5F5 /* MusicProgressSlider.swift in Sources */,
 				1324E7BB2E940BD70036B5F5 /* PlayerPreset.swift in Sources */,
 				12DF1FC22F040D6700E80375 /* AdaptiveConfirmationDialog.swift in Sources */,
 				13F072A82E4B2D9200EF90EB /* ContentView.swift in Sources */,
 				13F072B72E4B2D9200EF90EB /* Logger.swift in Sources */,
-				6C0069D62A0B85374C4BA8D5 /* ReaderLogger.swift in Sources */,
 				C0A5A0022FD1000000C0A502 /* CrashReportManager.swift in Sources */,
 				13B2E5742E7597B9009F3271 /* JSController-NetworkFetch.swift in Sources */,
 				CFB000022FE7000000CFB002 /* CloudflareBypassManager.swift in Sources */,
@@ -2143,16 +2123,11 @@
 				14BBB0053FFF111100AAAAAA /* BackupManager.swift in Sources */,
 				14CC00020000000000CC0002 /* HomeCatalogLayout.swift in Sources */,
 				UPNX00030000000000000003 /* UpNextResolutionCache.swift in Sources */,
-				AD0000032FD9000000AD0003 /* AidokuSourceManager.swift in Sources */,
-				AD0000052FD9000000AD0005 /* AidokuSourcesSettingsView.swift in Sources */,
 				A1B2C3012FA0000100A1B2C1 /* EclipseTheme.swift in Sources */,
 				A1B2C3032FA0000100A1B2C3 /* HeroTransition.swift in Sources */,
 				EC10AD1300000000EC10AD13 /* EclipseLoadingIndicator.swift in Sources */,
 				A1B2C3052FA0000100A1B2C5 /* GlassCardGroup.swift in Sources */,
 				A1B2C3072FA0000100A1B2C7 /* GradientBackground.swift in Sources */,
-				32CDA4AFBC178B1267398586,
-				2419381D4A39F938B2C21951,
-				17522D6EB51BBCB18B051C2F,
 				3CB17B816D2FD8729438EC76,
 				BAA337F9700E7833D914BCD5,
 				692360EE39F49D810DAA1A48,
@@ -2178,6 +2153,16 @@
 				09D0C6E5DAFEE0114889DB9F /* MangayomiMediaRuntime.swift in Sources */,
 				C6A4FC40BDD8B25B2A258951 /* MangayomiMediaManager.swift in Sources */,
 				0EF9321023FCD3C5CDB671C7 /* MangayomiMediaModels.swift in Sources */,
+				F1E000000000000000000027 /* ReaderDownloadManager.swift in Sources */,
+				F1E000000000000000000028 /* pageData.swift in Sources */,
+				F1E000000000000000000029 /* KanzenModuleRunner.swift in Sources */,
+				F1E000000000000000000030 /* KanzenEngine.swift in Sources */,
+				F1E000000000000000000031 /* KanzenRunnerController.swift in Sources */,
+				F1E000000000000000000032 /* KanzenOutputFormatter.swift in Sources */,
+				F1E000000000000000000033 /* ErrorDefinitions.swift in Sources */,
+				F1E000000000000000000034 /* JavaScriptCore.swift in Sources */,
+				F1E000000000000000000035 /* AidokuSourceManager.swift in Sources */,
+				F1E000000000000000000036 /* ReaderNovelNavigation.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

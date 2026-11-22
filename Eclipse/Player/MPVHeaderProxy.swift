@@ -341,7 +341,8 @@ final class MPVHeaderProxyFlowControl {
     }
 
     static let maximumBytes = 8 * 1_024 * 1_024
-    static let maximumChunks = 8
+    static let maximumChunks = 64
+    static let suspensionChunks = 8
     static let maximumOverflowBytes = 32 * 1_024 * 1_024
     static let maximumOverflowChunks = 256
     static let producerChunkBytes = 64 * 1_024
@@ -553,10 +554,10 @@ final class MPVHeaderProxyFlowControl {
 
     private func updateTaskSuspension(allowingBufferedProgress: Bool = false) {
         guard !pinned, let task, task.state != .completed, task.state != .canceling else { return }
-        if !suspended, downstreamStalled || bytes >= Self.maximumBytes || chunks >= Self.maximumChunks {
+        if !suspended, downstreamStalled || bytes >= Self.maximumBytes || chunks >= Self.suspensionChunks {
             suspended = true
             task.suspend()
-        } else if suspended, !downstreamStalled, chunks <= Self.maximumChunks / 2,
+        } else if suspended, !downstreamStalled, chunks <= Self.suspensionChunks / 2,
                   bytes <= Self.maximumBytes / 2 || (allowingBufferedProgress && bytes < Self.maximumBytes) {
             suspended = false
             task.resume()
@@ -4238,8 +4239,10 @@ private final class MPVHeaderProxyCore {
         private func signalRedirect(to redirect: URLRequest, response: HTTPURLResponse) {
             guard !finished, !stopped else { return }
             finished = true
+            // A redirect callback transfers the request to URLSession. Sending
+            // a cancellation failure immediately afterwards races that handoff
+            // and turns valid pinned-loopback redirects into a synthetic 502.
             client?.urlProtocol(self, wasRedirectedTo: redirect, redirectResponse: response)
-            client?.urlProtocol(self, didFailWithError: URLError(.cancelled))
             tearDownConnection()
         }
 

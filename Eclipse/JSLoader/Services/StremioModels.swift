@@ -1122,7 +1122,11 @@ struct StremioStream: Codable, Identifiable, Hashable {
     var displayName: String {
         if let name, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return name }
         if let title, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return title }
-        if let description, !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return description }
+        if let description, !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            // Addons may encode quality, provider and release details on
+            // separate lines. Preserve the complete supplied formatting.
+            return description
+        }
         return "Stream"
     }
 

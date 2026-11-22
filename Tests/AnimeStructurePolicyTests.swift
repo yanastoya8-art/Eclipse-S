@@ -387,14 +387,11 @@ final class AnimeStructurePolicyTests: XCTestCase {
         }
     }
 
-    func testImageDataSaverUsesOnlySuppliedAnimeAndMangaCoverVariants() throws {
+    func testImageDataSaverUsesOnlySuppliedAnimeCoverVariants() throws {
         let data = Data(#"{"large":"https://images.example/cover-original.jpg?token=large","medium":"https://images.example/cover-thumbnail.jpg?token=medium"}"#.utf8)
         let anime = try JSONDecoder().decode(AniListAnime.AniListCoverImage.self, from: data)
-        let manga = try JSONDecoder().decode(AniListManga.AniListMangaCover.self, from: data)
         XCTAssertEqual(anime.preferredURL(dataSaverEnabled: false), anime.large)
         XCTAssertEqual(anime.preferredURL(dataSaverEnabled: true), anime.medium)
-        XCTAssertEqual(manga.preferredURL(dataSaverEnabled: false), manga.large)
-        XCTAssertEqual(manga.preferredURL(dataSaverEnabled: true), manga.medium)
         XCTAssertEqual(ImageDataSaverSettings.preferredURL(large: anime.large, medium: nil, dataSaverEnabled: true), anime.large)
         XCTAssertEqual(ImageDataSaverSettings.preferredURL(large: nil, medium: anime.medium, dataSaverEnabled: false), anime.medium)
         XCTAssertEqual(ImageDataSaverSettings.preferredURL(large: anime.large, medium: "  ", dataSaverEnabled: true), anime.large)
@@ -1982,51 +1979,6 @@ final class AnimeStructurePolicyTests: XCTestCase {
         XCTAssertEqual(decoded.id, RemoteMediaNumericBoundary.maximumIdentifier)
         XCTAssertEqual(decoded.episodes, RemoteMediaNumericBoundary.maximumEpisodeCount)
         XCTAssertEqual(decoded.kitsuId, RemoteMediaNumericBoundary.maximumIdentifier)
-    }
-
-    func testAniListMangaDecoderRejectsHostileNumericFieldsAtIngress() throws {
-        let decoder = JSONDecoder()
-        let hostilePayloads = [
-            "{\"id\":\(Int.max),\"title\":{}}",
-            "{\"id\":1,\"title\":{},\"chapters\":\(Int.max)}",
-            "{\"id\":1,\"title\":{},\"volumes\":\(Int.min)}",
-            "{\"id\":1,\"title\":{},\"averageScore\":101}",
-            "{\"id\":1,\"title\":{},\"startDate\":{\"year\":\(Int.max)}}"
-        ]
-        for payload in hostilePayloads {
-            XCTAssertThrowsError(
-                try decoder.decode(AniListManga.self, from: Data(payload.utf8)),
-                "Expected hostile AniList manga fixture to be rejected: \(payload)"
-            )
-        }
-
-        let boundaryPayload = """
-        {
-          "id": \(RemoteMediaNumericBoundary.maximumIdentifier),
-          "title": {},
-          "chapters": \(RemoteMediaNumericBoundary.maximumEpisodeCount),
-          "volumes": \(RemoteMediaNumericBoundary.maximumEpisodeCount),
-          "averageScore": 100,
-          "startDate": {"year": \(RemoteMediaNumericBoundary.maximumYear)}
-        }
-        """
-        let boundary = try decoder.decode(
-            AniListManga.self,
-            from: Data(boundaryPayload.utf8)
-        )
-        XCTAssertEqual(boundary.id, RemoteMediaNumericBoundary.maximumIdentifier)
-        XCTAssertEqual(boundary.chapters, RemoteMediaNumericBoundary.maximumEpisodeCount)
-        XCTAssertEqual(boundary.volumes, RemoteMediaNumericBoundary.maximumEpisodeCount)
-        XCTAssertEqual(boundary.averageScore, 100)
-        XCTAssertEqual(boundary.startYear, RemoteMediaNumericBoundary.maximumYear)
-
-        let unknownCounts = try decoder.decode(
-            AniListManga.self,
-            from: Data("{\"id\":1,\"title\":{},\"chapters\":0,\"volumes\":0,\"startDate\":{\"year\":0}}".utf8)
-        )
-        XCTAssertNil(unknownCounts.chapters)
-        XCTAssertNil(unknownCounts.volumes)
-        XCTAssertNil(unknownCounts.startYear)
     }
 
     func testTMDBTVAndSeasonPayloadValidationRejectsDuplicatesAndExtremeCounts() throws {
@@ -5980,7 +5932,9 @@ final class AniMapLookupTimingPolicyTests: XCTestCase {
     func testSameHealthyDelayExceedsPreviousBudgetAndCancelsTheOperation() async {
         let events = Events()
         do {
-            let _: Int = try await AniMapLookupTimingPolicy.perform(timeout: 2,
+            // Leave a full second between the deadline and the healthy
+            // operation so a busy simulator cannot make the two timers race.
+            let _: Int = try await AniMapLookupTimingPolicy.perform(timeout: 1,
                 onTimeout: { await events.record("timeout") }) {
                 do {
                     try await Task.sleep(nanoseconds: 2_200_000_000)
@@ -6630,4 +6584,98 @@ final class AnimeOpenEndedActualInventoryTests: XCTestCase {
         XCTAssertFalse(AnimeSpecialFormatPolicy.shouldExclude(format: "special episode", enabled: true))
     }
 
+}
+
+final class AnimeScheduleCategoryTagFilterTests: XCTestCase {
+    func testAnimeCategoryFiltersInspectProviderTags() {
+        let suiteName = "AnimeScheduleCategoryTagFilterTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        defaults.set(true, forKey: "catalogHideHentai")
+        XCTAssertTrue(TMDBContentFilter.shouldExcludeAnimeCategory(
+            title: "Example Series",
+            tags: ["Hentai"],
+            defaults: defaults
+        ))
+
+        defaults.set(false, forKey: "catalogHideHentai")
+        defaults.set(true, forKey: "catalogHideYuri")
+        XCTAssertTrue(TMDBContentFilter.shouldExcludeAnimeCategory(
+            title: "Example Series",
+            tags: ["Girls' Love", "Yuri"],
+            defaults: defaults
+        ))
+
+        defaults.set(false, forKey: "catalogHideYuri")
+        defaults.set(true, forKey: "catalogHideYaoi")
+        XCTAssertTrue(TMDBContentFilter.shouldExcludeAnimeCategory(
+            title: "Example Series",
+            tags: ["Boys' Love", "Yaoi"],
+            defaults: defaults
+        ))
+
+        defaults.set(false, forKey: "catalogHideYaoi")
+        XCTAssertFalse(TMDBContentFilter.shouldExcludeAnimeCategory(
+            title: "Example Series",
+            tags: ["Action", "Adventure"],
+            defaults: defaults
+        ))
+    }
+}
+
+final class TMDBSearchResultAnimeTagsTests: XCTestCase {
+    func testAniListTagsSurviveMetadataCopiesAndCodableRoundTrip() throws {
+        let result = TMDBSearchResult(
+            id: 42,
+            mediaType: "tv",
+            title: nil,
+            name: "Example Series",
+            overview: "Example synopsis",
+            posterPath: nil,
+            backdropPath: nil,
+            releaseDate: nil,
+            firstAirDate: nil,
+            voteAverage: nil,
+            popularity: 0,
+            adult: nil,
+            genreIds: nil,
+            animeTags: [" Hentai ", "Yuri", "hentai", ""]
+        )
+
+        XCTAssertEqual(result.animeTags, ["Hentai", "Yuri"])
+
+        let copied = result
+            .withAnimeIdentitySeed(nil)
+            .withAnimeArtworkURL(nil)
+            .withTVMazePosterURL(nil)
+        XCTAssertEqual(copied.animeTags, ["Hentai", "Yuri"])
+
+        let data = try JSONEncoder().encode(copied)
+        let decoded = try JSONDecoder().decode(TMDBSearchResult.self, from: data)
+        XCTAssertEqual(decoded.animeTags, ["Hentai", "Yuri"])
+    }
+}
+
+final class AnimeUnofficialProductionFilterTests: XCTestCase {
+    func testFanmadeProductionFilterInspectsTitlesOverviewsAndProductionCompanies() {
+        XCTAssertTrue(TMDBContentFilter.isUnofficialCreatorContent(
+            title: "Example Fan Made Series",
+            overview: "An ordinary synopsis."
+        ))
+        XCTAssertTrue(TMDBContentFilter.isUnofficialCreatorContent(
+            title: "Example Series",
+            overview: "An ordinary synopsis.",
+            productionCompanies: ["Fan Made Studio"]
+        ))
+        XCTAssertTrue(TMDBContentFilter.isUnofficialCreatorContent(
+            title: "Example Series",
+            overview: "A series created by independent YouTubers."
+        ))
+        XCTAssertFalse(TMDBContentFilter.isUnofficialCreatorContent(
+            title: "Example Series",
+            overview: "An ordinary synopsis.",
+            productionCompanies: ["Example Animation Studio"]
+        ))
+    }
 }

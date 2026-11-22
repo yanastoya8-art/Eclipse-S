@@ -19,7 +19,10 @@ final class EclipseFeatureUITests: XCTestCase {
             "-experimentalICloudSyncEnabled", "NO",
             "-experimentalGoogleDriveSyncEnabled", "NO",
             "-experimentalOneDriveSyncEnabled", "NO",
-            "-eclipseSyncSettingsAcrossDevicesV1", "NO"
+            "-eclipseSyncSettingsAcrossDevicesV1", "NO",
+            "-eclipseProfileAsksOnLaunchV1", "NO",
+            "-eclipseOnboardingCompletedV1", "YES",
+            "-eclipseAppHubNoticeSeenV1", "YES"
         ]
     }
 
@@ -611,12 +614,12 @@ final class EclipseFeatureUITests: XCTestCase {
         capture("MAL accessibility text layout")
     }
 
-    func testDeepLibrarySeparatesVideoAndReaderMedia() throws {
+    func testDeepLibraryKeepsVideoMediaAndDoesNotRestoreReaderMode() throws {
         app.launchArguments += ["-trackerDeepLibraryEnabled", "YES", "-showKanzen", "NO"]
         restartApp()
         try openLibraryTab()
         let videoSources = app.segmentedControls["trackerLibrarySourcePicker"]
-        XCTAssertTrue(videoSources.waitForExistence(timeout: 10))
+        XCTAssertTrue(videoSources.waitForExistence(timeout: 10), app.debugDescription)
         for source in ["AniList", "MAL"] {
             videoSources.buttons[source].tap()
             let types = app.segmentedControls["trackerLibrary.mediaType"]
@@ -632,45 +635,23 @@ final class EclipseFeatureUITests: XCTestCase {
         XCTAssertFalse(videoTypes.buttons["Manga"].exists)
         XCTAssertFalse(videoTypes.buttons["Light Novels"].exists)
 
+        // The legacy launch flag must not resurrect the retired Reader root or
+        // its mode switch; manga data remains available to backup/migration code.
         app.launchArguments[app.launchArguments.count - 1] = "YES"
         restartApp()
-        try openNovelReaderLibrary(allowModeSwitch: false)
-        let readerSources = app.segmentedControls["trackerLibrarySourcePicker"]
-        XCTAssertTrue(readerSources.waitForExistence(timeout: 10))
-        XCTAssertFalse(readerSources.buttons["Trakt"].exists)
-        var coverage: [String] = []
-        for source in ["AniList", "MAL"] {
-            readerSources.buttons[source].tap()
-            let types = app.segmentedControls["trackerLibrary.mediaType"]
-            XCTAssertTrue(types.waitForExistence(timeout: 10))
-            XCTAssertTrue(types.buttons["Manga"].exists)
-            XCTAssertTrue(types.buttons["Light Novels"].exists)
-            XCTAssertFalse(types.buttons["Anime"].exists)
-            XCTAssertFalse(types.buttons["Movies"].exists)
-            XCTAssertFalse(types.buttons["Shows"].exists)
-            for (title, kind) in [("Manga", "MANGA"), ("Light Novels", "NOVEL")] {
-                types.buttons[title].tap()
-                let count = app.staticTexts.matching(NSPredicate(format: "label MATCHES %@", "[0-9]+ titles")).firstMatch
-                let unavailable = app.staticTexts["Enable Deep Library Integration and connect this tracker in Settings to view its library."]
-                XCTAssertTrue(waitUntil(timeout: 60) { count.exists || unavailable.exists || self.app.buttons["Retry"].exists })
-                XCTAssertFalse(app.buttons["Retry"].exists, "The Reader \(source) \(title) library returned an error.")
-                let cards = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "trackerLibrary.open."))
-                for card in cards.allElementsBoundByIndex.prefix(6) {
-                    XCTAssertTrue(card.identifier.contains(":\(kind):"), "A title appeared in the wrong Reader media section.")
-                }
-                let editorChecked = title == "Light Novels" ? try verifyAvailableEditorCanCancel(source: source, kind: title) : false
-                coverage.append("\(source) \(kind) titles=\(count.exists ? count.label : "unavailable") cards=\(cards.count) editor=\(editorChecked)")
-                capture("Reader \(source) \(title) library")
-            }
-        }
-        let receipt = XCTAttachment(string: coverage.joined(separator: "\n"))
-        receipt.name = "Reader media and editor coverage"
-        receipt.lifetime = .keepAlways
-        add(receipt)
+        let quickActions = app.buttons["Quick Actions"].firstMatch
+        XCTAssertTrue(quickActions.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertFalse(app.buttons["Switch to Media Mode"].exists, app.debugDescription)
+        quickActions.tap()
+        XCTAssertFalse(app.buttons["Switch to Reader Mode"].exists, app.debugDescription)
+        XCTAssertFalse(app.tabBars.containing(.button, identifier: "History").firstMatch.exists, app.debugDescription)
+        capture("Retired Reader navigation remains unavailable")
     }
 
     func testDeepLibraryConnectedTrackerReads() throws {
-        app.launchArguments += ["-trackerDeepLibraryEnabled", "YES"]
+        // This test exercises the video tracker library, not the retired
+        // Reader library tab. Do not inherit a prior test's persisted mode.
+        app.launchArguments += ["-trackerDeepLibraryEnabled", "YES", "-showKanzen", "NO"]
         restartApp()
         try openLibraryTab()
         let sources = app.segmentedControls["trackerLibrarySourcePicker"]
@@ -1624,44 +1605,16 @@ final class EclipseFeatureUITests: XCTestCase {
         XCTAssertTrue(choose.waitForExistence(timeout: 10))
     }
 
-    func testTrackerMangaOpensReaderOrActionableSourceFallback() throws {
-        try openSettingFromLaunch("Deep Library Integration")
-        let original = try switchValue("Deep Library Integration")
-        restorations.append { [self] in
-            try openSettingFromLaunch("Deep Library Integration")
-            try setSwitch("Deep Library Integration", to: original)
-        }
-        let disconnected = try disconnectedTrackerSources()
-        guard let source = ["AniList", "MAL"].first(where: { !disconnected.contains($0) }) else { throw XCTSkip("No manga tracker connected.") }
-        try setSwitch("Deep Library Integration", to: true)
+    func testTrackerMangaDoesNotExposeRetiredReaderNavigation() throws {
         app.launchArguments += ["-showKanzen", "YES"]
         restartApp()
-        try openNovelReaderLibrary(allowModeSwitch: false)
-        let picker = app.segmentedControls["trackerLibrarySourcePicker"]
-        XCTAssertTrue(picker.waitForExistence(timeout: 10))
-        picker.buttons[source].tap()
-        let kinds = app.segmentedControls["trackerLibrary.mediaType"]
-        XCTAssertTrue(kinds.waitForExistence(timeout: 10))
-        kinds.buttons["Manga"].tap()
-        let summary = app.staticTexts.matching(NSPredicate(format: "label MATCHES %@", "[0-9]+ titles")).firstMatch
-        XCTAssertTrue(summary.waitForExistence(timeout: 60), app.debugDescription)
-        let card = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "trackerLibrary.open.")).firstMatch
-        guard card.exists else { throw XCTSkip("The connected manga list is empty.") }
-        try reveal(card)
-        card.tap()
-        let chooser = app.navigationBars["Choose Match"]
-        if chooser.waitForExistence(timeout: 8) {
-            let searchSources = app.buttons["Search Reader Sources"]
-            XCTAssertTrue(searchSources.waitForExistence(timeout: 10), app.debugDescription)
-            searchSources.tap()
-            XCTAssertTrue(app.buttons["Manage Sources"].waitForExistence(timeout: 10), app.debugDescription)
-            XCTAssertTrue(app.searchFields.firstMatch.exists || app.textFields.firstMatch.exists, "Fallback must open normal Reader search.")
-            capture("Manga source search fallback")
-        } else {
-            let chapters = app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] %@", "chapter")).firstMatch
-            XCTAssertTrue(chapters.waitForExistence(timeout: 30), "Matched manga must open its normal Reader details: \(app.debugDescription)")
-            capture("Matched manga reader details")
-        }
+        let quickActions = app.buttons["Quick Actions"].firstMatch
+        XCTAssertTrue(quickActions.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertFalse(app.buttons["Switch to Media Mode"].exists, app.debugDescription)
+        quickActions.tap()
+        XCTAssertFalse(app.buttons["Switch to Reader Mode"].exists, app.debugDescription)
+        XCTAssertFalse(app.tabBars.containing(.button, identifier: "History").firstMatch.exists, app.debugDescription)
+        capture("Manga Reader navigation remains retired")
     }
 
     @discardableResult
@@ -2242,24 +2195,52 @@ final class EclipseFeatureUITests: XCTestCase {
             throw UIInteractionError.unavailable("Quick Actions is unavailable.")
         }
         let settings = app.buttons["Settings"].firstMatch
-        for _ in 0..<2 {
-            if !settings.exists || !settings.isHittable || settings.frame.width < 44 {
-                quickActions.tap()
-            }
-            var previousFrame = CGRect.zero
-            let settingsActionReady = waitUntil(timeout: 5, {
-                guard settings.exists, settings.isHittable else { return false }
-                let frame = settings.frame
-                let ready = frame.width >= 44 && frame.height >= 44 && frame == previousFrame
-                previousFrame = frame
-                return ready
-            })
-            if !settingsActionReady { continue }
-            settings.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-            if app.navigationBars["Settings"].waitForExistence(timeout: 5) {
+        let gear = app.buttons["gear"].firstMatch
+        for _ in 0..<3 {
+            if app.navigationBars["Settings"].exists {
                 activeSettingsPage = "Settings"
                 return
             }
+
+            // The compact Quick Actions presentation can expose Settings
+            // through its gear accessibility identifier. Do not toggle the
+            // menu closed while its destination is animating into place.
+            let settingsFrame = settings.exists ? settings.frame : .zero
+            let gearFrame = gear.exists ? gear.frame : .zero
+            let settingsVisible = settingsFrame.width > 0 && settingsFrame.height > 0
+                && app.frame.intersects(settingsFrame)
+            let gearVisible = gearFrame.width > 0 && gearFrame.height > 0
+                && app.frame.intersects(gearFrame)
+            let destination = settingsVisible ? settings : gearVisible ? gear
+                : settings.exists ? settings : gear
+            let destinationFrame = destination.exists ? destination.frame : .zero
+            let destinationIsVisible = destinationFrame.width > 0
+                && destinationFrame.height > 0
+                && app.frame.intersects(destinationFrame)
+            if destinationIsVisible {
+                // Use the visible frame directly. XCTest's isHittable query
+                // can throw for compact icon-only actions with stale frames.
+                destination.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+                if app.navigationBars["Settings"].waitForExistence(timeout: 8) {
+                    activeSettingsPage = "Settings"
+                    return
+                }
+                continue
+            }
+
+            let quickFrame = quickActions.frame
+            if quickActions.exists && quickFrame.width > 0 && quickFrame.height > 0
+                && app.frame.intersects(quickFrame) {
+                // A collapsed Quick Actions menu can leave its gear action in
+                // the accessibility tree with an invalid or off-screen frame.
+                quickActions.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            }
+            _ = waitUntil(timeout: 3, {
+                let settingsFrame = settings.exists ? settings.frame : .zero
+                let gearFrame = gear.exists ? gear.frame : .zero
+                return (settingsFrame.width > 0 && self.app.frame.intersects(settingsFrame))
+                    || (gearFrame.width > 0 && self.app.frame.intersects(gearFrame))
+            })
         }
         throw UIInteractionError.unavailable("Quick Actions did not open Settings.")
     }

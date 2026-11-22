@@ -27,12 +27,51 @@ enum HomeCatalogFilterPolicy {
 }
 
 enum HomeCatalogLoadPolicy {
+    static func requiresTrendingSeed(enabledCatalogIDs: Set<String>) -> Bool {
+        enabledCatalogIDs.contains("trending") || enabledCatalogIDs.contains("forYou")
+    }
+
+    static func forYouResults(
+        recommendations: [TMDBSearchResult],
+        trending: [TMDBSearchResult]
+    ) -> [TMDBSearchResult] {
+        recommendations.isEmpty ? trending : recommendations
+    }
+
+    static func visibleCatalogCount(
+        _ catalogs: [String: [TMDBSearchResult]],
+        enabledCatalogIDs: Set<String>
+    ) -> Int {
+        catalogs.filter { enabledCatalogIDs.contains($0.key) && !$0.value.isEmpty }.count
+    }
+
+    static func visibleWidgetCatalogCount(
+        _ catalogs: [String: [TMDBSearchResult]],
+        enabledCatalogIDs: Set<String>
+    ) -> Int {
+        catalogs.filter { entry in
+            guard !entry.value.isEmpty else { return false }
+            let parentID: String
+            if entry.key.hasPrefix("network_") {
+                parentID = "networks"
+            } else if entry.key.hasPrefix("genre_") {
+                parentID = "genres"
+            } else if entry.key.hasPrefix("company_") {
+                parentID = "companies"
+            } else {
+                parentID = entry.key
+            }
+            return enabledCatalogIDs.contains(parentID)
+        }.count
+    }
+
     static func hasLoadedContent(
         tmdbCatalogCount: Int,
         animeCatalogCount: Int,
         stremioCatalogCount: Int,
         traktCatalogCount: Int,
         widgetCatalogCount: Int,
+        recommendationCatalogCount: Int = 0,
         permitsEmptyResults: Bool
     ) -> Bool {
         permitsEmptyResults
@@ -41,6 +80,7 @@ enum HomeCatalogLoadPolicy {
             || stremioCatalogCount > 0
             || traktCatalogCount > 0
             || widgetCatalogCount > 0
+            || recommendationCatalogCount > 0
     }
 }
 
@@ -69,7 +109,7 @@ enum HomeCatalogFailurePresentation {
         let diagnostic = "\(error.localizedDescription) \(String(reflecting: error))"
         let normalized = diagnostic.lowercased()
 
-        if normalized.contains("missingapikey") || normalized.contains("missing api key") {
+        if normalized.contains("missingapikey") || normalized.contains("missing api key") || normalized.contains("api key is missing") {
             return missingAPIKeyMessage
         }
 
@@ -373,7 +413,10 @@ final class HomeViewModel: ObservableObject {
             let needsTopRatedMovies = enabledCatalogIds.contains("topRatedMovies") || enabledCatalogIds.contains("bestMovies")
             let needsTopRatedAnime = enabledCatalogIds.contains("topRatedAnime") || enabledCatalogIds.contains("bestAnime")
 
-            async let trending: [TMDBSearchResult] = self.loadHomeCatalogIfNeeded("trending", shouldLoad: enabledCatalogIds.contains("trending")) {
+            async let trending: [TMDBSearchResult] = self.loadHomeCatalogIfNeeded(
+                "trending",
+                shouldLoad: HomeCatalogLoadPolicy.requiresTrendingSeed(enabledCatalogIDs: enabledCatalogIds)
+            ) {
                 try await tmdbService.getTrending()
             }
             async let popularM: [TMDBMovie] = self.loadHomeCatalogIfNeeded("popularMovies", shouldLoad: enabledCatalogIds.contains("popularMovies")) {
@@ -472,15 +515,24 @@ final class HomeViewModel: ObservableObject {
             if enabledCatalogIds.contains("bestMovies") {
                 tmdbLoadedCatalogs["bestMovies"] = tmdbLoadedCatalogs["topRatedMovies"] ?? []
             }
-            let tmdbLoadedCatalogCount = tmdbLoadedCatalogs.values.filter { !$0.isEmpty }.count
+            let tmdbLoadedCatalogCount = HomeCatalogLoadPolicy.visibleCatalogCount(
+                tmdbLoadedCatalogs,
+                enabledCatalogIDs: enabledCatalogIds
+            )
+            let tmdbHasAnySeedResults = tmdbLoadedCatalogs.values.contains { !$0.isEmpty }
 
-            if tmdbLoadedCatalogCount > 0 {
+            if tmdbHasAnySeedResults {
                 await MainActor.run {
                     guard self.loadGeneration == generation else { return }
+                    // Keep hidden seed shelves in the backing snapshot for
+                    // recommendations and hero selection, but do not let them
+                    // make an otherwise empty Home appear ready.
                     self.catalogResults = tmdbLoadedCatalogs
                     self.applyHeroBannerSelection()
                     self.errorMessage = nil
-                    self.hasRenderableStartupContent = true
+                    if tmdbLoadedCatalogCount > 0 {
+                        self.hasRenderableStartupContent = true
+                    }
                 }
             }
 
@@ -523,7 +575,10 @@ final class HomeViewModel: ObservableObject {
                 animeLoadedCatalogs["bestAnime"] = topRatedAnime
             }
             let loadedCatalogs = tmdbLoadedCatalogs.merging(animeLoadedCatalogs) { _, anime in anime }
-            let loadedCatalogCount = loadedCatalogs.values.filter { !$0.isEmpty }.count
+            let loadedCatalogCount = HomeCatalogLoadPolicy.visibleCatalogCount(
+                loadedCatalogs,
+                enabledCatalogIDs: enabledCatalogIds
+            )
 
             await MainActor.run {
                 guard self.loadGeneration == generation else { return }
@@ -534,6 +589,17 @@ final class HomeViewModel: ObservableObject {
                     self.hasRenderableStartupContent = true
                 }
             }
+
+            // Recommendation catalogs depend on the first provider snapshot.
+            // Start them now, concurrently with widgets and remote catalogs,
+            // so one slow recommendation request cannot hold up other shelves.
+            async let recommendationsLoaded: Void = self.loadRecommendationCatalogs(
+                enabledCatalogs: enabledCatalogSnapshot,
+                tmdbService: tmdbService,
+                contentFilter: contentFilter,
+                generation: generation
+            )
+            guard !Task.isCancelled else { return }
 
             // Resolve clean AniList covers after the first catalog render. This
             // keeps the home screen responsive while replacing TMDB's anime
@@ -636,12 +702,6 @@ final class HomeViewModel: ObservableObject {
                 contentFilter: contentFilter,
                 generation: generation
             )
-            async let recommendationsLoaded: Void = self.loadRecommendationCatalogs(
-                enabledCatalogs: enabledCatalogSnapshot,
-                tmdbService: tmdbService,
-                contentFilter: contentFilter,
-                generation: generation
-            )
 
             let loadedStremioCatalogs = await stremioCatalogs
             let loadedTraktCatalogs = await traktCatalogs
@@ -678,25 +738,53 @@ final class HomeViewModel: ObservableObject {
                     self.catalogResults.merge(filteredTraktCatalogs) { _, trakt in trakt }
                 }
 
-                let finalLoadedCount = self.catalogResults.values.filter { !$0.isEmpty }.count
-                    + self.widgetData.values.filter { !$0.isEmpty }.count
-                let tmdbCatalogCount = rawTMDBLoadedCatalogs.values.filter { !$0.isEmpty }.count
-                let animeCatalogCount = rawAnimeCatalogs.values.filter { !$0.isEmpty }.count
-                let stremioCatalogCount = loadedStremioCatalogs.values.filter { !$0.isEmpty }.count
-                let traktCatalogCount = loadedTraktCatalogs.values.filter { !$0.isEmpty }.count
-                let widgetCatalogCount = self.unfilteredWidgetData.values.filter { !$0.isEmpty }.count
+                // Count only shelves that are actually enabled and can be
+                // rendered. Hidden Trending/Anime seed data is retained for
+                // recommendations and hero selection but is not Home content.
+                let visibleCatalogCount = HomeCatalogLoadPolicy.visibleCatalogCount(
+                    self.catalogResults,
+                    enabledCatalogIDs: currentlyEnabledCatalogIds
+                )
+                let visibleWidgetCatalogCount = HomeCatalogLoadPolicy.visibleWidgetCatalogCount(
+                    self.widgetData,
+                    enabledCatalogIDs: currentlyEnabledCatalogIds
+                )
+                let finalLoadedCount = visibleCatalogCount + visibleWidgetCatalogCount
+                let tmdbCatalogCount = HomeCatalogLoadPolicy.visibleCatalogCount(
+                    tmdbLoadedCatalogs,
+                    enabledCatalogIDs: currentlyEnabledCatalogIds
+                )
+                let animeCatalogCount = HomeCatalogLoadPolicy.visibleCatalogCount(
+                    animeLoadedCatalogs,
+                    enabledCatalogIDs: currentlyEnabledCatalogIds
+                )
+                let stremioCatalogCount = HomeCatalogLoadPolicy.visibleCatalogCount(
+                    filteredStremioCatalogs,
+                    enabledCatalogIDs: currentlyEnabledCatalogIds
+                )
+                let traktCatalogCount = HomeCatalogLoadPolicy.visibleCatalogCount(
+                    filteredTraktCatalogs,
+                    enabledCatalogIDs: currentlyEnabledCatalogIds
+                )
+                let widgetCatalogCount = visibleWidgetCatalogCount
+                let recommendationCatalogCount = HomeCatalogLoadPolicy.visibleCatalogCount(
+                    self.catalogResults.filter { $0.key == "forYou" || $0.key == "becauseYouWatched" },
+                    enabledCatalogIDs: currentlyEnabledCatalogIds
+                )
                 self.applyHeroBannerSelection()
                 self.isLoading = false
                 let permitsEmptyResults = enabledCatalogSnapshot.allSatisfy { $0.source == .local }
-                // Count every provider that can render Home content. In particular,
-                // AniList-only profiles must not be treated as an unsuccessful load
-                // just because their TMDB catalog snapshot is empty.
+                // Count every visible source, including locally generated
+                // recommendation shelves. A first-run "Just For You" shelf can
+                // be populated from Trending even when the profile has no
+                // watch history and every other provider returns an empty list.
                 self.hasLoadedContent = HomeCatalogLoadPolicy.hasLoadedContent(
                     tmdbCatalogCount: tmdbCatalogCount,
                     animeCatalogCount: animeCatalogCount,
                     stremioCatalogCount: stremioCatalogCount,
                     traktCatalogCount: traktCatalogCount,
                     widgetCatalogCount: widgetCatalogCount,
+                    recommendationCatalogCount: recommendationCatalogCount,
                     permitsEmptyResults: permitsEmptyResults
                 )
                 if self.hasLoadedContent && self.pendingCatalogFilterRefresh {
@@ -731,9 +819,16 @@ final class HomeViewModel: ObservableObject {
 
         if enabledCatalogs.contains(where: { $0.id == "forYou" }) {
             let currentResults = await MainActor.run { self.catalogResults }
-            let rawForYou = await RecommendationEngine.shared.generateRecommendations(
+            let generatedRecommendations = await RecommendationEngine.shared.generateRecommendations(
                 catalogResults: currentResults,
                 tmdbService: tmdbService
+            )
+            // New profiles have no taste profile yet, so the recommender
+            // legitimately returns an empty list. Use the hidden Trending seed
+            // as a first-run shelf instead of rendering a blank Home page.
+            let rawForYou = HomeCatalogLoadPolicy.forYouResults(
+                recommendations: generatedRecommendations,
+                trending: currentResults["trending"] ?? []
             )
             await contentFilter.prepareMaturityRatings(for: rawForYou)
             let forYou = contentFilter.filterSearchResults(rawForYou)
@@ -743,6 +838,7 @@ final class HomeViewModel: ObservableObject {
                     guard ProfileManager.shared.isStillActive(owner) else { return }
                     self.unfilteredCatalogResults["forYou"] = rawForYou
                     self.catalogResults["forYou"] = forYou
+                    if !forYou.isEmpty { self.hasRenderableStartupContent = true }
                     self.applyHeroBannerSelection()
                 }
             }
@@ -760,6 +856,7 @@ final class HomeViewModel: ObservableObject {
                     guard ProfileManager.shared.isStillActive(owner) else { return }
                     self.unfilteredCatalogResults["becauseYouWatched"] = rawBYWResults
                     self.catalogResults["becauseYouWatched"] = bywResults
+                    if !bywResults.isEmpty { self.hasRenderableStartupContent = true }
                     self.becauseYouWatchedTitle = bywTitle
                     self.applyHeroBannerSelection()
                 }
@@ -1157,28 +1254,43 @@ final class HomeViewModel: ObservableObject {
                         guard self.loadGeneration == generation else { return }
                         self.unfilteredWidgetData[mapping.catalogId] = rawItems
                         self.widgetData[mapping.catalogId] = items
+                        if !items.isEmpty { self.hasRenderableStartupContent = true }
                         self.applyHeroBannerSelection()
                     }
                 }
             }
 
             if enabledCatalogs.contains(where: { $0.id == "networks" }) {
-                await withTaskGroup(of: (Int, [TMDBSearchResult], [TMDBSearchResult]).self) { group in
-                    for network in WidgetNetwork.active {
+                await withTaskGroup(of: (String, [TMDBSearchResult], [TMDBSearchResult]).self) { group in
+                    var iterator = WidgetNetwork.active.makeIterator()
+                    for _ in 0..<min(4, WidgetNetwork.active.count) {
+                        guard let network = iterator.next() else { continue }
                         group.addTask {
-                            let raw = (try? await tmdbService.discoverByNetwork(networkId: network.id)) ?? []
-                            let filtered = await contentFilter.filterSearchResultsResolvingRatings(raw)
-                            return (network.id, raw, filtered)
+                            await self.loadWidgetCatalogResult(
+                                id: "network_\(network.id)",
+                                fetch: { try await tmdbService.discoverByNetwork(networkId: network.id) },
+                                contentFilter: contentFilter
+                            )
                         }
                     }
-                    for await (networkId, raw, results) in group {
+                    for await (catalogID, raw, results) in group {
                         guard !Task.isCancelled else { return }
                         if !raw.isEmpty {
                             await MainActor.run {
                                 guard self.loadGeneration == generation else { return }
-                                self.unfilteredWidgetData["network_\(networkId)"] = raw
-                                self.widgetData["network_\(networkId)"] = results
+                                self.unfilteredWidgetData[catalogID] = raw
+                                self.widgetData[catalogID] = results
+                                if !results.isEmpty { self.hasRenderableStartupContent = true }
                                 self.applyHeroBannerSelection()
+                            }
+                        }
+                        if let network = iterator.next() {
+                            group.addTask {
+                                await self.loadWidgetCatalogResult(
+                                    id: "network_\(network.id)",
+                                    fetch: { try await tmdbService.discoverByNetwork(networkId: network.id) },
+                                    contentFilter: contentFilter
+                                )
                             }
                         }
                     }
@@ -1186,22 +1298,36 @@ final class HomeViewModel: ObservableObject {
             }
 
             if enabledCatalogs.contains(where: { $0.id == "genres" }) {
-                await withTaskGroup(of: (Int, [TMDBSearchResult], [TMDBSearchResult]).self) { group in
-                    for genre in WidgetGenre.active {
+                await withTaskGroup(of: (String, [TMDBSearchResult], [TMDBSearchResult]).self) { group in
+                    var iterator = WidgetGenre.active.makeIterator()
+                    for _ in 0..<min(4, WidgetGenre.active.count) {
+                        guard let genre = iterator.next() else { continue }
                         group.addTask {
-                            let raw = (try? await tmdbService.discoverByGenre(genreId: genre.id)) ?? []
-                            let filtered = await contentFilter.filterSearchResultsResolvingRatings(raw)
-                            return (genre.id, raw, filtered)
+                            await self.loadWidgetCatalogResult(
+                                id: "genre_\(genre.id)",
+                                fetch: { try await tmdbService.discoverByGenre(genreId: genre.id) },
+                                contentFilter: contentFilter
+                            )
                         }
                     }
-                    for await (genreId, raw, results) in group {
+                    for await (catalogID, raw, results) in group {
                         guard !Task.isCancelled else { return }
                         if !raw.isEmpty {
                             await MainActor.run {
                                 guard self.loadGeneration == generation else { return }
-                                self.unfilteredWidgetData["genre_\(genreId)"] = raw
-                                self.widgetData["genre_\(genreId)"] = results
+                                self.unfilteredWidgetData[catalogID] = raw
+                                self.widgetData[catalogID] = results
+                                if !results.isEmpty { self.hasRenderableStartupContent = true }
                                 self.applyHeroBannerSelection()
+                            }
+                        }
+                        if let genre = iterator.next() {
+                            group.addTask {
+                                await self.loadWidgetCatalogResult(
+                                    id: "genre_\(genre.id)",
+                                    fetch: { try await tmdbService.discoverByGenre(genreId: genre.id) },
+                                    contentFilter: contentFilter
+                                )
                             }
                         }
                     }
@@ -1209,22 +1335,36 @@ final class HomeViewModel: ObservableObject {
             }
 
             if enabledCatalogs.contains(where: { $0.id == "companies" }) {
-                await withTaskGroup(of: (Int, [TMDBSearchResult], [TMDBSearchResult]).self) { group in
-                    for company in WidgetCompany.active {
+                await withTaskGroup(of: (String, [TMDBSearchResult], [TMDBSearchResult]).self) { group in
+                    var iterator = WidgetCompany.active.makeIterator()
+                    for _ in 0..<min(4, WidgetCompany.active.count) {
+                        guard let company = iterator.next() else { continue }
                         group.addTask {
-                            let raw = (try? await tmdbService.discoverByCompany(companyId: company.id)) ?? []
-                            let filtered = await contentFilter.filterSearchResultsResolvingRatings(raw)
-                            return (company.id, raw, filtered)
+                            await self.loadWidgetCatalogResult(
+                                id: "company_\(company.id)",
+                                fetch: { try await tmdbService.discoverByCompany(companyId: company.id) },
+                                contentFilter: contentFilter
+                            )
                         }
                     }
-                    for await (companyId, raw, results) in group {
+                    for await (catalogID, raw, results) in group {
                         guard !Task.isCancelled else { return }
                         if !raw.isEmpty {
                             await MainActor.run {
                                 guard self.loadGeneration == generation else { return }
-                                self.unfilteredWidgetData["company_\(companyId)"] = raw
-                                self.widgetData["company_\(companyId)"] = results
+                                self.unfilteredWidgetData[catalogID] = raw
+                                self.widgetData[catalogID] = results
+                                if !results.isEmpty { self.hasRenderableStartupContent = true }
                                 self.applyHeroBannerSelection()
+                            }
+                        }
+                        if let company = iterator.next() {
+                            group.addTask {
+                                await self.loadWidgetCatalogResult(
+                                    id: "company_\(company.id)",
+                                    fetch: { try await tmdbService.discoverByCompany(companyId: company.id) },
+                                    contentFilter: contentFilter
+                                )
                             }
                         }
                     }
@@ -1234,13 +1374,16 @@ final class HomeViewModel: ObservableObject {
             if enabledCatalogs.contains(where: { $0.id == "featured" }) {
                 guard !Task.isCancelled else { return }
                 guard let randomGenre = WidgetGenre.activeTV.randomElement() else { return }
-                let rawResults = (try? await tmdbService.discoverByGenre(genreId: randomGenre.id, mediaType: "tv")) ?? []
+                let rawResults = await self.loadHomeCatalog("featured") {
+                    try await tmdbService.discoverByGenre(genreId: randomGenre.id, mediaType: "tv")
+                }
                 let results = await contentFilter.filterSearchResultsResolvingRatings(rawResults)
                 if !rawResults.isEmpty {
                     await MainActor.run {
                         guard self.loadGeneration == generation else { return }
                         self.unfilteredWidgetData["featured"] = rawResults
                         self.widgetData["featured"] = results
+                        if !results.isEmpty { self.hasRenderableStartupContent = true }
                         self.widgetData["featured_genreName"] = []
                         self.applyHeroBannerSelection()
                     }
@@ -1251,6 +1394,18 @@ final class HomeViewModel: ObservableObject {
                     }
             }
         }
+    }
+
+    private func loadWidgetCatalogResult(
+        id: String,
+        fetch: () async throws -> [TMDBSearchResult],
+        contentFilter: TMDBContentFilter
+    ) async -> (String, [TMDBSearchResult], [TMDBSearchResult]) {
+        // Widget catalogs share TMDB's rate limit. Retry transient failures and
+        // return each shelf independently so one failed widget cannot block Home.
+        let raw = await loadHomeCatalog(id, fetch: fetch)
+        let filtered = await contentFilter.filterSearchResultsResolvingRatings(raw)
+        return (id, raw, filtered)
     }
 
     @Published var featuredGenreName: String = ""

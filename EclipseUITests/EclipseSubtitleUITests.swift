@@ -10,7 +10,10 @@ final class EclipseSubtitleUITests: XCTestCase {
             "-experimentalICloudSyncEnabled", "NO",
             "-experimentalGoogleDriveSyncEnabled", "NO",
             "-experimentalOneDriveSyncEnabled", "NO",
-            "-eclipseSyncSettingsAcrossDevicesV1", "NO"
+            "-eclipseSyncSettingsAcrossDevicesV1", "NO",
+            "-eclipseProfileAsksOnLaunchV1", "NO",
+            "-eclipseOnboardingCompletedV1", "YES",
+            "-eclipseAppHubNoticeSeenV1", "YES"
         ]
     }
 
@@ -168,7 +171,10 @@ final class EclipseRatingsUITests: XCTestCase {
             "-experimentalICloudSyncEnabled", "NO",
             "-experimentalGoogleDriveSyncEnabled", "NO",
             "-experimentalOneDriveSyncEnabled", "NO",
-            "-eclipseSyncSettingsAcrossDevicesV1", "NO"
+            "-eclipseSyncSettingsAcrossDevicesV1", "NO",
+            "-eclipseProfileAsksOnLaunchV1", "NO",
+            "-eclipseOnboardingCompletedV1", "YES",
+            "-eclipseAppHubNoticeSeenV1", "YES"
         ]
         app.launchEnvironment["ECLIPSE_DEBUG_RATINGS_FIXTURE"] = "1"
         app.launch()
@@ -450,20 +456,27 @@ final class EclipseRatingsUITests: XCTestCase {
         let picker = app.segmentedControls["ratings.fixture.season"]
         try reveal(picker)
         let button = picker.buttons["Season \(season)"]
-        XCTAssertTrue(button.exists, app.debugDescription)
+        XCTAssertTrue(button.exists && button.isHittable, app.debugDescription)
         button.tap()
-        XCTAssertTrue(button.isSelected, app.debugDescription)
+        // The visible scope label is the source of truth; SwiftUI segmented
+        // controls do not consistently expose isSelected through XCTest.
+        let scope = app.staticTexts["ratings.scope"]
+        let scopeChanged = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            scope.exists && scope.label == "Season \(season)"
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [scopeChanged], timeout: 10), .completed, app.debugDescription)
     }
 
     private func assertReview(rating: String, note: String, scope: String) throws {
         let value = app.staticTexts["ratings.value"]
-        try reveal(value)
+        // Static text is read-only: it only needs to be visible, not hittable.
+        try reveal(value, requiresHittable: false)
         let scopeLabel = app.staticTexts["ratings.scope"]
         let notes = app.textViews["ratings.notes"]
         let matches = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
             value.exists && value.label == rating && scopeLabel.label == scope && (notes.value as? String) == note
         }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [matches], timeout: 8), .completed, app.debugDescription)
+        XCTAssertEqual(XCTWaiter.wait(for: [matches], timeout: 15), .completed, app.debugDescription)
     }
 
     private func openRatingsSettings() throws {
@@ -474,10 +487,17 @@ final class EclipseRatingsUITests: XCTestCase {
     }
 
     private func closeRatingsSettings() throws {
-        let back = app.navigationBars["Ratings & Notes"].buttons.firstMatch
-        XCTAssertTrue(back.exists, app.debugDescription)
+        let settingsNavigationBar = app.navigationBars["Ratings & Notes"]
+        let back = settingsNavigationBar.buttons.firstMatch
+        XCTAssertTrue(back.exists && back.isHittable, app.debugDescription)
         back.tap()
-        XCTAssertTrue(app.segmentedControls["ratings.fixture.season"].waitForExistence(timeout: 5), app.debugDescription)
+        let dismissed = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in !settingsNavigationBar.exists },
+            object: nil
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [dismissed], timeout: 10), .completed, app.debugDescription)
+        let season = app.segmentedControls["ratings.fixture.season"]
+        XCTAssertTrue(season.waitForExistence(timeout: 15) && season.isHittable, app.debugDescription)
     }
 
     private func reloadRatingsSettings() throws {
@@ -515,15 +535,20 @@ final class EclipseRatingsUITests: XCTestCase {
 
     private func revealEntry(_ key: String) throws -> XCUIElement {
         let row = app.descendants(matching: .any).matching(identifier: "settings.ratings.entry.\(key)").firstMatch
-        try reveal(row)
+        try reveal(row, requiresHittable: false)
         XCTAssertTrue(row.exists, app.debugDescription)
         return row
     }
 
-    private func reveal(_ element: XCUIElement, towardTop: Bool = false) throws {
+    private func reveal(_ element: XCUIElement, towardTop: Bool = false, requiresHittable: Bool = true) throws {
         for _ in 0..<12 {
-            if element.exists && element.isHittable { return }
             let viewport = app.windows.firstMatch.frame
+            if element.exists {
+                if requiresHittable && element.isHittable { return }
+                let visibleFrame = element.frame
+                if !requiresHittable, visibleFrame.width > 0, visibleFrame.height > 0,
+                   viewport.intersects(visibleFrame) { return }
+            }
             let frame = element.exists ? element.frame : .zero
             let moveDown = frame.height > 0 ? frame.midY < viewport.midY : towardTop
             let upper = app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.28))

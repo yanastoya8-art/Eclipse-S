@@ -143,7 +143,6 @@ enum ReaderNovelChapterIdentity {
             let params = chapter.chapterData?.first?.params
             return (params as? ReaderExtensionChapterPayload)?.chapter.bookReadingOrder
                 ?? (params as? ReaderDownloadedChapterPayload)?.bookReadingOrder
-                ?? (params as? ReaderLocalEPUBChapterPayload)?.chapterIndex
         }
         guard !chapters.isEmpty, orders.count == chapters.count,
               orders.allSatisfy({ (0..<4_096).contains($0) }), Set(orders).count == orders.count else {
@@ -159,7 +158,6 @@ enum ReaderNovelChapterIdentity {
     }
 
     static func isBookChapter(_ chapter: Chapter) -> Bool {
-        if chapter.chapterData?.first?.params is ReaderLocalEPUBChapterPayload { return true }
         let params = chapter.chapterData?.first?.params
         let order = (params as? ReaderExtensionChapterPayload)?.chapter.bookReadingOrder
             ?? (params as? ReaderDownloadedChapterPayload)?.bookReadingOrder
@@ -201,7 +199,6 @@ enum ReaderNovelChapterIdentity {
 
     static func key(for chapter: Chapter) -> String {
         let params = chapter.chapterData?.first?.params
-        if let payload = params as? ReaderLocalEPUBChapterPayload { return "local-epub:\(payload.bookID):\(payload.chapterIndex)" }
         if let payload = params as? ReaderExtensionChapterPayload { return payload.chapter.key }
         if let payload = params as? ReaderDownloadedChapterPayload,
            let identity = payload.chapterIdentity, !identity.isEmpty, identity.utf8.count <= 32 * 1_024 {
@@ -510,7 +507,7 @@ private struct ReaderExtensionPageImageView: View {
         Group {
             switch state {
             case .loading:
-                CircularLoader()
+                ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .loaded(let image):
                 ReaderDataImageView(image: image)
@@ -938,7 +935,7 @@ private struct ReaderPinnedPageImage: View {
                 maximumPixelSize: ReaderPageImageOptions.displayMaximumPixelSize(),
                 maximumResponseBytes: ReaderPinnedImageLimits.pageResponseBytes
             ) {
-                CircularLoader()
+                ProgressView()
             }
             .scaledToFit()
             .frame(width: width)

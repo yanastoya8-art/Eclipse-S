@@ -11,8 +11,9 @@ permissions:
   actions: write
   contents: read
 
-# Keep one active iOS build per PR/branch. New commits supersede older
-# queued or in-progress runs instead of accumulating hours of stale builds.
+# Only the newest commit on a PR/branch should consume a macOS runner.
+# Cancel superseded builds so an obsolete MPVKit compile cannot block validation
+# of the current source revision for an hour or more.
 concurrency:
   group: ios-pr-build-${{ github.event.pull_request.number || github.ref_name }}
   cancel-in-progress: true
@@ -62,7 +63,7 @@ jobs:
     name: Build and test iPhone/iPad app
     needs: prune-stale-ios-builds
     runs-on: macos-26-intel
-    timeout-minutes: 180
+    timeout-minutes: 240
 
     steps:
       - name: Checkout Eclipse
@@ -72,6 +73,22 @@ jobs:
         uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
         with:
           xcode-version: latest-stable
+
+      - name: Record Xcode version for build cache keys
+        id: xcode-version
+        run: |
+          set -euo pipefail
+          # Avoid piping xcodebuild into awk/head: Xcode 26 can crash with SIGPIPE
+          # when a consumer exits after reading its first output line.
+          XCODE_VERSION_OUTPUT="$(xcodebuild -version)"
+          IFS= read -r XCODE_VERSION_LINE <<< "$XCODE_VERSION_OUTPUT"
+          VERSION="${XCODE_VERSION_LINE#Xcode }"
+          if [[ "$VERSION" == "$XCODE_VERSION_LINE" || -z "$VERSION" ]]; then
+            echo "::error::Could not determine the selected Xcode version."
+            echo "$XCODE_VERSION_OUTPUT"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Create local build config from repository secrets
         env:
@@ -87,6 +104,14 @@ jobs:
           MAL_REDIRECT_URI: ${{ secrets.MAL_REDIRECT_URI }}
         run: |
           set -euo pipefail
+          # Home's built-in movie/TV catalogs require the public TMDB v3 API key.
+          # Never print the value: fail early with an actionable message if the
+          # repository secret is absent, instead of producing a simulator app
+          # whose Home screen can only show the missing-key error at runtime.
+          if [[ -z "${TMDB_API_KEY//[[:space:]]/}" ]]; then
+            echo "::error::TMDB_API_KEY is missing or blank in repository Actions secrets; Home TMDB catalogs cannot load."
+            exit 1
+          fi
           {
             printf 'TMDB_API_KEY = %s\n' "${TMDB_API_KEY:-}"
             printf 'FANART_TV_API_KEY = %s\n' "${FANART_TV_API_KEY:-}"
@@ -103,9 +128,10 @@ jobs:
       - name: Parse all iOS app and test Swift sources
         run: |
           set -euo pipefail
-          while IFS= read -r -d '' source; do
-            swiftc -frontend -parse "$source"
-          done < <(find Eclipse Kanzen Tests EclipseUITests -type f -name '*.swift' -print0)
+          # Parse independent files concurrently; the previous serial loop made
+          # this preflight dominate the test job on the large app/test source set.
+          find Eclipse Kanzen Tests EclipseUITests -type f -name '*.swift' -print0 \
+            | xargs -0 -P 4 -n 1 swiftc -frontend -parse
 
       - name: Checkout pinned MPVKit
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -114,31 +140,113 @@ jobs:
           ref: b951a22fc5ddbf708057ace059e3742dae685e4d
           path: MPVKit
 
+      - name: Cache MPVKit build products and downloaded sources
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            MPVKit/.build
+            MPVKit/dist
+          key: mpvkit-${{ runner.os }}-${{ runner.arch }}-xcode-${{ steps.xcode-version.outputs.version }}-b951a22fc5ddbf708057ace059e3742dae685e4d-ios-gpl-0.41.0-v2
+
       - name: Build patched MPVKit for iPhone and iPad
         run: |
           set -euo pipefail
-          brew install autoconf automake cmake libtool nasm ninja pkg-config
-          MPVKIT_BUILD_VENV="$RUNNER_TEMP/mpvkit-build-venv"
-          python3 -m venv "$MPVKIT_BUILD_VENV"
-          "$MPVKIT_BUILD_VENV/bin/python" -m pip install --disable-pip-version-check meson==1.4.2
-          export PATH="$MPVKIT_BUILD_VENV/bin:$PATH"
-          MPVKIT_BUILD_SUCCEEDED=false
-          for attempt in 1 2 3; do
-            if make -C MPVKit build enable-gpl version=0.41.0 platform=ios; then
-              MPVKIT_BUILD_SUCCEEDED=true
-              break
+
+          # The cache includes both MPVKit's build tree and the completed
+          # XCFrameworks. Do not rerun the expensive FFmpeg/libmpv toolchain
+          # when every required output is already present and usable.
+          required_frameworks=(
+            Libmpv Libavcodec Libavdevice Libavfilter
+            Libavformat Libavutil Libswresample Libswscale
+          )
+          cache_complete=true
+          test -f MPVKit/dist/release/Package.swift || cache_complete=false
+          for framework in "${required_frameworks[@]}"; do
+            artifact="MPVKit/dist/release/xcframework/${framework}.xcframework"
+            if [ ! -d "$artifact" ] || [ ! -f "$artifact/Info.plist" ]; then
+              echo "Cached MPVKit output is missing: $artifact"
+              cache_complete=false
             fi
-          
-            echo "::warning::MPVKit build attempt $attempt failed. Retrying transient upstream download failures."
-            # Remove incomplete OpenSSL downloads so the next attempt starts cleanly.
-            rm -rf MPVKit/dist/openssl-3.3.5 MPVKit/dist/openssl-3.3.5.log
-            if [ "$attempt" -lt 3 ]; then sleep "$((attempt * 10))"; fi
           done
-          if [ "$MPVKIT_BUILD_SUCCEEDED" != true ]; then
-            echo "::error::MPVKit did not build successfully after three attempts."
-            exit 1
+
+          if [ "$cache_complete" = true ]; then
+            echo "All patched MPVKit XCFrameworks restored from cache; skipping the full native rebuild."
+          else
+            missing=()
+            for formula in autoconf automake cmake libtool nasm ninja pkg-config; do
+              if ! brew list --versions "$formula" >/dev/null 2>&1; then
+                missing+=("$formula")
+              fi
+            done
+            if [ "${#missing[@]}" -gt 0 ]; then
+              brew install "${missing[@]}"
+            else
+              echo "All MPVKit build tools are already installed."
+            fi
+
+            # The pinned MPVKit helper treats any non-empty ZIP as a completed
+            # download. GitHub release transfers can be interrupted after a partial
+            # response, leaving a corrupt archive that is then reused on every retry.
+            # Harden downloads and validate cached archives before the build starts.
+            python3 - <<'PY'
+          from pathlib import Path
+
+          source = Path("MPVKit/Sources/BuildScripts/XCFrameworkBuild/base.swift")
+          text = source.read_text()
+          old_download = 'arguments: ["-fL", "--retry", "3", "--retry-delay", "1", "-o", outputURL.path, url],'
+          new_download = 'arguments: ["-fL", "--retry", "5", "--retry-all-errors", "--retry-delay", "2", "--connect-timeout", "30", "--max-time", "240", "--speed-time", "30", "--speed-limit", "1024", "-o", outputURL.path, url],'
+          if old_download not in text:
+              raise SystemExit("Could not locate pinned MPVKit download implementation; refusing an unverified patch.")
+          text = text.replace(old_download, new_download, 1)
+          old_archive_check = '''        // delete invalid downloaded files
+                  let attributes = try? FileManager.default.attributesOfItem(atPath: outputFile.path)
+                  if let fileSize = attributes?[FileAttributeKey.size] as? UInt64, fileSize <= 0 {
+                      try? FileManager.default.removeItem(atPath: directoryURL.path)
+                  }'''
+          new_archive_check = '''        // Reject partial/corrupt ZIPs, not merely zero-byte files. A failed
+                  // transfer must never be mistaken for a completed dependency.
+                  if FileManager.default.fileExists(atPath: outputFile.path) {
+                      let archiveIsValid = (try? Utility.launch(
+                          path: "/usr/bin/unzip",
+                          arguments: ["-t", outputFileName],
+                          currentDirectoryURL: directoryURL
+                      )) != nil
+                      if !archiveIsValid {
+                          try? FileManager.default.removeItem(at: outputFile)
+                      }
+                  }'''
+          if old_archive_check not in text:
+              raise SystemExit("Could not locate pinned MPVKit ZIP validation block; refusing an unverified patch.")
+          text = text.replace(old_archive_check, new_archive_check, 1)
+          source.write_text(text)
+          PY
+
+            MPVKIT_BUILD_VENV="$RUNNER_TEMP/mpvkit-build-venv"
+            python3 -m venv "$MPVKIT_BUILD_VENV"
+            "$MPVKIT_BUILD_VENV/bin/python" -m pip install --disable-pip-version-check meson==1.4.2
+            export PATH="$MPVKIT_BUILD_VENV/bin:$PATH"
+            MPVKIT_BUILD_SUCCEEDED=false
+            for attempt in 1 2 3; do
+              if make -C MPVKit build enable-gpl version=0.41.0 platform=ios; then
+                MPVKIT_BUILD_SUCCEEDED=true
+                break
+              fi
+
+              echo "::warning::MPVKit build attempt $attempt failed. Retrying transient upstream download failures."
+              # Remove incomplete OpenSSL downloads so the next attempt starts cleanly.
+              rm -rf MPVKit/dist/openssl-3.3.5 MPVKit/dist/openssl-3.3.5.log
+              if [ "$attempt" -lt 3 ]; then sleep "$((attempt * 10))"; fi
+            done
+            if [ "$MPVKIT_BUILD_SUCCEEDED" != true ]; then
+              echo "::error::MPVKit did not build successfully after three attempts."
+              exit 1
+            fi
           fi
+
           test -f MPVKit/dist/release/Package.swift
+          for framework in "${required_frameworks[@]}"; do
+            test -f "MPVKit/dist/release/xcframework/${framework}.xcframework/Info.plist"
+          done
           
       - name: Verify patched MPVKit source and local frameworks
         run: |
@@ -147,11 +255,38 @@ jobs:
           grep -q 'dovi_metadata' MPVKit/Sources/BuildScripts/patch/libmpv/0017-expose-decoded-dolby-vision-rpu.patch
           grep -q 'videoHasDolbyVisionRPU' MPVKit/Sources/MPVKitSampleBufferGPL/MPVGPUPlayerRenderer.swift
 
+      - name: Cache SwiftPM repositories and binary artifacts
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ${{ runner.temp }}/SourcePackages/repositories
+            ${{ runner.temp }}/SourcePackages/artifacts
+          key: swiftpm-${{ runner.os }}-xcode-${{ steps.xcode-version.outputs.version }}-${{ hashFiles('**/Package.resolved') }}-v1
+
       - name: Resolve Swift packages
         run: |
           set -euo pipefail
           SOURCE_PACKAGES_DIR="$RUNNER_TEMP/SourcePackages"
-          xcodebuild -resolvePackageDependencies \
+
+          # GitHub-hosted macOS runners can lose connections while SwiftPM
+          # fetches Git checkouts or large binary XCFramework artifacts. Retry
+          # transient resolver failures without discarding the warm package cache.
+          resolve_packages_with_retry() {
+            local attempt
+            for attempt in 1 2 3 4; do
+              echo "Swift package resolution attempt $attempt/4"
+              if xcodebuild -resolvePackageDependencies "$@" -scmProvider system; then
+                return 0
+              fi
+              if [ "$attempt" -lt 4 ]; then
+                echo "SwiftPM resolution failed; retrying after a short backoff." >&2
+                sleep $((attempt * 15))
+              fi
+            done
+            echo "::error::Swift package resolution failed after 4 attempts." >&2
+            return 1
+          }
+          resolve_packages_with_retry \
             -project Eclipse.xcodeproj \
             -scheme Eclipse \
             -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" \
@@ -232,7 +367,7 @@ jobs:
           PY
 
           export MPVKIT_LOCAL_ARTIFACTS_DIR
-          xcodebuild -resolvePackageDependencies \
+          resolve_packages_with_retry \
             -project Eclipse.xcodeproj \
             -scheme Eclipse \
             -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" \
@@ -252,10 +387,15 @@ jobs:
           echo "SIMULATOR_UDID=$DEVICE_ID" >> "$GITHUB_ENV"
           xcrun simctl boot "$DEVICE_ID" || true
 
-      - name: Build and run iOS unit tests
+      - name: Build iPhone/iPad app and test bundles
         run: |
           set -euo pipefail
-          xcodebuild test \
+          # Compile both the unit-test and UI-test bundles so source/build
+          # regressions in either target are caught, but keep this CI job focused
+          # on simulator builds and unit tests. UI automation is intentionally
+          # not executed here; it previously occupied the runner for hours and
+          # was repeatedly cancelled before the unit-test result could be read.
+          xcodebuild build-for-testing \
             -project Eclipse.xcodeproj \
             -scheme Eclipse \
             -configuration Debug \
@@ -266,5 +406,23 @@ jobs:
             -skipPackagePluginValidation \
             -skipMacroValidation \
             -parallel-testing-enabled NO \
+            CODE_SIGNING_ALLOWED=NO \
+            ENABLE_USER_SCRIPT_SANDBOXING=NO
+
+      - name: Run iOS unit tests
+        run: |
+          set -euo pipefail
+          xcodebuild test-without-building \
+            -project Eclipse.xcodeproj \
+            -scheme Eclipse \
+            -configuration Debug \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" \
+            -disableAutomaticPackageResolution \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
+            -parallel-testing-enabled NO \
+            -only-testing:Tests \
             CODE_SIGNING_ALLOWED=NO \
             ENABLE_USER_SCRIPT_SANDBOXING=NO

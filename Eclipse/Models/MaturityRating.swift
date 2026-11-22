@@ -38,7 +38,7 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
         case .age16: return 16
         case .age17: return 17
         case .adult: return 18
-        case .unknown: return Int.max
+        case .unknown: return -1
         }
     }
 
@@ -47,8 +47,9 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
     }
 
     var isBlockedForKids: Bool {
-        self == .age12 || self == .mature || self == .age16
-            || self == .age17 || self == .adult || self == .unknown
+        // The configured under-13 boundary applies to every regional age
+        // band, not only the US/UK enum cases. Unknown ratings fail closed.
+        self < .teen || self == .adult || self == .unknown
     }
 
     var ageBand: String {

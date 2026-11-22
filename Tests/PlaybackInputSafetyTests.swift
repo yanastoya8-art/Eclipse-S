@@ -1234,13 +1234,13 @@ final class MediaLanguageCatalogTests: XCTestCase {
     func testTypedCatalogIDsAndLegacyFilterIDsKeepDistinctMeanings() {
         XCTAssertEqual(MediaLanguageCatalog.canonicalID(for: "lat"), "la")
         XCTAssertEqual(MediaLanguageCatalog.canonicalID(for: "Latin"), "la")
-        XCTAssertEqual(MediaLanguageCatalog.filterCanonicalID(for: "lat"), "es-419")
-        XCTAssertEqual(MediaLanguageCatalog.filterCanonicalID(for: "Latin"), "es-419")
+        XCTAssertEqual(MediaLanguageCatalog.filterCanonicalID(for: "lat"), "es")
+        XCTAssertEqual(MediaLanguageCatalog.filterCanonicalID(for: "Latin"), "es")
         XCTAssertEqual(MediaLanguageCatalog.filterCanonicalID(for: "la"), "la")
         for (alias, id) in [("pt-BR", "pt"), ("por-PT", "pt"), ("en-US", "en"), ("eng-GB", "en"), ("fr-CA", "fr"), ("zh-Hant", "zh"), ("chi-Hans", "zh"), ("Cantonese", "zh"), ("Mandarin", "zh"), ("fil", "tl"), ("nb", "no"), ("nob", "no"), ("nn", "no"), ("nno", "no")] {
             XCTAssertEqual(MediaLanguageCatalog.filterCanonicalID(for: alias), id, alias)
         }
-        for id in ["pt-BR", "en-US", "fr-CA", "zh-Hant", "yue", "cmn", "fil", "nb", "nn"] {
+        for id in ["pt-BR", "en-US", "fr-CA", "zh-Hant", "yue", "cmn", "fil", "nb", "nn", "es-419"] {
             XCTAssertEqual(MediaLanguageCatalog.filterCanonicalID(for: "language:" + id), id)
             XCTAssertEqual(MediaLanguageCatalog.language(for: id)?.filterValue, "language:" + id)
         }
@@ -1251,7 +1251,7 @@ final class MediaLanguageCatalogTests: XCTestCase {
         defer { suite.defaults.removePersistentDomain(forName: suite.name) }
         let legacy = ["English", "eng", "pt-BR", "Cantonese", "lat", "nn", "Rare Dialect", "密語", "隱語"]
         suite.defaults.set(legacy, forKey: StreamLanguageFilter.includedLanguagesKey)
-        XCTAssertEqual(StreamLanguageFilter.includedLanguages(defaults: suite.defaults), ["en", "pt", "zh", "language:es-419", "no", "Rare Dialect", "密語", "隱語"])
+        XCTAssertEqual(StreamLanguageFilter.includedLanguages(defaults: suite.defaults), ["en", "pt", "zh", "es", "no", "Rare Dialect", "密語", "隱語"])
         XCTAssertEqual(suite.defaults.stringArray(forKey: StreamLanguageFilter.includedLanguagesKey), legacy)
         StreamLanguageFilter.setIncludedLanguages(["English", "eng", "language:pt-BR", "Rare Dialect"], defaults: suite.defaults)
         XCTAssertEqual(suite.defaults.stringArray(forKey: StreamLanguageFilter.includedLanguagesKey), ["en", "language:pt-BR", "Rare Dialect"])
@@ -1289,7 +1289,7 @@ final class MediaLanguageCatalogTests: XCTestCase {
             ("language:fr-CA", "fr-CA", false), ("language:fr-CA", "fr-FR", true),
             ("language:yue", "yue", false), ("language:yue", "cmn", true),
             ("language:nb", "nb", false), ("language:nb", "nn", true),
-            ("es", "es-ES", false), ("es", "es-419", true), ("language:es-419", "es-419", false)
+            ("es", "es-ES", false), ("es", "es-419", false), ("language:es-419", "es-419", false)
         ]
         for (rule, hint, hidden) in cases {
             StreamLanguageFilter.setIncludedLanguages([rule], defaults: suite.defaults)

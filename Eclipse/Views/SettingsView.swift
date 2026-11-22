@@ -1228,6 +1228,9 @@ private final class EclipseRatingsFixtureStore: ObservableObject {
     private let directory: URL
     private let profileID: UUID
     private let fileURL: URL
+    private let originalReaderCollections: [MangaLibraryCollection]
+    private let readerCollectionsStorageKey: String
+    private let originalReaderCollectionsData: Data?
     @Published private(set) var manager: UserRatingManager
     @Published private(set) var revision = 0
 
@@ -1244,11 +1247,36 @@ private final class EclipseRatingsFixtureStore: ObservableObject {
         let profileID = ProfileManager.shared.activeProfileID
         let fileURL = directory.appendingPathComponent("ratings.json")
         let manager = UserRatingManager(profileID: profileID, fileURL: fileURL)
+        let readerManager = MangaLibraryManager.shared
+        guard let originalReaderCollections = readerManager.collectionsSnapshot(forProfile: profileID) else {
+            try? FileManager.default.removeItem(at: directory)
+            UserDefaults.standard.removePersistentDomain(forName: suite)
+            return nil
+        }
+        let readerCollectionsStorageKey = MangaLibraryManager.storageKey(for: profileID)
+        let originalReaderCollectionsData = UserDefaults.standard.data(forKey: readerCollectionsStorageKey)
+        let readerCollision = MangaLibraryItem(
+            aniListId: 98214,
+            title: "Reader Collision Fixture Manga",
+            format: "MANGA",
+            totalChapters: 12
+        )
+        let readerFixtureCollection = MangaLibraryCollection(
+            name: "Ratings Reader Collision Fixture",
+            items: [readerCollision]
+        )
+        readerManager.applyRestoredCollections(
+            originalReaderCollections + [readerFixtureCollection],
+            forProfile: profileID
+        )
         self.defaults = defaults
         self.suiteName = suite
         self.directory = directory
         self.profileID = profileID
         self.fileURL = fileURL
+        self.originalReaderCollections = originalReaderCollections
+        self.readerCollectionsStorageKey = readerCollectionsStorageKey
+        self.originalReaderCollectionsData = originalReaderCollectionsData
         self.manager = manager
         let metadata = [
             TMDBSearchResult(id: Self.showID, mediaType: "tv", title: nil, name: "Ratings Fixture Show", overview: nil,
@@ -1318,11 +1346,24 @@ private final class EclipseRatingsFixtureStore: ObservableObject {
     }
 
     func cleanUp() {
+        MangaLibraryManager.shared.applyRestoredCollections(originalReaderCollections, forProfile: profileID)
+        if let originalReaderCollectionsData {
+            UserDefaults.standard.set(originalReaderCollectionsData, forKey: readerCollectionsStorageKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: readerCollectionsStorageKey)
+        }
         try? FileManager.default.removeItem(at: directory)
         UserDefaults.standard.removePersistentDomain(forName: suiteName)
     }
 
     deinit {
+        // Restore the exact persisted bytes even if the fixture is terminated
+        // without receiving its normal onDisappear cleanup callback.
+        if let originalReaderCollectionsData {
+            UserDefaults.standard.set(originalReaderCollectionsData, forKey: readerCollectionsStorageKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: readerCollectionsStorageKey)
+        }
         try? FileManager.default.removeItem(at: directory)
         UserDefaults.standard.removePersistentDomain(forName: suiteName)
     }
@@ -1503,7 +1544,15 @@ private struct RatingsSettingsView: View {
         storeUnreadable = ratingManager.hasUnreadableStore
         let originalEntries = ratingManager.allEntries()
         let context = matchingContext(profileID: capturedAuthority.profileID)
-        matchingContextReadable = context.readable
+        // Reader collections are still a source of identity evidence even
+        // though the retired Reader interface is no longer exposed here.
+        // Never auto-attach an ambiguous legacy rating to TMDB when a
+        // positive AniList/MAL ID already belongs to a saved Reader item.
+        let readerCollections = MangaLibraryManager.shared.collectionsSnapshot(forProfile: capturedAuthority.profileID)
+        let excludedReaderIDs = Set((readerCollections ?? []).flatMap(\.items).flatMap { item in
+            [item.aniListId, item.trackerAniListId ?? 0, item.trackerMALId ?? 0]
+        }.filter { $0 > 0 })
+        matchingContextReadable = context.readable && readerCollections != nil
         var results: [Int: [TMDBSearchResult]] = [:]
         for result in context.metadata {
             guard result.isMovie || result.isTVShow else { continue }
@@ -1511,11 +1560,11 @@ private struct RatingsSettingsView: View {
             results[result.id, default: []].append(result)
         }
         libraryResults = results
-        if context.readable, !profileManager.isKidsModeActive, capturedAuthority.isCurrent {
+        if matchingContextReadable, !profileManager.isKidsModeActive, capturedAuthority.isCurrent {
             let matches = UserRatingManager.automaticLegacyAttachments(
                 entries: originalEntries,
                 knownMediaTypes: results.mapValues { Set($0.map(\.isMovie)) },
-                excludedReaderIDs: []
+                excludedReaderIDs: excludedReaderIDs
             )
             automaticallyMatchedCount += ratingManager.attachLegacyEntries(matches, expectedProfileID: capturedAuthority.profileID)
         }
@@ -5487,7 +5536,7 @@ private struct ProductionsSettingsView: View {
                 Toggle("Hide fan-made and YouTuber productions", isOn: $hideUnofficialContent)
                     .accessibilityIdentifier("settings.contentFilters.hideFanmade")
             } footer: {
-                Text("Uses title and description indicators such as fan-made, unofficial, YouTuber and YouTube-original. This is a best-effort metadata filter; entries without those indicators may remain visible.")
+                Text("Checks titles, descriptions, schedule metadata and TMDB production-company names for fan-made, YouTuber, YouTube-original and unofficial-production indicators. Catalog and schedule entries remain hidden while production metadata is being checked.")
             }
         }
         .onChange(of: hideUnofficialContent) { _ in filtersDidChange() }
@@ -5557,7 +5606,7 @@ private struct RuntimeFiltersSettingsView: View {
                     .onChange(of: hideUnder20MinuteContent) { _ in filtersDidChange() }
                     .accessibilityIdentifier("settings.contentFilters.hideShortRuntime")
             } footer: {
-                Text("Movie runtime and typical TV episode runtime are read from TMDB. TV shows use the median of the reported episode runtimes. Only confirmed runtimes below 20 minutes are hidden; missing runtime data is not guessed.")
+                Text("Movie runtime and TV episode runtimes are read from TMDB. A series is excluded if any reported episode runtime is under 20 minutes. Titles with unresolved runtime metadata stay hidden until the lookup completes, so missing data cannot bypass the filter.")
             }
         }
         .eclipsePageTitle("Runtime Filters")

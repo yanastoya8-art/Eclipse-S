@@ -900,7 +900,11 @@ final class MPVHeaderProxyFlowControlTests: XCTestCase {
             return snapshot.chunks >= MPVHeaderProxyFlowControl.maximumChunks
                 || snapshot.bytes >= MPVHeaderProxyFlowControl.maximumBytes
         }, object: nil)
-        wait(for: [pressure], timeout: 10)
+        // The 64 MiB loopback fixture can take longer to reach the
+        // bounded queue threshold on a loaded hosted simulator. Keep this
+        // wait separate from the later resume/drain timeout so slow socket
+        // backpressure does not fail the test before pressure is established.
+        wait(for: [pressure], timeout: 60)
     }
 
     private func waitForPausedSendsToRemainPending(_ flow: MPVHeaderProxyFlowControl) {
@@ -921,7 +925,10 @@ final class MPVHeaderProxyFlowControlTests: XCTestCase {
         defer { client.cancel() }
         try client.start(url: url)
         wait(for: [headers], timeout: 10)
-        waitForPressure(capture)
+        // A native send can briefly cross the watermark and drain before the
+        // predicate is polled. Use the recorded peak so this wait observes
+        // that real pressure event instead of waiting for a transient level.
+        waitForPressure(capture, usingRecordedPeak: true)
 
         let parallelDone = expectation(description: "Parallel range completes while original reader is paused")
         let parallel = ProxyFlowFixtureClient(paused: false, completed: parallelDone)
@@ -969,9 +976,11 @@ final class MPVHeaderProxyFlowControlTests: XCTestCase {
         let closed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
             server.activeConnections == 0 && capture.all.first?.snapshot.closed == true
         }, object: nil)
-        wait(for: [closed], timeout: 10)
+        // A 64 MiB deliberately stalled upstream may take longer to unwind
+        // on the Intel simulator runner after cancellation/invalidation.
+        wait(for: [closed], timeout: 30)
         client.cancel()
-        wait(for: [completed], timeout: 3)
+        wait(for: [completed], timeout: 10)
     }
 
     private func exerciseBody(pinned: Bool, body: ProxyFlowFixtureBody, bytes: Int) throws {

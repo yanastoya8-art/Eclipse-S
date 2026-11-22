@@ -27,7 +27,7 @@ enum MediaLanguageCatalog {
         entries.append(contentsOf: [
             entry(id: "en-US", name: "American English", nativeName: "English (United States)", aliases: ["US English", "English US", "eng-US"]),
             entry(id: "en-GB", name: "British English", nativeName: "English (United Kingdom)", aliases: ["UK English", "English UK", "eng-GB"]),
-            entry(id: "es-ES", name: "Spanish (Spain)", nativeName: "Español (España)", aliases: ["Castilian Spanish", "European Spanish", "spa-ES"]),
+            entry(id: "es-ES", name: "Spanish (Spain)", nativeName: "Español (España)", aliases: ["Castilian Spanish", "Castilian", "Castellano", "Spanish (Castilian)", "European Spanish", "spa-ES"]),
             entry(id: "es-419", name: "Latin American Spanish", nativeName: "Español latinoamericano", aliases: ["Latino", "Latin", "lat", "latam", "es-419", "spa-LATAM", "Spanish (Latino)", "Spanish (Latin America)", "Spanish Latino", "Latinoamericano"]),
             entry(id: "pt-BR", name: "Brazilian Portuguese", nativeName: "Português (Brasil)", aliases: ["Portuguese (Brazil)", "Portuguese BR", "por-BR"]),
             entry(id: "pt-PT", name: "European Portuguese", nativeName: "Português (Portugal)", aliases: ["Portuguese (Portugal)", "Portuguese PT", "por-PT"]),
@@ -73,22 +73,34 @@ enum MediaLanguageCatalog {
     static func filterLanguage(for value: String) -> Entry? {
         let key = lookupKey(value)
         let unwrapped = key.hasPrefix("language:") ? String(key.dropFirst("language:".count)) : key
+        // Typed provider IDs keep their exact identity. Untyped Spanish
+        // aliases collapse into the single Spanish content-filter family.
         if key.hasPrefix("language:") {
-            if unwrapped == "es-419" || unwrapped == "es-es" || unwrapped.hasPrefix("es-") {
-                return language(for: "es")
-            }
+            // Typed IDs are provider-specific identities. Keep regional Spanish
+            // variants exact here; only untyped aliases collapse into the
+            // user's single Spanish content-filter preference.
             return language(for: value)
         }
-        let tokens = Set(unwrapped.split { !$0.isLetter && !$0.isNumber }.map(String.init))
-        let latinoMarkers: Set<String> = ["lat", "latin", "latino", "latam", "419", "latinoamerican", "latinamerican", "castellano", "castilian"]
-        // Treat every Spanish regional variant (Castellano, Latin American,
-        // and generic Spanish) as one filter language. The source metadata remains
-        // untouched so the actual audio-track region can still be displayed.
-        if !tokens.isDisjoint(with: latinoMarkers),
-           !tokens.isDisjoint(with: ["es", "spa", "spanish", "espanol", "lat", "latin", "latino", "latam", "castellano", "castilian"]) {
+
+        // Legacy Latino and Latin-American aliases are part of the same
+        // Spanish content-filter family as Castellano and Spain Spanish.
+        if ["lat", "latin", "latino", "latam", "419", "spanish (latino)",
+            "spanish (latin america)", "spanish latino", "latin american spanish",
+            "es-419", "es_419", "spa-latam", "español latino", "espanol latino"].contains(key) {
             return language(for: "es")
         }
-        if unwrapped == "es-419" || unwrapped == "es-es" || unwrapped.hasPrefix("es-") {
+
+        // Spanish is a single selectable filter family in Eclipse. Collapse
+        // every resolved regional Spanish identity (including display names
+        // such as "Spanish (Spain)") while preserving typed provider IDs.
+        if let resolved = language(for: value),
+           resolved.id == "es" || resolved.id.hasPrefix("es-") {
+            return language(for: "es")
+        }
+        if ["castellano", "castilian", "spanish", "espanol", "español", "spa",
+            "español latino", "espanol latino", "latino", "latam", "latin",
+            "latin american spanish", "spanish (latino)", "spanish (latin america)",
+            "spanish latino", "castilian spanish", "european spanish"].contains(key) {
             return language(for: "es")
         }
         if ["cantonese", "mandarin"].contains(key) { return language(for: "zh") }
@@ -115,6 +127,8 @@ enum MediaLanguageCatalog {
         guard let rule = language(for: ruleID), let language = language(for: languageID) else { return false }
         if rule.id == language.id { return true }
         guard rule.id.count == 2 else { return false }
+        // Spanish is a single filter family, including es-ES and es-419.
+        if rule.id == "es", language.id.hasPrefix("es-") { return true }
         if language.id.hasPrefix(rule.id + "-") { return true }
         if rule.id == "zh", ["cmn", "yue"].contains(language.id) { return true }
         if rule.id == "no", ["nb", "nn"].contains(language.id) { return true }

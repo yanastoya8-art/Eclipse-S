@@ -250,6 +250,8 @@ struct ScheduleEntry: Identifiable, Sendable {
     var scheduleSourceURL: String? = nil
     let releaseYear: Int?
     var runtimeMinutes: Int?
+    var productionCompanyNames: [String] = []
+    var productionMetadataChecked = false
     let animeMALID: Int?
     let airingTimeWithdrawn: Bool
     let isMovie: Bool
@@ -312,7 +314,8 @@ struct ScheduleEntry: Identifiable, Sendable {
         nativeTitle = nil
         format = nil
         overview = westernEpisode.show.summary
-        metadataTags = []
+        metadataTags = [westernEpisode.show.network?.name, westernEpisode.show.webChannel?.name]
+            .compactMap { $0 }
         hasKnownAiringTime = airing.hasKnownAiringTime
         isStreamingRelease = westernEpisode.show.webChannel != nil
         tmdbId = nil
@@ -343,7 +346,7 @@ struct ScheduleEntry: Identifiable, Sendable {
         nativeTitle = nil
         format = nil
         overview = tmdbDetail?.overview
-        metadataTags = []
+        metadataTags = tmdbDetail?.productionCompanies?.map(\.name) ?? []
         hasKnownAiringTime = true
         isStreamingRelease = false
         tmdbId = traktItem.show.ids.tmdb
@@ -678,20 +681,28 @@ final class ScheduleViewModel: ObservableObject {
                 dayCount: requestedDayCount,
                 forceRefresh: forceRefresh
             )
+            // Resolve the same runtime and production-company metadata used by
+            // Home and Browse before publishing any schedule provider's rows.
+            let preparedScheduleEntries = await applyShortRuntimeScheduleFilter(loadResult.entries)
             // Populate schedule-specific age metadata before evaluating the
             // exclusion predicate. Without this call the predicate only sees
             // cached ratings and silently misses MAL-only anime and TVMaze rows.
-            await TMDBContentFilter.shared.prepareScheduleAgeRatings(for: loadResult.entries)
+            await TMDBContentFilter.shared.prepareScheduleAgeRatings(for: preparedScheduleEntries)
             let hideUnofficialContent = UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent")
-            let entries = loadResult.entries.filter { entry in
-                // All-ages exclusions are preference-driven and are applied by
-                // the configured age-filter policy in ScheduleView. Do not
-                // remove every all-ages title here unconditionally.
+            let entries = preparedScheduleEntries.filter { entry in
+                // Enforce age exclusions before publishing the new schedule
+                // snapshot. ScheduleView also refreshes its visible filter state,
+                // but doing the policy here prevents a new page of all-ages or
+                // below-minimum entries from appearing during that async refresh.
+                guard !TMDBContentFilter.shared.scheduleEntryIsBlockedByConfiguredAgeFilter(entry) else {
+                    return false
+                }
                 guard hideUnofficialContent else { return true }
                 // Anime schedule providers include production/category tags.
                 // Include them (and the episode's format/overview) in the same
                 // policy used by Home and Browse; title-only checks miss fan
                 // productions whose title does not identify their origin.
+                if entry.tmdbId != nil && !entry.productionMetadataChecked { return false }
                 let searchableMetadata = [
                     entry.title,
                     entry.englishTitle,
@@ -704,7 +715,8 @@ final class ScheduleViewModel: ObservableObject {
                     + " " + entry.metadataTags.joined(separator: " ")
                 return !TMDBContentFilter.isUnofficialCreatorContent(
                     title: searchableMetadata,
-                    overview: entry.overview
+                    overview: entry.overview,
+                    productionCompanies: entry.productionCompanyNames
                 )
             }
             let didPublish = await MainActor.run { () -> Bool in
@@ -954,15 +966,15 @@ final class ScheduleViewModel: ObservableObject {
             // enabling these catalog filters left incompatible anime visible.
             guard !TMDBContentFilter.shouldExcludeAnimeCategory(
                 title: searchableTitle,
-                overview: entry.overview
+                overview: entry.overview,
+                tags: entry.metadataTags
             ) else { return false }
             if UserDefaults.standard.bool(forKey: "catalogHidePre1994Anime"),
                let year = entry.releaseYear, year < 1994 {
                 return false
             }
-            if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent"),
-               let runtime = entry.runtimeMinutes, runtime < 20 {
-                return false
+            if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
+                guard CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: entry.runtimeMinutes) else { return false }
             }
 
             // With no dub-language filter selected, preserve the existing
@@ -994,26 +1006,65 @@ final class ScheduleViewModel: ObservableObject {
     }
 
     @MainActor
+    private func scheduleEntryPassesConfiguredFilters(_ entry: ScheduleEntry) -> Bool {
+        guard !TMDBContentFilter.shared.scheduleEntryIsBlockedByConfiguredAgeFilter(entry) else {
+            return false
+        }
+        guard UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent") else {
+            return true
+        }
+        if entry.tmdbId != nil && !entry.productionMetadataChecked { return false }
+        let searchableMetadata = [
+            entry.title,
+            entry.englishTitle,
+            entry.romajiTitle,
+            entry.nativeTitle,
+            entry.format
+        ]
+        .compactMap { $0 }
+        .joined(separator: " ")
+            + " " + entry.metadataTags.joined(separator: " ")
+        return !TMDBContentFilter.isUnofficialCreatorContent(
+            title: searchableMetadata,
+            overview: entry.overview,
+            productionCompanies: entry.productionCompanyNames
+        )
+    }
+
+    @MainActor
     private func mergeSpanishDubResearchEntries(
         _ additions: [ScheduleEntry],
         into currentResult: AnimeScheduleLoadResult,
         dayCount: Int
-    ) {
+    ) async {
         guard !additions.isEmpty else { return }
 
         // Merge by shared AniList/MAL identity so fallback rows cannot
         // duplicate an episode merely because the providers use different IDs.
         let mergedEntries = ScheduleEntryMergePolicy.earliestByEpisode(currentResult.entries + additions)
+
+        // Spanish research runs after the first calendar paint. Re-run the
+        // complete anime policy (language, specials/OVAs, categories, era and
+        // runtime) against the merged raw snapshot, then resolve ratings and
+        // reapply age/unofficial filters before publishing. Otherwise this
+        // late merge can reintroduce entries excluded by the initial load.
         let mergedResult = AnimeScheduleLoadResult(
             entries: mergedEntries,
             isAuthoritativeForNotifications: currentResult.isAuthoritativeForNotifications,
             notice: currentResult.notice
         )
+        let filteredResult = filteredAnimeScheduleResult(mergedResult)
+        await TMDBContentFilter.shared.prepareScheduleAgeRatings(for: filteredResult.entries)
+        let visibleAnimeEntries = filteredResult.entries.filter {
+            scheduleEntryPassesConfiguredFilters($0)
+        }
         animeScheduleResult = mergedResult
 
         guard loadedScheduleMode == .anime || loadedScheduleMode == .combined else { return }
-        let nonAnimeEntries = scheduleEntries.filter { $0.source != .anime }
-        scheduleEntries = (mergedEntries + nonAnimeEntries).sorted { $0.airingAt < $1.airingAt }
+        let nonAnimeEntries = scheduleEntries.filter {
+            $0.source != .anime && scheduleEntryPassesConfiguredFilters($0)
+        }
+        scheduleEntries = (visibleAnimeEntries + nonAnimeEntries).sorted { $0.airingAt < $1.airingAt }
         updateBuckets(
             with: scheduleEntries,
             localTimeZone: currentLocalTimeZone,
@@ -1154,12 +1205,13 @@ final class ScheduleViewModel: ObservableObject {
                                           let self,
                                           self.animeScheduleCachedPolicyKey == policyKey,
                                           self.animeScheduleDayCount == dayCount,
-                                          let currentResult = self.animeScheduleResult else { return }
+                                          self.animeScheduleResult != nil else { return }
                                     let scheduleWindow = ScheduleDateWindow.envelope(dayCount: dayCount)
                                     let confirmedEntries = researched
                                         .filter { $0.airingAt >= scheduleWindow.start && $0.airingAt < scheduleWindow.end }
                                         .map(ScheduleEntry.init(animeEntry:))
-                                    self.mergeSpanishDubResearchEntries(
+                                    guard let currentResult = self.animeScheduleResult else { return }
+                                    await self.mergeSpanishDubResearchEntries(
                                         confirmedEntries,
                                         into: currentResult,
                                         dayCount: dayCount
@@ -1366,36 +1418,78 @@ final class ScheduleViewModel: ObservableObject {
     }
 
     private func applyShortRuntimeScheduleFilter(_ entries: [ScheduleEntry]) async -> [ScheduleEntry] {
-        guard UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") else {
-            return entries
-        }
+        let defaults = UserDefaults.standard
+        let hideShortRuntime = defaults.bool(forKey: "catalogHideUnder20MinuteContent")
+        let hideUnofficial = defaults.bool(forKey: "catalogHideUnofficialContent")
+        guard hideShortRuntime || hideUnofficial else { return entries }
 
         var resolved = entries
-        let missingSeasonKeys = Set(entries.compactMap { entry -> String? in
-            guard entry.runtimeMinutes == nil,
-                  let tmdbID = entry.tmdbId,
-                  let season = entry.season else { return nil }
-            return "\(tmdbID)|\(season)"
+        let titleKeys = Set(entries.compactMap { entry -> String? in
+            guard let id = entry.tmdbId, id > 0 else { return nil }
+            return "\(entry.isMovie ? "movie" : "tv")-\(id)"
         })
 
-        for key in missingSeasonKeys {
-            let parts = key.split(separator: "|")
-            guard parts.count == 2,
-                  let tmdbID = Int(parts[0]),
-                  let season = Int(parts[1]),
-                  let detail = try? await TMDBService.shared.getSeasonDetails(
-                    tvShowId: tmdbID,
-                    seasonNumber: season
-                  ) else { continue }
-            for index in resolved.indices where resolved[index].tmdbId == tmdbID
-                && resolved[index].season == season && resolved[index].runtimeMinutes == nil {
-                resolved[index].runtimeMinutes = detail.episodes.first {
-                    $0.episodeNumber == resolved[index].episode
-                }?.runtime
+        for key in titleKeys {
+            let parts = key.split(separator: "-")
+            guard parts.count == 2, let id = Int(parts[1]) else { continue }
+            if parts[0] == "movie" {
+                guard let detail = try? await TMDBService.shared.getMovieDetails(id: id) else { continue }
+                for index in resolved.indices where resolved[index].tmdbId == id && resolved[index].isMovie {
+                    if hideShortRuntime && resolved[index].runtimeMinutes == nil {
+                        resolved[index].runtimeMinutes = detail.runtime
+                    }
+                    if hideUnofficial {
+                        resolved[index].productionCompanyNames = detail.productionCompanies?.map(\.name) ?? []
+                        // A successful details response with no listed companies is still resolved metadata.
+                        resolved[index].productionMetadataChecked = true
+                    }
+                }
+            } else {
+                guard let detail = try? await TMDBService.shared.getTVShowDetails(id: id) else { continue }
+                for index in resolved.indices where resolved[index].tmdbId == id && !resolved[index].isMovie {
+                    if hideShortRuntime && resolved[index].runtimeMinutes == nil {
+                        if let season = resolved[index].season,
+                           let seasonDetail = try? await TMDBService.shared.getSeasonDetails(
+                            tvShowId: id,
+                            seasonNumber: season
+                           ) {
+                            resolved[index].runtimeMinutes = seasonDetail.episodes.first {
+                                $0.episodeNumber == resolved[index].episode
+                            }?.runtime
+                        } else {
+                            resolved[index].runtimeMinutes = CatalogRuntimeFilterPolicy.shortestReportedRuntime(
+                                detail.episodeRunTime
+                            )
+                        }
+                    }
+                    if hideUnofficial {
+                        resolved[index].productionCompanyNames = detail.productionCompanies?.map(\.name) ?? []
+                        // A successful details response with no listed companies is still resolved metadata.
+                        resolved[index].productionMetadataChecked = true
+                    }
+                }
             }
         }
 
-        return resolved.filter { ($0.runtimeMinutes ?? 20) >= 20 }
+        return resolved.filter { entry in
+            if hideShortRuntime,
+               !CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: entry.runtimeMinutes) {
+                return false
+            }
+            if hideUnofficial, entry.tmdbId != nil && !entry.productionMetadataChecked {
+                return false
+            }
+            if hideUnofficial,
+               TMDBContentFilter.isUnofficialCreatorContent(
+                title: ([entry.title, entry.englishTitle, entry.romajiTitle, entry.nativeTitle, entry.format]
+                    .compactMap { $0 } + entry.metadataTags).joined(separator: " "),
+                overview: entry.overview,
+                productionCompanies: entry.productionCompanyNames
+               ) {
+                return false
+            }
+            return true
+        }
     }
 
     private func scheduleCacheIsFresh(
@@ -2538,6 +2632,7 @@ fileprivate struct TVMazeImage: Decodable {
 }
 
 fileprivate struct TVMazeChannel: Decodable {
+    let name: String?
     let country: TVMazeCountry?
 }
 

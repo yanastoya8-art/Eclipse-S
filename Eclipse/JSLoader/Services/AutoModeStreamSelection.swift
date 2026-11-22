@@ -772,10 +772,25 @@ enum AutoModeStreamSelection {
             .flatMap(splitStremioLanguageHint)
             .compactMap(normalizedStremioLanguageName)
         let metadataSearchText = languageSearchText(from: metadata)
-        languages.append(contentsOf: detectedStremioLanguageNames(in: metadataSearchText))
+        // Metadata detection can return regional display names (for example,
+        // "Spanish (Spain)"). Normalize them through the same one-family filter
+        // policy as explicit stream hints before de-duplicating the labels.
+        languages.append(contentsOf: detectedStremioLanguageNames(in: metadataSearchText)
+            .map { normalizedStremioLanguageName($0) ?? $0 })
 
+        // Provider metadata can describe the same Spanish track with both a
+        // regional display name (for example, Spanish (Spain)) and the
+        // canonical filter-family name. Keep stream labels aligned with the
+        // single Spanish language choice used by Eclipse filters.
+        let canonicalLanguages = languages.map { language -> String in
+            guard let languageID = MediaLanguageCatalog.language(for: language)?.id,
+                  languageID == "es" || languageID.hasPrefix("es-") else {
+                return language
+            }
+            return "Latino"
+        }
         var seen = Set<String>()
-        let uniqueLanguages = languages.filter { seen.insert($0).inserted }
+        let uniqueLanguages = canonicalLanguages.filter { seen.insert($0).inserted }
         if uniqueLanguages.contains("Multi Audio") || uniqueLanguages.count > 3 {
             return "Multi Audio"
         }
@@ -815,8 +830,11 @@ enum AutoModeStreamSelection {
         if isLatinoSpanishIdentifier(normalizedValue) {
             return "Latino"
         }
+        if MediaLanguageCatalog.filterCanonicalID(for: normalizedValue) == "es" {
+            return "Latino"
+        }
         if let language = MediaLanguageCatalog.language(for: normalizedValue) {
-            return language.id == "es-419" ? "Latino" : language.name
+            return language.name
         }
         let languageCode = normalizedValue.split(separator: "-", maxSplits: 1).first.map(String.init)
 
@@ -2212,14 +2230,37 @@ enum StreamLanguageFilter {
     }
 
     private static func languageKeys(in value: String) -> [String] {
-        if let id = MediaLanguageCatalog.canonicalID(for: value) { return [id] }
+        func catalogKeys(for candidate: String) -> [String]? {
+            // The display word "Latin" can be emitted when the metadata parser
+            // recognizes the explicit ISO-639-1 code "la". Keep that detected
+            // code distinct from the legacy "Latin" Latino-Spanish filter alias.
+            if candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+                .localizedCaseInsensitiveCompare("Latin") == .orderedSame {
+                return MediaLanguageCatalog.canonicalID(for: "la").map { [$0] }
+            }
+            guard MediaLanguageCatalog.filterCanonicalID(for: candidate) == "es" else {
+                return MediaLanguageCatalog.canonicalID(for: candidate).map { [$0] }
+            }
+            // Generic Spanish rules must match every regional Spanish track,
+            // while typed provider rules such as language:es-419 still need
+            // the exact regional ID. Do not let the ambiguous "Latino"/"Latin"
+            // aliases become the Latin language code (la).
+            var ids = ["es"]
+            if let canonicalID = MediaLanguageCatalog.canonicalID(for: candidate),
+               canonicalID.hasPrefix("es-") {
+                ids.append(canonicalID)
+            }
+            return ids
+        }
+
+        if let ids = catalogKeys(for: value) { return ids }
         var keys: [String] = []
         let candidates = [value] + AutoModeStreamSelection.splitStremioLanguageHint(value)
         for candidate in candidates {
             let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { continue }
-            if let id = MediaLanguageCatalog.canonicalID(for: trimmed) {
-                keys.append(id)
+            if let ids = catalogKeys(for: trimmed) {
+                keys.append(contentsOf: ids)
                 continue
             }
             if let normalized = AutoModeStreamSelection.normalizedStremioLanguageName(trimmed) {

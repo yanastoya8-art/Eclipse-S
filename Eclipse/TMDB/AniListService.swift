@@ -221,6 +221,65 @@ enum AniListGraphQLDocumentPolicy {
         return normalized.hasPrefix("query") || normalized.hasPrefix("{")
     }
 
+    /// Reject incomplete documents locally instead of sending malformed
+    /// generated queries to AniList (which responds with HTTP 400 / EOF).
+    static func isStructurallyComplete(_ document: String) -> Bool {
+        let bytes = Array(document.utf8)
+        guard !bytes.isEmpty else { return false }
+
+        var braces = 0
+        var parentheses = 0
+        var brackets = 0
+        var insideString = false
+        var escaped = false
+        var sawSelectionField = false
+        var enteredSelection = false
+
+        for byte in bytes {
+            if insideString {
+                if escaped {
+                    escaped = false
+                } else if byte == 92 {
+                    escaped = true
+                } else if byte == 34 {
+                    insideString = false
+                }
+                continue
+            }
+
+            if byte == 34 {
+                insideString = true
+                continue
+            }
+
+            switch byte {
+            case 123:
+                braces += 1
+                enteredSelection = true
+            case 125:
+                braces -= 1
+                if braces < 0 { return false }
+            case 40:
+                parentheses += 1
+            case 41:
+                parentheses -= 1
+                if parentheses < 0 { return false }
+            case 91:
+                brackets += 1
+            case 93:
+                brackets -= 1
+                if brackets < 0 { return false }
+            default:
+                if enteredSelection, braces > 0,
+                   (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || (byte >= 48 && byte <= 57) {
+                    sawSelectionField = true
+                }
+            }
+        }
+
+        return !insideString && braces == 0 && parentheses == 0 && brackets == 0 && sawSelectionField
+    }
+
     static func isReadOnly(_ request: URLRequest) -> Bool {
         guard let body = request.httpBody,
               let payload = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
@@ -6978,7 +7037,8 @@ final class AniListService {
             anilistId: anime.id,
             malId: anime.idMal,
             kitsuId: anime.kitsuId,
-            format: anime.format
+            format: anime.format,
+            animeTags: anime.tags?.map(\.name)
         ).sanitizedForPersistence
     }
 
@@ -9955,9 +10015,10 @@ final class AniListService {
                             anilistId: anime.id,
                             malId: anime.idMal,
                             kitsuId: anime.kitsuId,
-                            format: anime.format
+                            format: anime.format,
+                            animeTags: anime.tags?.map(\.name)
                         )
-                    ).withAnimeArtworkURL(anime.coverImage?.preferredURL())
+                    ).withAnimeArtworkURL(anime.coverImage?.preferredURL()).withAnimeTags(anime.tags?.map(\.name))
                 }
             }
 
@@ -10006,9 +10067,10 @@ final class AniListService {
                         anilistId: anime.id,
                         malId: anime.idMal,
                         kitsuId: anime.kitsuId,
-                        format: anime.format
+                        format: anime.format,
+                        animeTags: anime.tags?.map(\.name)
                     )
-                ).withAnimeArtworkURL(anime.coverImage?.preferredURL())
+                ).withAnimeArtworkURL(anime.coverImage?.preferredURL()).withAnimeTags(anime.tags?.map(\.name))
                 return (anime.id, seededResult, nil)
             }
 
@@ -10091,9 +10153,10 @@ final class AniListService {
                     anilistId: anime.id,
                     malId: anime.idMal,
                     kitsuId: anime.kitsuId,
-                    format: anime.format
+                    format: anime.format,
+                    animeTags: anime.tags?.map(\.name)
                 )
-            ).withAnimeArtworkURL(anime.coverImage?.preferredURL())
+            ).withAnimeArtworkURL(anime.coverImage?.preferredURL()).withAnimeTags(anime.tags?.map(\.name))
             let cacheRecord = result != nil || lookupCompleted
                 ? AnimeTMDBMatchCacheRecord(key: cacheKey, result: result)
                 : nil
@@ -10534,6 +10597,13 @@ final class AniListService {
         variables: [String: String]? = nil,
         maxRetries: Int = 3
     ) async throws -> Data {
+        guard AniListGraphQLDocumentPolicy.isStructurallyComplete(query) else {
+            throw NSError(
+                domain: "AniList",
+                code: -3,
+                userInfo: [NSLocalizedDescriptionKey: "Rejected an incomplete AniList GraphQL document before sending the request"]
+            )
+        }
 #if DEBUG
         let diagnosticRequestID = UUID().uuidString
         let diagnosticOperation = query.contains("id_in:") ? "graphql-id-page"
