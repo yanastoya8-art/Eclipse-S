@@ -79,7 +79,9 @@ enum PosterArtworkURLResolver {
     }
 
     static func bestPosterURL(for result: TMDBSearchResult) -> String? {
-        candidates(for: result).first ?? fallbackTMDBPosterURL(for: result) ?? result.fullPosterURL
+        // Detail/Home hero logos are transparent overlays; keep their backdrop
+        // free of TMDB artwork that may already contain a title treatment.
+        candidates(for: result).first ?? result.fullPosterURL
     }
 }
 
