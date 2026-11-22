@@ -9,8 +9,7 @@ import SwiftUI
 
 private enum LibraryPosterArtwork {
     static func urls(for result: TMDBSearchResult) -> [String] {
-        let clean = PosterArtworkURLResolver.candidates(for: result)
-        return clean + (clean.isEmpty ? [result.fullPosterURL].compactMap { $0 } : [])
+        PosterArtworkURLResolver.libraryCandidates(for: result)
     }
 }
 import Kingfisher
