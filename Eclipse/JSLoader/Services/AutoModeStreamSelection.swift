@@ -2211,24 +2211,18 @@ enum StreamLanguageFilter {
     private static func matcher(for value: String) -> Matcher {
         let keys = Set(languageKeys(in: value))
         let markers = markerCandidates(for: value, keys: keys)
-        // "Latin" is a real language name/code (la), while "Latino" and
-        // Latin-American Spanish aliases belong to the shared Spanish filter.
-        // Resolve the exact Latin language before applying the Spanish-family
-        // filter alias mapping so hiding Latin never hides an actual "la" track.
-        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-            .replacingOccurrences(of: "_", with: "-")
-        let languageID: String?
-        if ["la", "language:la", "latin", "language:latin"].contains(normalized) {
-            languageID = MediaLanguageCatalog.canonicalID(for: "la")
-        } else {
-            languageID = MediaLanguageCatalog.filterCanonicalID(for: value)
-        }
-        return Matcher(keys: keys, markers: markers, languageIDs: Set(languageID.map { [$0] } ?? []))
+        return Matcher(keys: keys, markers: markers, languageIDs: Set(MediaLanguageCatalog.filterCanonicalID(for: value).map { [$0] } ?? []))
     }
 
     private static func languageKeys(in value: String) -> [String] {
         func catalogKeys(for candidate: String) -> [String]? {
+            // The display word "Latin" can be emitted when the metadata parser
+            // recognizes the explicit ISO-639-1 code "la". Keep that detected
+            // code distinct from the legacy "Latin" Latino-Spanish filter alias.
+            if candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+                .localizedCaseInsensitiveCompare("Latin") == .orderedSame {
+                return MediaLanguageCatalog.canonicalID(for: "la").map { [$0] }
+            }
             guard MediaLanguageCatalog.filterCanonicalID(for: candidate) == "es" else {
                 return MediaLanguageCatalog.canonicalID(for: candidate).map { [$0] }
             }
