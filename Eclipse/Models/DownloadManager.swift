@@ -2841,7 +2841,7 @@ final class DownloadManager: NSObject, ObservableObject {
             )
         }
 #if os(iOS)
-        if #available(iOS 16.1, *) {
+        if #available(iOS 16.2, *) {
             Task { @MainActor in
                 await DownloadLiveActivityController.update(
                     downloadID: id, title: item.displayTitle,
@@ -2865,7 +2865,7 @@ final class DownloadManager: NSObject, ObservableObject {
         directBackgroundAttempts.removeValue(forKey: id)
         hlsBackgroundScheduler?.finish(attemptID: attempt.attemptID, success: success && !attempt.revoked)
 #if os(iOS)
-        if #available(iOS 16.1, *) {
+        if #available(iOS 16.2, *) {
             Task { @MainActor in
                 await DownloadLiveActivityController.end(downloadID: id, status: success ? "Completed" : "Paused")
             }
@@ -2954,7 +2954,7 @@ final class DownloadManager: NSObject, ObservableObject {
             hlsBackgroundScheduler?.updateProgress(attemptID: attempt.attemptID, completed: completed, total: total, subtitle: stage)
         }
 #if os(iOS)
-        if #available(iOS 16.1, *) {
+        if #available(iOS 16.2, *) {
             Task { @MainActor in
                 await DownloadLiveActivityController.update(
                     downloadID: id, title: item.displayTitle,
@@ -3026,7 +3026,7 @@ final class DownloadManager: NSObject, ObservableObject {
             let didComplete = success && persisted && !attempt.revoked && self.hlsIntentIsCurrent(attempt.intent)
             self.hlsBackgroundScheduler?.finish(attemptID: attempt.attemptID, success: didComplete)
 #if os(iOS)
-            if #available(iOS 16.1, *) {
+            if #available(iOS 16.2, *) {
                 Task { @MainActor in
                     await DownloadLiveActivityController.end(downloadID: id, status: didComplete ? "Completed" : "Paused")
                 }
