@@ -5,12 +5,12 @@ import Foundation
 @available(iOS 16.2, *)
 @MainActor
 enum DownloadLiveActivityController {
-    private static var activities: [String: Activity<DownloadActivityAttributes>] {
-        Dictionary(
-            uniqueKeysWithValues: Activity<DownloadActivityAttributes>.activities.map {
-                ($0.attributes.downloadID, $0)
-            }
-        )
+    private static var startingDownloadIDs: Set<String> = []
+
+    private static func activity(for downloadID: String) -> Activity<DownloadActivityAttributes>? {
+        Activity<DownloadActivityAttributes>.activities.first {
+            $0.attributes.downloadID == downloadID
+        }
     }
 
     static func update(
@@ -29,11 +29,19 @@ enum DownloadLiveActivityController {
             status: String(status.prefix(80))
         )
         let content = ActivityContent(state: state, staleDate: Date().addingTimeInterval(15 * 60))
-        if let activity = activities[downloadID] {
+        if let activity = activity(for: downloadID) {
             await activity.update(content)
             return
         }
-        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        guard ActivityAuthorizationInfo().areActivitiesEnabled,
+              !startingDownloadIDs.contains(downloadID) else { return }
+        startingDownloadIDs.insert(downloadID)
+        defer { startingDownloadIDs.remove(downloadID) }
+        // A previous request may have completed while this update was queued.
+        if let activity = activity(for: downloadID) {
+            await activity.update(content)
+            return
+        }
         let attributes = DownloadActivityAttributes(downloadID: downloadID, title: String(title.prefix(100)))
         do {
             _ = try Activity.request(attributes: attributes, content: content, pushType: nil)
@@ -43,7 +51,7 @@ enum DownloadLiveActivityController {
     }
 
     static func end(downloadID: String, status: String) async {
-        guard let activity = activities[downloadID] else { return }
+        guard let activity = activity(for: downloadID) else { return }
         let finalState = DownloadActivityAttributes.ContentState(
             progress: status == "Completed" ? 1 : activity.content.state.progress,
             completedBytes: activity.content.state.completedBytes,
