@@ -49,6 +49,26 @@ final class MangayomiMediaRuntimeTests: XCTestCase {
         XCTAssertTrue(refused?.sources?.isEmpty ?? true)
     }
 
+    func testMangayomiStreamsAcceptRelativeURLsAndWrappedProviderResults() throws {
+        let key = MangayomiMediaKey(source: UUID(), kind: "episode", value: "/watch/1", audio: "English Dub")
+        let data = try JSONSerialization.data(withJSONObject: [
+            "streams": [
+                ["url": "/hls/master.m3u8?token=fixture", "quality": "1080p"],
+                ["streamUrl": "https://cdn.fixture.invalid/video.mp4", "quality": "720p"],
+                ["url": "javascript:alert(1)", "quality": "bad"]
+            ]
+        ])
+        let parsed = try MangayomiMediaAdapter.streamExtraction(
+            data, key: key, baseURL: "https://anime.fixture.invalid"
+        )
+        XCTAssertEqual(parsed.sources?.count, 2)
+        XCTAssertEqual(parsed.sources?.first?["streamUrl"] as? String,
+                       "https://anime.fixture.invalid/hls/master.m3u8?token=fixture")
+        XCTAssertEqual(parsed.sources?.first?["audio"] as? String, "English Dub")
+        XCTAssertEqual(parsed.sources?.last?["streamUrl"] as? String,
+                       "https://cdn.fixture.invalid/video.mp4")
+    }
+
     func testRuntimeCancellationBeforeInstallDeliversExactlyOnce() {
         let gate = MangayomiRuntimeCancellation()
         var count = 0
