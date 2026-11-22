@@ -990,43 +990,34 @@ class TMDBContentFilter: ObservableObject {
             return minimumEnabled || allAgesEnabled || kidsModeEnabled
         }
 
-        async let runtimeResolution: Void = {
-            if defaults.bool(forKey: "catalogHideUnder20MinuteContent") {
-                await self.resolveRuntimeMetadata(for: results)
-            }
-        }()
-        async let productionResolution: Void = {
-            if defaults.bool(forKey: "catalogHideUnofficialContent") {
-                await self.resolveProductionMetadata(for: results)
-            }
-        }()
-        async let animeAgeResolution: Void = {
-            if needsAnimeAge, !animeResults.isEmpty {
-                await self.resolveAnimeAgeRatings(for: animeResults)
-            }
-        }()
-        async let animeAudioResolution: Void = {
-            if !selectedLanguages.isEmpty, !animeResults.isEmpty {
+        // Never hold the Browse loading state behind optional metadata services.
+        // Unknown items remain excluded by their active filter until the lookup
+        // completes; each resolver publishes a filter-change notification so
+        // Browse re-evaluates the retained raw page without another user action.
+        if defaults.bool(forKey: "catalogHideUnder20MinuteContent") {
+            Task(priority: .utility) { await self.resolveRuntimeMetadata(for: results) }
+        }
+        if defaults.bool(forKey: "catalogHideUnofficialContent") {
+            Task(priority: .utility) { await self.resolveProductionMetadata(for: results) }
+        }
+        if needsAnimeAge, !animeResults.isEmpty {
+            Task(priority: .utility) { await self.resolveAnimeAgeRatings(for: animeResults) }
+        }
+        if !selectedLanguages.isEmpty, !animeResults.isEmpty {
+            Task(priority: .utility) {
                 await self.resolveAnimeAudioMetadata(
                     for: animeResults,
                     selectedLanguages: selectedLanguages
                 )
             }
-        }()
-        async let tmdbAgeResolution: Void = {
-            if !tmdbRatingResults.isEmpty {
+        }
+        if !tmdbRatingResults.isEmpty {
+            Task(priority: .utility) {
                 await TMDBMaturityRatingStore.shared.resolve(
                     tmdbRatingResults.map { (isMovie: $0.isMovie, id: $0.id) }
                 )
             }
-        }()
-        _ = await (
-            runtimeResolution,
-            productionResolution,
-            animeAgeResolution,
-            animeAudioResolution,
-            tmdbAgeResolution
-        )
+        }
     }
 
     private func resolveAnimeAgeRatings(identities: [(Int, Int?)]) async {
