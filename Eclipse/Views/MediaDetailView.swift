@@ -2690,59 +2690,26 @@ struct MediaDetailContentView: View {
 
     private var heroBackdrop: some View {
         ZStack(alignment: .bottom) {
-            let image = Group {
-                if usesLandscapeDetailComposition {
-                    // Landscape detail is a fixed, full-bleed banner rather
-                    // than a stretchy poster. Render it directly at the
-                    // measured viewport size: StretchyHeaderView's nested
-                    // GeometryReader and scroll offsets could leave a top or
-                    // leading strip on rotation/safe-area changes.
-                    ResilientArtworkImage(
-                        urls: ([detailHeroImageURL].compactMap { $0 } + detailHeroFallbackImageURLs),
-                        decodeSize: CGSize(
-                            width: max(detailViewportWidth * EclipseViewport.scale, 1),
-                            height: max(heroSectionHeight * EclipseViewport.scale, 1)
-                        ),
-                        contentMode: .fill,
-                        onImageLoaded: { color in ambientColor = color }
-                    ) {
-                        Rectangle().fill(shouldAnalyzeAlternatePoster ? .clear : Color.gray.opacity(0.3))
-                    }
-                    // Preserve the user's landscape artwork stretch controls.
-                    // The fixed full-bleed renderer replaced StretchyHeaderView,
-                    // so apply the same bounded scale here rather than silently
-                    // ignoring the saved horizontal/vertical values.
-                    .scaleEffect(
-                        x: CGFloat(min(max(landscapeHeroHorizontalStretch, 0.85), 1.5)),
-                        y: CGFloat(min(max(landscapeHeroVerticalStretch, 0.85), 1.5)),
-                        anchor: .center
-                    )
-                    .frame(
-                        width: max(detailViewportWidth, EclipseViewport.bounds.width),
-                        height: heroSectionHeight
-                    )
-                    .clipped()
-                } else {
-                    StretchyHeaderView(
-                        backdropURL: detailHeroImageURL,
-                        isMovie: searchResult.isMovie,
-                        headerHeight: heroSectionHeight,
-                        minHeaderHeight: minHeaderHeight,
-                        onAmbientColorExtracted: { color in
-                            ambientColor = color
-                        },
-                        placeholderColor: shouldAnalyzeAlternatePoster ? .clear : Color.gray.opacity(0.3),
-                        fallbackImageURLs: detailHeroFallbackImageURLs,
-                        preservesArtworkComposition: false,
-                        showsBottomFade: true,
-                        bottomFadeHeight: 100,
-                        bottomFadeEndOpacity: 0.6,
-                        scrollCoordinateSpaceName: "mediaDetailScroll"
-                    )
-                    .frame(maxWidth: .infinity)
-                    .clipped()
-                }
-            }
+            let image = StretchyHeaderView(
+                backdropURL: detailHeroImageURL,
+                isMovie: searchResult.isMovie,
+                headerHeight: heroSectionHeight,
+                minHeaderHeight: usesLandscapeDetailComposition
+                    ? max(220, heroSectionHeight * 0.58)
+                    : minHeaderHeight,
+                onAmbientColorExtracted: { color in
+                    ambientColor = color
+                },
+                placeholderColor: shouldAnalyzeAlternatePoster ? .clear : Color.gray.opacity(0.3),
+                fallbackImageURLs: detailHeroFallbackImageURLs,
+                preservesArtworkComposition: false,
+                showsBottomFade: true,
+                bottomFadeHeight: usesLandscapeDetailComposition ? 120 : 100,
+                bottomFadeEndOpacity: usesLandscapeDetailComposition ? 0.72 : 0.6,
+                scrollCoordinateSpaceName: "mediaDetailScroll"
+            )
+            .frame(maxWidth: .infinity)
+            .clipped()
 #if DEBUG
             if ProcessInfo.processInfo.environment["ECLIPSE_UI_POSTER_AUDIT"] == "1" {
                 let state = alternatePosterWasResolved ? "resolved" : posterAuditSelectorIsPending ? "pending" : "loading"
