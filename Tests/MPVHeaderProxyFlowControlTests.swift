@@ -901,8 +901,10 @@ final class MPVHeaderProxyFlowControlTests: XCTestCase {
                 || snapshot.bytes >= MPVHeaderProxyFlowControl.maximumBytes
         }, object: nil)
         // The 64 MiB loopback fixture can take longer to reach the
-        // bounded queue threshold on a loaded Intel simulator.
-        wait(for: [pressure], timeout: 30)
+        // bounded queue threshold on a loaded hosted simulator. Keep this
+        // wait separate from the later resume/drain timeout so slow socket
+        // backpressure does not fail the test before pressure is established.
+        wait(for: [pressure], timeout: 60)
     }
 
     private func waitForPausedSendsToRemainPending(_ flow: MPVHeaderProxyFlowControl) {
