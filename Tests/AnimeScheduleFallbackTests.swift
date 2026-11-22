@@ -132,6 +132,25 @@ final class AnimeScheduleFallbackTests: XCTestCase {
         XCTAssertEqual(earliestConfirmedMerge.first?.airingAt, confirmedBridge.airingAt)
     }
 
+    func testSeaDubIsAnEnglishOnlyScheduleProvider() {
+        XCTAssertEqual(
+            AnimeScheduleProviderLanguagePolicy.includes(
+                provider: .seaDub,
+                originalLanguage: "ja",
+                selectedLanguages: [MyDubListLanguage.english.rawValue]
+            ),
+            true
+        )
+        XCTAssertEqual(
+            AnimeScheduleProviderLanguagePolicy.includes(
+                provider: .seaDub,
+                originalLanguage: "ja",
+                selectedLanguages: [MyDubListLanguage.spanish.rawValue]
+            ),
+            false
+        )
+    }
+
     func testDubLanguagePickerOnlyExposesEnglishAndSpanish() {
         XCTAssertEqual(
             Set(MyDubListLanguage.allCases.map(\.rawValue)),
