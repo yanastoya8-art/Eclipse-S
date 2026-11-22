@@ -3011,15 +3011,16 @@ private struct BrowseMediaView: View {
             : typeFiltered
         guard !Task.isCancelled else { return [] }
 
-        // The global anime age filters are independent of Browse's own age
-        // selector. Resolve their Taizen/MAL ratings before publishing the page;
-        // otherwise the shared catalog filter sees missing ratings, fails closed,
-        // and can leave Anime Browse empty until a later refresh.
+        // Resolve all metadata gates before the first filtered grid is published.
+        // This avoids an empty first page when runtime, production, anime age, or
+        // dub metadata is still in flight.
+        await contentFilter.resolveBrowseFilterMetadata(
+            for: ratingCandidates,
+            requiresAnimeAgeRating: ageRating != .all
+        )
+        guard !Task.isCancelled else { return [] }
+
         if ageRating == .all {
-            if requiresGlobalAnimeAgeRating {
-                await contentFilter.resolveAnimeAgeRatings(for: ratingCandidates)
-                guard !Task.isCancelled else { return [] }
-            }
             return ratingCandidates
         }
 
