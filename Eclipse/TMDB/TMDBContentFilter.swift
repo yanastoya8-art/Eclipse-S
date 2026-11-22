@@ -489,7 +489,10 @@ final class MyDubListDubFilter: @unchecked Sendable {
 
     private static func download(_ url: URL, maximumBytes: Int) async throws -> Data {
         var request = URLRequest(url: url)
-        request.timeoutInterval = 30
+        // Dub metadata refresh is awaited only when no cached language
+        // snapshot exists. Keep each download bounded so Browse cannot remain
+        // in its loading state indefinitely on a slow mirror/network.
+        request.timeoutInterval = 12
         request.cachePolicy = .reloadIgnoringLocalCacheData
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let response = response as? HTTPURLResponse, response.statusCode == 200,
