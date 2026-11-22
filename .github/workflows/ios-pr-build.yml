@@ -387,10 +387,15 @@ jobs:
           echo "SIMULATOR_UDID=$DEVICE_ID" >> "$GITHUB_ENV"
           xcrun simctl boot "$DEVICE_ID" || true
 
-      - name: Build and run iOS unit tests
+      - name: Build iPhone/iPad app and test bundles
         run: |
           set -euo pipefail
-          xcodebuild test \
+          # Compile both the unit-test and UI-test bundles so source/build
+          # regressions in either target are caught, but keep this CI job focused
+          # on simulator builds and unit tests. UI automation is intentionally
+          # not executed here; it previously occupied the runner for hours and
+          # was repeatedly cancelled before the unit-test result could be read.
+          xcodebuild build-for-testing \
             -project Eclipse.xcodeproj \
             -scheme Eclipse \
             -configuration Debug \
@@ -401,5 +406,23 @@ jobs:
             -skipPackagePluginValidation \
             -skipMacroValidation \
             -parallel-testing-enabled NO \
+            CODE_SIGNING_ALLOWED=NO \
+            ENABLE_USER_SCRIPT_SANDBOXING=NO
+
+      - name: Run iOS unit tests
+        run: |
+          set -euo pipefail
+          xcodebuild test-without-building \
+            -project Eclipse.xcodeproj \
+            -scheme Eclipse \
+            -configuration Debug \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" \
+            -disableAutomaticPackageResolution \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
+            -parallel-testing-enabled NO \
+            -only-testing:Tests \
             CODE_SIGNING_ALLOWED=NO \
             ENABLE_USER_SCRIPT_SANDBOXING=NO
