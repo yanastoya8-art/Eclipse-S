@@ -2810,9 +2810,8 @@ final class DownloadManager: NSObject, ObservableObject {
             }
             return
         }
-        guard let attempt = directBackgroundAttempts[id],
-              attempt.granted, !attempt.revoked,
-              let item = downloads.first(where: { $0.id == id }) else { return }
+        guard let item = downloads.first(where: { $0.id == id }) else { return }
+        let attempt = directBackgroundAttempts[id].flatMap { $0.granted && !$0.revoked ? $0 : nil }
         let total: Int64
         let completed: Int64
         let subtitle: String
@@ -2833,12 +2832,25 @@ final class DownloadManager: NSObject, ObservableObject {
                 ? "\(DownloadByteCountFormatter.string(fromByteCount: downloaded)) downloaded"
                 : stage
         }
-        hlsBackgroundScheduler?.updateProgress(
-            attemptID: attempt.attemptID,
-            completed: completed,
-            total: total,
-            subtitle: subtitle
-        )
+        if let attempt {
+            hlsBackgroundScheduler?.updateProgress(
+                attemptID: attempt.attemptID,
+                completed: completed,
+                total: total,
+                subtitle: subtitle
+            )
+        }
+#if os(iOS)
+        if #available(iOS 16.2, *) {
+            Task { @MainActor in
+                await DownloadLiveActivityController.update(
+                    downloadID: id, title: item.displayTitle,
+                    progress: total > 0 ? Double(completed) / Double(total) : 0,
+                    completedBytes: completed, totalBytes: total, status: subtitle
+                )
+            }
+        }
+#endif
     }
 
     private func finishDirectBackgroundAttempt(id: String, taskIdentifier: Int? = nil, success: Bool) {
@@ -2852,6 +2864,13 @@ final class DownloadManager: NSObject, ObservableObject {
               taskIdentifier == nil || attempt.taskIdentifier == taskIdentifier else { return }
         directBackgroundAttempts.removeValue(forKey: id)
         hlsBackgroundScheduler?.finish(attemptID: attempt.attemptID, success: success && !attempt.revoked)
+#if os(iOS)
+        if #available(iOS 16.2, *) {
+            Task { @MainActor in
+                await DownloadLiveActivityController.end(downloadID: id, status: success ? "Completed" : "Paused")
+            }
+        }
+#endif
     }
 
     private func hlsIntentIsCurrent(_ intent: HLSForegroundIntent) -> Bool {
@@ -2927,11 +2946,24 @@ final class DownloadManager: NSObject, ObservableObject {
     }
 
     private func updateHLSBackgroundProgress(id: String, stage: String) {
-        guard let attempt = hlsBackgroundAttempts[id], attempt.granted, !attempt.revoked,
-              let item = downloads.first(where: { $0.id == id }) else { return }
+        guard let item = downloads.first(where: { $0.id == id }) else { return }
+        let attempt = hlsBackgroundAttempts[id].flatMap { $0.granted && !$0.revoked ? $0 : nil }
         let total = Int64(max(item.hlsTotalSegments ?? 1, 1)) + 1
         let completed = min(Int64(max(item.hlsResumeSegmentIndex ?? 0, 0)), total - 1)
-        hlsBackgroundScheduler?.updateProgress(attemptID: attempt.attemptID, completed: completed, total: total, subtitle: stage)
+        if let attempt {
+            hlsBackgroundScheduler?.updateProgress(attemptID: attempt.attemptID, completed: completed, total: total, subtitle: stage)
+        }
+#if os(iOS)
+        if #available(iOS 16.2, *) {
+            Task { @MainActor in
+                await DownloadLiveActivityController.update(
+                    downloadID: id, title: item.displayTitle,
+                    progress: Double(completed) / Double(max(total, 1)),
+                    completedBytes: completed, totalBytes: total, status: stage
+                )
+            }
+        }
+#endif
     }
 
     private func expireHLSBackgroundAttempt(id: String, attempt: HLSBackgroundAttempt) {
@@ -2991,7 +3023,15 @@ final class DownloadManager: NSObject, ObservableObject {
             let persisted = await self.persistHLSBackgroundSnapshot()
             guard self.hlsBackgroundAttempts[id] === attempt else { return }
             self.hlsBackgroundAttempts.removeValue(forKey: id)
-            self.hlsBackgroundScheduler?.finish(attemptID: attempt.attemptID, success: success && persisted && !attempt.revoked && self.hlsIntentIsCurrent(attempt.intent))
+            let didComplete = success && persisted && !attempt.revoked && self.hlsIntentIsCurrent(attempt.intent)
+            self.hlsBackgroundScheduler?.finish(attemptID: attempt.attemptID, success: didComplete)
+#if os(iOS)
+            if #available(iOS 16.2, *) {
+                Task { @MainActor in
+                    await DownloadLiveActivityController.end(downloadID: id, status: didComplete ? "Completed" : "Paused")
+                }
+            }
+#endif
             self.processQueue()
         }
     }

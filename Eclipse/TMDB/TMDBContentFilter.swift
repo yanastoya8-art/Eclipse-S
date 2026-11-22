@@ -81,17 +81,16 @@ enum ScheduleAllAgesPolicy {
         enabled && rating == .general
     }
 
-    /// Apply the same minimum-age gate used by Home and Browse. Unknown ratings
-    /// fail closed only when a minimum age is configured; an All Ages-only
-    /// filter continues to leave unrated entries visible.
+    /// Exclude only entries with a known rating below the requested minimum.
+    /// Missing/unknown certifications are not evidence that a title is too young;
+    /// keeping them visible avoids emptying a schedule when a provider omits age data.
     static func shouldExclude(
         rating: MaturityRating?,
         minimum: MaturityRating?,
         hideAllAges: Bool
     ) -> Bool {
         if hideAllAges, rating == .general { return true }
-        guard let minimum else { return false }
-        guard let rating, rating != .unknown else { return true }
+        guard let minimum, let rating, rating != .unknown else { return false }
         return rating < minimum
     }
 }
@@ -489,7 +488,10 @@ final class MyDubListDubFilter: @unchecked Sendable {
 
     private static func download(_ url: URL, maximumBytes: Int) async throws -> Data {
         var request = URLRequest(url: url)
-        request.timeoutInterval = 30
+        // Dub metadata refresh is awaited only when no cached language
+        // snapshot exists. Keep each download bounded so Browse cannot remain
+        // in its loading state indefinitely on a slow mirror/network.
+        request.timeoutInterval = 12
         request.cachePolicy = .reloadIgnoringLocalCacheData
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let response = response as? HTTPURLResponse, response.statusCode == 200,
@@ -990,43 +992,34 @@ class TMDBContentFilter: ObservableObject {
             return minimumEnabled || allAgesEnabled || kidsModeEnabled
         }
 
-        async let runtimeResolution: Void = {
-            if defaults.bool(forKey: "catalogHideUnder20MinuteContent") {
-                await self.resolveRuntimeMetadata(for: results)
-            }
-        }()
-        async let productionResolution: Void = {
-            if defaults.bool(forKey: "catalogHideUnofficialContent") {
-                await self.resolveProductionMetadata(for: results)
-            }
-        }()
-        async let animeAgeResolution: Void = {
-            if needsAnimeAge, !animeResults.isEmpty {
-                await self.resolveAnimeAgeRatings(for: animeResults)
-            }
-        }()
-        async let animeAudioResolution: Void = {
-            if !selectedLanguages.isEmpty, !animeResults.isEmpty {
+        // Never hold the Browse loading state behind optional metadata services.
+        // Unknown items remain excluded by their active filter until the lookup
+        // completes; each resolver publishes a filter-change notification so
+        // Browse re-evaluates the retained raw page without another user action.
+        if defaults.bool(forKey: "catalogHideUnder20MinuteContent") {
+            Task(priority: .utility) { await self.resolveRuntimeMetadata(for: results) }
+        }
+        if defaults.bool(forKey: "catalogHideUnofficialContent") {
+            Task(priority: .utility) { await self.resolveProductionMetadata(for: results) }
+        }
+        if needsAnimeAge, !animeResults.isEmpty {
+            Task(priority: .utility) { await self.resolveAnimeAgeRatings(for: animeResults) }
+        }
+        if !selectedLanguages.isEmpty, !animeResults.isEmpty {
+            Task(priority: .utility) {
                 await self.resolveAnimeAudioMetadata(
                     for: animeResults,
                     selectedLanguages: selectedLanguages
                 )
             }
-        }()
-        async let tmdbAgeResolution: Void = {
-            if !tmdbRatingResults.isEmpty {
+        }
+        if !tmdbRatingResults.isEmpty {
+            Task(priority: .utility) {
                 await TMDBMaturityRatingStore.shared.resolve(
                     tmdbRatingResults.map { (isMovie: $0.isMovie, id: $0.id) }
                 )
             }
-        }()
-        _ = await (
-            runtimeResolution,
-            productionResolution,
-            animeAgeResolution,
-            animeAudioResolution,
-            tmdbAgeResolution
-        )
+        }
     }
 
     private func resolveAnimeAgeRatings(identities: [(Int, Int?)]) async {
@@ -1742,14 +1735,15 @@ class TMDBContentFilter: ObservableObject {
         )
         guard enabled || hideAllAges else { return true }
         guard let rating = TMDBMaturityRatingStore.shared.rating(isMovie: isMovie, id: id) else {
-            // A minimum-age filter fails closed for unresolved ratings. The
-            // all-ages-only filter leaves unknown ratings visible.
-            return !enabled
+            // The setting hides titles with a known rating below the threshold;
+            // an unavailable certificate must not collapse an entire Browse
+            // category to the few titles whose regional rating happened to load.
+            return true
         }
         if hideAllAges && rating == .general { return false }
-        guard enabled else { return true }
+        guard enabled, rating != .unknown else { return true }
         let minimum = isMovie ? MaturityRating.teen : .age14
-        return rating != .unknown && rating >= minimum
+        return rating >= minimum
     }
 
     private static func runtimeCacheKey(for result: TMDBSearchResult) -> String {
@@ -1975,13 +1969,13 @@ class TMDBContentFilter: ObservableObject {
             let hideAllAges = result.isMovie
                 ? defaults.bool(forKey: "catalogHideAllAgesMovies")
                 : defaults.bool(forKey: "catalogHideAllAgesSeries")
-            if hideBelowMinimum || hideAllAges,
-               let rating = TMDBMaturityRatingStore.shared.rating(isMovie: result.isMovie, id: result.id) {
+            if let rating = TMDBMaturityRatingStore.shared.rating(isMovie: result.isMovie, id: result.id) {
                 if hideAllAges && rating == .general { return false }
                 let minimum = result.isMovie ? MaturityRating.teen : .age14
-                if hideBelowMinimum && (rating == .unknown || rating < minimum) { return false }
-            } else if hideBelowMinimum {
-                return false
+                // A missing/unknown certificate is not proof that a title is
+                // below the configured minimum. Keep it visible and let a later
+                // verified certification refine the decision.
+                if hideBelowMinimum, rating != .unknown, rating < minimum { return false }
             }
         }
 

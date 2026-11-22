@@ -584,6 +584,16 @@
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+
+		D1A000000000000000000009 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (D1A000000000000000000005 /* Embed Download Live Activity Extension */, );
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXContainerItemProxy section */
@@ -601,6 +611,8 @@
 			remoteGlobalIDString = 13F0725A2E4B2D3300EF90EB;
 			remoteInfo = Eclipse;
 		};
+
+		D1A000000000000000000010 /* PBXContainerItemProxy */ = {isa = PBXContainerItemProxy; containerPortal = 13F072532E4B2D3300EF90EB; proxyType = 1; remoteGlobalIDString = D1A000000000000000000017; remoteInfo = DownloadLiveActivityWidget; };
 /* End PBXContainerItemProxy section */
 
 		0AFAB08008FA49A2B9706EE7 /* MediaLanguageCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48DBDCF68C044118955BA1F5 /* MediaLanguageCatalog.swift */; };
@@ -616,6 +628,13 @@
 		80E0BF85F92F582EE6171EB2 /* MangayomiDartRuntime.js in Resources */ = {isa = PBXBuildFile; fileRef = 3F653A4799F8202DB2ED2032 /* MangayomiDartRuntime.js */; };
 		18A0C0FE05E44E69B364ECC6 /* MangayomiDartRuntime.LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = F8A7F0269F5DB7DA5A4494E7 /* MangayomiDartRuntime.LICENSE.txt */; };
 		509D75504728493EADA9A47E /* MangayomiMediaRuntimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82DF49F1AF83724FF4E100B6 /* MangayomiMediaRuntimeTests.swift */; };
+
+		D1A000000000000000000001 /* DownloadActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A000000000000000000011 /* DownloadActivityAttributes.swift */; };
+		D1A000000000000000000002 /* DownloadLiveActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A000000000000000000012 /* DownloadLiveActivityController.swift */; };
+		D1A000000000000000000003 /* DownloadLiveActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A000000000000000000013 /* DownloadLiveActivityWidget.swift */; };
+		D1A000000000000000000004 /* DownloadActivityAttributes.swift in Widget Sources */ = {isa = PBXBuildFile; fileRef = D1A000000000000000000011 /* DownloadActivityAttributes.swift */; };
+		D1A000000000000000000005 /* Embed Download Live Activity Extension */ = {isa = PBXBuildFile; fileRef = D1A000000000000000000014 /* DownloadLiveActivityWidget.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+
 /* Begin PBXFileReference section */
 		E6C1F0000000000000000001 /* PlatformCapabilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Eclipse/Extensions/PlatformCapabilities.swift"; sourceTree = SOURCE_ROOT; };
 		E6C1F0000000000000000002 /* MediaStateModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Eclipse/Models/MediaStateModels.swift"; sourceTree = SOURCE_ROOT; };
@@ -963,6 +982,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
+
+
+		D1A000000000000000000011 /* DownloadActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadActivityAttributes.swift; sourceTree = "<group>"; };
+		D1A000000000000000000012 /* DownloadLiveActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadLiveActivityController.swift; sourceTree = "<group>"; };
+		D1A000000000000000000013 /* DownloadLiveActivityWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadLiveActivityWidget.swift; sourceTree = "<group>"; };
+		D1A000000000000000000014 /* DownloadLiveActivityWidget.appex */ = {isa = PBXFileReference; explicitFileType = wrapper.app-extension; includeInIndex = 0; path = DownloadLiveActivityWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		D1A000000000000000000015 /* DownloadLiveActivityWidget-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 
 /* Begin PBXGroup section */
 		12F745192EB52DFC00889684 /* Tests */ = {
@@ -1332,6 +1358,7 @@
 		13F072522E4B2D3300EF90EB = {
 			isa = PBXGroup;
 			children = (
+				D1A000000000000000000016 /* DownloadLiveActivityWidget */,
 				B92FDB428729CE444EBBCCE9 /* RememberedPlaybackSelectionTests.swift */,
 				82DF49F1AF83724FF4E100B6 /* MangayomiMediaRuntimeTests.swift */,
 				9254900F9ACE73EA6FF07A2C /* TrackerLibraryTests.swift */,
@@ -1363,6 +1390,7 @@
 		13F0725C2E4B2D3300EF90EB /* Products */ = {
 			isa = PBXGroup;
 			children = (
+				D1A000000000000000000014 /* DownloadLiveActivityWidget.appex */,
 				12F7451E2EB52DFC00889684 /* Tests.xctest */,
 				13F0725B2E4B2D3300EF90EB /* Eclipse.app */,
 				C2D804DCABF49B0FA49ED7C8 /* EclipseUITests.xctest */,
@@ -1662,6 +1690,8 @@
 		13F5B5902E73090000565E75 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				D1A000000000000000000011 /* DownloadActivityAttributes.swift */,
+				D1A000000000000000000012 /* DownloadLiveActivityController.swift */,
 				48DBDCF68C044118955BA1F5 /* MediaLanguageCatalog.swift */,
 				13E1EDA62ED9E65F00087629 /* Settings.swift */,
 				13F5B5932E730B0200565E75 /* Library */,
@@ -1721,6 +1751,17 @@
 		};
 /* End PBXGroup section */
 
+
+		D1A000000000000000000016 /* DownloadLiveActivityWidget */ = {
+			isa = PBXGroup;
+			children = (
+				D1A000000000000000000013 /* DownloadLiveActivityWidget.swift */,
+				D1A000000000000000000015 /* Info.plist */,
+			);
+			path = DownloadLiveActivityWidget;
+			sourceTree = "<group>";
+		};
+
 /* Begin PBXNativeTarget section */
 		12F7450D2EB52DFC00889684 /* Tests */ = {
 			isa = PBXNativeTarget;
@@ -1770,10 +1811,12 @@
 				13F072582E4B2D3300EF90EB /* Frameworks */,
 				13F072592E4B2D3300EF90EB /* Resources */,
 				12F745372EB539F000889684 /* Embed Frameworks */,
+				D1A000000000000000000009 /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				D1A000000000000000000018 /* PBXTargetDependency */,
 			);
 			name = Eclipse;
 			packageProductDependencies = (
@@ -1789,6 +1832,22 @@
 			productName = Eclipse;
 			productReference = 13F0725B2E4B2D3300EF90EB /* Eclipse.app */;
 			productType = "com.apple.product-type.application";
+		};
+
+		D1A000000000000000000017 /* DownloadLiveActivityWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D1A000000000000000000023 /* Build configuration list for DownloadLiveActivityWidget */;
+			buildPhases = (
+				D1A000000000000000000006 /* Sources */,
+				D1A000000000000000000007 /* Frameworks */,
+				D1A000000000000000000008 /* Resources */,
+			);
+			buildRules = ();
+			dependencies = ();
+			name = DownloadLiveActivityWidget;
+			productName = DownloadLiveActivityWidget;
+			productReference = D1A000000000000000000014 /* DownloadLiveActivityWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -1839,6 +1898,7 @@
 				13F0725A2E4B2D3300EF90EB /* Eclipse */,
 				12F7450D2EB52DFC00889684 /* Tests */,
 				FE3A81F7CC8C59877D733687 /* EclipseUITests */,
+				D1A000000000000000000017 /* DownloadLiveActivityWidget */,
 			);
 		};
 /* End PBXProject section */
@@ -1867,6 +1927,9 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+
+		D1A000000000000000000007 /* Widget Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		D1A000000000000000000008 /* Widget Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
@@ -1940,6 +2003,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D1A000000000000000000001 /* DownloadActivityAttributes.swift in Sources */,
+				D1A000000000000000000002 /* DownloadLiveActivityController.swift in Sources */,
 				0AFAB08008FA49A2B9706EE7 /* MediaLanguageCatalog.swift in Sources */,
 				FDAEAC35F9B540B7949CD347 /* AppCalendar.swift in Sources */,
 				512648D4E2AED610EC2CCF07 /* AutoModeCandidateSelectionPolicy.swift in Sources */,
@@ -2166,6 +2231,8 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+
+		D1A000000000000000000006 /* Widget Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (D1A000000000000000000003 /* DownloadLiveActivityWidget.swift in Sources */, D1A000000000000000000004 /* DownloadActivityAttributes.swift in Widget Sources */, ); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -2179,6 +2246,8 @@
 			target = 13F0725A2E4B2D3300EF90EB /* Eclipse */;
 			targetProxy = B92BD1BD91E875E74A50FE76 /* PBXContainerItemProxy */;
 		};
+
+		D1A000000000000000000018 /* PBXTargetDependency */ = {isa = PBXTargetDependency; target = D1A000000000000000000017; targetProxy = D1A000000000000000000010; };
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
@@ -2502,6 +2571,9 @@
 			};
 			name = Release;
 		};
+
+		D1A000000000000000000021 /* DownloadLiveActivityWidget Debug */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_FILE = DownloadLiveActivityWidget/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 16.2; PRODUCT_BUNDLE_IDENTIFIER = "$(BUNDLE_IDENTIFIER).DownloadLiveActivity"; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; APPLICATION_EXTENSION_API_ONLY = YES; }; name = Debug; };
+		D1A000000000000000000022 /* DownloadLiveActivityWidget Release */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_FILE = DownloadLiveActivityWidget/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 16.2; PRODUCT_BUNDLE_IDENTIFIER = "$(BUNDLE_IDENTIFIER).DownloadLiveActivity"; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; APPLICATION_EXTENSION_API_ONLY = YES; }; name = Release; };
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -2541,6 +2613,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		D1A000000000000000000023 /* Build configuration list for DownloadLiveActivityWidget */ = {isa = XCConfigurationList; buildConfigurations = (D1A000000000000000000021 /* Debug */, D1A000000000000000000022 /* Release */, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
