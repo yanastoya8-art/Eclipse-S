@@ -160,7 +160,7 @@ enum MangayomiMediaAdapter {
     private static func resolvedHTTPURL(_ rawValue: String, relativeTo baseURL: String?) -> URL? {
         let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !value.isEmpty, value.utf8.count <= 64 * 1_024 else { return nil }
-        let base = baseURL.flatMap(URL.init(string:))
+        let base = baseURL.flatMap { URL(string: $0) }
         guard let url = URL(string: value, relativeTo: base)?.absoluteURL,
               let scheme = url.scheme?.lowercased(),
               scheme == "http" || scheme == "https",
