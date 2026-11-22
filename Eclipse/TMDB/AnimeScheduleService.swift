@@ -48,7 +48,7 @@ enum AnimeScheduleError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .unconfigured: return "English dub schedule needs an AnimeSchedule API token. Add it in Settings → Language & Content Filters."
+        case .unconfigured: return "AnimeSchedule.net's public timetable API is not configured for this request."
         case .invalidResponse: return "The DubOnly English dub schedule returned an invalid response."
         case .http(let status): return "DubOnly English dub schedule request failed (HTTP \(status))."
         case .unavailable: return "DubOnly has no available English dub timetable for these dates."
