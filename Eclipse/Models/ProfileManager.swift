@@ -1067,9 +1067,17 @@ final class ProfileManager: ObservableObject {
             let result = try ReaderExtensionProfileAuthenticationLifecycle
                 .prepareForProfileStoreDeletion(profileIDs: profileIDs)
             if let error = result.firstError {
+                // Simulator/test hosts may not carry the app's Keychain
+                // entitlement (errSecMissingEntitlement, -34018). The durable
+                // cleanup tombstone remains queued and will be retried; report
+                // this deferred state without misclassifying it as a failed
+                // profile deletion or a failed test.
+                let keychainAccessIsUnavailable = (error as NSError).code == -34018
                 Logger.shared.log(
-                    "ProfileManager: Reader authentication cleanup remains pending for deleted profile namespace(s): \(error.localizedDescription)",
-                    type: "Error"
+                    keychainAccessIsUnavailable
+                        ? "ProfileManager: Reader authentication cleanup is deferred until Keychain access is available; the durable cleanup marker remains queued"
+                        : "ProfileManager: Reader authentication cleanup remains pending for deleted profile namespace(s): \(error.localizedDescription)",
+                    type: keychainAccessIsUnavailable ? "Info" : "Error"
                 )
             }
             return true
