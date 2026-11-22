@@ -2707,8 +2707,7 @@ struct MediaDetailContentView: View {
                 placeholderColor: shouldAnalyzeAlternatePoster ? .clear : Color.gray.opacity(0.3),
                 fallbackImageURLs: detailHeroFallbackImageURLs,
                 preservesArtworkComposition: false,
-                showsBottomFade: true,
-                scrollCoordinateSpaceName: "mediaDetailScroll"
+                showsBottomFade: true
             )
             .frame(maxWidth: .infinity)
             .clipped()
@@ -2728,12 +2727,15 @@ struct MediaDetailContentView: View {
             image
 #endif
 
-            // Fade both orientations into the same extracted-colour field.
-            // Landscape uses a longer, stronger fade so the full-bleed banner
-            // blends into the overview instead of ending at a hard line.
-            // Use the same gradient/bleed treatment in both orientations;
-            // gradientOverlay already accounts for the wide layout.
-            gradientOverlay
+            // Restore the dedicated landscape poster colour bleed. The
+            // detail hero previously stopped at the opaque page colour in
+            // landscape, removing the ambient wash that Home and the earlier
+            // detail composition provided.
+            if usesLandscapeDetailComposition {
+                landscapeHeroFadeOverlay
+            } else {
+                gradientOverlay
+            }
 
             // Use only transparent title artwork. Never synthesize ordinary
             // title text over a poster when a provider has no logo asset.
