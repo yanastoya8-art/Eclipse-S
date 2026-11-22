@@ -772,7 +772,11 @@ enum AutoModeStreamSelection {
             .flatMap(splitStremioLanguageHint)
             .compactMap(normalizedStremioLanguageName)
         let metadataSearchText = languageSearchText(from: metadata)
-        languages.append(contentsOf: detectedStremioLanguageNames(in: metadataSearchText))
+        // Metadata detection can return regional display names (for example,
+        // "Spanish (Spain)"). Normalize them through the same one-family filter
+        // policy as explicit stream hints before de-duplicating the labels.
+        languages.append(contentsOf: detectedStremioLanguageNames(in: metadataSearchText)
+            .map { normalizedStremioLanguageName($0) ?? $0 })
 
         var seen = Set<String>()
         let uniqueLanguages = languages.filter { seen.insert($0).inserted }
