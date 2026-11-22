@@ -332,7 +332,6 @@ struct SearchResultCard: View {
 
     private var posterImage: some View {
         let cleanPosterURLs = PosterArtworkURLResolver.candidates(for: result)
-        let fallbackPosterURL = PosterArtworkURLResolver.fallbackTMDBPosterURL(for: result)
         return ZStack {
             ResilientArtworkImage(
                 urls: PosterArtworkURLResolver.libraryCandidates(for: result),
@@ -349,7 +348,7 @@ struct SearchResultCard: View {
 
             CenteredPosterTitleOverlay(
                 title: result.displayTitle,
-                logoURL: loadedPosterURL.map { cleanPosterURLs.contains($0) ? titleLogoURL : nil } ?? nil
+                logoURL: loadedPosterURL.flatMap { cleanPosterURLs.contains($0) ? titleLogoURL : nil }
             )
         }
         .aspectRatio(2/3, contentMode: .fill)
