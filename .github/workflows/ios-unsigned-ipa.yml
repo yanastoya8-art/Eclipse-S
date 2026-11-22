@@ -24,6 +24,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
+  actions: read
   contents: read
   pages: write
   id-token: write
@@ -628,6 +629,32 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: ${{ runner.temp }}/sidestore-site
+
+      - name: Wait for GitHub Pages artifact metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          # GitHub's artifact listing can become visible before the per-artifact
+          # metadata endpoint used by deploy-pages. Poll both endpoints so the
+          # deployment action never races artifact finalization/indexing.
+          for attempt in {1..12}; do
+            artifact_id="$(gh api --silent "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" \
+              --jq '.artifacts[] | select(.name == "github-pages" and .expired == false) | .id' | head -n 1 || true)"
+
+            if [[ -n "$artifact_id" ]] && gh api --silent "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id" \
+              --jq '.id' >/dev/null 2>&1; then
+              echo "GitHub Pages artifact $artifact_id is fully indexed and ready to deploy."
+              exit 0
+            fi
+
+            echo "::notice::GitHub Pages artifact metadata is not ready (attempt $attempt/12); retrying in 5 seconds."
+            sleep 5
+          done
+
+          echo "::error::GitHub Pages artifact metadata did not become available after 60 seconds."
+          exit 1
 
       - name: Deploy SideStore website
         id: deployment

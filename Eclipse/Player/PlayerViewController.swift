@@ -12,6 +12,7 @@ import UIKit.UIGestureRecognizerSubclass
 import SwiftUI
 import AVFoundation
 import Combine
+import Network
 #if canImport(Darwin)
 import Darwin
 #endif
@@ -13452,6 +13453,28 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     }
 
     private func presentLGWebOSCastPrompt(url: URL, title: String, headers: [String: String]) {
+        showPlayerNotice("Searching your Wi-Fi network for LG TVs…")
+        Task { @MainActor [weak self] in
+            let addresses = await LGWebOSDeviceDiscovery.discover()
+            guard let self, self.presentedViewController == nil || self.presentedViewController is UIAlertController else { return }
+            let message = addresses.isEmpty
+                ? "No LG TV was found automatically. Make sure the TV is on and connected to the same Wi-Fi network, or enter its address manually."
+                : "Choose a nearby LG TV. Accept the pairing request on the TV the first time."
+            let alert = UIAlertController(title: "Choose a TV", message: message, preferredStyle: .alert)
+            for address in addresses.prefix(8) {
+                alert.addAction(UIAlertAction(title: address, style: .default) { [weak self] _ in
+                    self?.castToLGWebOS(url: url, title: title, address: address, headers: headers)
+                })
+            }
+            alert.addAction(UIAlertAction(title: "Enter IP Manually", style: .default) { [weak self] _ in
+                self?.presentManualLGWebOSAddressPrompt(url: url, title: title, headers: headers)
+            })
+            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+            self.present(alert, animated: true)
+        }
+    }
+
+    private func presentManualLGWebOSAddressPrompt(url: URL, title: String, headers: [String: String]) {
         let alert = UIAlertController(
             title: "Cast to LG webOS TV",
             message: "Enter your TV's local IPv4 address. Accept the pairing prompt on the TV the first time.",
@@ -13468,21 +13491,22 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             guard let self,
                   let address = alert?.textFields?.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !address.isEmpty else { return }
-            Task { @MainActor in
-                do {
-                    try await LGWebOSCastCoordinator.shared.cast(
-                        url: url,
-                        title: title,
-                        address: address,
-                        headers: headers
-                    )
-                    self.showPlayerNotice("Stream sent to your LG TV. Playback support depends on the TV model and the file's video/audio codecs.")
-                } catch {
-                    self.showPlayerNotice(error.localizedDescription)
-                }
-            }
+            self.castToLGWebOS(url: url, title: title, address: address, headers: headers)
         })
         present(alert, animated: true)
+    }
+
+    private func castToLGWebOS(url: URL, title: String, address: String, headers: [String: String]) {
+        Task { @MainActor in
+            do {
+                try await LGWebOSCastCoordinator.shared.cast(
+                    url: url, title: title, address: address, headers: headers
+                )
+                showPlayerNotice("Stream sent to your LG TV. Playback support depends on the TV model and the file's video/audio codecs.")
+            } catch {
+                showPlayerNotice(error.localizedDescription)
+            }
+        }
     }
 
     @objc private func handleCastMediaLoaded() {
@@ -16962,6 +16986,92 @@ extension PlayerViewController: PiPControllerDelegate {
     }
 }
 
+
+private enum LGWebOSDeviceDiscovery {
+    static func discover() async -> [String] {
+        let hosts = localIPv4Hosts()
+        guard !hosts.isEmpty else { return [] }
+        let modern = await scan(hosts: hosts, port: 3001)
+        if !modern.isEmpty { return modern.sorted() }
+        return await scan(hosts: hosts, port: 3000).sorted()
+    }
+
+    private static func scan(hosts: [String], port: UInt16) async -> [String] {
+        var found: [String] = []
+        for offset in stride(from: 0, to: hosts.count, by: 24) {
+            let batch = Array(hosts[offset..<min(offset + 24, hosts.count)])
+            let matches = await withTaskGroup(of: String?.self, returning: [String].self) { group in
+                for host in batch {
+                    group.addTask {
+                        await isTCPPortOpen(host: host, port: port) ? host : nil
+                    }
+                }
+                var values: [String] = []
+                for await value in group {
+                    if let value { values.append(value) }
+                }
+                return values
+            }
+            found.append(contentsOf: matches)
+        }
+        return found
+    }
+
+    private static func isTCPPortOpen(host: String, port: UInt16) async -> Bool {
+        guard let endpointPort = NWEndpoint.Port(rawValue: port) else { return false }
+        return await withCheckedContinuation { continuation in
+            let connection = NWConnection(host: NWEndpoint.Host(host), port: endpointPort, using: .tcp)
+            let queue = DispatchQueue(label: "app.eclipse.webos.probe.\(host).\(port)")
+            let lock = NSLock()
+            var finished = false
+            func finish(_ result: Bool) {
+                lock.lock()
+                guard !finished else { lock.unlock(); return }
+                finished = true
+                lock.unlock()
+                connection.cancel()
+                continuation.resume(returning: result)
+            }
+            connection.stateUpdateHandler = { state in
+                switch state {
+                case .ready: finish(true)
+                case .failed, .cancelled: finish(false)
+                default: break
+                }
+            }
+            connection.start(queue: queue)
+            queue.asyncAfter(deadline: .now() + 0.7) { finish(false) }
+        }
+    }
+
+    private static func localIPv4Hosts() -> [String] {
+        var head: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&head) == 0, let first = head else { return [] }
+        defer { freeifaddrs(head) }
+        var hosts: [String] = []
+        var cursor: UnsafeMutablePointer<ifaddrs>? = first
+        while let item = cursor {
+            defer { cursor = item.pointee.ifa_next }
+            let interface = item.pointee
+            guard let name = interface.ifa_name,
+                  String(cString: name) == "en0",
+                  let address = interface.ifa_addr,
+                  let mask = interface.ifa_netmask,
+                  Int32(address.pointee.sa_family) == AF_INET else { continue }
+            let ip = address.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { ntohl($0.pointee.sin_addr.s_addr) }
+            let netmask = mask.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { ntohl($0.pointee.sin_addr.s_addr) }
+            let network = ip & netmask
+            let broadcast = network | ~netmask
+            let count = broadcast > network ? broadcast - network - 1 : 0
+            guard count > 0, count <= 512 else { continue }
+            for value in (network + 1)..<broadcast where value != ip {
+                hosts.append("\((value >> 24) & 255).\((value >> 16) & 255).\((value >> 8) & 255).\(value & 255)")
+            }
+            break
+        }
+        return hosts
+    }
+}
 
 private enum LGWebOSCastPolicy {
     static func rejectionReason(for url: URL, headers: [String: String]) -> String? {
