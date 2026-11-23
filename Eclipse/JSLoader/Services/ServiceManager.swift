@@ -1898,7 +1898,7 @@ class ServiceManager: ObservableObject {
                 }
                 return lhs.offset < rhs.offset
             }
-            .map(\.element)
+            .map { $0.element }
     }
 
     func searchInActiveServices(query: String) async -> [(service: Service, results: [SearchItem])] {
