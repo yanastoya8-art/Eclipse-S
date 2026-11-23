@@ -2311,6 +2311,7 @@ struct HomeView: View {
                     tmdbService: tmdbService,
                     limit: limit
                 )
+                await contentFilter.resolveBrowseFilterMetadata(for: items)
                 return await Array(contentFilter.filterSearchResultsResolvingRatings(items).dropFirst(offset))
             }
         case .trakt:
@@ -2323,6 +2324,7 @@ struct HomeView: View {
                     tmdbService: tmdbService,
                     limit: limit
                 )
+                await contentFilter.resolveBrowseFilterMetadata(for: items)
                 return await Array(contentFilter.filterSearchResultsResolvingRatings(items).dropFirst(offset))
             }
         case .tmdb, .anilist, .local:
