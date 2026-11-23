@@ -124,6 +124,7 @@ jobs:
             printf 'MAL_CLIENT_ID = %s\n' "${MAL_CLIENT_ID:-}"
             printf 'MAL_CLIENT_SECRET = %s\n' "${MAL_CLIENT_SECRET:-}"
             printf 'MAL_REDIRECT_URI = %s\n' "${MAL_REDIRECT_URI:-}"
+            printf 'SPANISH_DUB_RESEARCH_PROXY_URL = %s\n' "${SPANISH_DUB_RESEARCH_PROXY_URL:-}"
           } > Build.local.xcconfig
 
       - name: Parse all iOS app and test Swift sources
