@@ -2610,10 +2610,10 @@ final class DownloadManager: NSObject, ObservableObject {
     }
 
     func applicationDidBecomeActive() {
-        // Do not automatically restart a transfer that iOS explicitly expired.
-        // Its verified checkpoint remains available and the user can resume it
-        // deliberately. Orphaned workers without an expiration decision may
-        // still be recovered below.
+        // A system time-limit interruption is not a user pause. Re-admit those
+        // HLS rows automatically; explicit user pauses have no system-interruption
+        // marker and remain paused until the user resumes them.
+        resumeHLSDownloadsInterruptedByBackgroundExpiration()
         resumeOrphanedHLSDownloads()
         processQueue()
 #if os(iOS) && !targetEnvironment(macCatalyst)
@@ -2655,11 +2655,17 @@ final class DownloadManager: NSObject, ObservableObject {
     }
 
     private func resumeHLSDownloadsInterruptedByBackgroundExpiration() {
-        let interruptionMessage = "HLS background download stopped. Resume when you are ready."
+        let systemInterruptionMessages: Set<String> = [
+            "HLS background download stopped. Resume when you are ready.",
+            "Waiting for app to reopen"
+        ]
         var resumedCount = 0
         for index in downloads.indices {
-            guard downloads[index].status == .paused,
-                  downloads[index].error == interruptionMessage else { continue }
+            guard downloads[index].isHLS,
+                  downloads[index].status == .paused,
+                  let message = downloads[index].error,
+                  systemInterruptionMessages.contains(message)
+                    || message.hasPrefix("Background time expired.") else { continue }
             downloads[index].status = .queued
             downloads[index].error = nil
             downloads[index].retryNotBefore = nil
@@ -8216,18 +8222,23 @@ final class DownloadManager: NSObject, ObservableObject {
             return
         }
 
-        if downloads[index].status == .downloading || downloads[index].status == .queued {
-            let limitation = downloads[index].resumeLimitationMessage
-            downloads[index].status = limitation == nil ? .queued : .paused
-            downloads[index].error = limitation ?? message
+        guard downloads[index].status == .downloading || downloads[index].status == .queued else {
+            return
+        }
+        let limitation = downloads[index].resumeLimitationMessage
+        // Never convert an iOS execution-time limit into a user-paused state.
+        // When a protected source has no verified checkpoint, start it again
+        // from the beginning automatically instead of waiting for manual input.
+        downloads[index].status = .queued
+        downloads[index].error = nil
+        downloads[index].retryNotBefore = nil
+        if let limitation {
+            Logger.shared.log("Restarting interrupted HLS download from the beginning: \\(limitation)", type: "Download")
+        } else {
+            Logger.shared.log("Resuming interrupted HLS download from its last verified segment: \\(message)", type: "Download")
         }
 
         saveDownloads()
-        // Re-admit the item immediately. iOS HLS workers now always use a
-        // durable segment checkpoint, so another available background-time
-        // window continues from the last completed segment rather than byte zero.
-        // If iOS suspends the process, the queued item is also picked up by the
-        // normal foreground queue restoration path.
         processQueue()
     }
 
