@@ -352,10 +352,11 @@ final class HLSBackgroundDownloadTests: XCTestCase {
         let scheduler = HLSBackgroundSchedulerMock(mode: .hold)
         manager.configureHLSBackgroundForTesting(scheduler: scheduler, enabled: { true }, applicationIsActive: { false },
             sessionConfiguration: .ephemeral)
+        let beforeBackground = try XCTUnwrap(manager.downloads.first)
         manager.applicationDidEnterBackground()
         let backgrounded = try XCTUnwrap(manager.downloads.first)
-        XCTAssertEqual(backgrounded.status, .downloading)
-        XCTAssertFalse(backgrounded.streamURL.isEmpty)
+        XCTAssertEqual(backgrounded.status, beforeBackground.status)
+        XCTAssertEqual(backgrounded.streamURL, beforeBackground.streamURL)
         XCTAssertTrue(scheduler.requests.isEmpty)
         manager.finishIsolatedSession()
         await manager.drainIsolatedHLSWorkers()
