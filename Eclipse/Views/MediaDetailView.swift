@@ -39,10 +39,17 @@ private final class MediaDetailNoBounceView: UIView {
         var ancestor = superview
         while let view = ancestor {
             if let scrollView = view as? UIScrollView {
+                // SwiftUI can wrap the detail surface in more than one scroll
+                // view (notably with nested readers/containers). Disabling only
+                // the nearest one still lets the outer scroll view rubber-band,
+                // pulling the hero away from the top edge and exposing a blank
+                // gap. Disable bounce on every ancestor scroll surface.
                 scrollView.bounces = false
                 scrollView.alwaysBounceVertical = false
                 scrollView.alwaysBounceHorizontal = false
-                return
+                if #available(iOS 11.0, *) {
+                    scrollView.contentInsetAdjustmentBehavior = .never
+                }
             }
             ancestor = view.superview
         }

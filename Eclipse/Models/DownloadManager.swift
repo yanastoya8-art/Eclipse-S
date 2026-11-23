@@ -6931,11 +6931,14 @@ final class DownloadManager: NSObject, ObservableObject {
                             self.handleCancelledHLSDownload(id: item.id)
                             Logger.shared.log("HLS download cancelled: \(item.displayTitle)", type: "Download")
                         case .backgroundProcessingExpired:
-                            if let index = self.downloads.firstIndex(where: { $0.id == item.id }), self.downloads[index].status != .completed {
-                                self.downloads[index].status = .paused
-                                self.downloads[index].error = "HLS background download stopped. Resume when you are ready."
-                                self.saveDownloads()
-                            }
+                            // Do not turn an OS time-limit interruption into a
+                            // user-paused download. The durable HLS checkpoint is
+                            // retained and the queue retries from that segment.
+                            self.requeueInterruptedHLSDownload(
+                                id: item.id,
+                                message: "Background time expired. Continuing from the last saved segment."
+                            )
+                            Logger.shared.log("HLS continued-processing time expired; preserving checkpoint for \(item.displayTitle)", type: "Download")
                         case .backgroundTimeExpired:
                             self.requeueInterruptedHLSDownload(id: item.id, message: "Waiting for app to reopen")
                             Logger.shared.log("HLS background time expired for \(item.displayTitle)", type: "Download")
