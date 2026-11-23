@@ -351,10 +351,12 @@ final class MyDubListDubFilter: @unchecked Sendable {
 
             try Task.checkCancellation()
             let mappingURL = URL(string: "https://raw.githubusercontent.com/Joelis57/MyDubList/main/dubs/mappings/mappings_anilist.jsonl")!
-            let mappingData = try await Self.download(mappingURL, maximumBytes: 4_000_000)
-            guard let mappingText = String(data: mappingData, encoding: .utf8) else {
-                throw URLError(.cannotDecodeContentData)
-            }
+            let mappingData = try? await Self.download(mappingURL, maximumBytes: 4_000_000)
+            let didLoadMapping = mappingData != nil
+            // MAL IDs remain usable even if the AniList mapping mirror is
+            // temporarily unavailable; do not throw away a successfully loaded
+            // English dataset because this optional mapping file failed.
+            let mappingText = mappingData.flatMap { String(data: $0, encoding: .utf8) } ?? ""
 
             var aniListIDs = Set<Int>()
             var englishAniListIDs = Set<Int>()
@@ -384,7 +386,7 @@ final class MyDubListDubFilter: @unchecked Sendable {
             // still useful in this session, but must be retried on next launch
             // so the missing language can recover without blocking the one that
             // did load.
-            if downloadedLanguages == languages {
+            if downloadedLanguages == languages && didLoadMapping {
                 defaults.set(languages.sorted(), forKey: Self.cachedLanguagesKey)
                 defaults.set(malIDs.sorted(), forKey: Self.cachedMALIDsKey)
                 defaults.set(aniListIDs.sorted(), forKey: Self.cachedAniListIDsKey)
