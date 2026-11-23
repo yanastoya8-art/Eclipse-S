@@ -3017,11 +3017,14 @@ private struct BrowseMediaView: View {
             // state/flicker and repeated filtering work.
             let refreshed = await MyDubListDubFilter.shared.refresh()
             guard !Task.isCancelled else { return [] }
-            guard refreshed || MyDubListDubFilter.shared.prepareCachedSnapshot() else {
-                await MainActor.run {
-                    errorMessage = "Unable to verify the selected dub-language data. Check your connection and try again."
-                }
-                return []
+            if !refreshed && !MyDubListDubFilter.shared.prepareCachedSnapshot() {
+                // Keep Browse usable during a temporary global-index outage.
+                // Per-title Taizen/audio lookups below can still verify eligible
+                // entries; titles without evidence remain excluded by the strict filter.
+                Logger.shared.log(
+                    "Anime Browse is using per-title dub verification because the global language index is unavailable",
+                    type: "Anime"
+                )
             }
         }
         guard ageRating != .all || requiresAnimeIdentity else {
