@@ -124,8 +124,14 @@ jobs:
             printf 'MAL_CLIENT_ID = %s\n' "${MAL_CLIENT_ID:-}"
             printf 'MAL_CLIENT_SECRET = %s\n' "${MAL_CLIENT_SECRET:-}"
             printf 'MAL_REDIRECT_URI = %s\n' "${MAL_REDIRECT_URI:-}"
-            printf 'SPANISH_DUB_RESEARCH_PROXY_URL = %s\n' "${SPANISH_DUB_RESEARCH_PROXY_URL:-}"
           } > Build.local.xcconfig
+          # Xcode .xcconfig treats // as a comment. Insert an empty build
+          # variable after the scheme so the final Info.plist receives https://.
+          python3 - <<'PY' >> Build.local.xcconfig
+          import os
+          proxy_url = os.environ.get("SPANISH_DUB_RESEARCH_PROXY_URL", "").strip()
+          print("SPANISH_DUB_RESEARCH_PROXY_URL = " + proxy_url.replace("://", ":/$()/"))
+          PY
 
       - name: Parse all iOS app and test Swift sources
         run: |
