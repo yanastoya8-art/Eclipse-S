@@ -1286,8 +1286,12 @@ final class ScheduleViewModel: ObservableObject {
                 // failed and the calendar consequently has no entries.
                 let hasProviderOutage = result.notice?
                     .localizedCaseInsensitiveContains("temporarily unavailable") == true
+                let spanishResearchUnavailable = selectedDubLanguages.contains(MyDubListLanguage.spanish.rawValue)
+                    && !SpanishDubAIResearchService.hasConfiguredProvider
                 let notice = requiresDubSchedule
-                    ? (entries.isEmpty && hasProviderOutage ? result.notice : nil)
+                    ? (spanishResearchUnavailable
+                        ? "Spanish dub dates need a Gemini or OpenAI API key in repository Actions secrets. Only verified Spanish release dates are shown."
+                        : (entries.isEmpty && hasProviderOutage ? result.notice : nil))
                     : result.notice
                 let loadResult = AnimeScheduleLoadResult(
                     entries: entries,
