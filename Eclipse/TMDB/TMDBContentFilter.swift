@@ -1161,6 +1161,7 @@ class TMDBContentFilter: ObservableObject {
         selectedLanguages: Set<String>
     ) async {
         let candidates = results.filter { result in
+            guard !MyDubListDubFilter.shared.shouldInclude(result) else { return false }
             guard CatalogNativeAudioPolicy.requiresDubVerification(
                 originalLanguage: result.originalLanguage,
                 selectedLanguages: selectedLanguages
