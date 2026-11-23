@@ -1197,21 +1197,8 @@ final class ScheduleViewModel: ObservableObject {
                             isAuthoritativeForNotifications: false,
                             notice: "Checking selected-language anime releases…"
                         )
-                        // English-dub timetable rows are candidate identities
-                        // only when Spanish is selected by itself. Their English
-                        // dates are never shown; the Spanish research provider
-                        // must independently confirm a Spanish release date.
-                        if selectedDubLanguages.contains(MyDubListLanguage.spanish.rawValue) {
-                            async let dubOnlyCandidates: AnimeAiringScheduleResult? = try? await self.retryOnceAfterTransientCancellation(operationName: "Spanish dub candidate timetable") {
-                                try await AnimeScheduleService.shared.fetchSchedule(daysAhead: dayCount)
-                            }
-                            async let tsuzukiCandidates: AnimeAiringScheduleResult? = try? await TsuzukiAnimeDubScheduleService.shared.fetchSchedule(daysAhead: dayCount)
-                            async let seaDubCandidates: AnimeAiringScheduleResult? = try? await SeaDubAnimeDubScheduleService.shared.fetchSchedule(daysAhead: dayCount)
-                            let (dubOnly, tsuzuki, seaDub) = await (dubOnlyCandidates, tsuzukiCandidates, seaDubCandidates)
-                            spanishDubResearchCandidates = [dubOnly, tsuzuki, seaDub]
-                                .compactMap { $0 }
-                                .flatMap(\.entries)
-                        }
+                        // Candidate timetable lookups run in the background research task
+                        // so a slow English provider cannot hold the visible calendar.
                     }
 
                     if AnimeScheduleLanguageLookupPolicy.shouldFetchNativeLanguageSchedule(
@@ -1235,9 +1222,20 @@ final class ScheduleViewModel: ObservableObject {
                             if selectedDubLanguages.contains(MyDubListLanguage.spanish.rawValue) {
                                 self.spanishDubResearchTask?.cancel()
                                 let spanishResearchCandidatesSnapshot = spanishDubResearchCandidates
+                                let shouldFetchSpanishOnlyCandidates = !permitsEnglishDubSchedule
                                 self.spanishDubResearchTask = Task(priority: .utility) { @MainActor [weak self] in
+                                    var providerCandidates: [AniListAiringScheduleEntry] = []
+                                    if shouldFetchSpanishOnlyCandidates {
+                                        async let dubOnlyCandidates: AnimeAiringScheduleResult? = try? await AnimeScheduleService.shared.fetchSchedule(daysAhead: dayCount)
+                                        async let tsuzukiCandidates: AnimeAiringScheduleResult? = try? await TsuzukiAnimeDubScheduleService.shared.fetchSchedule(daysAhead: dayCount)
+                                        async let seaDubCandidates: AnimeAiringScheduleResult? = try? await SeaDubAnimeDubScheduleService.shared.fetchSchedule(daysAhead: dayCount)
+                                        let (dubOnly, tsuzuki, seaDub) = await (dubOnlyCandidates, tsuzukiCandidates, seaDubCandidates)
+                                        providerCandidates = [dubOnly, tsuzuki, seaDub]
+                                            .compactMap { $0 }
+                                            .flatMap(\.entries)
+                                    }
                                     var candidatesByEpisode: [String: AniListAiringScheduleEntry] = [:]
-                                    for candidate in nativeSchedule + spanishResearchCandidatesSnapshot {
+                                    for candidate in nativeSchedule + spanishResearchCandidatesSnapshot + providerCandidates {
                                         let key = "\(candidate.mediaId):\(candidate.episode)"
                                         if let existing = candidatesByEpisode[key] {
                                             if candidate.airingAt < existing.airingAt {
