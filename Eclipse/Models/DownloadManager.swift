@@ -2991,7 +2991,10 @@ final class DownloadManager: NSObject, ObservableObject {
         hlsBackgroundSubtitles.removeValue(forKey: id)?.task.cancel()
         guard let attempt = hlsBackgroundAttempts[id] else { return }
         attempt.revoked = true
-        finishHLSBackgroundAttempt(id: id, attempt: attempt, success: false)
+        // Removal has already invalidated the download row and cancelled its worker.
+        // Do not wait for a checkpoint callback that may never arrive after cancellation;
+        // the late scheduler grant is rejected by the revoked attempt identity.
+        finishHLSBackgroundAttempt(id: id, attempt: attempt, success: false, waitForWorker: false)
     }
 
     private func revokeAllHLSBackgroundAttempts() {
