@@ -1983,30 +1983,41 @@ class ServiceManager: ObservableObject {
             return
         }
 
-        await withTaskGroup(of: (Service, [SearchItem]?).self) { group in
-            for service in services where !Task.isCancelled {
-                group.addTask {
-                    let timeoutSeconds: UInt64 = 20_000_000_000
-                    return await self.withTimeout(nanoseconds: timeoutSeconds) {
-                        let found = await self.searchInService(service: service, query: query)
-                        return (service, found)
-                    } ?? (service, [])
-                }
-            }
+        // Run Mangayomi sources as a complete first phase. A single task group
+        // containing every service would launch them concurrently, so merely
+        // sorting the input array would not guarantee that Mangayomi results
+        // arrive before the other extension/add-on results.
+        let priorityGroups = [
+            services.filter { $0.mangayomiSource != nil },
+            services.filter { $0.mangayomiSource == nil }
+        ]
 
-            for await (service, results) in group {
-                guard !Task.isCancelled else {
-                    group.cancelAll()
-                    break
+        for groupServices in priorityGroups where !groupServices.isEmpty {
+            guard !Task.isCancelled else { return }
+            await withTaskGroup(of: (Service, [SearchItem]?).self) { group in
+                for service in groupServices where !Task.isCancelled {
+                    group.addTask {
+                        let timeoutSeconds: UInt64 = 20_000_000_000
+                        return await self.withTimeout(nanoseconds: timeoutSeconds) {
+                            let found = await self.searchInService(service: service, query: query)
+                            return (service, found)
+                        } ?? (service, [])
+                    }
                 }
-                await MainActor.run { onResult(service, results) }
+
+                for await (service, results) in group {
+                    guard !Task.isCancelled else {
+                        group.cancelAll()
+                        break
+                    }
+                    await MainActor.run { onResult(service, results) }
+                }
             }
         }
 
         guard !Task.isCancelled else { return }
         await MainActor.run { onComplete() }
     }
-#endif
 
     func searchSingleActiveService(service: Service, query: String, timeoutNanoseconds: UInt64 = 20_000_000_000) async -> [SearchItem] {
         return await withTimeout(nanoseconds: timeoutNanoseconds) {
