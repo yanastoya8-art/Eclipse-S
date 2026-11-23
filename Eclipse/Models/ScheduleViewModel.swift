@@ -1163,6 +1163,7 @@ final class ScheduleViewModel: ObservableObject {
                 )
                 let result: AnimeAiringScheduleResult
                 var verifiedNativeLanguageEntries: [ScheduleEntry] = []
+                var spanishDubResearchCandidates: [AniListAiringScheduleEntry] = []
                 let permitsEnglishDubSchedule = AnimeScheduleFallback.permitsEnglishDubSchedule(
                     selectedDubLanguages: selectedDubLanguages,
                     englishSpanishAudioFilterEnabled: englishSpanishAudioFilterEnabled
@@ -1178,6 +1179,7 @@ final class ScheduleViewModel: ObservableObject {
                         let (dubOnly, tsuzuki, seaDub) = await (dubOnlyResult, tsuzukiResult, seaDubResult)
                         try Task.checkCancellation()
                         let availableProviders = [dubOnly, tsuzuki, seaDub].compactMap { $0 }
+                        spanishDubResearchCandidates = availableProviders.flatMap(\.entries)
                         if let first = availableProviders.first {
                             result = availableProviders.dropFirst().reduce(first) { merged, provider in
                                 AnimeScheduleFallback.mergeEnglishDubSchedules(primary: merged, fallback: provider)
@@ -1195,6 +1197,21 @@ final class ScheduleViewModel: ObservableObject {
                             isAuthoritativeForNotifications: false,
                             notice: "Checking selected-language anime releases…"
                         )
+                        // English-dub timetable rows are candidate identities
+                        // only when Spanish is selected by itself. Their English
+                        // dates are never shown; the Spanish research provider
+                        // must independently confirm a Spanish release date.
+                        if selectedDubLanguages.contains(MyDubListLanguage.spanish.rawValue) {
+                            async let dubOnlyCandidates: AnimeAiringScheduleResult? = try? await self.retryOnceAfterTransientCancellation(operationName: "Spanish dub candidate timetable") {
+                                try await AnimeScheduleService.shared.fetchSchedule(daysAhead: dayCount)
+                            }
+                            async let tsuzukiCandidates: AnimeAiringScheduleResult? = try? await TsuzukiAnimeDubScheduleService.shared.fetchSchedule(daysAhead: dayCount)
+                            async let seaDubCandidates: AnimeAiringScheduleResult? = try? await SeaDubAnimeDubScheduleService.shared.fetchSchedule(daysAhead: dayCount)
+                            let (dubOnly, tsuzuki, seaDub) = await (dubOnlyCandidates, tsuzukiCandidates, seaDubCandidates)
+                            spanishDubResearchCandidates = [dubOnly, tsuzuki, seaDub]
+                                .compactMap { $0 }
+                                .flatMap(\.entries)
+                        }
                     }
 
                     if AnimeScheduleLanguageLookupPolicy.shouldFetchNativeLanguageSchedule(
@@ -1218,7 +1235,22 @@ final class ScheduleViewModel: ObservableObject {
                             if selectedDubLanguages.contains(MyDubListLanguage.spanish.rawValue) {
                                 self.spanishDubResearchTask?.cancel()
                                 self.spanishDubResearchTask = Task(priority: .utility) { @MainActor [weak self] in
-                                    let candidates = nativeSchedule
+                                    var candidatesByEpisode: [String: AniListAiringScheduleEntry] = [:]
+                                    for candidate in nativeSchedule + spanishDubResearchCandidates {
+                                        let key = "\(candidate.mediaId):\(candidate.episode)"
+                                        if let existing = candidatesByEpisode[key] {
+                                            if candidate.airingAt < existing.airingAt {
+                                                candidatesByEpisode[key] = candidate
+                                            }
+                                        } else {
+                                            candidatesByEpisode[key] = candidate
+                                        }
+                                    }
+                                    let candidates = candidatesByEpisode.values.sorted {
+                                        $0.airingAt == $1.airingAt
+                                            ? ($0.mediaId == $1.mediaId ? $0.episode < $1.episode : $0.mediaId < $1.mediaId)
+                                            : $0.airingAt < $1.airingAt
+                                    }
                                     let researched = await SpanishDubAIResearchService.shared.research(entries: candidates)
                                     guard !Task.isCancelled,
                                           let self,
