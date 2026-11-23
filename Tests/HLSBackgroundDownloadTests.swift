@@ -205,7 +205,7 @@ final class HLSBackgroundDownloadTests: XCTestCase {
             fixture.scheduler.expire(0)
             try await eventually { fixture.scheduler.finishes.count == 1 && fixture.heldCount == 0 }
             await fixture.manager.drainIsolatedHLSWorkers()
-            XCTAssertEqual(fixture.item.status, .paused)
+            XCTAssertEqual(fixture.item.status, .queued)
             XCTAssertTrue(fixture.item.hasVerifiedHLSCheckpoint)
             XCTAssertEqual(fixture.scheduler.finishes.map(\.success), [false])
             let paths = fixture.requestedPaths
