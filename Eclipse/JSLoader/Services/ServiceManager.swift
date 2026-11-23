@@ -2018,6 +2018,7 @@ class ServiceManager: ObservableObject {
         guard !Task.isCancelled else { return }
         await MainActor.run { onComplete() }
     }
+#endif
 
     func searchSingleActiveService(service: Service, query: String, timeoutNanoseconds: UInt64 = 20_000_000_000) async -> [SearchItem] {
         return await withTimeout(nanoseconds: timeoutNanoseconds) {
