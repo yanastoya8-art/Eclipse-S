@@ -6794,16 +6794,24 @@ final class DownloadManager: NSObject, ObservableObject {
             guard let self = self else { return }
 
             DispatchQueue.main.async {
-                guard self.activeHLSAttemptIDs[item.id] == attemptID else { return }
 #if os(iOS) && !targetEnvironment(macCatalyst)
-                if let backgroundAttempt = self.hlsBackgroundAttempts[item.id], backgroundAttempt.attemptID == attemptID {
+                let ownsBackgroundAttempt = self.hlsBackgroundAttempts[item.id]?.attemptID == attemptID
+                // A granted continued-processing worker may outlive its
+                // foreground registry entry. Its own attempt token remains
+                // valid and must still be allowed to publish completion.
+                guard self.activeHLSAttemptIDs[item.id] == attemptID || ownsBackgroundAttempt else { return }
+                if ownsBackgroundAttempt, let backgroundAttempt = self.hlsBackgroundAttempts[item.id] {
                     backgroundAttempt.mainFinished = true
                     if case .success = result { backgroundAttempt.succeeded = true }
                 }
                 defer { self.finishHLSBackgroundAttemptIfReady(id: item.id) }
+#else
+                guard self.activeHLSAttemptIDs[item.id] == attemptID else { return }
 #endif
                 self.activeHLSDownloaders.removeValue(forKey: item.id)
-                self.activeHLSAttemptIDs.removeValue(forKey: item.id)
+                if self.activeHLSAttemptIDs[item.id] == attemptID {
+                    self.activeHLSAttemptIDs.removeValue(forKey: item.id)
+                }
                 if self.invalidatedHLSAttemptIDs.remove(attemptID) != nil {
                     self.lastHLSCheckpointSave.removeValue(forKey: item.id)
                     self.processQueue()
