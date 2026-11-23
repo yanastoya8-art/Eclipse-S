@@ -1381,7 +1381,7 @@ final class AnimeScheduleProviderLanguagePolicyTests: XCTestCase {
                     originalLanguage: nil,
                     selectedLanguages: ["english"]
                 ) == true,
-                "\\(provider.rawValue) should provide its own English-dub evidence"
+                "\(provider.rawValue) should provide its own English-dub evidence"
             )
         }
     }
