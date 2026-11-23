@@ -1109,14 +1109,16 @@ actor SpanishDubAIResearchService {
         {"results":[{"mediaId":123,"episode":1,"date":"YYYY-MM-DD","region":"Latin American Spanish or Castilian Spanish","status":"confirmed","sources":["https://..."]}]}
         Include only confirmed future dates. Every result must have at least one source URL that directly supports the Spanish dub episode/date. Omit anything uncertain.
         """
-        let (url, body, authHeader, authValue) = try Self.requestParts(provider: provider, apiKey: apiKey, prompt: prompt)
-        var request = URLRequest(url: url)
+        let (_, body, _, _) = try Self.requestParts(provider: provider, apiKey: "", prompt: prompt)
+        guard let proxyURL = Self.proxyURL(for: provider) else {
+            throw AnimeScheduleError.unavailable
+        }
+        var request = URLRequest(url: proxyURL)
         request.httpMethod = "POST"
-        request.timeoutInterval = 18
+        request.timeoutInterval = 30
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue(authValue, forHTTPHeaderField: authHeader)
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["payload": body])
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw AnimeScheduleError.invalidResponse }
         guard (200..<300).contains(http.statusCode), data.count <= 2 * 1024 * 1024,
@@ -1216,19 +1218,23 @@ actor SpanishDubAIResearchService {
         }
     }
 
-    /// Optional local developer override only. Do not inject provider keys through CI or ship
-    /// them in a shared app bundle: resources in an iOS app can be extracted. Use a server-side
-    /// proxy before enabling this provider in a shared or release build.
+    /// Provider credentials stay on the proxy. The only value shipped in the app
+    /// is the public HTTPS base URL, which is not an API credential.
+    private static func proxyURL(for provider: SpanishDubAIProvider) -> URL? {
+        guard let raw = Bundle.main.object(forInfoDictionaryKey: "SpanishDubResearchProxyURL") as? String,
+              let value = raw.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty,
+              var components = URLComponents(string: value),
+              components.scheme?.lowercased() == "https",
+              let host = components.host, !host.isEmpty,
+              components.user == nil, components.password == nil,
+              components.query == nil, components.fragment == nil else { return nil }
+        let basePath = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        components.path = (basePath.isEmpty ? "" : "/" + basePath) + "/api/ai-research/" + provider.rawValue
+        return components.url
+    }
+
     private static func apiKey(for provider: SpanishDubAIProvider) -> String? {
-        let infoKey: String
-        switch provider {
-        case .gemini: infoKey = "GeminiAPIKey"
-        case .openAI: infoKey = "OpenAIAPIKey"
-        }
-        let value = (Bundle.main.object(forInfoDictionaryKey: infoKey) as? String)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let value, !value.isEmpty, !value.contains("$(") else { return nil }
-        return value
+        proxyURL(for: provider) == nil ? nil : "server-proxy"
     }
 
     private static func cacheKey(for entry: AniListAiringScheduleEntry) -> String {
