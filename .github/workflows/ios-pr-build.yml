@@ -102,6 +102,7 @@ jobs:
           MAL_CLIENT_ID: ${{ secrets.MAL_CLIENT_ID }}
           MAL_CLIENT_SECRET: ${{ secrets.MAL_CLIENT_SECRET }}
           MAL_REDIRECT_URI: ${{ secrets.MAL_REDIRECT_URI }}
+          SPANISH_DUB_RESEARCH_PROXY_URL: ${{ vars.SPANISH_DUB_RESEARCH_PROXY_URL || 'https://eclipse-spanish-dub-research.vercel.app' }}
         run: |
           set -euo pipefail
           # Home's built-in movie/TV catalogs require the public TMDB v3 API key.
@@ -124,6 +125,13 @@ jobs:
             printf 'MAL_CLIENT_SECRET = %s\n' "${MAL_CLIENT_SECRET:-}"
             printf 'MAL_REDIRECT_URI = %s\n' "${MAL_REDIRECT_URI:-}"
           } > Build.local.xcconfig
+          # Xcode .xcconfig treats // as a comment. Insert an empty build
+          # variable after the scheme so the final Info.plist receives https://.
+          python3 - <<'PY' >> Build.local.xcconfig
+          import os
+          proxy_url = os.environ.get("SPANISH_DUB_RESEARCH_PROXY_URL", "").strip()
+          print("SPANISH_DUB_RESEARCH_PROXY_URL = " + proxy_url.replace("://", ":/$()/"))
+          PY
 
       - name: Parse all iOS app and test Swift sources
         run: |

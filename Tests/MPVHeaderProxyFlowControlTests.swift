@@ -611,7 +611,11 @@ final class MPVHeaderProxyFlowControlTests: XCTestCase {
     }
 
     func testUpstreamFailureDrainsAcceptedBytesBeforeClosingPausedReader() throws {
-        let prefixBytes = 6 * 1_024 * 1_024
+        // Keep the truncation boundary inside the flow-control window. A
+        // paused downstream intentionally suspends upstream after its bounded
+        // pending-byte budget; a 6 MiB prefix can therefore never fail upstream
+        // until the reader resumes.
+        let prefixBytes = 256 * 1_024
         let (server, proxy, url, capture) = try makeFixture(pinned: false, body: .media,
             bytes: 32 * 1_024 * 1_024, truncatedAfterBytes: prefixBytes)
         defer { proxy.invalidateSession(for: url); proxy.shutdownForTesting(); server.stop() }
@@ -621,9 +625,15 @@ final class MPVHeaderProxyFlowControlTests: XCTestCase {
         defer { client.cancel() }
         try client.start(url: url)
         wait(for: [headers], timeout: 10)
-        let paused = expectation(description: "Upstream truncates while the reader remains paused")
-        DispatchQueue.global().asyncAfter(deadline: .now() + 3) { paused.fulfill() }
-        wait(for: [paused], timeout: 5)
+        // Wait for the upstream failure itself, not an arbitrary delay. The
+        // loopback fixture can deliver the accepted prefix at different speeds
+        // on hosted simulators; resuming early races the truncation boundary.
+        let failureDeadline = Date().addingTimeInterval(15)
+        while (proxy.upstreamHealth(for: url)?.failureCount ?? 0) == 0,
+              Date() < failureDeadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+        }
+        XCTAssertGreaterThan(proxy.upstreamHealth(for: url)?.failureCount ?? 0, 0)
         XCTAssertFalse(try XCTUnwrap(capture.all.first).snapshot.closed)
         client.resume()
         wait(for: [completed], timeout: 20)

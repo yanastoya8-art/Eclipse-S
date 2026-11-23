@@ -1884,7 +1884,21 @@ class ServiceManager: ObservableObject {
     }
 
     var activeServices: [Service] {
-        mediaServices.filter(isServiceEnabled)
+        // Mangayomi sources must be searched before remote add-ons/providers.
+        // Keep the user's configured order within each group so this priority
+        // does not reshuffle their preferred ordering.
+        mediaServices
+            .filter(isServiceEnabled)
+            .enumerated()
+            .sorted { lhs, rhs in
+                let lhsIsMangayomi = lhs.element.mangayomiSource != nil
+                let rhsIsMangayomi = rhs.element.mangayomiSource != nil
+                if lhsIsMangayomi != rhsIsMangayomi {
+                    return lhsIsMangayomi
+                }
+                return lhs.offset < rhs.offset
+            }
+            .map { $0.element }
     }
 
     func searchInActiveServices(query: String) async -> [(service: Service, results: [SearchItem])] {
@@ -1969,23 +1983,35 @@ class ServiceManager: ObservableObject {
             return
         }
 
-        await withTaskGroup(of: (Service, [SearchItem]?).self) { group in
-            for service in services where !Task.isCancelled {
-                group.addTask {
-                    let timeoutSeconds: UInt64 = 20_000_000_000
-                    return await self.withTimeout(nanoseconds: timeoutSeconds) {
-                        let found = await self.searchInService(service: service, query: query)
-                        return (service, found)
-                    } ?? (service, [])
-                }
-            }
+        // Run Mangayomi sources as a complete first phase. A single task group
+        // containing every service would launch them concurrently, so merely
+        // sorting the input array would not guarantee that Mangayomi results
+        // arrive before the other extension/add-on results.
+        let priorityGroups = [
+            services.filter { $0.mangayomiSource != nil },
+            services.filter { $0.mangayomiSource == nil }
+        ]
 
-            for await (service, results) in group {
-                guard !Task.isCancelled else {
-                    group.cancelAll()
-                    break
+        for groupServices in priorityGroups where !groupServices.isEmpty {
+            guard !Task.isCancelled else { return }
+            await withTaskGroup(of: (Service, [SearchItem]?).self) { group in
+                for service in groupServices where !Task.isCancelled {
+                    group.addTask {
+                        let timeoutSeconds: UInt64 = 20_000_000_000
+                        return await self.withTimeout(nanoseconds: timeoutSeconds) {
+                            let found = await self.searchInService(service: service, query: query)
+                            return (service, found)
+                        } ?? (service, [])
+                    }
                 }
-                await MainActor.run { onResult(service, results) }
+
+                for await (service, results) in group {
+                    guard !Task.isCancelled else {
+                        group.cancelAll()
+                        break
+                    }
+                    await MainActor.run { onResult(service, results) }
+                }
             }
         }
 

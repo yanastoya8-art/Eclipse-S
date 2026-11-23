@@ -25,6 +25,7 @@ ANILIST_CLIENT_SECRET =
 ANILIST_REDIRECT_URI = luna:/$()/anilist-callback
 ANIMESCHEDULE_API_TOKEN =
 DUBSONLY_API_KEY =
+SPANISH_DUB_RESEARCH_PROXY_URL = https:/$()/eclipse-spanish-dub-research.vercel.app
 
 // Expose repository/local secrets through generated Info.plist so
 // Bundle.main.object(forInfoDictionaryKey:) can resolve them at runtime.
@@ -32,6 +33,7 @@ INFOPLIST_KEY_TMDBAPIKey = $(TMDB_API_KEY)
 INFOPLIST_KEY_FanartTVAPIKey = $(FANART_TV_API_KEY)
 INFOPLIST_KEY_AnimeScheduleAPIToken = $(ANIMESCHEDULE_API_TOKEN)
 INFOPLIST_KEY_DubsOnlyAPIKey = $(DUBSONLY_API_KEY)
+INFOPLIST_KEY_SpanishDubResearchProxyURL = $(SPANISH_DUB_RESEARCH_PROXY_URL)
 TRAKT_CLIENT_ID =
 TRAKT_CLIENT_SECRET =
 TRAKT_REDIRECT_URI = luna:/$()/trakt-callback

@@ -458,14 +458,17 @@ final class NuvioBoundaryHardeningTests: XCTestCase {
             URL(string: "https://media.example/video")!,
             URL(string: "https://media.example:444/subtitle")!
         ))
-        XCTAssertTrue(ProviderPlaybackTransportPolicy.mayAttemptExternalHandoff(
+        // Eclipse intentionally keeps manually selected and Auto Mode provider
+        // streams inside its own player. A resolved in-app consumer must never
+        // be bypassed by launching an external application.
+        XCTAssertFalse(ProviderPlaybackTransportPolicy.mayAttemptExternalHandoff(
             autoModeLaunch: false,
             hasResolvedRequestConsumer: false
         ))
-        XCTAssertTrue(ProviderPlaybackTransportPolicy.mayAttemptExternalHandoff(
+        XCTAssertFalse(ProviderPlaybackTransportPolicy.mayAttemptExternalHandoff(
             autoModeLaunch: false,
             hasResolvedRequestConsumer: true
-        ), "A manual source selection must hand off the validated original URL before it becomes a loopback proxy request")
+        ))
         XCTAssertFalse(ProviderPlaybackTransportPolicy.mayAttemptExternalHandoff(
             autoModeLaunch: true,
             hasResolvedRequestConsumer: false

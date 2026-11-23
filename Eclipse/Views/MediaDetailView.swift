@@ -428,6 +428,7 @@ struct MediaDetailContentView: View {
     private let trackerPlaybackIntent: TrackerLibraryPlaybackIntent?
 
     @StateObject private var tmdbService = TMDBService.shared
+    @StateObject private var tmdbMaturityRatingStore = TMDBMaturityRatingStore.shared
     @StateObject private var trackerManager = TrackerManager.shared
     @State private var movieDetail: TMDBMovieDetail?
     @State private var tvShowDetail: TMDBTVShowWithSeasons?
@@ -1227,6 +1228,14 @@ struct MediaDetailContentView: View {
         .onAppear { detailViewportSize = fullBleedViewportSize(for: geometry) }
         .task(id: exactAnimeNavigationSeedAniListId) {
             await loadAnimeAgeCertificationIfNeeded()
+        }
+        .task(id: searchResult.stableIdentity) {
+            // Resolve the regional TMDB certification independently of the
+            // larger detail payload. Browse often warmed this cache already;
+            // otherwise the rating appears as soon as the lookup completes.
+            await tmdbMaturityRatingStore.resolve([
+                (isMovie: searchResult.isMovie, id: searchResult.id)
+            ])
         }
         .onChangeComp(of: isAnimeShow) { _, isAnime in
             guard isAnime else {
@@ -3252,14 +3261,26 @@ struct MediaDetailContentView: View {
 
     private var detailAgeRating: String? {
         if usesAnimeSpecificAgeRating {
-            guard let animeAgeCertification else { return nil }
+            guard let animeAgeCertification else {
+                // Keep the age field visible after the detail payload is ready,
+                // even when AniList/MAL rating metadata has no match. The chip
+                // updates automatically if the independent lookup later succeeds.
+                return hasLoadedContent ? "Not rated" : nil
+            }
             return "Anime · \(animeAgeCertification.ageBand)"
         }
 
+        // Observe the store revision so a rating fetched independently of the
+        // detail request updates this chip without requiring the page to reopen.
+        let _ = tmdbMaturityRatingStore.revision
         let certification = searchResult.isMovie
             ? movieDetail?.releaseDates?.preferredCertification
             : tvShowDetail?.contentRatings?.preferredCertification
-        return certification?.displayValue
+        if let certification { return certification.displayValue }
+        if let rating = tmdbMaturityRatingStore.rating(isMovie: searchResult.isMovie, id: searchResult.id) {
+            return rating == .unknown ? "Not rated" : rating.ageBand
+        }
+        return hasLoadedContent ? "Not rated" : nil
     }
 
     @MainActor
@@ -7400,12 +7421,22 @@ struct MediaDetailContentView: View {
                 mediaType: isMovie ? "movie" : "tv",
                 id: id
             )
+            // Browse prefetches the title-logo cache while cards are loading.
+            // Publish that cached artwork immediately instead of waiting for the
+            // slower credits, romaji, and TMDB image requests to all finish.
+            let preloadedLogoURL = await preloadedLogoResult
+            guard !Task.isCancelled, isDetailVisible, optionalPresentationGeneration == generation,
+                  searchResult.stableIdentity == identity, selectedLanguage == language else { return }
+            if let preloadedLogoURL {
+                logoURL = preloadedLogoURL
+                titleArtworkLookupComplete = true
+            }
+
             let romaji = await romajiResult
             let credits = await creditsResult
             let titleImages = await titleImagesResult
             let spanishTitleImages = await spanishTitleImagesResult
             let fanartLogoURL = await fanartLogoResult
-            let preloadedLogoURL = await preloadedLogoResult
             let rankedLogos = ((titleImages?.logos ?? []) + (spanishTitleImages?.logos ?? [])).sorted { lhs, rhs in
                 func languageRank(_ value: String?) -> Int {
                     switch value?.lowercased() {
