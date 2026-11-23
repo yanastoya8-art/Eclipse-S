@@ -132,10 +132,9 @@ struct StretchyHeaderView: View {
             let deltaY = frame.minY
             let artworkWidth = max(geometry.size.width, EclipseViewport.bounds.width)
             let height = headerHeight + max(0, deltaY)
-            // Match Home's hero behavior: stretch only during top overscroll,
-            // and never translate the banner down as the user scrolls back up.
-            // The previous detail-only -deltaY offset moved the artwork with the
-            // scroll content and exposed an empty strip above the hero.
+            // Keep the top edge anchored while the hero stretches during
+            // overscroll. During ordinary upward scrolling deltaY is negative,
+            // so this remains zero and the hero travels naturally with content.
             let offsetY = min(0, -deltaY)
             let offsetX = scrollCoordinateSpaceName == nil ? 0 : -frame.minX
 
