@@ -7400,12 +7400,22 @@ struct MediaDetailContentView: View {
                 mediaType: isMovie ? "movie" : "tv",
                 id: id
             )
+            // Browse prefetches the title-logo cache while cards are loading.
+            // Publish that cached artwork immediately instead of waiting for the
+            // slower credits, romaji, and TMDB image requests to all finish.
+            let preloadedLogoURL = await preloadedLogoResult
+            guard !Task.isCancelled, isDetailVisible, optionalPresentationGeneration == generation,
+                  searchResult.stableIdentity == identity, selectedLanguage == language else { return }
+            if let preloadedLogoURL {
+                logoURL = preloadedLogoURL
+                titleArtworkLookupComplete = true
+            }
+
             let romaji = await romajiResult
             let credits = await creditsResult
             let titleImages = await titleImagesResult
             let spanishTitleImages = await spanishTitleImagesResult
             let fanartLogoURL = await fanartLogoResult
-            let preloadedLogoURL = await preloadedLogoResult
             let rankedLogos = ((titleImages?.logos ?? []) + (spanishTitleImages?.logos ?? [])).sorted { lhs, rhs in
                 func languageRank(_ value: String?) -> Int {
                     switch value?.lowercased() {
