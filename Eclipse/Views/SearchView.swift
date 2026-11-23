@@ -1338,6 +1338,10 @@ private struct BrowseGenre: Identifiable, Hashable {
     static let animeGenres: [BrowseGenre] = [
         BrowseGenre(id: 10759, name: "Action & Adventure"),
         BrowseGenre(id: 35, name: "Comedy"),
+        // Keep Documentary available for exclusion as well as inclusion:
+        // anime documentaries are valid catalogue entries, but users must be
+        // able to exclude them without switching to the general TV filter set.
+        BrowseGenre(id: 99, name: "Documentary"),
         BrowseGenre(id: 18, name: "Drama"),
         BrowseGenre(id: 10751, name: "Family"),
         BrowseGenre(id: 10762, name: "Kids"),
@@ -1398,8 +1402,9 @@ private struct BrowseCountry: Identifiable, Hashable {
 
 private struct BrowseMediaView: View {
     // Filter-heavy anime queries can reject most results on each TMDB page.
-    // Keep searching automatically for a useful first batch; the grid sentinel
-    // continues pagination as the user scrolls.
+    // Search further automatically only when a page produces no visible match;
+    // once a small result set is available, keep it stable and offer a manual
+    // next-page action instead of leaving a spinner running continuously.
     private static let maximumAutomaticFilteredPages = 30
 
     @AppStorage("mediaColumnsPortrait") private var mediaColumnsPortrait: Int = 3
