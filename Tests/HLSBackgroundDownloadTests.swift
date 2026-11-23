@@ -337,7 +337,7 @@ final class HLSBackgroundDownloadTests: XCTestCase {
         try? FileManager.default.removeItem(at: root)
     }
 
-    func testBackgroundingProtectedItemWithoutGrantKeepsExistingSuspensionBoundary() async throws {
+    func testBackgroundingDoesNotImmediatelyQueueProtectedDownloadWithoutGrant() async throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         var item = recoveryItem(id: "protected-pending", reservation: "protected.ts")
@@ -353,9 +353,9 @@ final class HLSBackgroundDownloadTests: XCTestCase {
         manager.configureHLSBackgroundForTesting(scheduler: scheduler, enabled: { true }, applicationIsActive: { false },
             sessionConfiguration: .ephemeral)
         manager.applicationDidEnterBackground()
-        let suspended = try XCTUnwrap(manager.downloads.first)
-        XCTAssertNotEqual(suspended.status, .downloading)
-        XCTAssertEqual(suspended.streamURL, "")
+        let backgrounded = try XCTUnwrap(manager.downloads.first)
+        XCTAssertEqual(backgrounded.status, .downloading)
+        XCTAssertFalse(backgrounded.streamURL.isEmpty)
         XCTAssertTrue(scheduler.requests.isEmpty)
         manager.finishIsolatedSession()
         await manager.drainIsolatedHLSWorkers()
