@@ -71,7 +71,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return json(res, 429, { error: "rate_limited" });
   }
 
-  const provider = req.query.provider;
+  const providerValue = req.query.provider;
+  const provider = Array.isArray(providerValue) ? providerValue[0] : providerValue;
   if (provider !== "gemini" && provider !== "openAI") {
     return json(res, 404, { error: "provider_not_found" });
   }
