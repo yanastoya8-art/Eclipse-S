@@ -1884,7 +1884,21 @@ class ServiceManager: ObservableObject {
     }
 
     var activeServices: [Service] {
-        mediaServices.filter(isServiceEnabled)
+        // Mangayomi sources must be searched before remote add-ons/providers.
+        // Keep the user's configured order within each group so this priority
+        // does not reshuffle their preferred ordering.
+        mediaServices
+            .filter(isServiceEnabled)
+            .enumerated()
+            .sorted { lhs, rhs in
+                let lhsIsMangayomi = lhs.element.mangayomiSource != nil
+                let rhsIsMangayomi = rhs.element.mangayomiSource != nil
+                if lhsIsMangayomi != rhsIsMangayomi {
+                    return lhsIsMangayomi
+                }
+                return lhs.offset < rhs.offset
+            }
+            .map(\.element)
     }
 
     func searchInActiveServices(query: String) async -> [(service: Service, results: [SearchItem])] {
