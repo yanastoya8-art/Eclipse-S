@@ -1413,10 +1413,20 @@ final class ScheduleViewModel: ObservableObject {
     }
 
     private func tmdbUpcomingMovieEntries(in window: DateInterval) async throws -> [ScheduleEntry] {
+        // The TMDB upcoming endpoint is paginated. Two pages were not enough
+        // to cover the selected calendar window when many releases were listed
+        // ahead of it, leaving later eligible movies missing from Schedule.
         async let firstPage = TMDBService.shared.getUpcomingMovies(page: 1)
         async let secondPage = TMDBService.shared.getUpcomingMovies(page: 2)
-        let (pageOne, pageTwo) = try await (firstPage, secondPage)
-        let movies = pageOne + pageTwo
+        async let thirdPage = TMDBService.shared.getUpcomingMovies(page: 3)
+        async let fourthPage = TMDBService.shared.getUpcomingMovies(page: 4)
+        async let fifthPage = TMDBService.shared.getUpcomingMovies(page: 5)
+        let (pageOne, pageTwo, pageThree, pageFour, pageFive) = try await (
+            firstPage, secondPage, thirdPage, fourthPage, fifthPage
+        )
+        var seenMovieIDs = Set<Int>()
+        let movies = (pageOne + pageTwo + pageThree + pageFour + pageFive)
+            .filter { seenMovieIDs.insert($0.id).inserted }
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
