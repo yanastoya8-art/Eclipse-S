@@ -79,7 +79,7 @@ final class MangayomiMediaRuntimeTests: XCTestCase {
             ["url": "../hls/master.m3u8", "quality": "1080p"]
         ])
         let parsed = try MangayomiMediaAdapter.streamExtraction(
-            data, key: key, baseURL: "https://anime.fixture.invalid/"
+            data, key: key, baseURL: key.value
         )
         XCTAssertEqual(
             parsed.sources?.first?["streamUrl"] as? String,
