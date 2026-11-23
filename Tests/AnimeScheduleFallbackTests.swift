@@ -387,8 +387,10 @@ final class AnimeScheduleFallbackTests: XCTestCase {
         async let firstData = Self.fetchFixture(from: url, using: firstSession)
         async let secondData = Self.fetchFixture(from: url, using: secondSession)
 
-        XCTAssertEqual(String(decoding: try await firstData, as: UTF8.self), "first")
-        XCTAssertEqual(String(decoding: try await secondData, as: UTF8.self), "second")
+        let resolvedFirstData = try await firstData
+        let resolvedSecondData = try await secondData
+        XCTAssertEqual(String(decoding: resolvedFirstData, as: UTF8.self), "first")
+        XCTAssertEqual(String(decoding: resolvedSecondData, as: UTF8.self), "second")
         XCTAssertEqual(AnimeScheduleURLProtocol.count(for: firstID), 1)
         XCTAssertEqual(AnimeScheduleURLProtocol.count(for: secondID), 1)
     }
