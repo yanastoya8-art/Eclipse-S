@@ -13,6 +13,17 @@ import Photos
 import UIKit
 #endif
 
+private extension View {
+    @ViewBuilder
+    func mediaDetailNoBounce() -> some View {
+        if #available(iOS 16.4, *) {
+            self.mediaDetailNoBounce()
+        } else {
+            self
+        }
+    }
+}
+
 struct MediaDetailInitialNotificationSelection: Equatable {
     enum Kind: Equatable {
         case episode
