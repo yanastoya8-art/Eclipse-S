@@ -26,6 +26,10 @@
 	<string>$(ANIMESCHEDULE_API_TOKEN)</string>
 	<key>DubsOnlyAPIKey</key>
 	<string>$(DUBSONLY_API_KEY)</string>
+	<key>GeminiAPIKey</key>
+	<string>$(GEMINI_API_KEY)</string>
+	<key>OpenAIAPIKey</key>
+	<string>$(OPENAI_API_KEY)</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
