@@ -2275,10 +2275,7 @@ struct HomeView: View {
                 limit: limit
             )
             let rawResults = fetchedResults.map { $0.withAnimeHint(true) }
-            await contentFilter.resolveBrowseFilterMetadata(
-                for: rawResults,
-                requiresAnimeAgeRating: true
-            )
+            await contentFilter.resolveBrowseFilterMetadata(for: rawResults)
             let results = await contentFilter.filterFastAnimeSearchResultsResolvingRatings(rawResults)
             return Array(results.dropFirst(offset))
         } catch {
