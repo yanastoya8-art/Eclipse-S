@@ -8220,15 +8220,12 @@ final class DownloadManager: NSObject, ObservableObject {
         }
 
         saveDownloads()
-#if os(iOS) && !targetEnvironment(macCatalyst)
-        // If iOS has exhausted the background execution allowance, keep the
-        // item queued with its durable checkpoint and resume automatically on
-        // the next foreground activation. Repeatedly starting new workers while
-        // the app is suspended cannot extend the OS execution budget.
-        if hlsApplicationIsActive { processQueue() }
-#else
+        // Re-admit the item immediately. iOS HLS workers now always use a
+        // durable segment checkpoint, so another available background-time
+        // window continues from the last completed segment rather than byte zero.
+        // If iOS suspends the process, the queued item is also picked up by the
+        // normal foreground queue restoration path.
         processQueue()
-#endif
     }
 
     private func scheduleRateLimitedDownloadRetry(id: String, retryAfterSeconds: TimeInterval?) {
