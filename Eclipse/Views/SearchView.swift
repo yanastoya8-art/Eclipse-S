@@ -1094,7 +1094,7 @@ enum BrowseAgeRating: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-private enum BrowseAnimeClassifier {
+enum BrowseAnimeClassifier {
     private static let originCountries: Set<String> = ["JP", "CN", "KR", "TW"]
     private static let originalLanguages: Set<String> = ["ja", "zh", "ko"]
 
