@@ -6272,6 +6272,13 @@ final class DownloadManager: NSObject, ObservableObject {
     }
 
     private func startDownload(_ item: DownloadItem) {
+#if os(iOS)
+        if #available(iOS 16.2, *) {
+            Task { @MainActor in
+                DownloadLiveActivityController.prepare(downloadID: item.id)
+            }
+        }
+#endif
         #if os(macOS)
         guard !admissionsStopped, !storageMutationInProgress else { return }
         if item.pendingMacFinalization != nil {
