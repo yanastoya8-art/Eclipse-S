@@ -7310,6 +7310,22 @@ struct ModulesSearchResultsSheet: View {
         let episode = streamLookupEpisodeNumber
 
         Task {
+            // Do not start add-on requests until every installed Mangayomi
+            // source has returned its first result. This guarantees the local
+            // Mangayomi extensions get first chance at the selected episode.
+            let mangayomiServiceIDs = Set(
+                serviceManager.activeServices
+                    .filter { $0.mangayomiSource != nil }
+                    .map(\.id)
+            )
+            let mangayomiDeadline = Date().addingTimeInterval(15)
+            while !mangayomiServiceIDs.isSubset(of: viewModel.searchedServices),
+                  Date() < mangayomiDeadline {
+                guard isCurrentManualSearchGeneration(searchGeneration), !Task.isCancelled else { return }
+                try? await Task.sleep(nanoseconds: 50_000_000)
+            }
+            guard isCurrentManualSearchGeneration(searchGeneration), !Task.isCancelled else { return }
+
             await stremioManager.fetchStreamsFromAddons(
                 tmdbId: tmdbId,
                 imdbId: imdbId,
