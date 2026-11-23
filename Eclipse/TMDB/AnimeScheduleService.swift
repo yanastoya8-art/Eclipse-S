@@ -1224,13 +1224,18 @@ actor SpanishDubAIResearchService {
 
     /// Provider credentials stay on the proxy. The only value shipped in the app
     /// is the public HTTPS base URL, which is not an API credential.
+    /// Fall back to the deployed public proxy when a local Xcode configuration
+    /// omits the optional Info.plist override. Server-side Gemini/OpenAI keys are
+    /// never read by the app.
     private static func proxyURL(for provider: SpanishDubAIProvider) -> URL? {
-        guard let raw = Bundle.main.object(forInfoDictionaryKey: "SpanishDubResearchProxyURL") as? String else {
-            return nil
+        let configured = (Bundle.main.object(forInfoDictionaryKey: "SpanishDubResearchProxyURL") as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let value = if let configured, !configured.isEmpty, !configured.contains("$(") {
+            configured
+        } else {
+            "https://eclipse-spanish-dub-research.vercel.app"
         }
-        let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !value.isEmpty,
-              var components = URLComponents(string: value),
+        guard var components = URLComponents(string: value),
               components.scheme?.lowercased() == "https",
               let host = components.host, !host.isEmpty,
               components.user == nil, components.password == nil,
