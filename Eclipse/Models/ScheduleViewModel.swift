@@ -1096,10 +1096,19 @@ final class ScheduleViewModel: ObservableObject {
 
     @MainActor
     private func animeEntries(dayCount: Int, forceRefresh: Bool) async throws -> AnimeScheduleLoadResult {
-        // Verified timetable/native-language rows do not depend on MyDubList.
-        // Never block a cached calendar or healthy independent providers on an
-        // unrelated title index. Unverified rows still fail the language filter.
-        _ = MyDubListDubFilter.shared.prepareCachedSnapshot()
+        // Dubbed schedule rows are only safe to publish after the selected
+        // language index has been loaded. Previously a cold cache was ignored:
+        // every provider row then failed the strict MyDubList predicate and the
+        // empty result was cached as if the schedule had loaded successfully.
+        let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
+        if !selectedDubLanguages.isEmpty,
+           !MyDubListDubFilter.shared.prepareCachedSnapshot() {
+            let refreshed = await MyDubListDubFilter.shared.refresh()
+            try Task.checkCancellation()
+            guard refreshed || MyDubListDubFilter.shared.prepareCachedSnapshot() else {
+                throw ScheduleSourceLoadError.languageMetadataUnavailable
+            }
+        }
         let policyKey = currentAnimeSchedulePolicyKey()
         if animeScheduleLoadTask != nil, animeScheduleLoadPolicyKey != policyKey {
             // A language-filter change invalidates an in-flight request too;
