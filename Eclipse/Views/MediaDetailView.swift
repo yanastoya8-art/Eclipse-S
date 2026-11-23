@@ -542,6 +542,8 @@ struct MediaDetailContentView: View {
     private var heroSynopsisVerticalOffset = MediaDetailHeroContentPositionSettings.defaultOffset
     @AppStorage(LandscapeMediaDetailAppearanceSettings.logoPositionKey)
     private var landscapeTitleLogoVerticalPosition = LandscapeMediaDetailAppearanceSettings.defaultLogoPosition
+    @AppStorage(LandscapeMediaDetailAppearanceSettings.logoHorizontalPositionKey)
+    private var landscapeTitleLogoHorizontalPosition = LandscapeMediaDetailAppearanceSettings.defaultLogoHorizontalPosition
     @AppStorage(LandscapeMediaDetailAppearanceSettings.logoSizeKey)
     private var landscapeTitleLogoSize = LandscapeMediaDetailAppearanceSettings.defaultLogoSize
     @AppStorage(LandscapeMediaDetailAppearanceSettings.logoWeightKey)
@@ -563,6 +565,9 @@ struct MediaDetailContentView: View {
 
     private var activeTitleLogoPosition: Double {
         usesLandscapeDetailComposition ? landscapeTitleLogoVerticalPosition : titleLogoVerticalPosition
+    }
+    private var activeTitleLogoHorizontalPosition: Double {
+        usesLandscapeDetailComposition ? landscapeTitleLogoHorizontalPosition : 0
     }
     private var activeTitleLogoSize: Double {
         usesLandscapeDetailComposition ? landscapeTitleLogoSize : detailTitleLogoSize
@@ -2534,7 +2539,7 @@ struct MediaDetailContentView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             .padding(.horizontal, 28)
-            .offset(y: bannerHeight * CGFloat(activeTitleLogoPosition - 0.5))
+            .offset(x: bannerWidth * CGFloat(activeTitleLogoHorizontalPosition), y: bannerHeight * CGFloat(activeTitleLogoPosition - 0.5))
         }
         .frame(width: bannerWidth, height: bannerHeight)
         .clipped()
@@ -2859,7 +2864,7 @@ struct MediaDetailContentView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 // The position is user-adjustable in Appearance → Detail Pages.
-                .offset(y: headerHeight * CGFloat(activeTitleLogoPosition - 0.5))
+                .offset(x: detailViewportWidth * CGFloat(activeTitleLogoHorizontalPosition), y: headerHeight * CGFloat(activeTitleLogoPosition - 0.5))
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
             }
