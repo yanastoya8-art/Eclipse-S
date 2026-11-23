@@ -268,6 +268,11 @@ final class AnimeScheduleFallbackTests: XCTestCase {
 
     private func session() -> URLSession {
         let config = URLSessionConfiguration.ephemeral
+        // These tests own their HTTP responses through URLProtocol. Disable the
+        // simulator's persistent URL cache so parallel simulator activity cannot
+        // replay or unarchive partial cached responses between isolated sessions.
+        config.urlCache = nil
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
         config.protocolClasses = [AnimeScheduleURLProtocol.self]
         return URLSession(configuration: config)
     }
