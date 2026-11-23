@@ -13,14 +13,54 @@ import Photos
 import UIKit
 #endif
 
+#if os(iOS)
+/// Disables the backing scroll view's rubber-band bounce for immersive media
+/// detail screens. SwiftUI's ScrollBounceBehavior has no `.never` case.
+private struct MediaDetailNoBounceConfigurator: UIViewRepresentable {
+    func makeUIView(context: Context) -> MediaDetailNoBounceView {
+        MediaDetailNoBounceView(frame: .zero)
+    }
+
+    func updateUIView(_ uiView: MediaDetailNoBounceView, context: Context) {}
+}
+
+private final class MediaDetailNoBounceView: UIView {
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        disableAncestorScrollBounce()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        disableAncestorScrollBounce()
+    }
+
+    private func disableAncestorScrollBounce() {
+        var ancestor = superview
+        while let view = ancestor {
+            if let scrollView = view as? UIScrollView {
+                scrollView.bounces = false
+                scrollView.alwaysBounceVertical = false
+                scrollView.alwaysBounceHorizontal = false
+                return
+            }
+            ancestor = view.superview
+        }
+    }
+}
+#endif
+
 private extension View {
     @ViewBuilder
     func mediaDetailNoBounce() -> some View {
-        if #available(iOS 16.4, tvOS 16.4, *) {
-            self.scrollBounceBehavior(.never)
-        } else {
-            self
-        }
+        #if os(iOS)
+        self.background(
+            MediaDetailNoBounceConfigurator()
+                .frame(width: 0, height: 0)
+        )
+        #else
+        self
+        #endif
     }
 }
 
