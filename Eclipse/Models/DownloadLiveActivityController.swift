@@ -36,7 +36,7 @@ enum DownloadLiveActivityController {
         // A late progress callback must never recreate an activity after the
         // corresponding download has been removed or cancelled.
         guard !endedDownloadIDs.contains(downloadID) else { return }
-        let generation = generation(for: downloadID)
+        let capturedGeneration = generation(for: downloadID)
         let boundedProgress = min(max(progress, 0), 1)
         let state = DownloadActivityAttributes.ContentState(
             progress: boundedProgress,
@@ -47,31 +47,31 @@ enum DownloadLiveActivityController {
         let content = ActivityContent(state: state, staleDate: Date().addingTimeInterval(15 * 60))
         if let activity = activity(for: downloadID) {
             await activity.update(content)
-            guard generation(for: downloadID) == generation,
+            guard generation(for: downloadID) == capturedGeneration,
                   !endedDownloadIDs.contains(downloadID) else { return }
             return
         }
         guard ActivityAuthorizationInfo().areActivitiesEnabled,
               startingDownloadGenerations[downloadID] == nil else { return }
-        startingDownloadGenerations[downloadID] = generation
+        startingDownloadGenerations[downloadID] = capturedGeneration
         defer {
-            if startingDownloadGenerations[downloadID] == generation {
+            if startingDownloadGenerations[downloadID] == capturedGeneration {
                 startingDownloadGenerations.removeValue(forKey: downloadID)
             }
         }
         // A previous request may have completed while this update was queued.
-        guard generation(for: downloadID) == generation,
+        guard generation(for: downloadID) == capturedGeneration,
               !endedDownloadIDs.contains(downloadID) else { return }
         if let activity = activity(for: downloadID) {
             await activity.update(content)
-            guard generation(for: downloadID) == generation,
+            guard generation(for: downloadID) == capturedGeneration,
                   !endedDownloadIDs.contains(downloadID) else { return }
             return
         }
         let attributes = DownloadActivityAttributes(downloadID: downloadID, title: String(title.prefix(100)))
         do {
             _ = try Activity.request(attributes: attributes, content: content, pushType: nil)
-            guard generation(for: downloadID) == generation,
+            guard generation(for: downloadID) == capturedGeneration,
                   !endedDownloadIDs.contains(downloadID) else {
                 if let staleActivity = activity(for: downloadID) {
                     await staleActivity.end(nil, dismissalPolicy: .immediate)
