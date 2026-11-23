@@ -211,11 +211,14 @@ final class HLSBackgroundDownloadTests: XCTestCase {
             let paths = fixture.requestedPaths
             fixture.foreground = true
             fixture.manager.applicationDidBecomeActive()
-            try await eventually { fixture.item.status == .downloading && fixture.scheduler.requests.count >= 2 }
+            try await eventually {
+                fixture.item.status == .downloading
+                    && fixture.scheduler.requests.count >= 2
+                    && fixture.requestedPaths.count > paths.count
+            }
             await fixture.manager.drainIsolatedPersistence()
             XCTAssertEqual(fixture.item.status, .downloading)
             XCTAssertTrue(fixture.item.hasVerifiedHLSCheckpoint)
-            XCTAssertGreaterThan(fixture.requestedPaths.count, paths.count)
             XCTAssertGreaterThanOrEqual(fixture.scheduler.requests.count, 2)
         } catch {
             await fixture.cleanUp()
