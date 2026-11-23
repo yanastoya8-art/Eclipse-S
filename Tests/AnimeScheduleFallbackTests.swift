@@ -697,6 +697,34 @@ final class AnimeScheduleFallbackTests: XCTestCase {
         XCTAssertFalse(String(decoding: try Data(contentsOf: cache), as: UTF8.self).contains("fixture-token"))
     }
 
+    func testMissingAnimeScheduleTokenFailsFastForIndependentDubProviders() async throws {
+        let testID = try stub()
+        let session = session(testID: testID)
+        defer {
+            session.invalidateAndCancel()
+            AnimeScheduleURLProtocol.remove(testID)
+        }
+
+        let service = AnimeScheduleService(
+            session: session,
+            token: "$(ANIMESCHEDULE_API_TOKEN)",
+            requestSpacing: 0
+        )
+        do {
+            _ = try await service.fetchSchedule(daysAhead: 7, now: now)
+            XCTFail("An unconfigured API token must allow independent keyless dub providers to take over.")
+        } catch let error as AnimeScheduleError {
+            if case .unconfigured = error {
+                // Expected: the fallback coordinator can now query Tsuzuki/SeaDub.
+            } else {
+                XCTFail("Expected an unconfigured-token error, got: \\(error)")
+            }
+        } catch {
+            XCTFail("Expected an unconfigured-token error, got: \\(error)")
+        }
+        XCTAssertEqual(AnimeScheduleURLProtocol.count(for: testID), 0)
+    }
+
     func testRecoveryKeepsCanonicalEpisodeIdentityDespiteProviderTitleChange() throws {
         let fallback = try XCTUnwrap(mapped().first)
         var primary = try XCTUnwrap(mapped(["english": "Different provider spelling"]).first)
