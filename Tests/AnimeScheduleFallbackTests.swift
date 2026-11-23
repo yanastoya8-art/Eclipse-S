@@ -355,6 +355,22 @@ final class AnimeScheduleFallbackTests: XCTestCase {
     }
 
 
+
+    private static func fetchFixture(from url: URL, using session: URLSession) async throws -> Data {
+        try await withCheckedThrowingContinuation { continuation in
+            let task = session.dataTask(with: url) { data, _, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if let data {
+                    continuation.resume(returning: data)
+                } else {
+                    continuation.resume(throwing: URLError(.badServerResponse))
+                }
+            }
+            task.resume()
+        }
+    }
+
     func testURLProtocolFixturesAreIsolatedAcrossSessions() async throws {
         let firstID = AnimeScheduleURLProtocol.configure { _ in (200, Data("first".utf8), ["Content-Type": "text/plain"]) }
         let secondID = AnimeScheduleURLProtocol.configure { _ in (200, Data("second".utf8), ["Content-Type": "text/plain"]) }
@@ -368,13 +384,11 @@ final class AnimeScheduleFallbackTests: XCTestCase {
         }
 
         let url = try XCTUnwrap(URL(string: "https://schedule.fixture.invalid/isolation"))
-        async let firstResponse = firstSession.data(from: url)
-        async let secondResponse = secondSession.data(from: url)
-        let (firstData, _) = try await firstResponse
-        let (secondData, _) = try await secondResponse
+        async let firstData = Self.fetchFixture(from: url, using: firstSession)
+        async let secondData = Self.fetchFixture(from: url, using: secondSession)
 
-        XCTAssertEqual(String(decoding: firstData, as: UTF8.self), "first")
-        XCTAssertEqual(String(decoding: secondData, as: UTF8.self), "second")
+        XCTAssertEqual(String(decoding: try await firstData, as: UTF8.self), "first")
+        XCTAssertEqual(String(decoding: try await secondData, as: UTF8.self), "second")
         XCTAssertEqual(AnimeScheduleURLProtocol.count(for: firstID), 1)
         XCTAssertEqual(AnimeScheduleURLProtocol.count(for: secondID), 1)
     }
