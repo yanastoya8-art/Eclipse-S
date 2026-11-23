@@ -110,7 +110,7 @@ final class MangayomiMediaRuntimeTests: XCTestCase {
         XCTAssertEqual(row["streamUrl"] as? String, "https://anime.fixture.invalid/watch/hls/master.m3u8")
         XCTAssertEqual(row["headers"] as? [String: String], ["Referer": "https://anime.fixture.invalid/"])
         let subtitle = try XCTUnwrap((row["subtitles"] as? [[String: Any]])?.first)
-        XCTAssertEqual(subtitle["url"] as? String, "https://anime.fixture.invalid/watch/season/subs/en.vtt")
+        XCTAssertEqual(subtitle["url"] as? String, "https://anime.fixture.invalid/watch/subs/en.vtt")
     }
 
     func testRuntimeCancellationBeforeInstallDeliversExactlyOnce() {
