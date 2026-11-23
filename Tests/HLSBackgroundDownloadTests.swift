@@ -195,7 +195,7 @@ final class HLSBackgroundDownloadTests: XCTestCase {
         await fixture.cleanUp()
     }
 
-    func testExpirationAfterBackgroundingPausesAndDoesNotRestartOnForegroundReturn() async throws {
+    func testExpirationAfterBackgroundingAutomaticallyResumesOnForegroundReturn() async throws {
         let fixture = try HLSBackgroundFixture(mode: .grant)
         do {
             try fixture.start()
@@ -211,10 +211,12 @@ final class HLSBackgroundDownloadTests: XCTestCase {
             let paths = fixture.requestedPaths
             fixture.foreground = true
             fixture.manager.applicationDidBecomeActive()
+            try await eventually { fixture.item.status == .downloading && fixture.scheduler.requests.count >= 2 }
             await fixture.manager.drainIsolatedPersistence()
-            XCTAssertEqual(fixture.item.status, .paused)
-            XCTAssertEqual(fixture.requestedPaths, paths)
-            XCTAssertEqual(fixture.scheduler.requests.count, 1)
+            XCTAssertEqual(fixture.item.status, .downloading)
+            XCTAssertTrue(fixture.item.hasVerifiedHLSCheckpoint)
+            XCTAssertGreaterThan(fixture.requestedPaths.count, paths.count)
+            XCTAssertGreaterThanOrEqual(fixture.scheduler.requests.count, 2)
         } catch {
             await fixture.cleanUp()
             throw error
