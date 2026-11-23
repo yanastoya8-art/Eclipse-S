@@ -501,23 +501,21 @@ extension URLSession {
             )
         }
 
-        let (bytes, response) = try await bytes(for: request)
-        let dataTask = bytes.task
-
-        do {
-            var buffer = try BoundedResponseBuffer(
-                maximumBytes: maximumResponseBytes,
-                expectedContentLength: response.expectedContentLength
-            )
-            for try await byte in bytes {
-                try Task.checkCancellation()
-                try buffer.append(byte)
-            }
-            return (buffer.data, response)
-        } catch {
-            dataTask.cancel()
-            throw error
+        // URLSession.AsyncBytes currently routes custom URLProtocol sessions through
+        // an internal keyed-archive cache path on hosted iOS simulators. That path can
+        // fail with NSKeyedUnarchiver "data is empty" before the protocol response is
+        // delivered. Use the native data(for:) bridge for sessions without our
+        // FetchDelegate, then enforce the same response-size limit before decoding.
+        // Production sessions that use FetchDelegate retain streaming size enforcement.
+        let (data, response) = try await data(for: request)
+        try Task.checkCancellation()
+        guard data.count <= maximumResponseBytes else {
+            throw BoundedURLSessionError.responseTooLarge(maximumBytes: maximumResponseBytes)
         }
+        if response.expectedContentLength > Int64(maximumResponseBytes) {
+            throw BoundedURLSessionError.responseTooLarge(maximumBytes: maximumResponseBytes)
+        }
+        return (data, response)
     }
 
     func boundedData(
