@@ -419,6 +419,29 @@ final class FetchDelegate: NSObject, URLSessionDataDelegate {
     }
 }
 
+private final class URLSessionDataTaskCancellation: @unchecked Sendable {
+    private let lock = NSLock()
+    private var task: URLSessionDataTask?
+    private var isCancelled = false
+
+    func install(_ task: URLSessionDataTask) {
+        lock.lock()
+        let cancelImmediately = isCancelled
+        if !cancelImmediately { self.task = task }
+        lock.unlock()
+        if cancelImmediately { task.cancel() }
+    }
+
+    func cancel() {
+        lock.lock()
+        isCancelled = true
+        let task = self.task
+        self.task = nil
+        lock.unlock()
+        task?.cancel()
+    }
+}
+
 extension URLSession {
     static let userAgents = [
 
@@ -501,18 +524,38 @@ extension URLSession {
             )
         }
 
-        // URLSession.AsyncBytes currently routes custom URLProtocol sessions through
-        // an internal keyed-archive cache path on hosted iOS simulators. That path can
-        // fail with NSKeyedUnarchiver "data is empty" before the protocol response is
-        // delivered. Use the native data(for:) bridge for sessions without our
-        // FetchDelegate, then enforce the same response-size limit before decoding.
-        // Production sessions that use FetchDelegate retain streaming size enforcement.
-        let (data, response) = try await data(for: request)
-        try Task.checkCancellation()
-        guard data.count <= maximumResponseBytes else {
-            throw BoundedURLSessionError.responseTooLarge(maximumBytes: maximumResponseBytes)
+        // Use the completion-handler API for sessions without FetchDelegate.
+        // URLSession's async bytes/data bridges can hit an empty keyed-archive
+        // response-cache path with custom URLProtocol sessions on hosted simulators.
+        // The delegate-backed production path above still enforces the limit while
+        // streaming; this fallback checks the complete body before returning it.
+        let cancellation = URLSessionDataTaskCancellation()
+        let (data, response) = try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                let task = dataTask(with: request) { data, response, error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else if let data, let response {
+                        continuation.resume(returning: (data, response))
+                    } else {
+                        continuation.resume(throwing: URLError(.badServerResponse))
+                    }
+                }
+                cancellation.install(task)
+                if Task.isCancelled {
+                    cancellation.cancel()
+                } else {
+                    task.resume()
+                }
+            }
+        } onCancel: {
+            cancellation.cancel()
         }
-        if response.expectedContentLength > Int64(maximumResponseBytes) {
+
+        try Task.checkCancellation()
+        guard data.count <= maximumResponseBytes,
+              response.expectedContentLength <= Int64(maximumResponseBytes)
+                || response.expectedContentLength < 0 else {
             throw BoundedURLSessionError.responseTooLarge(maximumBytes: maximumResponseBytes)
         }
         return (data, response)
