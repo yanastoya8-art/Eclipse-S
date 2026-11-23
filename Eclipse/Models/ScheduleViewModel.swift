@@ -1105,8 +1105,15 @@ final class ScheduleViewModel: ObservableObject {
            !MyDubListDubFilter.shared.prepareCachedSnapshot() {
             let refreshed = await MyDubListDubFilter.shared.refresh()
             try Task.checkCancellation()
-            guard refreshed || MyDubListDubFilter.shared.prepareCachedSnapshot() else {
-                throw ScheduleSourceLoadError.languageMetadataUnavailable
+            if !refreshed && !MyDubListDubFilter.shared.prepareCachedSnapshot() {
+                // Verified timetable providers carry their own language evidence.
+                // A separate title-level dub-index outage must not block DubOnly,
+                // Tsuzuki, SeaDub, or native-language schedule rows. Unverified
+                // AniList fallback rows still fail closed in filteredAnimeScheduleResult.
+                Logger.shared.log(
+                    "Title-level dub index unavailable; continuing verified schedule providers",
+                    type: "Anime"
+                )
             }
         }
         let policyKey = currentAnimeSchedulePolicyKey()
