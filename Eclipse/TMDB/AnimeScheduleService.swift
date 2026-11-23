@@ -965,6 +965,13 @@ enum SpanishDubAIProvider: String, CaseIterable, Identifiable, Codable {
 
 actor SpanishDubAIResearchService {
     static let shared = SpanishDubAIResearchService()
+    static let hasConfiguredProvider: Bool = {
+        ["GeminiAPIKey", "OpenAIAPIKey"].contains { key in
+            guard let value = Bundle.main.object(forInfoDictionaryKey: key) as? String else { return false }
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            return !trimmed.isEmpty && !trimmed.contains("$(")
+        }
+    }()
 
     private struct ResearchCandidate: Codable {
         let mediaId: Int
