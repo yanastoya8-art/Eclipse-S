@@ -269,7 +269,7 @@ enum AnimeScheduleAPIKeyStore {
 
     static var hasToken: Bool {
         let keychainValue = load()?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let bundleValues = ["DubsOnlyAPIKey", "AnimeScheduleAPIToken"].compactMap {
+        let bundleValues = ["AnimeScheduleAPIToken", "DubsOnlyAPIKey"].compactMap {
             Bundle.main.object(forInfoDictionaryKey: $0) as? String
         }
         return !keychainValue.isEmpty || bundleValues.contains {
@@ -349,8 +349,8 @@ actor AnimeScheduleService {
         self.session = session
         let configured = token
             ?? AnimeScheduleAPIKeyStore.load()
-            ?? (Bundle.main.object(forInfoDictionaryKey: "DubsOnlyAPIKey") as? String)
             ?? (Bundle.main.object(forInfoDictionaryKey: "AnimeScheduleAPIToken") as? String)
+            ?? (Bundle.main.object(forInfoDictionaryKey: "DubsOnlyAPIKey") as? String)
             ?? ""
         let trimmed = configured.trimmingCharacters(in: .whitespacesAndNewlines)
         self.token = trimmed.contains("$(") || trimmed.utf8.count > 512 ? "" : trimmed
