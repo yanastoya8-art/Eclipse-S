@@ -1288,7 +1288,7 @@ final class ScheduleViewModel: ObservableObject {
                     && !SpanishDubAIResearchService.hasConfiguredProvider
                 let notice = requiresDubSchedule
                     ? (spanishResearchUnavailable
-                        ? "Spanish dub dates need a Gemini or OpenAI API key in repository Actions secrets. Only verified Spanish release dates are shown."
+                        ? "Spanish dub dates need a Gemini or OpenAI API key in a private local build configuration. Do not ship billable API keys in a shared app build."
                         : (entries.isEmpty && hasProviderOutage ? result.notice : nil))
                     : result.notice
                 let loadResult = AnimeScheduleLoadResult(
