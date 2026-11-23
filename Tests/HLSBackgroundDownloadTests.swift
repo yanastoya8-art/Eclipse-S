@@ -44,7 +44,7 @@ final class HLSBackgroundDownloadTests: XCTestCase {
             XCTAssertEqual(fixture.item.status, .downloading)
             XCTAssertEqual(fixture.scheduler.grantResults, [])
             fixture.release()
-            try await eventually(timeout: 15) { fixture.item.status == .completed }
+            try await eventually({ fixture.item.status == .completed }, timeout: 15)
             XCTAssertEqual(try fixture.completedData(), Data("AABBCC".utf8))
             XCTAssertTrue(fixture.scheduler.finishes.isEmpty)
         } catch {
@@ -131,7 +131,7 @@ final class HLSBackgroundDownloadTests: XCTestCase {
             try await eventually { fixture.heldCount == 1 && fixture.scheduler.requests.count == 1 }
             fixture.manager.cancelDownload(id: fixture.itemID)
             await fixture.manager.drainIsolatedHLSWorkers()
-            try await eventually(timeout: 15) { fixture.scheduler.finishes.count == 1 && fixture.heldCount == 0 }
+            try await eventually({ fixture.scheduler.finishes.count == 1 && fixture.heldCount == 0 }, timeout: 15)
             let paths = fixture.requestedPaths
             XCTAssertFalse(fixture.scheduler.grant(0))
             fixture.manager.applicationDidBecomeActive()
