@@ -416,14 +416,12 @@ enum ProviderPlaybackTransportPolicy {
     }
 
     static func mayAttemptExternalHandoff(
-        autoModeLaunch: Bool,
+        autoModeLaunch _: Bool,
         hasResolvedRequestConsumer _: Bool
     ) -> Bool {
-        // A manually selected stream is the user gesture authorizing the
-        // out-of-process handoff. Do this while the original, public URL is
-        // still available; resolved-request consumers receive loopback proxy
-        // capabilities that must never be handed to another app.
-        !autoModeLaunch
+        // Provider results must remain playable in Eclipse. Streams advertised
+        // for external apps/devices are still resolved as normal in-app media.
+        false
     }
 }
 
@@ -1881,6 +1879,15 @@ struct ModulesSearchResultsSheet: View {
 #endif
         let orderRank = autoModeSourceOrderRank
         return (services + addons + skyStreamProviders + nuvioScrapers).sorted {
+            let lhsIsMangayomi: Bool
+            if case .service(let service) = $0 { lhsIsMangayomi = service.mangayomiSource != nil }
+            else { lhsIsMangayomi = false }
+            let rhsIsMangayomi: Bool
+            if case .service(let service) = $1 { rhsIsMangayomi = service.mangayomiSource != nil }
+            else { rhsIsMangayomi = false }
+            // Mangayomi results are always presented before Stremio add-ons,
+            // regardless of custom source-order preferences.
+            if lhsIsMangayomi != rhsIsMangayomi { return lhsIsMangayomi }
             let lhsRank = orderRank[autoModeSourceId(for: $0)]
             let rhsRank = orderRank[autoModeSourceId(for: $1)]
             if let lhsRank, let rhsRank, lhsRank != rhsRank {
@@ -6723,7 +6730,9 @@ struct ModulesSearchResultsSheet: View {
         cancelServiceSearch()
 #endif
         let searchGeneration = manualSearchGeneration
-        let activeServices = serviceManager.activeServices
+        let activeServices = serviceManager.activeServices.sorted {
+            ($0.mangayomiSource != nil) && ($1.mangayomiSource == nil)
+        }
         viewModel.totalServicesCount = activeServices.count
         viewModel.isSearching = !activeServices.isEmpty
 
@@ -7301,6 +7310,22 @@ struct ModulesSearchResultsSheet: View {
         let episode = streamLookupEpisodeNumber
 
         Task {
+            // Do not start add-on requests until every installed Mangayomi
+            // source has returned its first result. This guarantees the local
+            // Mangayomi extensions get first chance at the selected episode.
+            let mangayomiServiceIDs = Set(
+                serviceManager.activeServices
+                    .filter { $0.mangayomiSource != nil }
+                    .map(\.id)
+            )
+            let mangayomiDeadline = Date().addingTimeInterval(22)
+            while !mangayomiServiceIDs.isSubset(of: viewModel.searchedServices),
+                  Date() < mangayomiDeadline {
+                guard isCurrentManualSearchGeneration(searchGeneration), !Task.isCancelled else { return }
+                try? await Task.sleep(nanoseconds: 50_000_000)
+            }
+            guard isCurrentManualSearchGeneration(searchGeneration), !Task.isCancelled else { return }
+
             await stremioManager.fetchStreamsFromAddons(
                 tmdbId: tmdbId,
                 imdbId: imdbId,
@@ -9198,7 +9223,7 @@ struct ModulesSearchResultsSheet: View {
             return
         }
 
-        guard let urlString = stream.url, stream.isDirectHTTP else {
+        guard let urlString = stream.playableHTTPURL, stream.isDirectHTTP else {
             Logger.shared.log("Stremio: rejected non-HTTP stream", type: "Error")
             handleStremioPlaybackPreparationFailure(
                 addon,
