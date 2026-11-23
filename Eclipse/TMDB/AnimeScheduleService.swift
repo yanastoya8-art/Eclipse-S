@@ -1230,10 +1230,11 @@ actor SpanishDubAIResearchService {
     private static func proxyURL(for provider: SpanishDubAIProvider) -> URL? {
         let configured = (Bundle.main.object(forInfoDictionaryKey: "SpanishDubResearchProxyURL") as? String)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let value = if let configured, !configured.isEmpty, !configured.contains("$(") {
-            configured
+        let value: String
+        if let configured, !configured.isEmpty, !configured.contains("$(") {
+            value = configured
         } else {
-            "https://eclipse-spanish-dub-research.vercel.app"
+            value = "https://eclipse-spanish-dub-research.vercel.app"
         }
         guard var components = URLComponents(string: value),
               components.scheme?.lowercased() == "https",
