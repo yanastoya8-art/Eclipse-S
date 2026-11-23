@@ -2270,10 +2270,11 @@ struct HomeView: View {
         do {
             let limit = boundedPage * pageSize
             let offset = (boundedPage - 1) * pageSize
-            let rawResults = try await tmdbService.getFastAnimeCatalog(
+            let fetchedResults = try await tmdbService.getFastAnimeCatalog(
                 kind: fastAnimeCatalogKind(for: kind),
                 limit: limit
-            ).map { $0.withAnimeHint(true) }
+            )
+            let rawResults = fetchedResults.map { $0.withAnimeHint(true) }
             await contentFilter.resolveBrowseFilterMetadata(
                 for: rawResults,
                 requiresAnimeAgeRating: true
