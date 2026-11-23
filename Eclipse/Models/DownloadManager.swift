@@ -2662,7 +2662,7 @@ final class DownloadManager: NSObject, ObservableObject {
         var resumedCount = 0
         for index in downloads.indices {
             guard downloads[index].isHLS,
-                  downloads[index].status == .paused,
+                  (downloads[index].status == .paused || downloads[index].status == .queued),
                   let message = downloads[index].error,
                   systemInterruptionMessages.contains(message)
                     || message.hasPrefix("Background time expired.") else { continue }
@@ -2675,6 +2675,7 @@ final class DownloadManager: NSObject, ObservableObject {
             resumedCount += 1
         }
         if resumedCount > 0 {
+            saveDownloads()
             Logger.shared.log(
                 "Resuming \(resumedCount) HLS download(s) interrupted by iOS background-task expiration",
                 type: "Download"
@@ -8232,8 +8233,11 @@ final class DownloadManager: NSObject, ObservableObject {
         // When a protected source has no verified checkpoint, start it again
         // from the beginning automatically instead of waiting for manual input.
         downloads[index].status = .queued
-        downloads[index].error = nil
+        downloads[index].error = limitation == nil ? message : "Background time expired. Restarting from the beginning."
         downloads[index].retryNotBefore = nil
+#if os(iOS) && !targetEnvironment(macCatalyst)
+        hlsForegroundIntents[id] = captureHLSForegroundIntent()
+#endif
         if let limitation {
             Logger.shared.log("Restarting interrupted HLS download from the beginning: \(limitation)", type: "Download")
         } else {
