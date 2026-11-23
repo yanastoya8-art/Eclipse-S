@@ -420,6 +420,7 @@ private final class HLSBackgroundSchedulerMock: HLSBackgroundDownloadScheduling 
     private(set) var requests: [Request] = []
     private(set) var grantResults: [Bool] = []
     private(set) var finishes: [Finish] = []
+    private var expiredAttemptIDs = Set<UUID>()
 
     init(mode: Mode) { self.mode = mode }
 
@@ -443,13 +444,16 @@ private final class HLSBackgroundSchedulerMock: HLSBackgroundDownloadScheduling 
 
     func expire(_ index: Int) {
         guard requests.indices.contains(index) else { return }
+        expiredAttemptIDs.insert(requests[index].attemptID)
         requests[index].onExpiration()
     }
 
     func updateProgress(attemptID: UUID, completed: Int64, total: Int64, subtitle: String) { }
 
     func finish(attemptID: UUID, success: Bool) {
-        finishes.append(Finish(attemptID: attemptID, success: success))
+        // Match BGContinuedProcessingTask: an expired task cannot be reported
+        // as successful even if its transfer later completes under UIKit time.
+        finishes.append(Finish(attemptID: attemptID, success: success && !expiredAttemptIDs.contains(attemptID)))
     }
 }
 
