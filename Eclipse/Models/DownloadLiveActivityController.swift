@@ -13,6 +13,11 @@ enum DownloadLiveActivityController {
         generationByDownloadID[downloadID, default: 0]
     }
 
+    static func prepare(downloadID: String) {
+        generationByDownloadID[downloadID, default: 0] &+= 1
+        endedDownloadIDs.remove(downloadID)
+    }
+
     private static func activity(for downloadID: String) -> Activity<DownloadActivityAttributes>? {
         Activity<DownloadActivityAttributes>.activities.first {
             $0.attributes.downloadID == downloadID
