@@ -132,10 +132,10 @@ struct StretchyHeaderView: View {
             let deltaY = frame.minY
             let artworkWidth = max(geometry.size.width, EclipseViewport.bounds.width)
             let height = headerHeight + max(0, deltaY)
-            // Stretch only during top overscroll. During ordinary scrolling,
-            // let the hero travel with its ScrollView content; counter-translating
-            // it by -deltaY pins the artwork to the viewport and can expose a
-            // blank strip between the hero and the moving detail content.
+            // Keep the top edge anchored while the hero stretches during
+            // overscroll. During ordinary upward scrolling deltaY is negative,
+            // so this remains zero and the hero travels naturally with content.
+            let offsetY = min(0, -deltaY)
             let offsetX = scrollCoordinateSpaceName == nil ? 0 : -frame.minX
 
             ZStack(alignment: .bottom) {
@@ -211,7 +211,7 @@ struct StretchyHeaderView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 0))
                 }
             }
-            .offset(x: offsetX)
+            .offset(x: offsetX, y: offsetY)
         }
         .frame(height: headerHeight)
         .onChangeComp(of: imageCandidates) { _, _ in failedImageURLs.removeAll() }
