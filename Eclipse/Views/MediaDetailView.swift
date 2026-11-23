@@ -3261,7 +3261,12 @@ struct MediaDetailContentView: View {
 
     private var detailAgeRating: String? {
         if usesAnimeSpecificAgeRating {
-            guard let animeAgeCertification else { return nil }
+            guard let animeAgeCertification else {
+                // Keep the age field visible after the detail payload is ready,
+                // even when AniList/MAL rating metadata has no match. The chip
+                // updates automatically if the independent lookup later succeeds.
+                return hasLoadedContent ? "Not rated" : nil
+            }
             return "Anime · \(animeAgeCertification.ageBand)"
         }
 
