@@ -2972,21 +2972,20 @@ final class DownloadManager: NSObject, ObservableObject {
 
     private func expireHLSBackgroundAttempt(id: String, attempt: HLSBackgroundAttempt) {
         guard hlsBackgroundAttempts[id] === attempt, !attempt.revoked else { return }
-        attempt.revoked = true
+        // Continued-processing time can expire while the transfer itself is
+        // healthy. Do not cancel the HLS worker or mark the item paused here:
+        // downgrade to the normal UIKit background-time allowance and let the
+        // worker finish if iOS still grants execution time. Every iOS HLS
+        // worker now has durable checkpoints, so a later OS suspension can
+        // resume from the last fully-written segment instead of byte zero.
         hlsBackgroundSubtitles.removeValue(forKey: id)?.task.cancel()
         hlsForegroundIntents.removeValue(forKey: id)
         if activeHLSAttemptIDs[id] == attempt.attemptID {
-            attempt.downloader.cancel(reason: .backgroundProcessingExpired)
+            attempt.downloader.setContinuedProcessingGranted(false)
         }
-        if let index = downloads.firstIndex(where: { $0.id == id }),
-           downloads[index].dateAdded == attempt.dateAdded, downloads[index].status == .downloading {
-            downloads[index].status = .paused
-            downloads[index].error = "HLS background download stopped. Resume when you are ready."
-        }
-        if let protectedAttemptID = attempt.protectedAttemptID {
-            invalidateNuvioProtectedAttempt(id: id, expectedAttemptID: protectedAttemptID)
-            scrubProtectedProviderTransportInMemory(id: id)
-        }
+        // Keep the protected transport lease alive while the existing
+        // worker uses its already-authorized request. If the worker itself
+        // expires, its completion path performs the normal secure invalidation.
         finishHLSBackgroundAttempt(id: id, attempt: attempt, success: false)
     }
 
@@ -3030,7 +3029,8 @@ final class DownloadManager: NSObject, ObservableObject {
             let persisted = await self.persistHLSBackgroundSnapshot()
             guard self.hlsBackgroundAttempts[id] === attempt else { return }
             self.hlsBackgroundAttempts.removeValue(forKey: id)
-            let didComplete = success && persisted && !attempt.revoked && self.hlsIntentIsCurrent(attempt.intent)
+            let didComplete = (success || attempt.succeeded) && persisted
+                && !attempt.revoked && self.hlsIntentIsCurrent(attempt.intent)
             self.hlsBackgroundScheduler?.finish(attemptID: attempt.attemptID, success: didComplete)
 #if os(iOS)
             if #available(iOS 16.2, *) {
@@ -6685,7 +6685,16 @@ final class DownloadManager: NSObject, ObservableObject {
 #endif
 
         let securedItem = itemBySecuringFinalVideoDestination(item, fileExtension: "ts")
-        let usesDurableCheckpoints = backgroundIntent != nil || item.hlsDurableCheckpoint == true
+#if os(iOS) && !targetEnvironment(macCatalyst)
+        // Every iOS HLS transfer must keep a durable segment checkpoint, not
+        // only transfers that received a continued-processing grant. iOS may
+        // suspend an ordinary foreground worker before the grant is accepted;
+        // without a durable checkpoint the partial file is discarded and the
+        // next attempt starts at segment zero.
+        let usesDurableCheckpoints = true
+#else
+        let usesDurableCheckpoints = item.hlsDurableCheckpoint == true
+#endif
 #if os(iOS) && !targetEnvironment(macCatalyst)
         let hlsSessionConfiguration = hlsSessionConfigurationOverride
 #else
@@ -8211,6 +8220,11 @@ final class DownloadManager: NSObject, ObservableObject {
         }
 
         saveDownloads()
+        // Re-admit the item immediately. iOS HLS workers now always use a
+        // durable segment checkpoint, so another available background-time
+        // window continues from the last completed segment rather than byte zero.
+        // If iOS suspends the process, the queued item is also picked up by the
+        // normal foreground queue restoration path.
         processQueue()
     }
 

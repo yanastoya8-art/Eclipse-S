@@ -2779,8 +2779,12 @@ struct MediaDetailContentView: View {
                 // exposing a blank strip above the artwork.
                 scrollCoordinateSpaceName: "mediaDetailScroll"
             )
+            // StretchyHeaderView offsets its artwork outside the original
+            // GeometryReader bounds during top overscroll. Clipping here cuts
+            // that translated artwork back to the unshifted frame and exposes
+            // a blank strip above the hero. Let the parent ScrollView provide
+            // the viewport clipping instead.
             .frame(maxWidth: .infinity)
-            .clipped()
 #if DEBUG
             if ProcessInfo.processInfo.environment["ECLIPSE_UI_POSTER_AUDIT"] == "1" {
                 let state = alternatePosterWasResolved ? "resolved" : posterAuditSelectorIsPending ? "pending" : "loading"

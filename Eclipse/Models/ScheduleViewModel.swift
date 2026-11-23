@@ -1204,12 +1204,15 @@ final class ScheduleViewModel: ObservableObject {
                     if AnimeScheduleLanguageLookupPolicy.shouldFetchNativeLanguageSchedule(
                         selectedLanguages: selectedDubLanguages
                     ) {
-                        let nativeSchedule = try? await self.retryOnceAfterTransientCancellation(
+                        // A failed AniList identity lookup must not suppress
+                        // Spanish dub research. English/Spanish provider timetables
+                        // can still supply episode identities for independent
+                        // server-side release-date verification.
+                        let nativeSchedule = (try? await self.retryOnceAfterTransientCancellation(
                             operationName: "AniList native-language airing identities"
                         ) {
                             try await AniListService.shared.fetchNativeAiringScheduleForDubResearch(daysAhead: dayCount)
-                        }
-                        if let nativeSchedule {
+                        }) ?? []
                             let nativeEntries = nativeSchedule.map(ScheduleEntry.init(animeEntry:))
                             verifiedNativeLanguageEntries = AnimeScheduleLanguageLookupPolicy.nativeLanguageEntries(
                                 nativeEntries,
@@ -1251,8 +1254,15 @@ final class ScheduleViewModel: ObservableObject {
                                             : $0.airingAt < $1.airingAt
                                     }
                                     let researched = await SpanishDubAIResearchService.shared.research(entries: candidates)
+                                    guard !Task.isCancelled, let self else { return }
+                                    // This research task can finish before the
+                                    // initial schedule load publishes its cache.
+                                    // Wait for that load to settle instead of
+                                    // dropping valid, fast/cached Spanish results.
+                                    while self.animeScheduleLoadID == loadID && !Task.isCancelled {
+                                        try? await Task.sleep(nanoseconds: 100_000_000)
+                                    }
                                     guard !Task.isCancelled,
-                                          let self,
                                           self.animeScheduleCachedPolicyKey == policyKey,
                                           self.animeScheduleDayCount == dayCount,
                                           self.animeScheduleResult != nil else { return }
@@ -1269,7 +1279,6 @@ final class ScheduleViewModel: ObservableObject {
                                 }
                             }
                         }
-                    }
                 } else {
                     result = try await self.retryOnceAfterTransientCancellation(operationName: "AniList schedule") {
                         try await AniListService.shared.fetchAiringScheduleResult(daysAhead: dayCount)

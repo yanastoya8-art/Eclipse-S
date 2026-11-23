@@ -1338,6 +1338,10 @@ private struct BrowseGenre: Identifiable, Hashable {
     static let animeGenres: [BrowseGenre] = [
         BrowseGenre(id: 10759, name: "Action & Adventure"),
         BrowseGenre(id: 35, name: "Comedy"),
+        // Keep Documentary available for exclusion as well as inclusion:
+        // anime documentaries are valid catalogue entries, but users must be
+        // able to exclude them without switching to the general TV filter set.
+        BrowseGenre(id: 99, name: "Documentary"),
         BrowseGenre(id: 18, name: "Drama"),
         BrowseGenre(id: 10751, name: "Family"),
         BrowseGenre(id: 10762, name: "Kids"),
@@ -1398,9 +1402,10 @@ private struct BrowseCountry: Identifiable, Hashable {
 
 private struct BrowseMediaView: View {
     // Filter-heavy anime queries can reject most results on each TMDB page.
-    // Keep searching automatically for a useful first batch; the grid sentinel
-    // continues pagination as the user scrolls.
-    private static let maximumAutomaticFilteredPages = 30
+    // Search further automatically only when a page produces no visible match;
+    // once a small result set is available, keep it stable and offer a manual
+    // next-page action instead of leaving a spinner running continuously.
+    private static let maximumAutomaticFilteredPages = 8
 
     @AppStorage("mediaColumnsPortrait") private var mediaColumnsPortrait: Int = 3
     @AppStorage("mediaColumnsLandscape") private var mediaColumnsLandscape: Int = 5
@@ -2016,6 +2021,10 @@ private struct BrowseMediaView: View {
             if hasMorePages && currentPage < Self.maximumAutomaticFilteredPages {
                 ProgressView("Searching for titles that match your filters…")
                     .font(.caption)
+            } else if hasMorePages {
+                Button("Search More") { loadNextPage() }
+                    .buttonStyle(.bordered)
+                    .disabled(isLoading)
             }
         }
         .frame(maxWidth: .infinity)
@@ -2028,7 +2037,12 @@ private struct BrowseMediaView: View {
                 ForEach(results, id: \.stableIdentity) { result in
                     SearchResultCard(result: result)
                         .onAppear {
-                            if result.stableIdentity == results.last?.stableIdentity {
+                            // Do not auto-fetch another page merely because a
+                            // small filtered first page fits on screen. That
+                            // repeatedly re-arms the sentinel and leaves Browse
+                            // showing a spinner while pages stream in one by one.
+                            if results.count >= 12,
+                               result.stableIdentity == results.last?.stableIdentity {
                                 loadNextPage()
                             }
                         }
@@ -2043,10 +2057,23 @@ private struct BrowseMediaView: View {
             // so pagination remains
             // automatic at every depth without a manual "Load More" control.
             if hasMorePages {
-                Color.clear
-                    .frame(height: 1)
-                    .id("browse-search-pagination-\(currentPage)-\(results.count)")
-                    .onAppear { loadNextPage() }
+                if results.count >= 12 {
+                    Color.clear
+                        .frame(height: 1)
+                        .id("browse-search-pagination-\(currentPage)-\(results.count)")
+                        .onAppear { loadNextPage() }
+                } else {
+                    Button(action: { loadNextPage() }) {
+                        Text("Load More Results")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 13)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(isLoading)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 10)
+                }
             }
 
             if let errorMessage {
@@ -2391,9 +2418,13 @@ private struct BrowseMediaView: View {
                         reapplyCurrentFiltersToRetainedResults()
                     }
 
+                    // Continue searching automatically only while no
+                    // item has survived the active filters. Once results exist,
+                    // leave a small result set stable and let the user request
+                    // another page instead of running a long hidden page chain.
                     if !filterDataUnavailable,
                        hasMorePages,
-                       results.count < 12,
+                       results.isEmpty,
                        page < Self.maximumAutomaticFilteredPages {
                         loadNextPage()
                     }

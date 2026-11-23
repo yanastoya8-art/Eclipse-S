@@ -37,6 +37,9 @@ final class HLSBackgroundDownloadTests: XCTestCase {
         let fixture = try HLSBackgroundFixture(mode: .reject)
         do {
             try fixture.start()
+            // Even before a continued-processing grant is accepted, iOS HLS
+            // downloads must persist resumable segment checkpoints.
+            XCTAssertTrue(fixture.item.hlsDurableCheckpoint == true)
             // The scheduler rejection must not stop the foreground worker.
             // The segment fixture may complete before the test thread observes
             // its held-request counter on a busy hosted simulator.
@@ -54,27 +57,24 @@ final class HLSBackgroundDownloadTests: XCTestCase {
         await fixture.cleanUp()
     }
 
-    func testForegroundExpirationPausesOnceWithoutAutomaticRestart() async throws {
+    func testContinuedProcessingExpirationFallsBackWithoutDiscardingHLSWork() async throws {
         let fixture = try HLSBackgroundFixture(mode: .grant)
         do {
             try fixture.start()
             try await eventually { fixture.heldCount == 1 && fixture.scheduler.grantResults == [true] }
             fixture.scheduler.expire(0)
             fixture.scheduler.expire(0)
-            try await eventually { fixture.scheduler.finishes.count == 1 && fixture.heldCount == 0 }
-            await fixture.manager.drainIsolatedHLSWorkers()
-            XCTAssertEqual(fixture.item.status, .paused)
-            XCTAssertEqual(fixture.item.hlsResumeSegmentIndex, 2)
-            XCTAssertEqual(fixture.item.hlsResumeByteCount, 4)
-            XCTAssertTrue(fixture.item.hasVerifiedHLSCheckpoint)
+            // Expiring the continued-processing request must not cancel a
+            // healthy HLS worker or mark the download paused. The worker is
+            // allowed to finish under the UIKit background-time allowance.
+            XCTAssertEqual(fixture.item.status, .downloading)
+            XCTAssertEqual(fixture.heldCount, 1)
+            fixture.release()
+            try await eventually { fixture.item.status == .completed && fixture.scheduler.finishes.count == 1 }
+            XCTAssertEqual(try fixture.completedData(), Data("AABBCC".utf8))
+            // The system-expired task is reported as unsuccessful even though
+            // the actual transfer completed using the fallback allowance.
             XCTAssertEqual(fixture.scheduler.finishes.map(\.success), [false])
-            let requests = fixture.requestedPaths
-            fixture.manager.applicationDidBecomeActive()
-            fixture.manager.applyQueueSettingsChanged()
-            await fixture.manager.drainIsolatedPersistence()
-            XCTAssertEqual(fixture.item.status, .paused)
-            XCTAssertEqual(fixture.requestedPaths, requests)
-            XCTAssertEqual(fixture.scheduler.requests.count, 1)
         } catch {
             await fixture.cleanUp()
             throw error
@@ -420,6 +420,7 @@ private final class HLSBackgroundSchedulerMock: HLSBackgroundDownloadScheduling 
     private(set) var requests: [Request] = []
     private(set) var grantResults: [Bool] = []
     private(set) var finishes: [Finish] = []
+    private var expiredAttemptIDs = Set<UUID>()
 
     init(mode: Mode) { self.mode = mode }
 
@@ -443,13 +444,16 @@ private final class HLSBackgroundSchedulerMock: HLSBackgroundDownloadScheduling 
 
     func expire(_ index: Int) {
         guard requests.indices.contains(index) else { return }
+        expiredAttemptIDs.insert(requests[index].attemptID)
         requests[index].onExpiration()
     }
 
     func updateProgress(attemptID: UUID, completed: Int64, total: Int64, subtitle: String) { }
 
     func finish(attemptID: UUID, success: Bool) {
-        finishes.append(Finish(attemptID: attemptID, success: success))
+        // Match BGContinuedProcessingTask: an expired task cannot be reported
+        // as successful even if its transfer later completes under UIKit time.
+        finishes.append(Finish(attemptID: attemptID, success: success && !expiredAttemptIDs.contains(attemptID)))
     }
 }
 
