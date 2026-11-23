@@ -283,8 +283,6 @@ jobs:
             printf 'FANART_TV_API_KEY = %s\n' "${FANART_TV_API_KEY:-}"
             printf 'ANIMESCHEDULE_API_TOKEN = %s\n' "${ANIMESCHEDULE_API_TOKEN:-}"
             printf 'DUBSONLY_API_KEY = %s\n' "${DUBSONLY_API_KEY:-}"
-            printf 'GEMINI_API_KEY = %s\n' "${GEMINI_API_KEY:-}"
-            printf 'OPENAI_API_KEY = %s\n' "${OPENAI_API_KEY:-}"
             printf 'ANILIST_CLIENT_ID = %s\n' "${ANILIST_CLIENT_ID:-}"
             printf 'ANILIST_CLIENT_SECRET = %s\n' "${ANILIST_CLIENT_SECRET:-}"
             printf '%s\n' 'ANILIST_REDIRECT_URI = luna:/$()/anilist-callback'
