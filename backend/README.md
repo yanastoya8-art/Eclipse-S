@@ -23,3 +23,5 @@ The iOS client sends a POST request to `/api/ai-research/{provider}`, where prov
 ## Abuse protection
 
 The function enforces POST-only requests, a 20 KB prompt limit, a 64 KB body limit, a 25-second upstream timeout, and best-effort per-instance IP throttling. Serverless instances do not share the in-memory throttle. Before production traffic, configure a Vercel Firewall rate-limit rule for `/api/ai-research/*` and monitor provider usage. Do not treat a public app URL as a secret or embed a shared proxy credential in the app.
+
+This backend is a companion service for the Eclipse iOS app.
