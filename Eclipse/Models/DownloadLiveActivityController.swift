@@ -5,7 +5,7 @@ import Foundation
 @available(iOS 16.2, *)
 @MainActor
 enum DownloadLiveActivityController {
-    private static var startingDownloadIDs: Set<String> = []
+    private static var startingDownloadGenerations: [String: UInt64] = [:]
     private static var generationByDownloadID: [String: UInt64] = [:]
     private static var endedDownloadIDs: Set<String> = []
 
@@ -16,6 +16,7 @@ enum DownloadLiveActivityController {
     static func prepare(downloadID: String) {
         generationByDownloadID[downloadID, default: 0] &+= 1
         endedDownloadIDs.remove(downloadID)
+        startingDownloadGenerations.removeValue(forKey: downloadID)
     }
 
     private static func activity(for downloadID: String) -> Activity<DownloadActivityAttributes>? {
@@ -51,9 +52,13 @@ enum DownloadLiveActivityController {
             return
         }
         guard ActivityAuthorizationInfo().areActivitiesEnabled,
-              !startingDownloadIDs.contains(downloadID) else { return }
-        startingDownloadIDs.insert(downloadID)
-        defer { startingDownloadIDs.remove(downloadID) }
+              startingDownloadGenerations[downloadID] == nil else { return }
+        startingDownloadGenerations[downloadID] = generation
+        defer {
+            if startingDownloadGenerations[downloadID] == generation {
+                startingDownloadGenerations.removeValue(forKey: downloadID)
+            }
+        }
         // A previous request may have completed while this update was queued.
         guard generation(for: downloadID) == generation,
               !endedDownloadIDs.contains(downloadID) else { return }
@@ -84,7 +89,7 @@ enum DownloadLiveActivityController {
         // download from lingering in the Dynamic Island or Lock Screen.
         generationByDownloadID[downloadID, default: 0] &+= 1
         endedDownloadIDs.insert(downloadID)
-        startingDownloadIDs.remove(downloadID)
+        startingDownloadGenerations.removeValue(forKey: downloadID)
         let matchingActivities = Activity<DownloadActivityAttributes>.activities.filter {
             $0.attributes.downloadID == downloadID
         }
