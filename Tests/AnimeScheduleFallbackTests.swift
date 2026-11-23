@@ -3,31 +3,55 @@ import XCTest
 @testable import Eclipse
 
 private final class AnimeScheduleURLProtocol: URLProtocol {
-    static let lock = NSLock()
-    static var handler: ((URLRequest) -> (Int, Data, [String: String]))?
-    static var paths: [String] = []
+    typealias ResponseHandler = (URLRequest) -> (Int, Data, [String: String])
 
-    static func configure(_ handler: @escaping (URLRequest) -> (Int, Data, [String: String])) {
+    static let lock = NSLock()
+    private static var handlers: [String: ResponseHandler] = [:]
+    private static var pathsByTestID: [String: [String]] = [:]
+
+    @discardableResult
+    static func configure(_ handler: @escaping ResponseHandler) -> String {
+        let testID = UUID().uuidString
+        configure(handler, for: testID)
+        return testID
+    }
+
+    static func configure(_ handler: @escaping ResponseHandler, for testID: String) {
         lock.lock()
-        self.handler = handler
-        paths = []
+        handlers[testID] = handler
+        pathsByTestID[testID] = []
         lock.unlock()
     }
 
-    static var count: Int {
+    static func remove(_ testID: String) {
+        lock.lock()
+        handlers.removeValue(forKey: testID)
+        pathsByTestID.removeValue(forKey: testID)
+        lock.unlock()
+    }
+
+    static func count(for testID: String) -> Int {
         lock.lock()
         defer { lock.unlock() }
-        return paths.count
+        return pathsByTestID[testID]?.count ?? 0
+    }
+
+    static func paths(for testID: String) -> [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return pathsByTestID[testID] ?? []
     }
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
+        let testID = request.value(forHTTPHeaderField: "X-Eclipse-Anime-Schedule-Test-ID") ?? ""
         Self.lock.lock()
-        Self.paths.append(request.url?.path ?? "")
-        let handler = Self.handler
+        Self.pathsByTestID[testID, default: []].append(request.url?.path ?? "")
+        let handler = Self.handlers[testID]
         Self.lock.unlock()
+
         guard let handler, let url = request.url else {
             client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
             return
@@ -266,13 +290,17 @@ final class AnimeScheduleFallbackTests: XCTestCase {
 
     private var now: Date { Date(timeIntervalSince1970: 1_788_998_400) }
 
-    private func session() -> URLSession {
+    private func session(testID: String) -> URLSession {
         let config = URLSessionConfiguration.ephemeral
-        // These tests own their HTTP responses through URLProtocol. Disable the
-        // simulator's persistent URL cache so parallel simulator activity cannot
-        // replay or unarchive partial cached responses between isolated sessions.
+        // Every session gets a private fixture ID. The URLProtocol routes requests
+        // by this header instead of a mutable process-wide handler, so parallel
+        // XCTest execution cannot replace another test's response or path history.
         config.urlCache = nil
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        config.httpCookieStorage = nil
+        config.urlCredentialStorage = nil
+        config.httpShouldSetCookies = false
+        config.httpAdditionalHeaders = ["X-Eclipse-Anime-Schedule-Test-ID": testID]
         config.protocolClasses = [AnimeScheduleURLProtocol.self]
         return URLSession(configuration: config)
     }
@@ -310,11 +338,11 @@ final class AnimeScheduleFallbackTests: XCTestCase {
         rows: [[String: Any]]? = nil,
         missingWeek: Bool = false,
         catalogTotalAmount: Int = 1
-    ) throws {
+    ) throws -> String {
         let timetable = try data(rows ?? [row()])
         let catalog = try data(["page": 1, "totalAmount": catalogTotalAmount, "anime": [anime()]])
         let firstWeek = AnimeScheduleWeek.covering(ScheduleDateWindow.envelope(dayCount: 7, now: now)).first?.week
-        AnimeScheduleURLProtocol.configure { request in
+        return AnimeScheduleURLProtocol.configure { request in
             guard request.value(forHTTPHeaderField: "Authorization") == "Bearer fixture-token" else { return (401, Data(), [:]) }
             if request.url?.path.contains("timetables") == true {
                 guard request.url?.path.hasSuffix("/timetables/dub") == true else { return (404, Data(), [:]) }
@@ -324,6 +352,31 @@ final class AnimeScheduleFallbackTests: XCTestCase {
             }
             return (200, catalog, [:])
         }
+    }
+
+
+    func testURLProtocolFixturesAreIsolatedAcrossSessions() async throws {
+        let firstID = AnimeScheduleURLProtocol.configure { _ in (200, Data("first".utf8), ["Content-Type": "text/plain"]) }
+        let secondID = AnimeScheduleURLProtocol.configure { _ in (200, Data("second".utf8), ["Content-Type": "text/plain"]) }
+        let firstSession = session(testID: firstID)
+        let secondSession = session(testID: secondID)
+        defer {
+            firstSession.invalidateAndCancel()
+            secondSession.invalidateAndCancel()
+            AnimeScheduleURLProtocol.remove(firstID)
+            AnimeScheduleURLProtocol.remove(secondID)
+        }
+
+        let url = try XCTUnwrap(URL(string: "https://schedule.fixture.invalid/isolation"))
+        async let firstResponse = firstSession.data(from: url)
+        async let secondResponse = secondSession.data(from: url)
+        let (firstData, _) = try await firstResponse
+        let (secondData, _) = try await secondResponse
+
+        XCTAssertEqual(String(decoding: firstData, as: UTF8.self), "first")
+        XCTAssertEqual(String(decoding: secondData, as: UTF8.self), "second")
+        XCTAssertEqual(AnimeScheduleURLProtocol.count(for: firstID), 1)
+        XCTAssertEqual(AnimeScheduleURLProtocol.count(for: secondID), 1)
     }
 
     func testAnidubFallbackOnlyRunsWhenTaizenLacksEnglishAndSpanishCounts() {
@@ -554,40 +607,49 @@ final class AnimeScheduleFallbackTests: XCTestCase {
     }
 
     func testFetchPaginatesWeeksAndCachesWithoutDuplicateEpisodes() async throws {
-        try stub()
-        let session = session()
-        defer { session.invalidateAndCancel() }
+        let testID = try stub()
+        let session = session(testID: testID)
+        defer {
+            session.invalidateAndCancel()
+            AnimeScheduleURLProtocol.remove(testID)
+        }
         let service = AnimeScheduleService(session: session, token: "fixture-token", requestSpacing: 0)
         let first = try await service.fetchSchedule(daysAhead: 7, now: now)
-        let count = AnimeScheduleURLProtocol.count
+        let count = AnimeScheduleURLProtocol.count(for: testID)
         let second = try await service.fetchSchedule(daysAhead: 7, now: now)
         XCTAssertEqual(first.entries.count, 1)
         XCTAssertEqual(second.entries.count, 1)
         XCTAssertGreaterThan(count, 1)
-        XCTAssertEqual(AnimeScheduleURLProtocol.count, count)
+        XCTAssertEqual(AnimeScheduleURLProtocol.count(for: testID), count)
         XCTAssertFalse(first.isAuthoritativeForNotifications)
     }
 
     func testOngoingCatalogStopsPagingAfterEveryRequestedAnimeRouteIsFound() async throws {
-        try stub(catalogTotalAmount: 10_000)
-        let session = session()
-        defer { session.invalidateAndCancel() }
+        let testID = try stub(catalogTotalAmount: 10_000)
+        let session = session(testID: testID)
+        defer {
+            session.invalidateAndCancel()
+            AnimeScheduleURLProtocol.remove(testID)
+        }
         let service = AnimeScheduleService(session: session, token: "fixture-token", requestSpacing: 0)
 
         let result = try await service.fetchSchedule(daysAhead: 7, now: now)
 
         XCTAssertEqual(result.entries.count, 1)
         XCTAssertEqual(
-            AnimeScheduleURLProtocol.paths.filter { $0 == "/api/v3/anime" }.count,
+            AnimeScheduleURLProtocol.paths(for: testID).filter { $0 == "/api/v3/anime" }.count,
             1,
             "The ongoing catalog should not fetch later pages after finding every route in the schedule window."
         )
     }
 
     func testMissingWeekRetainsConfirmedEntriesWithoutDeletionAuthority() async throws {
-        try stub(missingWeek: true)
-        let session = session()
-        defer { session.invalidateAndCancel() }
+        let testID = try stub(missingWeek: true)
+        let session = session(testID: testID)
+        defer {
+            session.invalidateAndCancel()
+            AnimeScheduleURLProtocol.remove(testID)
+        }
         let service = AnimeScheduleService(session: session, token: "fixture-token", requestSpacing: 0)
         let result = try await service.fetchSchedule(daysAhead: 7, now: now)
         XCTAssertEqual(result.entries.count, 1)
@@ -597,14 +659,20 @@ final class AnimeScheduleFallbackTests: XCTestCase {
     }
 
     func testDiskCacheSurvivesRelaunchWithoutInventingFreshNotificationAuthority() async throws {
-        try stub()
-        let cache = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
-        defer { try? FileManager.default.removeItem(at: cache) }
-        let session = session()
-        defer { session.invalidateAndCancel() }
+        let testID = try stub()
+        let cacheDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("AnimeScheduleFallbackTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
+        let cache = cacheDirectory.appendingPathComponent("schedule-cache.json")
+        defer { try? FileManager.default.removeItem(at: cacheDirectory) }
+        let session = session(testID: testID)
+        defer {
+            session.invalidateAndCancel()
+            AnimeScheduleURLProtocol.remove(testID)
+        }
         let initial = AnimeScheduleService(session: session, token: "fixture-token", cacheURL: cache, requestSpacing: 0)
         _ = try await initial.fetchSchedule(daysAhead: 7, now: now)
-        AnimeScheduleURLProtocol.configure { _ in (503, Data(), [:]) }
+        AnimeScheduleURLProtocol.configure({ _ in (503, Data(), [:]) }, for: testID)
         let restored = AnimeScheduleService(session: session, token: "fixture-token", cacheURL: cache, requestSpacing: 0)
         let result = try await restored.fetchSchedule(daysAhead: 7, now: now.addingTimeInterval(3600))
         XCTAssertEqual(result.entries.count, 1)
@@ -615,12 +683,13 @@ final class AnimeScheduleFallbackTests: XCTestCase {
     }
 
     func testUnconfiguredBuildDoesNotSendRequests() async {
-        AnimeScheduleURLProtocol.configure { _ in (200, Data(), [:]) }
+        let testID = AnimeScheduleURLProtocol.configure { _ in (200, Data(), [:]) }
+        defer { AnimeScheduleURLProtocol.remove(testID) }
         do {
             _ = try await AnimeScheduleService(token: "$(ANIMESCHEDULE_API_TOKEN)").fetchSchedule(daysAhead: 7, now: now)
             XCTFail("Missing token must fail")
         } catch {}
-        XCTAssertEqual(AnimeScheduleURLProtocol.count, 0)
+        XCTAssertEqual(AnimeScheduleURLProtocol.count(for: testID), 0)
     }
 
     func testRecoveryKeepsCanonicalEpisodeIdentityDespiteProviderTitleChange() throws {
@@ -680,11 +749,14 @@ final class AnimeScheduleFallbackTests: XCTestCase {
     func testUnmappedTimetableDoesNotBlockLastResortFallback() async throws {
         let timetable = try data([row()])
         let catalog = try data(["page": 1, "totalAmount": 1, "anime": [anime(["websites": [:]])]])
-        AnimeScheduleURLProtocol.configure { request in
+        let testID = AnimeScheduleURLProtocol.configure { request in
             (200, request.url?.path.contains("timetables") == true ? timetable : catalog, [:])
         }
-        let session = session()
-        defer { session.invalidateAndCancel() }
+        let session = session(testID: testID)
+        defer {
+            session.invalidateAndCancel()
+            AnimeScheduleURLProtocol.remove(testID)
+        }
         do {
             _ = try await AnimeScheduleService(session: session, token: "fixture-token", requestSpacing: 0).fetchSchedule(daysAhead: 7, now: now)
             XCTFail("An unusable timetable must allow the next provider")
@@ -693,19 +765,22 @@ final class AnimeScheduleFallbackTests: XCTestCase {
 
     func testProviderOutageStopsFurtherRequestsAndInvalidRateLimitHeadersAreBounded() async {
         for status in [401, 429, 503] {
-            AnimeScheduleURLProtocol.configure { _ in (status, Data(), ["Retry-After": "nan", "X-RateLimit-Reset": "inf"]) }
-            let session = session()
+            let testID = AnimeScheduleURLProtocol.configure { _ in (status, Data(), ["Retry-After": "nan", "X-RateLimit-Reset": "inf"]) }
+            let session = session(testID: testID)
+            defer {
+                session.invalidateAndCancel()
+                AnimeScheduleURLProtocol.remove(testID)
+            }
             let service = AnimeScheduleService(session: session, token: "fixture-token", requestSpacing: 0)
             do {
                 _ = try await service.fetchSchedule(daysAhead: 30, now: now)
                 XCTFail("An unavailable provider must fail")
             } catch {}
-            XCTAssertEqual(AnimeScheduleURLProtocol.count, 1)
+            XCTAssertEqual(AnimeScheduleURLProtocol.count(for: testID), 1)
             if status == 429 {
                 do { _ = try await service.fetchSchedule(daysAhead: 30, now: now) } catch {}
-                XCTAssertEqual(AnimeScheduleURLProtocol.count, 1)
+                XCTAssertEqual(AnimeScheduleURLProtocol.count(for: testID), 1)
             }
-            session.invalidateAndCancel()
         }
     }
 
