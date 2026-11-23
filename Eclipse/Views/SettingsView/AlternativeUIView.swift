@@ -40,6 +40,7 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
     case portraitHeroBleedIntensity
     case landscapeHeroBleedIntensity
     case landscapeTitleLogoPosition
+    case landscapeTitleLogoHorizontalPosition
     case landscapeTitleLogoSize
     case landscapeTitleLogoWeight
     case landscapeHeroActionPosition
@@ -65,7 +66,7 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
             return "interface"
         case .animatedBackground, .animationQuality, .animationColor, .customAnimationColor, .animationFrameRate, .appPerformanceOverlay, .hideSplashScreen:
             return "motion"
-        case .alternativeSeasonMenu, .horizontalEpisodeList, .showUnairedEpisodes, .titleLogoPosition, .titleLogoSize, .titleLogoWeight, .heroActionPosition, .heroSynopsisPosition, .portraitHeroBleedIntensity, .landscapeHeroBleedIntensity, .landscapeTitleLogoPosition, .landscapeTitleLogoSize, .landscapeTitleLogoWeight, .landscapeHeroActionPosition, .landscapeHeroSynopsisPosition, .landscapeHeroHorizontalStretch, .landscapeHeroVerticalStretch, .landscapeContentHorizontalPosition, .dataSaver, .ageRating, .similarTitles:
+        case .alternativeSeasonMenu, .horizontalEpisodeList, .showUnairedEpisodes, .titleLogoPosition, .titleLogoSize, .titleLogoWeight, .heroActionPosition, .heroSynopsisPosition, .portraitHeroBleedIntensity, .landscapeHeroBleedIntensity, .landscapeTitleLogoPosition, .landscapeTitleLogoHorizontalPosition, .landscapeTitleLogoSize, .landscapeTitleLogoWeight, .landscapeHeroActionPosition, .landscapeHeroSynopsisPosition, .landscapeHeroHorizontalStretch, .landscapeHeroVerticalStretch, .landscapeContentHorizontalPosition, .dataSaver, .ageRating, .similarTitles:
             return "details"
         case .libraryBookmarks, .libraryCollectionLayout:
             return "library"
@@ -87,6 +88,7 @@ struct AlternativeUIView: View {
     @AppStorage(MediaDetailRatingNotesPositionSettings.portraitOffsetKey) private var portraitRatingNotesOffset = MediaDetailRatingNotesPositionSettings.defaultOffset
     @AppStorage(MediaDetailRatingNotesPositionSettings.landscapeOffsetKey) private var landscapeRatingNotesOffset = MediaDetailRatingNotesPositionSettings.defaultOffset
     @AppStorage(LandscapeMediaDetailAppearanceSettings.logoPositionKey) private var landscapeTitleLogoPosition = LandscapeMediaDetailAppearanceSettings.defaultLogoPosition
+    @AppStorage(LandscapeMediaDetailAppearanceSettings.logoHorizontalPositionKey) private var landscapeTitleLogoHorizontalPosition = LandscapeMediaDetailAppearanceSettings.defaultLogoHorizontalPosition
     @AppStorage(LandscapeMediaDetailAppearanceSettings.logoSizeKey) private var landscapeTitleLogoSize = LandscapeMediaDetailAppearanceSettings.defaultLogoSize
     @AppStorage(LandscapeMediaDetailAppearanceSettings.logoWeightKey) private var landscapeTitleLogoWeight = LandscapeMediaDetailAppearanceSettings.defaultLogoWeight
     @AppStorage(LandscapeMediaDetailAppearanceSettings.actionsOffsetKey) private var landscapeHeroActionsOffset = LandscapeMediaDetailAppearanceSettings.defaultOffset
@@ -670,6 +672,8 @@ struct AlternativeUIView: View {
             Text("Landscape Detail Page").font(.subheadline.weight(.semibold))
             sliderRow(title: "Landscape Title Logo Vertical Position", description: "Move the title logo independently in landscape detail pages.", value: $landscapeTitleLogoPosition, range: LandscapeMediaDetailAppearanceSettings.logoPositionRange, step: 0.05)
                 .id(AppearanceSettingsSearchTarget.landscapeTitleLogoPosition.anchorID)
+            sliderRow(title: "Landscape Title Logo Horizontal Position", description: "Move the title logo left or right independently in landscape detail pages.", value: $landscapeTitleLogoHorizontalPosition, range: LandscapeMediaDetailAppearanceSettings.logoHorizontalPositionRange, step: LandscapeMediaDetailAppearanceSettings.logoHorizontalPositionStep)
+                .id(AppearanceSettingsSearchTarget.landscapeTitleLogoHorizontalPosition.anchorID)
             sliderRow(title: "Landscape Title Logo Size", description: "Change title logo size only in landscape detail pages.", value: $landscapeTitleLogoSize, range: LandscapeMediaDetailAppearanceSettings.logoSizeRange, step: 0.05)
                 .id(AppearanceSettingsSearchTarget.landscapeTitleLogoSize.anchorID)
             sliderRow(title: "Landscape Title Logo Weight", description: "Change title logo weight only in landscape detail pages.", value: $landscapeTitleLogoWeight, range: LandscapeMediaDetailAppearanceSettings.logoWeightRange, step: 0.05)
