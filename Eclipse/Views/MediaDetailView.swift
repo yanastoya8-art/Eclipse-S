@@ -2020,7 +2020,7 @@ struct MediaDetailContentView: View {
                 // Disable elastic overscroll on the detail surface. The hero is
                 // edge-to-edge and should remain flush with the phone's top edge;
                 // rubber-banding was exposing a blank strip above the artwork.
-                .scrollBounceBehavior(.never)
+                .mediaDetailNoBounce()
                 .modifier(ScrollClipModifier())
                 // Apply edge-to-edge layout to the actual ScrollView, not only
                 // its ScrollViewReader wrapper. This is the same arrangement
@@ -2404,7 +2404,7 @@ struct MediaDetailContentView: View {
                         .padding(.trailing, max(28, proxy.safeAreaInsets.trailing + 28))
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .scrollBounceBehavior(.never)
+                    .mediaDetailNoBounce()
                     .onChangeComp(of: notificationEpisodeScrollGeneration) { _, _ in
                         withAnimation(.easeInOut(duration: 0.38)) {
                             if !scrollsToEpisodeSection, let selectedEpisodeForSearch {
