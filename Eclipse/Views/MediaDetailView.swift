@@ -17,7 +17,7 @@ private extension View {
     @ViewBuilder
     func mediaDetailNoBounce() -> some View {
         if #available(iOS 16.4, *) {
-            self.mediaDetailNoBounce()
+            self.scrollBounceBehavior(.never)
         } else {
             self
         }
