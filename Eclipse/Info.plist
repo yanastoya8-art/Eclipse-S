@@ -69,6 +69,8 @@
 	<string>$(TMDB_API_KEY)</string>
 	<key>FanartTVAPIKey</key>
 	<string>$(FANART_TV_API_KEY)</string>
+	<key>SpanishDubResearchProxyURL</key>
+	<string>$(SPANISH_DUB_RESEARCH_PROXY_URL)</string>
 	<key>AniListClientID</key>
 	<string>$(ANILIST_CLIENT_ID)</string>
 	<key>AniListClientSecret</key>

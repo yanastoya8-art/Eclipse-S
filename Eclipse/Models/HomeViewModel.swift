@@ -338,6 +338,11 @@ final class HomeViewModel: ObservableObject {
         applyHeroBannerSelection()
     }
 
+    func browseItems(for catalogID: String, fallback: [TMDBSearchResult]) -> [TMDBSearchResult] {
+        let rawItems = unfilteredCatalogResults[catalogID] ?? []
+        return rawItems.isEmpty ? fallback : rawItems
+    }
+
     func loadContent(
         tmdbService: TMDBService,
         catalogManager: CatalogManager,

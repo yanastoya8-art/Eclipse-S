@@ -13,6 +13,17 @@ import Photos
 import UIKit
 #endif
 
+private extension View {
+    @ViewBuilder
+    func mediaDetailNoBounce() -> some View {
+        if #available(iOS 16.4, tvOS 16.4, *) {
+            self.scrollBounceBehavior(.never)
+        } else {
+            self
+        }
+    }
+}
+
 struct MediaDetailInitialNotificationSelection: Equatable {
     enum Kind: Equatable {
         case episode
@@ -2006,6 +2017,10 @@ struct MediaDetailContentView: View {
                     )
                 }
                 .coordinateSpace(name: "mediaDetailScroll")
+                // Disable elastic overscroll on the detail surface. The hero is
+                // edge-to-edge and should remain flush with the phone's top edge;
+                // rubber-banding was exposing a blank strip above the artwork.
+                .mediaDetailNoBounce()
                 .modifier(ScrollClipModifier())
                 // Apply edge-to-edge layout to the actual ScrollView, not only
                 // its ScrollViewReader wrapper. This is the same arrangement
@@ -2389,6 +2404,7 @@ struct MediaDetailContentView: View {
                         .padding(.trailing, max(28, proxy.safeAreaInsets.trailing + 28))
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .mediaDetailNoBounce()
                     .onChangeComp(of: notificationEpisodeScrollGeneration) { _, _ in
                         withAnimation(.easeInOut(duration: 0.38)) {
                             if !scrollsToEpisodeSection, let selectedEpisodeForSearch {

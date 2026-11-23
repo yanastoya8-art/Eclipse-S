@@ -2335,6 +2335,11 @@ private struct BrowseMediaView: View {
                     ageRating: ageRating
                 )
                 try Task.checkCancellation()
+                // A failed dub-index refresh is a terminal filter-data error for
+                // this query, not an empty TMDB page. Stop automatic pagination
+                // here; otherwise Browse can request up to 30 more pages while
+                // showing the same spinner and repeating the failed lookup.
+                let filterDataUnavailable = await MainActor.run { errorMessage != nil }
                 let browseTypeFiltered = sortedDeduplicatedResults(
                     existingRawResults + fetchedPageBrowseResults,
                     by: sort
@@ -2378,15 +2383,16 @@ private struct BrowseMediaView: View {
                     }
 
                     currentPage = page
-                    hasMorePages = pageResult.hasMore
+                    hasMorePages = pageResult.hasMore && !filterDataUnavailable
                     isLoading = false
 
-                    if filterRefreshPending {
+                    if filterRefreshPending && !filterDataUnavailable {
                         filterRefreshPending = false
                         reapplyCurrentFiltersToRetainedResults()
                     }
 
-                    if hasMorePages,
+                    if !filterDataUnavailable,
+                       hasMorePages,
                        results.count < 12,
                        page < Self.maximumAutomaticFilteredPages {
                         loadNextPage()

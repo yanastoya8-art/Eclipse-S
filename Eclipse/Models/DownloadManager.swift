@@ -2677,12 +2677,14 @@ final class DownloadManager: NSObject, ObservableObject {
     }
 
     func applicationDidEnterBackground() {
-#if os(iOS) && !targetEnvironment(macCatalyst)
-        hlsForegroundIntents.removeAll()
-#endif
-#if (os(iOS) && !targetEnvironment(macCatalyst)) || os(macOS)
-        suspendProtectedProviderAttempts(message: "Waiting for app to reopen", processWhenPossible: false, preservingGrantedHLS: true)
-#endif
+        // Do not tear down active provider transports when the user merely
+        // switches apps. Direct transfers are owned by the OS background
+        // URLSession; HLS workers retain their checkpointed foreground task and,
+        // where available, their iOS continued-processing grant. Suspending
+        // protected attempts here converted valid downloads into "Waiting for
+        // app to reopen" as soon as the app entered the background.
+        //
+        // The termination handler still performs the secure suspension path.
     }
 
 #if os(iOS) && !targetEnvironment(macCatalyst)
@@ -2810,7 +2812,8 @@ final class DownloadManager: NSObject, ObservableObject {
             }
             return
         }
-        guard let item = downloads.first(where: { $0.id == id }) else { return }
+        guard let item = downloads.first(where: { $0.id == id }),
+              item.status == .downloading else { return }
         let attempt = directBackgroundAttempts[id].flatMap { $0.granted && !$0.revoked ? $0 : nil }
         let total: Int64
         let completed: Int64
@@ -2946,7 +2949,8 @@ final class DownloadManager: NSObject, ObservableObject {
     }
 
     private func updateHLSBackgroundProgress(id: String, stage: String) {
-        guard let item = downloads.first(where: { $0.id == id }) else { return }
+        guard let item = downloads.first(where: { $0.id == id }),
+              item.status == .downloading else { return }
         let attempt = hlsBackgroundAttempts[id].flatMap { $0.granted && !$0.revoked ? $0 : nil }
         let total = Int64(max(item.hlsTotalSegments ?? 1, 1)) + 1
         let completed = min(Int64(max(item.hlsResumeSegmentIndex ?? 0, 0)), total - 1)
@@ -4324,6 +4328,11 @@ final class DownloadManager: NSObject, ObservableObject {
 #if os(iOS) && !targetEnvironment(macCatalyst)
             self.revokeHLSBackgroundAttempt(id: id)
             self.finishDirectBackgroundAttempt(id: id, success: false)
+            if #available(iOS 16.2, *) {
+                Task { @MainActor in
+                    await DownloadLiveActivityController.end(downloadID: id, status: "Deleted")
+                }
+            }
 #endif
             self.invalidateSourceRefresh(id: id)
             self.mediaSourceRecoveryAttempts.removeValue(forKey: id)
@@ -4373,6 +4382,11 @@ final class DownloadManager: NSObject, ObservableObject {
             for item in self.downloads where matchingIds.contains(item.id) {
 #if os(iOS) && !targetEnvironment(macCatalyst)
                 self.revokeHLSBackgroundAttempt(id: item.id)
+                if #available(iOS 16.2, *) {
+                    Task { @MainActor in
+                        await DownloadLiveActivityController.end(downloadID: item.id, status: "Deleted")
+                    }
+                }
 #endif
 #if (os(iOS) && !targetEnvironment(macCatalyst)) || os(macOS)
                 self.clearSkyStreamDownloadRuntimeState(id: item.id, discardDescriptor: true)
@@ -4400,6 +4414,11 @@ final class DownloadManager: NSObject, ObservableObject {
             for item in self.downloads where completedIds.contains(item.id) {
 #if os(iOS) && !targetEnvironment(macCatalyst)
                 self.revokeHLSBackgroundAttempt(id: item.id)
+                if #available(iOS 16.2, *) {
+                    Task { @MainActor in
+                        await DownloadLiveActivityController.end(downloadID: item.id, status: "Deleted")
+                    }
+                }
 #endif
                 self.downloadAdmissionTokens.removeValue(forKey: item.id)
 #if (os(iOS) && !targetEnvironment(macCatalyst)) || os(macOS)
@@ -4428,6 +4447,13 @@ final class DownloadManager: NSObject, ObservableObject {
         #endif
 #if os(iOS) && !targetEnvironment(macCatalyst)
         revokeAllHLSBackgroundAttempts()
+        if #available(iOS 16.2, *) {
+            for item in downloads {
+                Task { @MainActor in
+                    await DownloadLiveActivityController.end(downloadID: item.id, status: "Deleted")
+                }
+            }
+        }
 #endif
         downloadAdmissionTokens.removeAll()
         for id in sourceRefreshes.ids { invalidateSourceRefresh(id: id) }
@@ -6263,6 +6289,13 @@ final class DownloadManager: NSObject, ObservableObject {
     }
 
     private func startDownload(_ item: DownloadItem) {
+#if os(iOS)
+        if #available(iOS 16.2, *) {
+            Task { @MainActor in
+                DownloadLiveActivityController.prepare(downloadID: item.id)
+            }
+        }
+#endif
         #if os(macOS)
         guard !admissionsStopped, !storageMutationInProgress else { return }
         if item.pendingMacFinalization != nil {

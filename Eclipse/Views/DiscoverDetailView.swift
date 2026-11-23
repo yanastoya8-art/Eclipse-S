@@ -172,6 +172,13 @@ struct DiscoverDetailView: View {
                     loadNextPage()
                 }
             }
+            let snapshot = items.isEmpty ? initialItems : items
+            Task { @MainActor in
+                await contentFilter.resolveBrowseFilterMetadata(
+                    for: snapshot
+                )
+                filterRefreshRevision &+= 1
+            }
         }
         .onChangeComp(of: sectionIdentity) { _, _ in
             // The same navigation destination can be reused while switching
@@ -185,6 +192,13 @@ struct DiscoverDetailView: View {
             paginationError = nil
             isLoadingMore = false
             filterRefreshRevision &+= 1
+            let snapshot = items
+            Task { @MainActor in
+                await contentFilter.resolveBrowseFilterMetadata(
+                    for: snapshot
+                )
+                filterRefreshRevision &+= 1
+            }
             if filteredItems.isEmpty {
                 loadNextPage()
             }
@@ -202,6 +216,13 @@ struct DiscoverDetailView: View {
             initialPageItemCount = initialItems.count
             paginationCursor.refreshFirstPage()
             paginationError = nil
+            let snapshot = items
+            Task { @MainActor in
+                await contentFilter.resolveBrowseFilterMetadata(
+                    for: snapshot
+                )
+                filterRefreshRevision &+= 1
+            }
             if filteredItems.isEmpty {
                 loadNextPage()
             }
@@ -209,7 +230,9 @@ struct DiscoverDetailView: View {
         .onReceive(NotificationCenter.default.publisher(for: TMDBContentFilter.catalogFiltersDidChangeNotification)) { _ in
             let snapshot = items
             Task { @MainActor in
-                await contentFilter.prepareMaturityRatings(for: snapshot)
+                await contentFilter.resolveBrowseFilterMetadata(
+                    for: snapshot
+                )
                 // Keep the original page snapshot stable. Replacing the
                 // backing array here invalidates LazyVGrid's scroll layout,
                 // causing flashing and jumps back to the top.

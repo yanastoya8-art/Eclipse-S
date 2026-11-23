@@ -2142,7 +2142,7 @@ struct HomeView: View {
         DiscoverDetailView(
             catalogID: catalog.id,
             title: title,
-            initialItems: initialItems,
+            initialItems: homeViewModel.browseItems(for: catalog.id, fallback: initialItems),
             loadMore: sectionLoadMoreHandler(for: catalog),
             allowsUpcomingContent: catalog.id == "upcomingMovies" || catalog.id == "upcomingTV"
         )
@@ -2238,8 +2238,10 @@ struct HomeView: View {
         fetch: () async throws -> [TMDBSearchResult]
     ) async throws -> [TMDBSearchResult] {
         do {
+            let rawResults = try await fetch()
+            await contentFilter.resolveBrowseFilterMetadata(for: rawResults)
             return await contentFilter.filterSearchResultsResolvingRatings(
-                try await fetch(),
+                rawResults,
                 allowUpcomingContent: allowUpcomingContent
             )
         } catch {
@@ -2268,9 +2270,13 @@ struct HomeView: View {
         do {
             let limit = boundedPage * pageSize
             let offset = (boundedPage - 1) * pageSize
-            let results = await contentFilter.filterFastAnimeSearchResultsResolvingRatings(
-                try await tmdbService.getFastAnimeCatalog(kind: fastAnimeCatalogKind(for: kind), limit: limit)
+            let fetchedResults = try await tmdbService.getFastAnimeCatalog(
+                kind: fastAnimeCatalogKind(for: kind),
+                limit: limit
             )
+            let rawResults = fetchedResults.map { $0.withAnimeHint(true) }
+            await contentFilter.resolveBrowseFilterMetadata(for: rawResults)
+            let results = await contentFilter.filterFastAnimeSearchResultsResolvingRatings(rawResults)
             return Array(results.dropFirst(offset))
         } catch {
             Logger.shared.log("HomeView: anime section \(catalogId) page \(page) failed: \(error.localizedDescription)", type: "AniList")
@@ -2303,6 +2309,7 @@ struct HomeView: View {
                     tmdbService: tmdbService,
                     limit: limit
                 )
+                await contentFilter.resolveBrowseFilterMetadata(for: items)
                 return await Array(contentFilter.filterSearchResultsResolvingRatings(items).dropFirst(offset))
             }
         case .trakt:
@@ -2315,6 +2322,7 @@ struct HomeView: View {
                     tmdbService: tmdbService,
                     limit: limit
                 )
+                await contentFilter.resolveBrowseFilterMetadata(for: items)
                 return await Array(contentFilter.filterSearchResultsResolvingRatings(items).dropFirst(offset))
             }
         case .tmdb, .anilist, .local:

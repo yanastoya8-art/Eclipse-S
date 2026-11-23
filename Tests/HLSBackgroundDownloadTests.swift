@@ -44,7 +44,7 @@ final class HLSBackgroundDownloadTests: XCTestCase {
             XCTAssertEqual(fixture.item.status, .downloading)
             XCTAssertEqual(fixture.scheduler.grantResults, [])
             fixture.release()
-            try await eventually(timeout: 15) { fixture.item.status == .completed }
+            try await eventually({ fixture.item.status == .completed }, timeout: 15)
             XCTAssertEqual(try fixture.completedData(), Data("AABBCC".utf8))
             XCTAssertTrue(fixture.scheduler.finishes.isEmpty)
         } catch {
@@ -131,7 +131,7 @@ final class HLSBackgroundDownloadTests: XCTestCase {
             try await eventually { fixture.heldCount == 1 && fixture.scheduler.requests.count == 1 }
             fixture.manager.cancelDownload(id: fixture.itemID)
             await fixture.manager.drainIsolatedHLSWorkers()
-            try await eventually(timeout: 15) { fixture.scheduler.finishes.count == 1 && fixture.heldCount == 0 }
+            try await eventually({ fixture.scheduler.finishes.count == 1 && fixture.heldCount == 0 }, timeout: 15)
             let paths = fixture.requestedPaths
             XCTAssertFalse(fixture.scheduler.grant(0))
             fixture.manager.applicationDidBecomeActive()
@@ -337,7 +337,7 @@ final class HLSBackgroundDownloadTests: XCTestCase {
         try? FileManager.default.removeItem(at: root)
     }
 
-    func testBackgroundingProtectedItemWithoutGrantKeepsExistingSuspensionBoundary() async throws {
+    func testBackgroundingDoesNotImmediatelyQueueProtectedDownloadWithoutGrant() async throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         var item = recoveryItem(id: "protected-pending", reservation: "protected.ts")
@@ -352,10 +352,11 @@ final class HLSBackgroundDownloadTests: XCTestCase {
         let scheduler = HLSBackgroundSchedulerMock(mode: .hold)
         manager.configureHLSBackgroundForTesting(scheduler: scheduler, enabled: { true }, applicationIsActive: { false },
             sessionConfiguration: .ephemeral)
+        let beforeBackground = try XCTUnwrap(manager.downloads.first)
         manager.applicationDidEnterBackground()
-        let suspended = try XCTUnwrap(manager.downloads.first)
-        XCTAssertNotEqual(suspended.status, .downloading)
-        XCTAssertEqual(suspended.streamURL, "")
+        let backgrounded = try XCTUnwrap(manager.downloads.first)
+        XCTAssertEqual(backgrounded.status, beforeBackground.status)
+        XCTAssertEqual(backgrounded.streamURL, beforeBackground.streamURL)
         XCTAssertTrue(scheduler.requests.isEmpty)
         manager.finishIsolatedSession()
         await manager.drainIsolatedHLSWorkers()

@@ -417,9 +417,10 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             ENABLE_USER_SCRIPT_SANDBOXING=NO
 
-      - name: Verify TMDB API key in built simulator app
+      - name: Verify API configuration in built simulator app
         env:
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          SPANISH_DUB_RESEARCH_PROXY_URL: ${{ vars.SPANISH_DUB_RESEARCH_PROXY_URL || 'https://eclipse-spanish-dub-research.vercel.app' }}
         run: |
           set -euo pipefail
           APP_INFO_PLIST="$(find "$RUNNER_TEMP/DerivedData/Build/Products" -path '*/Eclipse.app/Info.plist' -type f -print -quit)"
@@ -436,18 +437,30 @@ jobs:
 
           info_path = Path(sys.argv[1])
           expected = os.environ.get("TMDB_API_KEY", "").strip()
+          expected_proxy = os.environ.get(
+              "SPANISH_DUB_RESEARCH_PROXY_URL",
+              "https://eclipse-spanish-dub-research.vercel.app",
+          ).strip().rstrip("/")
           try:
               with info_path.open("rb") as stream:
                   info = plistlib.load(stream)
               embedded = info.get("TMDBAPIKey")
+              embedded_proxy = info.get("SpanishDubResearchProxyURL")
           except Exception:
-              raise SystemExit("::error::Could not read TMDBAPIKey from the built app Info.plist.")
+              raise SystemExit("::error::Could not read required API configuration from the built app Info.plist.")
 
           if not expected or not isinstance(embedded, str):
               raise SystemExit("::error::TMDBAPIKey is missing from the built simulator app.")
           if not embedded.strip() or "$(" in embedded or embedded != expected:
               raise SystemExit("::error::The built app TMDBAPIKey does not match the configured repository secret.")
-          print("Verified TMDBAPIKey is embedded in the simulator app Info.plist (credential redacted).")
+          if (
+              not isinstance(embedded_proxy, str)
+              or not embedded_proxy.strip().startswith("https://")
+              or "$(" in embedded_proxy
+              or embedded_proxy.rstrip("/") != expected_proxy
+          ):
+              raise SystemExit("::error::SpanishDubResearchProxyURL is missing or does not match the configured server proxy URL.")
+          print("Verified TMDB key and public Spanish dub proxy URL in the simulator app Info.plist (credentials redacted).")
           PY
 
       - name: Run iOS unit tests

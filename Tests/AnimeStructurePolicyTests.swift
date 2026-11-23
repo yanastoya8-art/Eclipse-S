@@ -78,6 +78,25 @@ final class AnimeStructurePolicyTests: XCTestCase {
         )
     }
 
+    func testEnglishDubQualifiesWhenSpanishDubIsUnavailable() {
+        let selected = Set([MyDubListLanguage.english.rawValue, MyDubListLanguage.spanish.rawValue])
+        XCTAssertTrue(
+            AnimeDubAudioSelectionPolicy.hasSelectedAudio(
+                selectedLanguages: selected,
+                dubCountsByLanguage: ["en": 12, "es": 0]
+            )
+        )
+    }
+
+    func testSpanishRegionalDubQualifiesForCombinedSpanishSelection() {
+        XCTAssertTrue(
+            AnimeDubAudioSelectionPolicy.hasSelectedAudio(
+                selectedLanguages: [MyDubListLanguage.spanish.rawValue],
+                dubCountsByLanguage: ["es-419": 12]
+            )
+        )
+    }
+
     func testContainedCourKeepsKnownFinishedPrefixAndLeavesUndatedTailUnowned() throws {
         let rows = [courProofEpisode(1, date: "2024-07-06"), courProofEpisode(2, date: "2024-07-13"), courProofEpisode(3, date: nil)]
         let result = try XCTUnwrap(containedCourProof(count: 2, end: "2024-07-13", rows: rows))
