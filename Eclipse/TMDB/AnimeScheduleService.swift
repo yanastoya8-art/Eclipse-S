@@ -1222,7 +1222,7 @@ actor SpanishDubAIResearchService {
     /// is the public HTTPS base URL, which is not an API credential.
     private static func proxyURL(for provider: SpanishDubAIProvider) -> URL? {
         guard let raw = Bundle.main.object(forInfoDictionaryKey: "SpanishDubResearchProxyURL") as? String,
-              let value = raw.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty,
+              value = raw.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty,
               var components = URLComponents(string: value),
               components.scheme?.lowercased() == "https",
               let host = components.host, !host.isEmpty,
