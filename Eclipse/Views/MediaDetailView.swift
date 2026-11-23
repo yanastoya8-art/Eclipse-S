@@ -2006,6 +2006,10 @@ struct MediaDetailContentView: View {
                     )
                 }
                 .coordinateSpace(name: "mediaDetailScroll")
+                // Disable elastic overscroll on the detail surface. The hero is
+                // edge-to-edge and should remain flush with the phone's top edge;
+                // rubber-banding was exposing a blank strip above the artwork.
+                .scrollBounceBehavior(.never)
                 .modifier(ScrollClipModifier())
                 // Apply edge-to-edge layout to the actual ScrollView, not only
                 // its ScrollViewReader wrapper. This is the same arrangement
