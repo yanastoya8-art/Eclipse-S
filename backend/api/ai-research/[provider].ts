@@ -19,9 +19,12 @@ function json(res: VercelResponse, status: number, body: Record<string, unknown>
 }
 
 function clientAddress(req: VercelRequest): string {
-  const forwarded = req.headers["x-forwarded-for"];
-  const first = Array.isArray(forwarded) ? forwarded[0] : forwarded?.split(",")[0];
-  return (first || req.headers["x-real-ip"] || "unknown").trim().slice(0, 128);
+  const forwardedHeader = req.headers["x-forwarded-for"];
+  const forwarded = Array.isArray(forwardedHeader) ? forwardedHeader[0] : forwardedHeader;
+  const realIPHeader = req.headers["x-real-ip"];
+  const realIP = Array.isArray(realIPHeader) ? realIPHeader[0] : realIPHeader;
+  const first = forwarded?.split(",")[0];
+  return (first || realIP || "unknown").trim().slice(0, 128);
 }
 
 function allowRequest(address: string): boolean {
