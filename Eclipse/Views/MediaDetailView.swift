@@ -2393,6 +2393,7 @@ struct MediaDetailContentView: View {
                         .padding(.trailing, max(28, proxy.safeAreaInsets.trailing + 28))
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .scrollBounceBehavior(.never)
                     .onChangeComp(of: notificationEpisodeScrollGeneration) { _, _ in
                         withAnimation(.easeInOut(duration: 0.38)) {
                             if !scrollsToEpisodeSection, let selectedEpisodeForSearch {
