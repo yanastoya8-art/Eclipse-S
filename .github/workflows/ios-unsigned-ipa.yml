@@ -635,3 +635,11 @@ jobs:
       - name: Deploy SideStore website
         id: deployment
         uses: actions/deploy-pages@v4
+        continue-on-error: true
+
+      # GitHub occasionally finalizes the uploaded Pages artifact but its
+      # deployment API briefly fails to resolve it. Retry the deploy step
+      # without rebuilding or re-uploading the IPA.
+      - name: Retry SideStore website deployment
+        if: steps.deployment.outcome == 'failure'
+        uses: actions/deploy-pages@v4
