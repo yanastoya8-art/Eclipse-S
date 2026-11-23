@@ -1203,7 +1203,7 @@ final class ScheduleViewModel: ObservableObject {
                         let nativeSchedule = try? await self.retryOnceAfterTransientCancellation(
                             operationName: "AniList native-language airing identities"
                         ) {
-                            try await AniListService.shared.fetchNativeAiringScheduleForLanguageVerification(daysAhead: dayCount)
+                            try await AniListService.shared.fetchNativeAiringScheduleForDubResearch(daysAhead: dayCount)
                         }
                         if let nativeSchedule {
                             let nativeEntries = nativeSchedule.map(ScheduleEntry.init(animeEntry:))
