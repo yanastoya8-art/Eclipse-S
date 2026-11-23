@@ -8222,7 +8222,9 @@ final class DownloadManager: NSObject, ObservableObject {
             return
         }
 
-        guard downloads[index].status == .downloading || downloads[index].status == .queued else {
+        guard downloads[index].status == .downloading
+                || downloads[index].status == .queued
+                || downloads[index].status == .paused else {
             return
         }
         let limitation = downloads[index].resumeLimitationMessage
