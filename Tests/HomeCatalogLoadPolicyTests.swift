@@ -453,3 +453,47 @@ final class CatalogRuntimeAndProductionFilterPolicyTests: XCTestCase {
     }
 }
 
+
+
+final class BrowseAnimeClassifierTests: XCTestCase {
+    private func result(
+        genreIDs: [Int]?,
+        language: String?,
+        countries: [String]?
+    ) -> TMDBSearchResult {
+        TMDBSearchResult(
+            id: 42,
+            mediaType: "tv",
+            title: nil,
+            name: "Fixture",
+            overview: nil,
+            posterPath: nil,
+            backdropPath: nil,
+            releaseDate: nil,
+            firstAirDate: "2026-01-01",
+            voteAverage: 7,
+            popularity: 10,
+            adult: false,
+            genreIds: genreIDs,
+            originalLanguage: language,
+            originCountry: countries
+        )
+    }
+
+    func testMetadataIncompleteAnimationIsNotDroppedFromTVBrowse() {
+        let item = result(genreIDs: [16], language: nil, countries: nil)
+        XCTAssertTrue(BrowseAnimeClassifier.shouldIncludeInTV(item))
+        XCTAssertTrue(BrowseAnimeClassifier.isAnime(item))
+    }
+
+    func testConfirmedJapaneseAnimationIsKeptOutOfTVBrowse() {
+        let item = result(genreIDs: [16], language: "ja", countries: ["JP"])
+        XCTAssertFalse(BrowseAnimeClassifier.shouldIncludeInTV(item))
+    }
+
+    func testWesternAnimationRemainsInTVBrowse() {
+        let item = result(genreIDs: [16], language: "en", countries: ["US"])
+        XCTAssertTrue(BrowseAnimeClassifier.shouldIncludeInTV(item))
+        XCTAssertFalse(BrowseAnimeClassifier.isAnime(item))
+    }
+}
