@@ -102,7 +102,7 @@ jobs:
           MAL_CLIENT_ID: ${{ secrets.MAL_CLIENT_ID }}
           MAL_CLIENT_SECRET: ${{ secrets.MAL_CLIENT_SECRET }}
           MAL_REDIRECT_URI: ${{ secrets.MAL_REDIRECT_URI }}
-          SPANISH_DUB_RESEARCH_PROXY_URL: ${{ vars.SPANISH_DUB_RESEARCH_PROXY_URL }}
+          SPANISH_DUB_RESEARCH_PROXY_URL: ${{ vars.SPANISH_DUB_RESEARCH_PROXY_URL || 'https://eclipse-spanish-dub-research.vercel.app' }}
         run: |
           set -euo pipefail
           # Home's built-in movie/TV catalogs require the public TMDB v3 API key.
