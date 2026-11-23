@@ -1568,3 +1568,34 @@ final class MPVDolbyVisionDetectionPolicyTests: XCTestCase {
         )
     }
 }
+
+
+final class StremioExternalDestinationTests: XCTestCase {
+    func testExternalHTTPDestinationBecomesInAppPlayableURL() throws {
+        let json = #"{"externalUrl":"https://cdn.example/episode.m3u8"}"#
+        let stream = try JSONDecoder().decode(StremioStream.self, from: Data(json.utf8))
+
+        XCTAssertTrue(stream.isDirectHTTP)
+        XCTAssertEqual(stream.playableHTTPURL, "https://cdn.example/episode.m3u8")
+        XCTAssertFalse(stream.hasExternalDestination)
+    }
+
+    func testYouTubeIDBecomesAnInAppWebPlaybackURL() throws {
+        let json = #"{"ytId":"dQw4w9WgXcQ"}"#
+        let stream = try JSONDecoder().decode(StremioStream.self, from: Data(json.utf8))
+
+        XCTAssertTrue(stream.isDirectHTTP)
+        XCTAssertEqual(stream.playableHTTPURL, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+        XCTAssertFalse(stream.hasExternalDestination)
+    }
+
+    func testNonWebExternalDestinationIsNotTreatedAsPlayable() throws {
+        let json = #"{"externalUrl":"stremio://play/episode"}"#
+        let stream = try JSONDecoder().decode(StremioStream.self, from: Data(json.utf8))
+
+        XCTAssertFalse(stream.isDirectHTTP)
+        XCTAssertNil(stream.playableHTTPURL)
+        XCTAssertTrue(stream.hasExternalDestination)
+        XCTAssertFalse(StremioAddonOutcome.externalOnly(count: 1).displayMessage.localizedCaseInsensitiveContains("another service"))
+    }
+}
