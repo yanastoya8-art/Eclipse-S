@@ -175,8 +175,7 @@ struct DiscoverDetailView: View {
             let snapshot = items.isEmpty ? initialItems : items
             Task { @MainActor in
                 await contentFilter.resolveBrowseFilterMetadata(
-                    for: snapshot,
-                    requiresAnimeAgeRating: HomeCatalogFilterPolicy.usesAnimeFiltering(catalogID: catalogID)
+                    for: snapshot
                 )
                 filterRefreshRevision &+= 1
             }
@@ -196,8 +195,7 @@ struct DiscoverDetailView: View {
             let snapshot = items
             Task { @MainActor in
                 await contentFilter.resolveBrowseFilterMetadata(
-                    for: snapshot,
-                    requiresAnimeAgeRating: HomeCatalogFilterPolicy.usesAnimeFiltering(catalogID: catalogID)
+                    for: snapshot
                 )
                 filterRefreshRevision &+= 1
             }
@@ -221,8 +219,7 @@ struct DiscoverDetailView: View {
             let snapshot = items
             Task { @MainActor in
                 await contentFilter.resolveBrowseFilterMetadata(
-                    for: snapshot,
-                    requiresAnimeAgeRating: HomeCatalogFilterPolicy.usesAnimeFiltering(catalogID: catalogID)
+                    for: snapshot
                 )
                 filterRefreshRevision &+= 1
             }
@@ -234,8 +231,7 @@ struct DiscoverDetailView: View {
             let snapshot = items
             Task { @MainActor in
                 await contentFilter.resolveBrowseFilterMetadata(
-                    for: snapshot,
-                    requiresAnimeAgeRating: HomeCatalogFilterPolicy.usesAnimeFiltering(catalogID: catalogID)
+                    for: snapshot
                 )
                 // Keep the original page snapshot stable. Replacing the
                 // backing array here invalidates LazyVGrid's scroll layout,
