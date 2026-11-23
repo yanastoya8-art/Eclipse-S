@@ -630,16 +630,20 @@ jobs:
         with:
           path: ${{ runner.temp }}/sidestore-site
 
-      # deploy-pages consumes the artifact directly. Do not poll the REST artifact
-      # listing here: GitHub finalizes the workflow artifact at job completion.
+
+  # Keep publishing separate from the expensive macOS build. If Pages fails,
+  # GitHub can rerun this job alone without rebuilding or re-uploading the IPA.
+  deploy-sidestore-website:
+    name: Deploy SideStore website
+    needs: build-unsigned-ipa
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - name: Deploy SideStore website
         id: deployment
-        uses: actions/deploy-pages@v4
-        continue-on-error: true
-
-      # GitHub occasionally finalizes the uploaded Pages artifact but its
-      # deployment API briefly fails to resolve it. Retry the deploy step
-      # without rebuilding or re-uploading the IPA.
-      - name: Retry SideStore website deployment
-        if: steps.deployment.outcome == 'failure'
         uses: actions/deploy-pages@v4
