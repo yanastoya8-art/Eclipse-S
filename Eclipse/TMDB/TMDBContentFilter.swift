@@ -319,16 +319,25 @@ final class MyDubListDubFilter: @unchecked Sendable {
         do {
             var malIDs = Set<Int>()
             var englishMALIDs = Set<Int>()
-            for language in languages.sorted() {
-                try Task.checkCancellation()
-                let url = URL(string: "https://raw.githubusercontent.com/Joelis57/MyDubList/main/dubs/confidence/low/dubbed_\(language).json")!
-                let data = try await Self.download(url, maximumBytes: 1_000_000)
-                let dataset = try JSONDecoder().decode(DubDataset.self, from: data)
-                guard dataset.dubbed.count <= 250_000 else { throw URLError(.dataLengthExceedsMaximum) }
-                let validIDs = Set(dataset.dubbed.filter { $0 > 0 && $0 <= 100_000_000 })
-                malIDs.formUnion(validIDs)
-                if language == MyDubListLanguage.english.rawValue {
-                    englishMALIDs = validIDs
+            // English and Spanish datasets are independent. Fetch them together
+            // so a cold Browse/Schedule load does not pay the full timeout twice.
+            try await withThrowingTaskGroup(of: (String, Data).self) { group in
+                for language in languages.sorted() {
+                    group.addTask {
+                        try Task.checkCancellation()
+                        let url = URL(string: "https://raw.githubusercontent.com/Joelis57/MyDubList/main/dubs/confidence/low/dubbed_\(language).json")!
+                        return (language, try await Self.download(url, maximumBytes: 1_000_000))
+                    }
+                }
+                for try await (language, data) in group {
+                    try Task.checkCancellation()
+                    let dataset = try JSONDecoder().decode(DubDataset.self, from: data)
+                    guard dataset.dubbed.count <= 250_000 else { throw URLError(.dataLengthExceedsMaximum) }
+                    let validIDs = Set(dataset.dubbed.filter { $0 > 0 && $0 <= 100_000_000 })
+                    malIDs.formUnion(validIDs)
+                    if language == MyDubListLanguage.english.rawValue {
+                        englishMALIDs = validIDs
+                    }
                 }
             }
 
