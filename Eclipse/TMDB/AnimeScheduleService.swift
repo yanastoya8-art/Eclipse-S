@@ -269,7 +269,7 @@ enum AnimeScheduleAPIKeyStore {
 
     static var hasToken: Bool {
         let keychainValue = load()?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let bundleValues = ["DubsOnlyAPIKey", "AnimeScheduleAPIToken"].compactMap {
+        let bundleValues = ["AnimeScheduleAPIToken", "DubsOnlyAPIKey"].compactMap {
             Bundle.main.object(forInfoDictionaryKey: $0) as? String
         }
         return !keychainValue.isEmpty || bundleValues.contains {
@@ -349,8 +349,8 @@ actor AnimeScheduleService {
         self.session = session
         let configured = token
             ?? AnimeScheduleAPIKeyStore.load()
-            ?? (Bundle.main.object(forInfoDictionaryKey: "DubsOnlyAPIKey") as? String)
             ?? (Bundle.main.object(forInfoDictionaryKey: "AnimeScheduleAPIToken") as? String)
+            ?? (Bundle.main.object(forInfoDictionaryKey: "DubsOnlyAPIKey") as? String)
             ?? ""
         let trimmed = configured.trimmingCharacters(in: .whitespacesAndNewlines)
         self.token = trimmed.contains("$(") || trimmed.utf8.count > 512 ? "" : trimmed
@@ -367,9 +367,9 @@ actor AnimeScheduleService {
     }
 
     func fetchSchedule(daysAhead: Int, now: Date = Date(), preferredLanguageCode: String = "en") async throws -> AnimeAiringScheduleResult {
-        // AnimeSchedule.net's documented v3 timetable endpoints are public.
-        // Do not make a user-supplied token a prerequisite: the website/API work
-        // without one, and a stale token can turn a healthy provider into 401s.
+        // The documented v3 API requires an application bearer token.
+        // If it is not configured, fail fast and let the independent keyless
+        // Tsuzuki and SeaDub providers supply the English-dub calendar.
         guard (1...30).contains(daysAhead) else { throw AnimeScheduleError.invalidResponse }
         try Task.checkCancellation()
         loadCache(now: now)
@@ -528,6 +528,8 @@ actor AnimeScheduleService {
         request.timeoutInterval = min(12, max(0.1, deadline.timeIntervalSinceNow))
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("Eclipse/AnimeSchedule", forHTTPHeaderField: "User-Agent")
+        guard !token.isEmpty else { throw AnimeScheduleError.unconfigured }
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         let (data, response) = try await session.boundedData(for: request, maximumResponseBytes: 2 * 1024 * 1024)
         try Task.checkCancellation()
         guard let response = response as? HTTPURLResponse else { throw AnimeScheduleError.invalidResponse }
@@ -631,7 +633,8 @@ actor TsuzukiAnimeDubScheduleService {
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .gregorian)
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone.current
+        // The Tsuzuki API interprets its start date in UTC.
+        formatter.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
         formatter.dateFormat = "yyyy-MM-dd"
         let start = formatter.string(from: now)
         let cacheKey = "\(start):\(days)"
@@ -962,6 +965,9 @@ enum SpanishDubAIProvider: String, CaseIterable, Identifiable, Codable {
 
 actor SpanishDubAIResearchService {
     static let shared = SpanishDubAIResearchService()
+    static var hasConfiguredProvider: Bool {
+        SpanishDubAIProvider.allCases.contains { proxyURL(for: $0) != nil }
+    }
 
     private struct ResearchCandidate: Codable {
         let mediaId: Int
