@@ -801,8 +801,8 @@ enum StremioAddonOutcome: Equatable {
                 : "\(count) results, but they are torrent links Eclipse cannot play"
         case .externalOnly(let count):
             return count == 1
-                ? "1 result, but it opens in another service"
-                : "\(count) results, but they open in another service"
+                ? "1 result has no web stream Eclipse can play"
+                : "\(count) results have no web stream Eclipse can play"
         case .addonError:
             return "Addon error"
         case .appFailure(let reason):
@@ -817,7 +817,7 @@ enum StremioAddonOutcome: Equatable {
         case .unplayableOnly:
             return "Eclipse plays direct links only."
         case .externalOnly:
-            return "This addon links out to another app instead of handing Eclipse a stream."
+            return "The addon did not provide a direct web destination that Eclipse can resolve as media."
         case .addonError(let message):
             let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
             return trimmed.isEmpty ? "This addon did not return a usable response." : trimmed
@@ -1088,10 +1088,33 @@ struct StremioStream: Codable, Identifiable, Hashable {
         return copy
     }
 
+    private func normalizedHTTPDestination(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.utf8.count <= 16 * 1_024,
+              let components = URLComponents(string: trimmed),
+              let scheme = components.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              let host = components.host, !host.isEmpty,
+              components.user == nil, components.password == nil else { return nil }
+        return trimmed
+    }
+
+    // Addons may provide a playable web URL in externalUrl or a YouTube ID
+    // in ytId instead of the normal url field. Resolve those forms so Eclipse
+    // can try its own playback pipeline rather than discarding the result.
+    var playableHTTPURL: String? {
+        if let directURL = normalizedHTTPDestination(url) { return directURL }
+        if let externalURL = normalizedHTTPDestination(externalUrl) { return externalURL }
+        if let videoID = ytId?.trimmingCharacters(in: .whitespacesAndNewlines),
+           videoID.range(of: #"^[A-Za-z0-9_-]{11}$"#, options: .regularExpression) != nil {
+            return "https://www.youtube.com/watch?v=\(videoID)"
+        }
+        return nil
+    }
+
     var isDirectHTTP: Bool {
-        guard let url = url, !url.isEmpty else { return false }
-        let lower = url.lowercased()
-        return lower.hasPrefix("http://") || lower.hasPrefix("https://")
+        playableHTTPURL != nil
     }
 
     var usesTorrentTransport: Bool {
@@ -1107,6 +1130,7 @@ struct StremioStream: Codable, Identifiable, Hashable {
     }
 
     var hasExternalDestination: Bool {
+        guard playableHTTPURL == nil else { return false }
         if let externalUrl = externalUrl?.trimmingCharacters(in: .whitespacesAndNewlines),
            !externalUrl.isEmpty {
             return true
