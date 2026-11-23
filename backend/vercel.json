@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/ai-research/[provider].ts": {
+      "maxDuration": 30
+    }
+  }
+}
