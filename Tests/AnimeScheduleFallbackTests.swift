@@ -598,8 +598,11 @@ final class AnimeScheduleFallbackTests: XCTestCase {
 
     func testDiskCacheSurvivesRelaunchWithoutInventingFreshNotificationAuthority() async throws {
         try stub()
-        let cache = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
-        defer { try? FileManager.default.removeItem(at: cache) }
+        let cacheDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("EclipseAnimeScheduleTests-" + UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
+        let cache = cacheDirectory.appendingPathComponent("schedule-cache.json")
+        defer { try? FileManager.default.removeItem(at: cacheDirectory) }
         let session = session()
         defer { session.invalidateAndCancel() }
         let initial = AnimeScheduleService(session: session, token: "fixture-token", cacheURL: cache, requestSpacing: 0)
