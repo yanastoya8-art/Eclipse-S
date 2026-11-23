@@ -4207,7 +4207,13 @@ final class DownloadManager: NSObject, ObservableObject {
                     }
                 })
             } else if let downloader = activeHLSDownloaders[id] {
-
+                // Invalidate the old worker before cancelling it. If the user
+                // immediately resumes, its cancellation callback must release
+                // the old registry entry without changing the newly queued state
+                // back to paused.
+                if let attemptID = activeHLSAttemptIDs[id] {
+                    invalidatedHLSAttemptIDs.insert(attemptID)
+                }
                 downloader.cancel()
             }
             guard let currentIndex = downloads.firstIndex(where: { $0.id == id }) else {
