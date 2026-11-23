@@ -7318,7 +7318,7 @@ struct ModulesSearchResultsSheet: View {
                     .filter { $0.mangayomiSource != nil }
                     .map(\.id)
             )
-            let mangayomiDeadline = Date().addingTimeInterval(15)
+            let mangayomiDeadline = Date().addingTimeInterval(22)
             while !mangayomiServiceIDs.isSubset(of: viewModel.searchedServices),
                   Date() < mangayomiDeadline {
                 guard isCurrentManualSearchGeneration(searchGeneration), !Task.isCancelled else { return }
