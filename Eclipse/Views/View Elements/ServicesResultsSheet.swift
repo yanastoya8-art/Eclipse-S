@@ -9223,7 +9223,7 @@ struct ModulesSearchResultsSheet: View {
             return
         }
 
-        guard let urlString = stream.url, stream.isDirectHTTP else {
+        guard let urlString = stream.playableHTTPURL, stream.isDirectHTTP else {
             Logger.shared.log("Stremio: rejected non-HTTP stream", type: "Error")
             handleStremioPlaybackPreparationFailure(
                 addon,
