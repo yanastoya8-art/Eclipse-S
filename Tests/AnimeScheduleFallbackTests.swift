@@ -343,7 +343,6 @@ final class AnimeScheduleFallbackTests: XCTestCase {
         let catalog = try data(["page": 1, "totalAmount": catalogTotalAmount, "anime": [anime()]])
         let firstWeek = AnimeScheduleWeek.covering(ScheduleDateWindow.envelope(dayCount: 7, now: now)).first?.week
         return AnimeScheduleURLProtocol.configure { request in
-            guard request.value(forHTTPHeaderField: "Authorization") == "Bearer fixture-token" else { return (401, Data(), [:]) }
             if request.url?.path.contains("timetables") == true {
                 guard request.url?.path.hasSuffix("/timetables/dub") == true else { return (404, Data(), [:]) }
                 let week = URLComponents(url: request.url ?? URL(fileURLWithPath: "/"), resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "week" }?.value
@@ -682,14 +681,23 @@ final class AnimeScheduleFallbackTests: XCTestCase {
         XCTAssertFalse(String(decoding: try Data(contentsOf: cache), as: UTF8.self).contains("fixture-token"))
     }
 
-    func testUnconfiguredBuildDoesNotSendRequests() async {
-        let testID = AnimeScheduleURLProtocol.configure { _ in (200, Data(), [:]) }
-        defer { AnimeScheduleURLProtocol.remove(testID) }
-        do {
-            _ = try await AnimeScheduleService(token: "$(ANIMESCHEDULE_API_TOKEN)").fetchSchedule(daysAhead: 7, now: now)
-            XCTFail("Missing token must fail")
-        } catch {}
-        XCTAssertEqual(AnimeScheduleURLProtocol.count(for: testID), 0)
+    func testScheduleFetchDoesNotRequireAnAPIKey() async throws {
+        let testID = try stub()
+        let session = session(testID: testID)
+        defer {
+            session.invalidateAndCancel()
+            AnimeScheduleURLProtocol.remove(testID)
+        }
+
+        let service = AnimeScheduleService(
+            session: session,
+            token: "$(ANIMESCHEDULE_API_TOKEN)",
+            requestSpacing: 0
+        )
+        let result = try await service.fetchSchedule(daysAhead: 7, now: now)
+
+        XCTAssertEqual(result.entries.count, 1)
+        XCTAssertGreaterThan(AnimeScheduleURLProtocol.count(for: testID), 0)
     }
 
     func testRecoveryKeepsCanonicalEpisodeIdentityDespiteProviderTitleChange() throws {
