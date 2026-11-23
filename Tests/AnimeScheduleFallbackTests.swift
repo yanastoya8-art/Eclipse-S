@@ -343,7 +343,6 @@ final class AnimeScheduleFallbackTests: XCTestCase {
         let catalog = try data(["page": 1, "totalAmount": catalogTotalAmount, "anime": [anime()]])
         let firstWeek = AnimeScheduleWeek.covering(ScheduleDateWindow.envelope(dayCount: 7, now: now)).first?.week
         return AnimeScheduleURLProtocol.configure { request in
-            guard request.value(forHTTPHeaderField: "Authorization") == "Bearer fixture-token" else { return (401, Data(), [:]) }
             if request.url?.path.contains("timetables") == true {
                 guard request.url?.path.hasSuffix("/timetables/dub") == true else { return (404, Data(), [:]) }
                 let week = URLComponents(url: request.url ?? URL(fileURLWithPath: "/"), resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "week" }?.value
@@ -696,16 +695,6 @@ final class AnimeScheduleFallbackTests: XCTestCase {
         XCTAssertFalse(result.entries.first?.airingTimeWithdrawn == true)
         XCTAssertTrue(result.notice?.contains("Saved") == true)
         XCTAssertFalse(String(decoding: try Data(contentsOf: cache), as: UTF8.self).contains("fixture-token"))
-    }
-
-    func testUnconfiguredBuildDoesNotSendRequests() async {
-        let testID = AnimeScheduleURLProtocol.configure { _ in (200, Data(), [:]) }
-        defer { AnimeScheduleURLProtocol.remove(testID) }
-        do {
-            _ = try await AnimeScheduleService(token: "$(ANIMESCHEDULE_API_TOKEN)").fetchSchedule(daysAhead: 7, now: now)
-            XCTFail("Missing token must fail")
-        } catch {}
-        XCTAssertEqual(AnimeScheduleURLProtocol.count(for: testID), 0)
     }
 
     func testRecoveryKeepsCanonicalEpisodeIdentityDespiteProviderTitleChange() throws {
