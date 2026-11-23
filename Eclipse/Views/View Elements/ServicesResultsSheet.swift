@@ -416,14 +416,12 @@ enum ProviderPlaybackTransportPolicy {
     }
 
     static func mayAttemptExternalHandoff(
-        autoModeLaunch: Bool,
+        autoModeLaunch _: Bool,
         hasResolvedRequestConsumer _: Bool
     ) -> Bool {
-        // A manually selected stream is the user gesture authorizing the
-        // out-of-process handoff. Do this while the original, public URL is
-        // still available; resolved-request consumers receive loopback proxy
-        // capabilities that must never be handed to another app.
-        !autoModeLaunch
+        // Provider results must remain playable in Eclipse. Streams advertised
+        // for external apps/devices are still resolved as normal in-app media.
+        false
     }
 }
 
@@ -1881,6 +1879,15 @@ struct ModulesSearchResultsSheet: View {
 #endif
         let orderRank = autoModeSourceOrderRank
         return (services + addons + skyStreamProviders + nuvioScrapers).sorted {
+            let lhsIsMangayomi: Bool
+            if case .service(let service) = $0 { lhsIsMangayomi = service.mangayomiSource != nil }
+            else { lhsIsMangayomi = false }
+            let rhsIsMangayomi: Bool
+            if case .service(let service) = $1 { rhsIsMangayomi = service.mangayomiSource != nil }
+            else { rhsIsMangayomi = false }
+            // Mangayomi results are always presented before Stremio add-ons,
+            // regardless of custom source-order preferences.
+            if lhsIsMangayomi != rhsIsMangayomi { return lhsIsMangayomi }
             let lhsRank = orderRank[autoModeSourceId(for: $0)]
             let rhsRank = orderRank[autoModeSourceId(for: $1)]
             if let lhsRank, let rhsRank, lhsRank != rhsRank {
@@ -6723,7 +6730,9 @@ struct ModulesSearchResultsSheet: View {
         cancelServiceSearch()
 #endif
         let searchGeneration = manualSearchGeneration
-        let activeServices = serviceManager.activeServices
+        let activeServices = serviceManager.activeServices.sorted {
+            ($0.mangayomiSource != nil) && ($1.mangayomiSource == nil)
+        }
         viewModel.totalServicesCount = activeServices.count
         viewModel.isSearching = !activeServices.isEmpty
 
