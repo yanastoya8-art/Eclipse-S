@@ -1032,6 +1032,10 @@ class TMDBContentFilter: ObservableObject {
             _ = await dubFilter.refresh()
         }
 
+        if !selectedLanguages.isEmpty, !animeResults.isEmpty {
+            prepareAnimeAudioEligibilitySelection(selectedLanguages)
+        }
+
         // Resolve only the metadata requested by active filters, concurrently.
         // Awaiting this bounded batch before filtering prevents an entire page
         // from being discarded as "empty" while production/runtime/dub lookups
@@ -1449,6 +1453,17 @@ class TMDBContentFilter: ObservableObject {
         )
     }
 
+    private func shouldIncludeSelectedAnimeDub(_ result: TMDBSearchResult) -> Bool {
+        if MyDubListDubFilter.shared.shouldInclude(result) { return true }
+        guard let anilistID = result.animeIdentitySeed?.anilistId, anilistID > 0 else { return false }
+        let selectedLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
+        guard !selectedLanguages.isEmpty else { return true }
+        animeEligibilityLock.lock()
+        defer { animeEligibilityLock.unlock() }
+        return animeAudioEligibilityLanguages == selectedLanguages
+            && animeAudioEligibleIDs.contains(anilistID)
+    }
+
     private func shouldIncludeCatalogResult(
         _ result: TMDBSearchResult,
         allowUpcomingContent: Bool = false
@@ -1459,7 +1474,7 @@ class TMDBContentFilter: ObservableObject {
             overview: result.overview,
             result: result
         ) else { return false }
-        guard MyDubListDubFilter.shared.shouldInclude(result) else { return false }
+        guard shouldIncludeSelectedAnimeDub(result) else { return false }
         guard result.adult != true else { return false }
         if Self.isAnimeResult(result), !shouldIncludeAnimeCategoryFilters(result) { return false }
         guard shouldIncludeForConfiguredAgeAndAudio(
