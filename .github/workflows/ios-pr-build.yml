@@ -409,6 +409,39 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             ENABLE_USER_SCRIPT_SANDBOXING=NO
 
+      - name: Verify TMDB API key in built simulator app
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+        run: |
+          set -euo pipefail
+          APP_INFO_PLIST="$(find "$RUNNER_TEMP/DerivedData/Build/Products" -path '*/Eclipse.app/Info.plist' -type f -print -quit)"
+          if [ -z "$APP_INFO_PLIST" ]; then
+            echo "::error::The simulator build did not produce Eclipse.app/Info.plist."
+            exit 1
+          fi
+          # Verify the runtime value without ever printing the credential.
+          python3 - "$APP_INFO_PLIST" <<'PY'
+          import os
+          import plistlib
+          import sys
+          from pathlib import Path
+
+          info_path = Path(sys.argv[1])
+          expected = os.environ.get("TMDB_API_KEY", "").strip()
+          try:
+              with info_path.open("rb") as stream:
+                  info = plistlib.load(stream)
+              embedded = info.get("TMDBAPIKey")
+          except Exception:
+              raise SystemExit("::error::Could not read TMDBAPIKey from the built app Info.plist.")
+
+          if not expected or not isinstance(embedded, str):
+              raise SystemExit("::error::TMDBAPIKey is missing from the built simulator app.")
+          if not embedded.strip() or "$(" in embedded or embedded != expected:
+              raise SystemExit("::error::The built app TMDBAPIKey does not match the configured repository secret.")
+          print("Verified TMDBAPIKey is embedded in the simulator app Info.plist (credential redacted).")
+          PY
+
       - name: Run iOS unit tests
         run: |
           set -euo pipefail
