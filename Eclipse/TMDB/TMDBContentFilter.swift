@@ -319,27 +319,35 @@ final class MyDubListDubFilter: @unchecked Sendable {
         do {
             var malIDs = Set<Int>()
             var englishMALIDs = Set<Int>()
-            // English and Spanish datasets are independent. Fetch them together
-            // so a cold Browse/Schedule load does not pay the full timeout twice.
-            try await withThrowingTaskGroup(of: (String, Data).self) { group in
+            var downloadedLanguages = Set<String>()
+            // English and Spanish are independent selections. A failure in one
+            // mirror must not discard the other language's valid dataset: this
+            // previously hid English-dubbed anime whenever the Spanish fetch
+            // failed, even though English IDs had downloaded successfully.
+            await withTaskGroup(of: (String, Data?).self) { group in
                 for language in languages.sorted() {
                     group.addTask {
-                        try Task.checkCancellation()
+                        guard !Task.isCancelled else { return (language, nil) }
                         let url = URL(string: "https://raw.githubusercontent.com/Joelis57/MyDubList/main/dubs/confidence/low/dubbed_\(language).json")!
-                        return (language, try await Self.download(url, maximumBytes: 1_000_000))
+                        return (language, try? await Self.download(url, maximumBytes: 1_000_000))
                     }
                 }
-                for try await (language, data) in group {
-                    try Task.checkCancellation()
-                    let dataset = try JSONDecoder().decode(DubDataset.self, from: data)
-                    guard dataset.dubbed.count <= 250_000 else { throw URLError(.dataLengthExceedsMaximum) }
+                for await (language, data) in group {
+                    guard !Task.isCancelled,
+                          let data,
+                          let dataset = try? JSONDecoder().decode(DubDataset.self, from: data),
+                          dataset.dubbed.count <= 250_000 else {
+                        continue
+                    }
                     let validIDs = Set(dataset.dubbed.filter { $0 > 0 && $0 <= 100_000_000 })
                     malIDs.formUnion(validIDs)
+                    downloadedLanguages.insert(language)
                     if language == MyDubListLanguage.english.rawValue {
                         englishMALIDs = validIDs
                     }
                 }
             }
+            guard !downloadedLanguages.isEmpty else { throw URLError(.cannotLoadFromNetwork) }
 
             try Task.checkCancellation()
             let mappingURL = URL(string: "https://raw.githubusercontent.com/Joelis57/MyDubList/main/dubs/mappings/mappings_anilist.jsonl")!
@@ -372,13 +380,28 @@ final class MyDubListDubFilter: @unchecked Sendable {
                 languages: languages
             )
             let defaults = ProfileSettingsStore.active
-            defaults.set(languages.sorted(), forKey: Self.cachedLanguagesKey)
-            defaults.set(malIDs.sorted(), forKey: Self.cachedMALIDsKey)
-            defaults.set(aniListIDs.sorted(), forKey: Self.cachedAniListIDsKey)
-            defaults.set(englishMALIDs.sorted(), forKey: Self.cachedEnglishMALIDsKey)
-            defaults.set(englishAniListIDs.sorted(), forKey: Self.cachedEnglishAniListIDsKey)
+            // Persist only a complete selection snapshot. A partial success is
+            // still useful in this session, but must be retried on next launch
+            // so the missing language can recover without blocking the one that
+            // did load.
+            if downloadedLanguages == languages {
+                defaults.set(languages.sorted(), forKey: Self.cachedLanguagesKey)
+                defaults.set(malIDs.sorted(), forKey: Self.cachedMALIDsKey)
+                defaults.set(aniListIDs.sorted(), forKey: Self.cachedAniListIDsKey)
+                defaults.set(englishMALIDs.sorted(), forKey: Self.cachedEnglishMALIDsKey)
+                defaults.set(englishAniListIDs.sorted(), forKey: Self.cachedEnglishAniListIDsKey)
+            } else {
+                defaults.removeObject(forKey: Self.cachedLanguagesKey)
+                defaults.removeObject(forKey: Self.cachedMALIDsKey)
+                defaults.removeObject(forKey: Self.cachedAniListIDsKey)
+                defaults.removeObject(forKey: Self.cachedEnglishMALIDsKey)
+                defaults.removeObject(forKey: Self.cachedEnglishAniListIDsKey)
+            }
             notifyRefreshObservers()
-            Logger.shared.log("MyDubList: loaded languages=\(languages.sorted().joined(separator: ",")) MAL=\(malIDs.count) AniList=\(aniListIDs.count)", type: "Anime")
+            Logger.shared.log(
+                "MyDubList: loaded languages=\(downloadedLanguages.sorted().joined(separator: ",")) requested=\(languages.sorted().joined(separator: ",")) MAL=\(malIDs.count) AniList=\(aniListIDs.count)",
+                type: "Anime"
+            )
             return true
         } catch {
             if !Task.isCancelled {
