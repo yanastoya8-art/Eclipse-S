@@ -8235,9 +8235,9 @@ final class DownloadManager: NSObject, ObservableObject {
         downloads[index].error = nil
         downloads[index].retryNotBefore = nil
         if let limitation {
-            Logger.shared.log("Restarting interrupted HLS download from the beginning: \\(limitation)", type: "Download")
+            Logger.shared.log("Restarting interrupted HLS download from the beginning: \(limitation)", type: "Download")
         } else {
-            Logger.shared.log("Resuming interrupted HLS download from its last verified segment: \\(message)", type: "Download")
+            Logger.shared.log("Resuming interrupted HLS download from its last verified segment: \(message)", type: "Download")
         }
 
         saveDownloads()
