@@ -4382,6 +4382,11 @@ final class DownloadManager: NSObject, ObservableObject {
             for item in self.downloads where matchingIds.contains(item.id) {
 #if os(iOS) && !targetEnvironment(macCatalyst)
                 self.revokeHLSBackgroundAttempt(id: item.id)
+                if #available(iOS 16.2, *) {
+                    Task { @MainActor in
+                        await DownloadLiveActivityController.end(downloadID: item.id, status: "Deleted")
+                    }
+                }
 #endif
 #if (os(iOS) && !targetEnvironment(macCatalyst)) || os(macOS)
                 self.clearSkyStreamDownloadRuntimeState(id: item.id, discardDescriptor: true)
@@ -4409,6 +4414,11 @@ final class DownloadManager: NSObject, ObservableObject {
             for item in self.downloads where completedIds.contains(item.id) {
 #if os(iOS) && !targetEnvironment(macCatalyst)
                 self.revokeHLSBackgroundAttempt(id: item.id)
+                if #available(iOS 16.2, *) {
+                    Task { @MainActor in
+                        await DownloadLiveActivityController.end(downloadID: item.id, status: "Deleted")
+                    }
+                }
 #endif
                 self.downloadAdmissionTokens.removeValue(forKey: item.id)
 #if (os(iOS) && !targetEnvironment(macCatalyst)) || os(macOS)
@@ -4437,6 +4447,13 @@ final class DownloadManager: NSObject, ObservableObject {
         #endif
 #if os(iOS) && !targetEnvironment(macCatalyst)
         revokeAllHLSBackgroundAttempts()
+        if #available(iOS 16.2, *) {
+            for item in downloads {
+                Task { @MainActor in
+                    await DownloadLiveActivityController.end(downloadID: item.id, status: "Deleted")
+                }
+            }
+        }
 #endif
         downloadAdmissionTokens.removeAll()
         for id in sourceRefreshes.ids { invalidateSourceRefresh(id: id) }
