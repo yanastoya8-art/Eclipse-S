@@ -1094,7 +1094,7 @@ enum BrowseAgeRating: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-private enum BrowseAnimeClassifier {
+enum BrowseAnimeClassifier {
     private static let originCountries: Set<String> = ["JP", "CN", "KR", "TW"]
     private static let originalLanguages: Set<String> = ["ja", "zh", "ko"]
 
@@ -1114,7 +1114,10 @@ private enum BrowseAnimeClassifier {
     }
 
     static func shouldIncludeInTV(_ result: TMDBSearchResult) -> Bool {
-        classification(for: result) == .nonAnime
+        // Do not discard animation rows from the TV catalog when TMDB omits
+        // both originCountry and originalLanguage. Only exclude confirmed anime;
+        // incomplete metadata must not collapse the TV catalog to a few titles.
+        classification(for: result) != .anime
     }
 
     private static func classification(for result: TMDBSearchResult) -> Classification {
@@ -1133,10 +1136,11 @@ private enum BrowseAnimeClassifier {
             return originalLanguages.contains(language) ? .anime : .nonAnime
         }
 
-        // TMDB often omits originCountry/originalLanguage in discover
-        // responses. Since this route already requests animation genre 16,
-        // keep metadata-incomplete titles visible instead of emptying Anime Browse.
-        return .anime
+        // TMDB often omits originCountry/originalLanguage. Keep the row
+        // eligible for both browse surfaces until its origin is verified:
+        // Anime Browse is already constrained to animation, while TV Browse
+        // must not silently lose every metadata-incomplete animated series.
+        return .unknownAnimation
     }
 }
 

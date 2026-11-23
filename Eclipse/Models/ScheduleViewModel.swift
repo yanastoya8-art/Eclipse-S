@@ -1096,10 +1096,19 @@ final class ScheduleViewModel: ObservableObject {
 
     @MainActor
     private func animeEntries(dayCount: Int, forceRefresh: Bool) async throws -> AnimeScheduleLoadResult {
-        // Verified timetable/native-language rows do not depend on MyDubList.
-        // Never block a cached calendar or healthy independent providers on an
-        // unrelated title index. Unverified rows still fail the language filter.
-        _ = MyDubListDubFilter.shared.prepareCachedSnapshot()
+        // Dubbed schedule rows are only safe to publish after the selected
+        // language index has been loaded. Previously a cold cache was ignored:
+        // every provider row then failed the strict MyDubList predicate and the
+        // empty result was cached as if the schedule had loaded successfully.
+        let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
+        if !selectedDubLanguages.isEmpty,
+           !MyDubListDubFilter.shared.prepareCachedSnapshot() {
+            let refreshed = await MyDubListDubFilter.shared.refresh()
+            try Task.checkCancellation()
+            guard refreshed || MyDubListDubFilter.shared.prepareCachedSnapshot() else {
+                throw ScheduleSourceLoadError.languageMetadataUnavailable
+            }
+        }
         let policyKey = currentAnimeSchedulePolicyKey()
         if animeScheduleLoadTask != nil, animeScheduleLoadPolicyKey != policyKey {
             // A language-filter change invalidates an in-flight request too;
@@ -1404,10 +1413,20 @@ final class ScheduleViewModel: ObservableObject {
     }
 
     private func tmdbUpcomingMovieEntries(in window: DateInterval) async throws -> [ScheduleEntry] {
+        // The TMDB upcoming endpoint is paginated. Two pages were not enough
+        // to cover the selected calendar window when many releases were listed
+        // ahead of it, leaving later eligible movies missing from Schedule.
         async let firstPage = TMDBService.shared.getUpcomingMovies(page: 1)
         async let secondPage = TMDBService.shared.getUpcomingMovies(page: 2)
-        let (pageOne, pageTwo) = try await (firstPage, secondPage)
-        let movies = pageOne + pageTwo
+        async let thirdPage = TMDBService.shared.getUpcomingMovies(page: 3)
+        async let fourthPage = TMDBService.shared.getUpcomingMovies(page: 4)
+        async let fifthPage = TMDBService.shared.getUpcomingMovies(page: 5)
+        let (pageOne, pageTwo, pageThree, pageFour, pageFive) = try await (
+            firstPage, secondPage, thirdPage, fourthPage, fifthPage
+        )
+        var seenMovieIDs = Set<Int>()
+        let movies = (pageOne + pageTwo + pageThree + pageFour + pageFive)
+            .filter { seenMovieIDs.insert($0.id).inserted }
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = TimeZone(secondsFromGMT: 0)

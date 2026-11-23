@@ -97,30 +97,19 @@ enum MangayomiMediaAdapter {
         baseURL: String? = nil
     ) throws -> ServiceStreamExtractionResult {
         let decoded = try JSONSerialization.jsonObject(with: data)
-        let rows: [[String: Any]]
-        if let array = decoded as? [[String: Any]] {
-            rows = array
-        } else if let object = decoded as? [String: Any] {
-            if let values = object["streams"] as? [[String: Any]] {
-                rows = values
-            } else if let values = object["sources"] as? [[String: Any]] {
-                rows = values
-            } else if let values = object["videos"] as? [[String: Any]] {
-                rows = values
-            } else if let value = object["stream"] as? [String: Any] {
-                rows = [value]
-            } else if let value = object["url"] as? String {
-                rows = [["url": value, "quality": object["quality"] ?? "Auto", "headers": object["headers"] ?? [:]]]
-            } else {
-                throw MangayomiMediaError.invalidData
-            }
-        } else {
+        guard let rows = streamRows(from: decoded) else {
             throw MangayomiMediaError.invalidData
         }
         let sources = rows.prefix(1_200).compactMap { row -> [String: Any]? in
             let rawURL = (row["url"] as? String)
                 ?? (row["streamUrl"] as? String)
+                ?? (row["videoUrl"] as? String)
+                ?? (row["video_url"] as? String)
+                ?? (row["stream_url"] as? String)
+                ?? (row["fileUrl"] as? String)
+                ?? (row["file_url"] as? String)
                 ?? (row["file"] as? String)
+                ?? (row["src"] as? String)
                 ?? (row["link"] as? String)
             guard let rawURL,
                   let streamURL = resolvedHTTPURL(rawURL, relativeTo: baseURL),
@@ -134,15 +123,15 @@ enum MangayomiMediaAdapter {
                 "name": label
             ]
             if let audio = key.audio { result["audio"] = audio }
-            if let headers = row["headers"] as? [String: String] { result["headers"] = headers }
+            if let headers = stringHeaders(row["headers"]) { result["headers"] = headers }
             if let rawAudio = row["audios"], !(rawAudio is NSNull) {
                 guard let tracks = rawAudio as? [[String: Any]], tracks.count <= 32 else { return nil }
                 let audioTracks = tracks.compactMap { track -> [String: Any]? in
-                    guard let file = track["file"] as? String,
+                    guard let file = (track["file"] as? String) ?? (track["url"] as? String),
                           let url = URL(string: file, relativeTo: URL(string: value))?.absoluteURL,
                           NuvioPluginSupport.isDirectHTTPURL(url.absoluteString) else { return nil }
                     var item: [String: Any] = ["url": url.absoluteString, "label": track["label"] as? String ?? "Audio"]
-                    if let headers = track["headers"] as? [String: String] ?? row["headers"] as? [String: String] {
+                    if let headers = stringHeaders(track["headers"]) ?? stringHeaders(row["headers"]) {
                         item["headers"] = headers
                     }
                     return item
@@ -152,11 +141,11 @@ enum MangayomiMediaAdapter {
                 result["audioLanguages"] = audioTracks.compactMap { $0["label"] as? String }
             }
             let subtitles = (row["subtitles"] as? [[String: Any]] ?? []).prefix(256).compactMap { track -> [String: Any]? in
-                guard let file = track["file"] as? String,
+                guard let file = (track["file"] as? String) ?? (track["url"] as? String),
                       let url = URL(string: file, relativeTo: URL(string: value))?.absoluteURL,
                       NuvioPluginSupport.isDirectHTTPURL(url.absoluteString) else { return nil }
                 var item: [String: Any] = ["url": url.absoluteString, "label": track["label"] as? String ?? "Subtitle"]
-                if let headers = track["headers"] as? [String: String] ?? row["headers"] as? [String: String] {
+                if let headers = stringHeaders(track["headers"]) ?? stringHeaders(row["headers"]) {
                     item["headers"] = headers
                 }
                 return item
@@ -168,6 +157,34 @@ enum MangayomiMediaAdapter {
         }
         let bounded = try JSONSerialization.data(withJSONObject: ["streams": sources])
         return try JSController.boundedStreamExtractionResult(from: bounded)
+    }
+
+    private static func streamRows(from value: Any, depth: Int = 0) -> [[String: Any]]? {
+        guard depth <= 3 else { return nil }
+        if let rows = value as? [[String: Any]] { return rows }
+        guard let object = value as? [String: Any] else { return nil }
+
+        for key in ["streams", "sources", "videos", "videoList", "data", "result"] {
+            guard let nested = object[key] else { continue }
+            if let rows = streamRows(from: nested, depth: depth + 1) { return rows }
+        }
+        if let stream = object["stream"] as? [String: Any] { return [stream] }
+
+        let urlKeys = ["url", "streamUrl", "videoUrl", "video_url", "stream_url", "fileUrl", "file_url", "file", "src", "link"]
+        if urlKeys.contains(where: { object[$0] is String }) { return [object] }
+        return nil
+    }
+
+    private static func stringHeaders(_ value: Any?) -> [String: String]? {
+        guard let values = value as? [String: Any] else { return value as? [String: String] }
+        var headers: [String: String] = [:]
+        for (key, rawValue) in values {
+            guard let string = rawValue as? String,
+                  !string.isEmpty,
+                  !string.contains("\r"), !string.contains("\n") else { continue }
+            headers[key] = string
+        }
+        return headers.isEmpty ? nil : headers
     }
 
     private static func resolvedHTTPURL(_ rawValue: String, relativeTo baseURL: String?) -> URL? {

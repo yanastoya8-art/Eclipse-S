@@ -2707,7 +2707,12 @@ struct MediaDetailContentView: View {
                 placeholderColor: shouldAnalyzeAlternatePoster ? .clear : Color.gray.opacity(0.3),
                 fallbackImageURLs: detailHeroFallbackImageURLs,
                 preservesArtworkComposition: false,
-                showsBottomFade: true
+                showsBottomFade: true,
+                // Keep the stretchy hero tied to the same coordinate space as
+                // the detail ScrollView. Without this, upward overscroll moves
+                // the page content but leaves the hero at its resting height,
+                // exposing a blank strip above the artwork.
+                scrollCoordinateSpaceName: "mediaDetailScroll"
             )
             .frame(maxWidth: .infinity)
             .clipped()
