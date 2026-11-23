@@ -1234,9 +1234,10 @@ final class ScheduleViewModel: ObservableObject {
                             // Japanese broadcast date is substituted.
                             if selectedDubLanguages.contains(MyDubListLanguage.spanish.rawValue) {
                                 self.spanishDubResearchTask?.cancel()
+                                let spanishResearchCandidatesSnapshot = spanishDubResearchCandidates
                                 self.spanishDubResearchTask = Task(priority: .utility) { @MainActor [weak self] in
                                     var candidatesByEpisode: [String: AniListAiringScheduleEntry] = [:]
-                                    for candidate in nativeSchedule + spanishDubResearchCandidates {
+                                    for candidate in nativeSchedule + spanishResearchCandidatesSnapshot {
                                         let key = "\(candidate.mediaId):\(candidate.episode)"
                                         if let existing = candidatesByEpisode[key] {
                                             if candidate.airingAt < existing.airingAt {
