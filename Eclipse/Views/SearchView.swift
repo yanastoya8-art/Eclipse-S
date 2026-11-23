@@ -2232,7 +2232,11 @@ private struct BrowseMediaView: View {
             )
             guard !Task.isCancelled else { return }
 
-            let contentFiltered = await contentFilter.filterSearchResultsResolvingRatings(
+            // Required metadata is scheduled by filterResultsForBrowseType.
+            // Apply the current cache-backed predicate now; resolver notifications
+            // re-filter retained rows as ratings arrive instead of holding Browse
+            // behind optional network lookups on every refresh.
+            let contentFiltered = contentFilter.filterSearchResults(
                 filterExcludedResults(
                     browseTypeFiltered,
                     excludedGenreIds: excludedGenreIDs,
@@ -2336,7 +2340,11 @@ private struct BrowseMediaView: View {
                     by: sort
                 )
                 try Task.checkCancellation()
-                let contentFiltered = await contentFilter.filterSearchResultsResolvingRatings(
+                // Browse filter metadata is resolved independently in the
+                // background. Do not serialize the first visible page behind
+                // rating/audio lookups; the retained raw page is re-filtered when
+                // those lookups publish their completion notification.
+                let contentFiltered = contentFilter.filterSearchResults(
                     filterExcludedResults(
                         browseTypeFiltered,
                         excludedGenreIds: excludedGenres.compactMap(\.tmdbGenreID),
