@@ -1405,7 +1405,7 @@ private struct BrowseMediaView: View {
     // Search further automatically only when a page produces no visible match;
     // once a small result set is available, keep it stable and offer a manual
     // next-page action instead of leaving a spinner running continuously.
-    private static let maximumAutomaticFilteredPages = 30
+    private static let maximumAutomaticFilteredPages = 8
 
     @AppStorage("mediaColumnsPortrait") private var mediaColumnsPortrait: Int = 3
     @AppStorage("mediaColumnsLandscape") private var mediaColumnsLandscape: Int = 5
@@ -2021,6 +2021,10 @@ private struct BrowseMediaView: View {
             if hasMorePages && currentPage < Self.maximumAutomaticFilteredPages {
                 ProgressView("Searching for titles that match your filters…")
                     .font(.caption)
+            } else if hasMorePages {
+                Button("Search More") { loadNextPage() }
+                    .buttonStyle(.bordered)
+                    .disabled(isLoading)
             }
         }
         .frame(maxWidth: .infinity)
