@@ -2983,10 +2983,9 @@ final class DownloadManager: NSObject, ObservableObject {
         if activeHLSAttemptIDs[id] == attempt.attemptID {
             attempt.downloader.setContinuedProcessingGranted(false)
         }
-        if let protectedAttemptID = attempt.protectedAttemptID {
-            invalidateNuvioProtectedAttempt(id: id, expectedAttemptID: protectedAttemptID)
-            scrubProtectedProviderTransportInMemory(id: id)
-        }
+        // Keep the protected transport lease alive while the existing
+        // worker uses its already-authorized request. If the worker itself
+        // expires, its completion path performs the normal secure invalidation.
         finishHLSBackgroundAttempt(id: id, attempt: attempt, success: false)
     }
 
