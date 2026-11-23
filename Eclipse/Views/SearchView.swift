@@ -2032,10 +2032,9 @@ private struct BrowseMediaView: View {
                 ForEach(results, id: \.stableIdentity) { result in
                     SearchResultCard(result: result)
                         .onAppear {
-                            // Do not auto-fetch another page merely because a
-                            // small filtered first page fits on screen. That
-                            // repeatedly re-arms the sentinel and leaves Browse
-                            // showing a spinner while pages stream in one by one.
+                            // Small filtered grids are filled automatically by loadPage.
+                            // Once the grid is usable, this card and the trailing sentinel
+                            // continue pagination only as the user approaches the bottom.
                             if results.count >= 12,
                                result.stableIdentity == results.last?.stableIdentity {
                                 loadNextPage()
