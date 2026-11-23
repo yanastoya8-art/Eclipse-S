@@ -77,7 +77,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const body = parseBody(req);
-  const payload = body?.payload;
+  if (!body || Buffer.byteLength(JSON.stringify(body), "utf8") > MAX_BODY_BYTES) {
+    return json(res, 413, { error: "request_too_large_or_invalid" });
+  }
+  const payload = body.payload;
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     return json(res, 400, { error: "invalid_payload" });
   }
