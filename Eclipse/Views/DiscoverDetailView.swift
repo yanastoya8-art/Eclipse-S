@@ -218,6 +218,14 @@ struct DiscoverDetailView: View {
             initialPageItemCount = initialItems.count
             paginationCursor.refreshFirstPage()
             paginationError = nil
+            let snapshot = items
+            Task { @MainActor in
+                await contentFilter.resolveBrowseFilterMetadata(
+                    for: snapshot,
+                    requiresAnimeAgeRating: HomeCatalogFilterPolicy.usesAnimeFiltering(catalogID: catalogID)
+                )
+                filterRefreshRevision &+= 1
+            }
             if filteredItems.isEmpty {
                 loadNextPage()
             }
