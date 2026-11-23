@@ -611,7 +611,11 @@ final class MPVHeaderProxyFlowControlTests: XCTestCase {
     }
 
     func testUpstreamFailureDrainsAcceptedBytesBeforeClosingPausedReader() throws {
-        let prefixBytes = 6 * 1_024 * 1_024
+        // Keep the truncation boundary inside the flow-control window. A
+        // paused downstream intentionally suspends upstream after its bounded
+        // pending-byte budget; a 6 MiB prefix can therefore never fail upstream
+        // until the reader resumes.
+        let prefixBytes = 512 * 1_024
         let (server, proxy, url, capture) = try makeFixture(pinned: false, body: .media,
             bytes: 32 * 1_024 * 1_024, truncatedAfterBytes: prefixBytes)
         defer { proxy.invalidateSession(for: url); proxy.shutdownForTesting(); server.stop() }
