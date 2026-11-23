@@ -986,7 +986,8 @@ class TMDBContentFilter: ObservableObject {
         let defaults = UserDefaults.standard
         let animeResults = results.filter { Self.isAnimeResult($0) }
         let nonAnimeResults = results.filter { !Self.isAnimeResult($0) }
-        let selectedLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
+        let dubFilter = MyDubListDubFilter.shared
+        let selectedLanguages = dubFilter.selectedLanguagesIncludingCatalogAudioRequirement
         let needsAnimeAge = requiresAnimeAgeRating
             || defaults.bool(forKey: "catalogHideBelowPG13Anime")
             || defaults.bool(forKey: "catalogHideAllAgesAnime")
@@ -1001,32 +1002,41 @@ class TMDBContentFilter: ObservableObject {
             return minimumEnabled || allAgesEnabled || kidsModeEnabled
         }
 
-        // Never hold the Browse loading state behind optional metadata services.
-        // Unknown items remain excluded by their active filter until the lookup
-        // completes; each resolver publishes a filter-change notification so
-        // Browse re-evaluates the retained raw page without another user action.
-        if defaults.bool(forKey: "catalogHideUnder20MinuteContent") {
-            Task(priority: .utility) { await self.resolveRuntimeMetadata(for: results) }
+        // Browse must not filter against an uninitialised dub snapshot. In
+        // particular, an English-only selection used to reject every Japanese
+        // anime card before the language index had finished loading.
+        if !selectedLanguages.isEmpty, !dubFilter.prepareCachedSnapshot() {
+            _ = await dubFilter.refresh()
         }
-        if defaults.bool(forKey: "catalogHideUnofficialContent") {
-            Task(priority: .utility) { await self.resolveProductionMetadata(for: results) }
-        }
-        if needsAnimeAge, !animeResults.isEmpty {
-            Task(priority: .utility) { await self.resolveAnimeAgeRatings(for: animeResults) }
-        }
-        if !selectedLanguages.isEmpty, !animeResults.isEmpty {
-            Task(priority: .utility) {
-                await self.resolveAnimeAudioMetadata(
-                    for: animeResults,
-                    selectedLanguages: selectedLanguages
-                )
+
+        // Resolve only the metadata requested by active filters, concurrently.
+        // Awaiting this bounded batch before filtering prevents an entire page
+        // from being discarded as "empty" while production/runtime/dub lookups
+        // are still running in the background.
+        await withTaskGroup(of: Void.self) { group in
+            if defaults.bool(forKey: "catalogHideUnder20MinuteContent") {
+                group.addTask { await self.resolveRuntimeMetadata(for: results) }
             }
-        }
-        if !tmdbRatingResults.isEmpty {
-            Task(priority: .utility) {
-                await TMDBMaturityRatingStore.shared.resolve(
-                    tmdbRatingResults.map { (isMovie: $0.isMovie, id: $0.id) }
-                )
+            if defaults.bool(forKey: "catalogHideUnofficialContent") {
+                group.addTask { await self.resolveProductionMetadata(for: results) }
+            }
+            if needsAnimeAge, !animeResults.isEmpty {
+                group.addTask { await self.resolveAnimeAgeRatings(for: animeResults) }
+            }
+            if !selectedLanguages.isEmpty, !animeResults.isEmpty {
+                group.addTask {
+                    await self.resolveAnimeAudioMetadata(
+                        for: animeResults,
+                        selectedLanguages: selectedLanguages
+                    )
+                }
+            }
+            if !tmdbRatingResults.isEmpty {
+                group.addTask {
+                    await TMDBMaturityRatingStore.shared.resolve(
+                        tmdbRatingResults.map { (isMovie: $0.isMovie, id: $0.id) }
+                    )
+                }
             }
         }
     }
