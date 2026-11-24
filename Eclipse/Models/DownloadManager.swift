@@ -6186,6 +6186,45 @@ final class DownloadManager: NSObject, ObservableObject {
         "Download failed due to a network or file error (\(boundedTransportErrorToken(error)))."
     }
 
+    /// Transient transport failures are interruptions, not a user's decision
+    /// to stop a download. Retry them for every direct format and HLS instead
+    /// of moving the item to Failed and requiring a manual Resume.
+    private func isTransientDownloadInterruption(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        guard nsError.domain == NSURLErrorDomain else { return false }
+        let retryableCodes: Set<Int> = [
+            NSURLErrorTimedOut,
+            NSURLErrorNetworkConnectionLost,
+            NSURLErrorNotConnectedToInternet,
+            NSURLErrorCannotFindHost,
+            NSURLErrorCannotConnectToHost,
+            NSURLErrorDNSLookupFailed,
+            NSURLErrorResourceUnavailable,
+            NSURLErrorInternationalRoamingOff,
+            NSURLErrorDataNotAllowed,
+            NSURLErrorBackgroundSessionWasDisconnected
+        ]
+        return retryableCodes.contains(nsError.code)
+    }
+
+    /// Keep retrying transient network interruptions with a bounded delay.
+    /// The queued state is persisted so the retry survives app suspension or
+    /// relaunch; explicit pause/cancel/delete paths do not call this helper.
+    private func scheduleTransientDownloadRetry(id: String) {
+        guard let index = downloads.firstIndex(where: { $0.id == id }),
+              downloads[index].status == .downloading
+                || downloads[index].status == .queued else {
+            processQueue()
+            return
+        }
+        downloads[index].status = .queued
+        downloads[index].retryNotBefore = Date().addingTimeInterval(15)
+        downloads[index].error = "Connection interrupted. Retrying automatically..."
+        saveDownloads()
+        Logger.shared.log("Transient network interruption; retry scheduled for download id=\(id)", type: "Download")
+        processQueue()
+    }
+
     private func processQueue() {
         guard Thread.isMainThread else {
             DispatchQueue.main.async { [weak self] in
@@ -6990,11 +7029,17 @@ final class DownloadManager: NSObject, ObservableObject {
                                 rejectedCookieHeader: rejectedCookieHeader
                             )
                         default:
-                            self.markFailed(
-                                id: item.id,
-                                error: self.boundedDownloadFailureMessage(error)
-                            )
+                            if self.isTransientDownloadInterruption(error) {
+                                self.scheduleTransientDownloadRetry(id: item.id)
+                            } else {
+                                self.markFailed(
+                                    id: item.id,
+                                    error: self.boundedDownloadFailureMessage(error)
+                                )
+                            }
                         }
+                    } else if self.isTransientDownloadInterruption(error) {
+                        self.scheduleTransientDownloadRetry(id: item.id)
                     } else {
                         self.markFailed(
                             id: item.id,
@@ -10799,6 +10844,13 @@ extension DownloadManager: URLSessionDownloadDelegate {
                         self.saveDownloads()
                         self.processQueue()
                     }
+                    return
+                }
+                if self.isTransientDownloadInterruption(error),
+                   let item = self.downloads.first(where: { $0.id == downloadId }),
+                   !item.isHLS {
+                    self.scheduleTransientDownloadRetry(id: downloadId)
+                    self.invalidatedDirectTaskIdentifiers.remove(task.taskIdentifier)
                     return
                 }
                 self.markFailed(
