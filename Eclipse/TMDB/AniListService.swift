@@ -9972,7 +9972,17 @@ final class AniListService {
                     var bestMatch: TMDBTVShow?
 
                     for candidate in titleCandidates where !candidate.isEmpty {
-                        guard let results = try? await tmdbService.searchTVShows(query: candidate), !results.isEmpty else { continue }
+                        var results = (try? await tmdbService.searchTVShows(query: candidate)) ?? []
+                        // TMDB's localized search can omit the English or
+                        // romanized title. Retry only an empty localized result
+                        // in English rather than paying for two requests every time.
+                        if results.isEmpty {
+                            results = (try? await tmdbService.searchTVShows(
+                                query: candidate,
+                                languageOverride: "en-US"
+                            )) ?? []
+                        }
+                        guard !results.isEmpty else { continue }
                         let candidateKey = normalized(candidate)
 
                         let exactMatches = results.filter { normalized($0.name) == candidateKey }
