@@ -39,6 +39,7 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
     case alternativeSeasonMenu
     case horizontalEpisodeList
     case episodeCardColor
+    case scheduleCardColor
     case showUnairedEpisodes
     case titleLogoPosition
     case titleLogoSize
@@ -78,6 +79,8 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
             return "startup"
         case .alternativeSeasonMenu, .horizontalEpisodeList, .episodeCardColor, .showUnairedEpisodes, .titleLogoPosition, .titleLogoSize, .titleLogoWeight, .heroActionPosition, .heroSynopsisPosition, .portraitHeroBleedIntensity, .landscapeHeroBleedIntensity, .landscapeTitleLogoPosition, .landscapeTitleLogoHorizontalPosition, .landscapeTitleLogoSize, .landscapeTitleLogoWeight, .landscapeHeroActionPosition, .landscapeHeroSynopsisPosition, .landscapeHeroHorizontalStretch, .landscapeHeroVerticalStretch, .landscapeContentHorizontalPosition, .dataSaver, .ageRating, .similarTitles:
             return "details"
+        case .scheduleCardColor:
+            return "schedule"
         case .libraryBookmarks, .libraryCollectionLayout:
             return "library"
         }
@@ -90,6 +93,7 @@ struct AlternativeUIView: View {
     @AppStorage(MediaDetailPlatformDefaults.seasonMenuKey) private var useSeasonMenu = MediaDetailPlatformDefaults.prefersCompactSeasonMenu
     @AppStorage(MediaDetailPlatformDefaults.horizontalEpisodeListKey) private var horizontalEpisodeList = MediaDetailPlatformDefaults.prefersHorizontalEpisodes
     @AppStorage(MediaDetailEpisodeCardAppearanceSettings.colorDataKey) private var episodeCardColorData = Data()
+    @AppStorage(ScheduleCardAppearanceSettings.colorDataKey) private var scheduleCardColorData = Data()
     @AppStorage(MediaDetailEpisodeVisibilitySettings.showUnairedEpisodesKey) private var showUnairedEpisodes = MediaDetailEpisodeVisibilitySettings.defaultShowUnairedEpisodes
     @AppStorage(MediaDetailTitleLogoPositionSettings.verticalPositionKey) private var titleLogoVerticalPosition = MediaDetailTitleLogoPositionSettings.defaultVerticalPosition
     @AppStorage(MediaDetailTitleLogoAppearanceSettings.sizeKey) private var titleLogoSize = MediaDetailTitleLogoAppearanceSettings.defaultSize
@@ -285,6 +289,19 @@ struct AlternativeUIView: View {
                     title: "Detail Pages",
                     description: "Season menus, episode lists, and title artwork.",
                     systemImage: "text.below.photo"
+                )
+            }
+
+            NavigationLink {
+                AppearanceSettingsSubpage(title: "Schedule", sectionKey: "schedule", initialSearchTarget: initialSearchTarget) {
+                    scheduleAppearanceSection
+                        .eclipseExperimentalSettingsRows()
+                }
+            } label: {
+                appearanceCategoryLabel(
+                    title: "Schedule",
+                    description: "Customize schedule cards and release-time badges.",
+                    systemImage: "calendar"
                 )
             }
 
@@ -700,6 +717,32 @@ struct AlternativeUIView: View {
         )
     }
 
+    private var scheduleCardColorBinding: Binding<Color> {
+        Binding(
+            get: {
+                guard !scheduleCardColorData.isEmpty,
+                      let archived = try? PortableColorArchive.color(from: scheduleCardColorData) else {
+                    return Color.white.opacity(0.07)
+                }
+#if os(macOS)
+                return Color(nsColor: archived)
+#else
+                return Color(uiColor: archived)
+#endif
+            },
+            set: { color in
+#if os(macOS)
+                let archived = NSColor(color)
+#else
+                let archived = UIColor(color)
+#endif
+                if let data = try? PortableColorArchive.data(for: archived, requiringSecureCoding: false) {
+                    scheduleCardColorData = data
+                }
+            }
+        )
+    }
+
     private var customAnimationParticleColorBinding: Binding<Color> {
         Binding(
             get: {
@@ -860,6 +903,18 @@ struct AlternativeUIView: View {
             .id(AppearanceSettingsSearchTarget.landscapeHeroBleedIntensity.anchorID)
         } header: {
             Text("Detail Pages")
+        }
+    }
+
+    private var scheduleAppearanceSection: some View {
+        Section {
+            ColorPicker("Schedule Card Color", selection: scheduleCardColorBinding, supportsOpacity: true)
+                .id(AppearanceSettingsSearchTarget.scheduleCardColor.anchorID)
+            Text("Choose the background tint for scheduled movies, series and anime. The release-time Liquid Glass badge follows the selected app accent color.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        } header: {
+            Text("Schedule Appearance")
         }
     }
 
