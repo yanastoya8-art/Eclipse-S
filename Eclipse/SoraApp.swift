@@ -124,6 +124,12 @@ class AppDelegate: NSObject, UIApplicationDelegate {
                      completionHandler: @escaping () -> Void) {
         if identifier == "app.eclipse.soupy.downloads" {
             DownloadManager.shared.backgroundCompletionHandler = completionHandler
+        } else if identifier == HLSBackgroundURLSessionCoordinator.identifier {
+            HLSBackgroundURLSessionCoordinator.shared.handleEvents(completionHandler)
+            // Recreate the download manager while iOS is delivering the
+            // background-session wake-up. It reattaches the HLS worker to any
+            // in-flight segment task and resumes from the last durable segment.
+            _ = DownloadManager.shared
         }
     }
 }
