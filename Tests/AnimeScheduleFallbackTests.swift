@@ -67,6 +67,59 @@ private final class AnimeScheduleURLProtocol: URLProtocol {
 }
 
 final class AnimeScheduleFallbackTests: XCTestCase {
+    func testBothSelectedDubLanguagesKeepEnglishTimetableProvidersEligible() {
+        let selected: Set<String> = [
+            MyDubListLanguage.english.rawValue,
+            MyDubListLanguage.spanish.rawValue
+        ]
+
+        XCTAssertTrue(AnimeScheduleFallback.requiresDubSchedule(
+            selectedDubLanguages: selected,
+            englishSpanishAudioFilterEnabled: false
+        ))
+        XCTAssertTrue(AnimeScheduleFallback.permitsEnglishDubSchedule(
+            selectedDubLanguages: selected,
+            englishSpanishAudioFilterEnabled: false
+        ))
+        for provider in [ScheduleProvider.dubOnly, .tsuzuki, .seaDub] {
+            XCTAssertEqual(
+                AnimeScheduleProviderLanguagePolicy.includes(
+                    provider: provider,
+                    originalLanguage: "ja",
+                    selectedLanguages: selected
+                ),
+                true,
+                "English dub timetable entries should remain eligible when both languages are selected"
+            )
+        }
+        XCTAssertEqual(
+            AnimeScheduleProviderLanguagePolicy.includes(
+                provider: .aiSpanishDub,
+                originalLanguage: "ja",
+                selectedLanguages: selected
+            ),
+            true
+        )
+    }
+
+    func testUnknownAnimeRuntimeDoesNotEraseDubScheduleWhenShortRuntimeFilterIsEnabled() {
+        XCTAssertTrue(AnimeScheduleRuntimeFilterPolicy.shouldInclude(
+            runtimeMinutes: nil,
+            enabled: true
+        ))
+        XCTAssertFalse(AnimeScheduleRuntimeFilterPolicy.shouldInclude(
+            runtimeMinutes: 19,
+            enabled: true
+        ))
+        XCTAssertTrue(AnimeScheduleRuntimeFilterPolicy.shouldInclude(
+            runtimeMinutes: 20,
+            enabled: true
+        ))
+        XCTAssertTrue(AnimeScheduleRuntimeFilterPolicy.shouldInclude(
+            runtimeMinutes: 19,
+            enabled: false
+        ))
+    }
     func testAniListScheduleEntryCarriesReleaseYearAndRuntimeIntoScheduleFilters() {
         let entry = AniListAiringScheduleEntry(
             id: 42,
