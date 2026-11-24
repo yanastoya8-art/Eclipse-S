@@ -620,19 +620,18 @@ final class NuvioBoundaryHardeningTests: XCTestCase {
         XCTAssertFalse(SkyStreamPinnedHTTPClient.redirectChangesToGET(status: 308, method: "PUT"))
     }
 
-    func testProtectedDownloadPlanDispatchesOnlyThroughFreshProxy() throws {
+    func testProtectedDownloadPlanUsesDirectOSManagedTransport() throws {
         let remote = try XCTUnwrap(URL(string: "https://media.example/movie.mp4?token=secret"))
-        let proxy = try XCTUnwrap(URL(string: "http://127.0.0.1:49152/session-token"))
+        let headers = ["Authorization": "Bearer secret", "User-Agent": "Eclipse"]
         let plan = NuvioDownloadTransportPlan.protectedAttempt(
             authoritativeURL: remote,
-            authoritativeHeaders: ["Authorization": "Bearer secret"],
-            proxyURL: proxy
+            authoritativeHeaders: headers
         )
 
         XCTAssertEqual(plan.authoritativeURL, remote)
-        XCTAssertEqual(plan.authoritativeHeaders["Authorization"], "Bearer secret")
-        XCTAssertEqual(plan.dispatchURL, proxy)
-        XCTAssertTrue(plan.dispatchHeaders.isEmpty)
+        XCTAssertEqual(plan.authoritativeHeaders, headers)
+        XCTAssertEqual(plan.dispatchURL, remote)
+        XCTAssertEqual(plan.dispatchHeaders, headers)
         XCTAssertFalse(plan.mayUseResumeData)
         XCTAssertTrue(plan.mustRegenerateHLSCheckpoint)
     }
