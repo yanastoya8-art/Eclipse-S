@@ -623,7 +623,7 @@ final class NuvioBoundaryHardeningTests: XCTestCase {
     func testProtectedDownloadPlanUsesDirectOSManagedTransport() throws {
         let remote = try XCTUnwrap(URL(string: "https://media.example/movie.mp4?token=secret"))
         let headers = ["Authorization": "Bearer secret", "User-Agent": "Eclipse"]
-        let plan = NuvioDownloadTransportPlan.protectedAttempt(
+        let plan = NuvioDownloadTransportPlan.directBackgroundAttempt(
             authoritativeURL: remote,
             authoritativeHeaders: headers
         )
