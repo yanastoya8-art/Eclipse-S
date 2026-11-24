@@ -22,11 +22,18 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
     case interface
     case globalAppearance
     case accentColor
+    case liquidGlassDarkBarColor
+    case liquidGlassLightBarColor
+    case liquidGlassBottomBarColor
+    case browseFilterChipColor
+    case browseFilterButtonColor
+    case browseFilterOptionsColor
     case animatedBackground
     case animationQuality
     case animationColor
     case customAnimationColor
     case animationFrameRate
+    case animationShape
     case appPerformanceOverlay
     case hideSplashScreen
     case alternativeSeasonMenu
@@ -62,10 +69,12 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
         switch self {
         case .palette, .backgroundStyle, .solidColorSource, .customBackgroundColor, .backgroundIntensity:
             return "theme"
-        case .interface, .globalAppearance, .accentColor:
+        case .interface, .globalAppearance, .accentColor, .liquidGlassDarkBarColor, .liquidGlassLightBarColor, .liquidGlassBottomBarColor, .browseFilterChipColor, .browseFilterButtonColor, .browseFilterOptionsColor:
             return "interface"
-        case .animatedBackground, .animationQuality, .animationColor, .customAnimationColor, .animationFrameRate, .appPerformanceOverlay, .hideSplashScreen:
-            return "motion"
+        case .animatedBackground, .animationQuality, .animationColor, .customAnimationColor, .animationFrameRate, .animationShape, .appPerformanceOverlay:
+            return "animation"
+        case .hideSplashScreen:
+            return "startup"
         case .alternativeSeasonMenu, .horizontalEpisodeList, .showUnairedEpisodes, .titleLogoPosition, .titleLogoSize, .titleLogoWeight, .heroActionPosition, .heroSynopsisPosition, .portraitHeroBleedIntensity, .landscapeHeroBleedIntensity, .landscapeTitleLogoPosition, .landscapeTitleLogoHorizontalPosition, .landscapeTitleLogoSize, .landscapeTitleLogoWeight, .landscapeHeroActionPosition, .landscapeHeroSynopsisPosition, .landscapeHeroHorizontalStretch, .landscapeHeroVerticalStretch, .landscapeContentHorizontalPosition, .dataSaver, .ageRating, .similarTitles:
             return "details"
         case .libraryBookmarks, .libraryCollectionLayout:
@@ -115,6 +124,7 @@ struct AlternativeUIView: View {
     @AppStorage(HomeAnimatedBackgroundQuality.storageKey) private var homeAnimatedBackgroundQuality = HomeAnimatedBackgroundQuality.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundFrameRate.storageKey) private var homeAnimatedBackgroundFrameRate = HomeAnimatedBackgroundFrameRate.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundParticleColor.storageKey) private var homeAnimatedBackgroundParticleColor = HomeAnimatedBackgroundParticleColor.defaultValue.rawValue
+    @AppStorage(HomeAnimatedBackgroundShape.storageKey) private var homeAnimatedBackgroundShape = HomeAnimatedBackgroundShape.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundParticleColor.customColorDataKey) private var customAnimationParticleColorData = Data()
     @AppStorage(AppPerformanceOverlaySettings.enabledKey) private var appPerformanceOverlayEnabled = AppPerformanceOverlaySettings.defaultEnabled
 #if !os(tvOS)
@@ -126,6 +136,7 @@ struct AlternativeUIView: View {
     @State private var showRestartAlert = false
 
     @StateObject private var accentColorManager = AccentColorManager.shared
+    @StateObject private var glassAppearance = LiquidGlassAppearanceSettings.shared
     @ObservedObject private var theme = EclipseTheme.shared
     @State private var mediaDetailElements = MediaDetailElement.orderedElements()
     @State private var hiddenMediaDetailElements = MediaDetailElement.hiddenElements()
@@ -220,15 +231,28 @@ struct AlternativeUIView: View {
 #endif
 
             NavigationLink {
-                AppearanceSettingsSubpage(title: "Motion & Startup", sectionKey: "motion", initialSearchTarget: initialSearchTarget) {
-                    appExperienceSection
+                AppearanceSettingsSubpage(title: "Animation", sectionKey: "animation", initialSearchTarget: initialSearchTarget) {
+                    animationSection
                         .eclipseExperimentalSettingsRows()
                 }
             } label: {
                 appearanceCategoryLabel(
-                    title: "Motion & Startup",
-                    description: "Mode switching, ambient background, and launch behavior.",
+                    title: "Animation",
+                    description: "Animated backgrounds, style, color, quality, and performance.",
                     systemImage: "sparkles"
+                )
+            }
+
+            NavigationLink {
+                AppearanceSettingsSubpage(title: "Startup", sectionKey: "startup", initialSearchTarget: initialSearchTarget) {
+                    startupSection
+                        .eclipseExperimentalSettingsRows()
+                }
+            } label: {
+                appearanceCategoryLabel(
+                    title: "Startup",
+                    description: "Choose what Eclipse displays when it launches.",
+                    systemImage: "power"
                 )
             }
         } header: {
@@ -470,6 +494,69 @@ struct AlternativeUIView: View {
                 }
             }
             .id(AppearanceSettingsSearchTarget.accentColor.anchorID)
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Liquid Glass")
+                    .font(.subheadline.weight(.semibold))
+                Text("Liquid Glass buttons and selected controls follow Accent Color. Choose separate colors for the bars behind them.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                settingRow(
+                    title: "Dark Liquid Glass Bars",
+                    description: "Color for darker control bars and search fields."
+                ) {
+                    ColorPicker("", selection: $glassAppearance.darkBarColor)
+                        .labelsHidden()
+                }
+                .id(AppearanceSettingsSearchTarget.liquidGlassDarkBarColor.anchorID)
+
+                settingRow(
+                    title: "Light Liquid Glass Bars",
+                    description: "Color for lighter control bars and search fields."
+                ) {
+                    ColorPicker("", selection: $glassAppearance.lightBarColor)
+                        .labelsHidden()
+                }
+                .id(AppearanceSettingsSearchTarget.liquidGlassLightBarColor.anchorID)
+
+                settingRow(
+                    title: "Bottom Liquid Glass Bar",
+                    description: "Color of the bottom navigation bar, independent of its buttons."
+                ) {
+                    ColorPicker("", selection: $glassAppearance.bottomBarColor)
+                        .labelsHidden()
+                }
+                .id(AppearanceSettingsSearchTarget.liquidGlassBottomBarColor.anchorID)
+
+                settingRow(
+                    title: "Browse Filter Chips",
+                    description: "Background color for the genre, year, country, order, rating, and age filter chips in Browse."
+                ) {
+                    ColorPicker("", selection: $glassAppearance.browseFilterChipColor)
+                        .labelsHidden()
+                }
+                .id(AppearanceSettingsSearchTarget.browseFilterChipColor.anchorID)
+
+                settingRow(
+                    title: "Browse Filters Button",
+                    description: "Background color for the Filters button shown above Browse results."
+                ) {
+                    ColorPicker("", selection: $glassAppearance.browseFilterButtonColor)
+                        .labelsHidden()
+                }
+                .id(AppearanceSettingsSearchTarget.browseFilterButtonColor.anchorID)
+
+                settingRow(
+                    title: "Browse Filter Options Panel",
+                    description: "Background color for the expanded list of filter choices."
+                ) {
+                    ColorPicker("", selection: $glassAppearance.browseFilterOptionsColor)
+                        .labelsHidden()
+                }
+                .id(AppearanceSettingsSearchTarget.browseFilterOptionsColor.anchorID)
+            }
+            .padding(.vertical, 6)
 #endif
         } header: {
             Text("Interface & Scope")
@@ -477,7 +564,7 @@ struct AlternativeUIView: View {
     }
 #endif
 
-    private var appExperienceSection: some View {
+    private var animationSection: some View {
         Section {
             toggleRow(
                 title: "Animated Background",
@@ -485,6 +572,22 @@ struct AlternativeUIView: View {
                 isOn: $homeAnimatedBackgroundEnabled
             )
             .id(AppearanceSettingsSearchTarget.animatedBackground.anchorID)
+
+            settingRow(
+                title: "Animation Shape",
+                description: "Choose the glowing motif that floats through the animated background."
+            ) {
+                Picker("", selection: $homeAnimatedBackgroundShape) {
+                    ForEach(HomeAnimatedBackgroundShape.allCases) { shape in
+                        Text(shape.displayName).tag(shape.rawValue)
+                    }
+                }
+                .pickerStyle(.menu)
+                .accessibilityLabel("Animation Shape")
+                .accessibilityIdentifier("settings.appearance.animationShape")
+                .accessibilityValue(HomeAnimatedBackgroundShape.resolved(homeAnimatedBackgroundShape).displayName)
+                .id(AppearanceSettingsSearchTarget.animationShape.anchorID)
+            }
 
             settingRow(
                 title: "Animation Quality",
@@ -549,6 +652,13 @@ struct AlternativeUIView: View {
             )
             .id(AppearanceSettingsSearchTarget.appPerformanceOverlay.anchorID)
 
+        } header: {
+            Text("Animation")
+        }
+    }
+
+    private var startupSection: some View {
+        Section {
 #if os(iOS)
             toggleRow(
                 title: "Hide Splash Screen",
@@ -558,7 +668,7 @@ struct AlternativeUIView: View {
             .id(AppearanceSettingsSearchTarget.hideSplashScreen.anchorID)
 #endif
         } header: {
-            Text("App Experience")
+            Text("Startup")
         }
     }
 

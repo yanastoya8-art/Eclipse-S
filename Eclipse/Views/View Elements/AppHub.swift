@@ -375,7 +375,8 @@ struct AppHubOverlay: View {
             .frame(width: AppHubMetrics.buttonDiameter, height: AppHubMetrics.buttonDiameter)
             .applyLiquidGlassBackground(
                 cornerRadius: AppHubMetrics.buttonDiameter / 2,
-                glassTint: accentColorManager.currentAccentColor.opacity(0.30)
+                fallbackFill: accentColorManager.currentAccentColor.opacity(0.20),
+                glassTint: accentColorManager.currentAccentColor.opacity(0.36)
             )
             .scaleEffect(isActivating ? 0.94 : 1)
             .frame(width: AppHubMetrics.buttonHitDiameter, height: AppHubMetrics.buttonHitDiameter)

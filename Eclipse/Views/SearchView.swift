@@ -46,6 +46,7 @@ struct SearchView: View {
 
     @StateObject private var tmdbService = TMDBService.shared
     @StateObject private var contentFilter = TMDBContentFilter.shared
+    @StateObject private var accentColorManager = AccentColorManager.shared
     @Environment(\.eclipseVerticalSizeClass) var verticalSizeClass
 
     enum SearchFilter: String, CaseIterable {
@@ -1471,6 +1472,7 @@ private struct BrowseMediaView: View {
 
     @StateObject private var tmdbService = TMDBService.shared
     @StateObject private var contentFilter = TMDBContentFilter.shared
+    @StateObject private var glassAppearance = LiquidGlassAppearanceSettings.shared
     @Environment(\.eclipseVerticalSizeClass) private var verticalSizeClass
 
     private struct RestoredBrowseFilters {
@@ -1739,6 +1741,12 @@ private struct BrowseMediaView: View {
             }
         }
         .pickerStyle(.segmented)
+        .tint(accentColorManager.currentAccentColor)
+        .padding(4)
+        .background(
+            glassAppearance.darkBarColor.opacity(0.42),
+            in: Capsule()
+        )
     }
 
     private var filterChipsGrid: some View {
@@ -1880,7 +1888,11 @@ private struct BrowseMediaView: View {
             .padding(8)
         }
         .frame(maxHeight: 280)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .applyLiquidGlassBackground(
+            cornerRadius: 14,
+            fallbackFill: glassAppearance.browseFilterOptionsColor.opacity(0.48),
+            glassTint: glassAppearance.browseFilterOptionsColor.opacity(0.34)
+        )
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(Color.primary.opacity(0.10), lineWidth: 1)
@@ -1948,7 +1960,7 @@ private struct BrowseMediaView: View {
             .foregroundColor(.primary)
             .padding(.horizontal, 14)
             .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
-            .background(Color.primary.opacity(0.06))
+            .background(glassAppearance.browseFilterButtonColor.opacity(0.46))
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .buttonStyle(PlainButtonStyle())
@@ -2112,6 +2124,13 @@ private struct BrowseMediaView: View {
                         }
                 }
             }
+            // Appending a page or replacing a poster with provider artwork must
+            // not animate the grid's layout. Stable card IDs plus fixed poster
+            // geometry keep the visible rows anchored while images resolve.
+            .transaction { transaction in
+                transaction.animation = nil
+                transaction.disablesAnimations = true
+            }
 
             // A trailing lazy sentinel is more reliable than relying only on
             // the final card's onAppear. SwiftUI can keep that card alive when
@@ -2173,7 +2192,7 @@ private struct BrowseMediaView: View {
         }
         .padding(.horizontal, isTvOS ? 24 : 12)
         .frame(maxWidth: .infinity, minHeight: isTvOS ? 96 : 48, alignment: .leading)
-        .background(Color.primary.opacity(0.06))
+        .background(glassAppearance.browseFilterChipColor.opacity(0.46))
         .clipShape(RoundedRectangle(cornerRadius: isTvOS ? 18 : 10, style: .continuous))
     }
 
@@ -3262,6 +3281,7 @@ private struct BrowseMediaView: View {
 struct SearchBarEclipse: View {
     @Binding var text: String
     var onSearchButtonClicked: () -> Void
+    @StateObject private var glassAppearance = LiquidGlassAppearanceSettings.shared
 #if os(macOS)
     @FocusState private var macSearchFocused: Bool
     @Environment(\.macSearchFocusRequest) private var macSearchFocusRequest
@@ -3285,7 +3305,11 @@ struct SearchBarEclipse: View {
                 .padding(7)
                 .padding(.horizontal, 25)
 #if !os(tvOS)
-                .background(Color(.systemGray6))
+                .applyLiquidGlassBackground(
+                    cornerRadius: 12,
+                    fallbackFill: glassAppearance.lightBarColor.opacity(0.34),
+                    glassTint: glassAppearance.lightBarColor.opacity(0.30)
+                )
 #endif
                 .cornerRadius(12)
                 .contentShape(Rectangle())

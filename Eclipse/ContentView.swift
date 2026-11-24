@@ -56,6 +56,8 @@ struct ContentView: View {
     }
 
     @ObservedObject private var downloadManager = DownloadManager.shared
+    @StateObject private var accentColorManager = AccentColorManager.shared
+    @StateObject private var glassAppearance = LiquidGlassAppearanceSettings.shared
     @AppStorage("githubReleaseShowAlertPending", store: .standard) private var githubReleaseShowAlertPending = false
     @AppStorage("githubReleaseLatestVersion", store: .standard) private var githubReleaseLatestVersion = ""
     @AppStorage("githubReleaseURL", store: .standard) private var githubReleaseURL = ""
@@ -83,9 +85,14 @@ struct ContentView: View {
 
     private func configureTabBarAppearance() {
         #if !os(tvOS)
+        // iOS 26 owns the native Liquid Glass tab bar; let the toolbar background
+        // tint it instead of replacing it with an opaque UIKit appearance.
+        if #available(iOS 26.0, *) { return }
+
         let appearance = UITabBarAppearance()
-        appearance.configureWithOpaqueBackground()
-        appearance.backgroundColor = UIColor(red: 0.06, green: 0.06, blue: 0.06, alpha: 0.92)
+        appearance.configureWithDefaultBackground()
+        appearance.backgroundColor = UIColor(glassAppearance.bottomBarColor).withAlphaComponent(0.46)
+        appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial)
         appearance.shadowColor = .clear
 
         let itemAppearance = UITabBarItemAppearance()
@@ -198,6 +205,9 @@ struct ContentView: View {
         }
         .onChange(of: showingSettings) { _ in
             updatePerformanceSurface()
+        }
+        .onReceive(glassAppearance.$bottomBarColor.dropFirst()) { _ in
+            configureTabBarAppearance()
         }
         .onReceive(NotificationCenter.default.publisher(for: .playerInterfaceCoverageDidChange)) { notification in
             playerInterfaceCoverage.consume(notification)
@@ -323,6 +333,11 @@ struct ContentView: View {
         }
 #if !os(tvOS)
         .tabBarMinimizeBehavior(.never)
+#endif
+        .tint(accentColorManager.currentAccentColor)
+#if os(iOS)
+        .toolbarBackground(LiquidGlassAppearanceSettings.shared.bottomBarTint, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
 #endif
     }
 #endif
@@ -463,6 +478,11 @@ struct ContentView: View {
                 }
                 .tag(AppTab.search)
         }
+        .tint(accentColorManager.currentAccentColor)
+#if os(iOS)
+        .toolbarBackground(LiquidGlassAppearanceSettings.shared.bottomBarTint, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
+#endif
     }
 }
 
@@ -670,6 +690,11 @@ struct ExperimentalContentView: View {
                 }
                 .tag(ExperimentalMediaTab.search)
         }
+        .tint(accentColorManager.currentAccentColor)
+#if os(iOS)
+        .toolbarBackground(LiquidGlassAppearanceSettings.shared.bottomBarTint, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
+#endif
     }
 
     private var experimentalSettingsFullScreen: some View {
