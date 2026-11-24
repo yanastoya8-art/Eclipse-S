@@ -6859,11 +6859,25 @@ final class DownloadManager: NSObject, ObservableObject {
             pinnedVariantURL: pinnedVariant,
             expectedTotalSegments: expectedTotal,
             expectedManifestSHA256: item.hlsResumeManifestSHA256,
-            canonicalResumeURL: { $0 },
-            minimumRequestStartInterval: nil,
+            canonicalResumeURL: { candidate in
+                guard let protectedNuvioAttemptID,
+                      let attempt = self.protectedProviderAttempts[item.id],
+                      attempt.attemptID == protectedNuvioAttemptID,
+                      attempt.mainProxyURL != nil else { return candidate }
+                return MPVHeaderProxy.shared.originalTargetURL(for: candidate)
+            },
+            minimumRequestStartInterval: protectedNuvioAttemptID != nil
+                && protectedProviderAttempts[item.id]?.mainProxyURL != nil ? 0 : nil,
             enforcesConservativeDiskCapacityReserve: item.providerTransportKind == .skyStreamHLS,
             durableCheckpoints: usesDurableCheckpoints,
-            sessionConfiguration: hlsSessionConfiguration
+            sessionConfiguration: hlsSessionConfiguration,
+            useBackgroundURLSession: url.scheme?.lowercased() == "https"
+                && !["127.0.0.1", "localhost", "::1"].contains(url.host?.lowercased() ?? "")
+                && item.providerTransportKind != .skyStreamHLS
+                && (protectedNuvioAttemptID == nil
+                    || protectedProviderAttempts[item.id]?.mainProxyURL == nil),
+            requiresPublicNetworkValidationForBackgroundURLSession: protectedNuvioAttemptID != nil
+                && protectedProviderAttempts[item.id]?.mainProxyURL == nil
         )
 
 #if os(iOS) && !targetEnvironment(macCatalyst)
@@ -6886,6 +6900,14 @@ final class DownloadManager: NSObject, ObservableObject {
             if let index = self.downloads.firstIndex(where: { $0.id == item.id }) {
 #if (os(iOS) && !targetEnvironment(macCatalyst)) || os(macOS)
                 if let protectedNuvioAttemptID {
+                    if self.protectedProviderAttempts[item.id]?.attemptID == protectedNuvioAttemptID,
+                       self.protectedProviderAttempts[item.id]?.mainProxyURL != nil {
+                        self.recordNuvioHLSVariantProxyURL(
+                            variantURL,
+                            id: item.id,
+                            attemptID: protectedNuvioAttemptID
+                        )
+                    }
                     self.downloads[index].hlsVariantURL = nil
                 } else if persistResolvedVariant {
                     self.downloads[index].hlsVariantURL = variantURL.absoluteString
@@ -7706,9 +7728,28 @@ final class DownloadManager: NSObject, ObservableObject {
         }
     }
 
+    private func recordNuvioHLSVariantProxyURL(
+        _ url: URL,
+        id: String,
+        attemptID: UUID
+    ) {
+        guard var attempt = protectedProviderAttempts[id],
+              attempt.attemptID == attemptID else { return }
+        attempt.hlsVariantProxyURL = url
+        protectedProviderAttempts[id] = attempt
+    }
+
     private func finishNuvioMainTransport(id: String, attemptID: UUID) {
         guard var attempt = protectedProviderAttempts[id],
               attempt.attemptID == attemptID else { return }
+        if let proxyURL = attempt.mainProxyURL {
+            MPVHeaderProxy.shared.invalidateSession(for: proxyURL)
+        }
+        if let variantURL = attempt.hlsVariantProxyURL {
+            MPVHeaderProxy.shared.invalidateSession(for: variantURL)
+        }
+        attempt.mainProxyURL = nil
+        attempt.hlsVariantProxyURL = nil
         attempt.mainFinished = true
         attempt.mainTaskIdentifier = nil
         storeResumeData(nil, id: id)
@@ -7753,6 +7794,12 @@ final class DownloadManager: NSObject, ObservableObject {
         guard let attempt = protectedProviderAttempts[id],
               expectedAttemptID == nil || attempt.attemptID == expectedAttemptID else { return }
         protectedProviderAttempts.removeValue(forKey: id)
+        if let proxyURL = attempt.mainProxyURL {
+            MPVHeaderProxy.shared.invalidateSession(for: proxyURL)
+        }
+        if let variantURL = attempt.hlsVariantProxyURL {
+            MPVHeaderProxy.shared.invalidateSession(for: variantURL)
+        }
         for proxyURL in attempt.subtitleProxyURLs {
             MPVHeaderProxy.shared.invalidateSession(for: proxyURL)
         }
@@ -10705,8 +10752,8 @@ extension DownloadManager: URLSessionDownloadDelegate {
                     self.saveDownloads()
                     self.startHLSDownload(
                         hlsItem,
-                        streamURLOverride: URL(string: attempt.authorityURL),
-                        headersOverride: attempt.authorityHeaders,
+                        streamURLOverride: attempt.mainProxyURL ?? URL(string: attempt.authorityURL),
+                        headersOverride: attempt.mainProxyURL == nil ? attempt.authorityHeaders : [:],
                         persistResolvedVariant: false,
                         protectedNuvioAttemptID: attempt.attemptID
                     )
