@@ -751,7 +751,7 @@ struct SearchView: View {
         errorMessage = nil
 
         pendingSearchTask = Task { [query] in
-            try? await Task.sleep(nanoseconds: 600_000_000)
+            try? await Task.sleep(nanoseconds: 350_000_000)
             guard !Task.isCancelled else { return }
 
             await MainActor.run {
@@ -774,26 +774,14 @@ struct SearchView: View {
         }
         guard !candidates.isEmpty else { return results }
 
-        await AniMapMappingService.shared.prepareGlobalIndexIfNeeded()
+        // Avoid downloading the full AniMap index during an interactive
+        // search. Resolve only the few likely anime candidates directly by
+        // title against AniList; this keeps search latency bounded and avoids
+        // blocking every query on a global mapping refresh.
         return await withTaskGroup(of: (Int, TMDBSearchResult).self) { group in
             for (index, result) in candidates {
                 group.addTask {
-                    let mappings = await AniMapMappingService.shared.mappings(forTMDBShowId: result.id)
-                    let mapping = mappings
-                        .filter { $0.mediaType?.lowercased() != "movie" }
-                        .first { $0.anilistId != nil }
-                        ?? mappings.first { $0.anilistId != nil }
-                    let identity: AnimeMediaIdentitySeed?
-                    if let anilistID = mapping?.anilistId, anilistID > 0 {
-                        identity = AnimeMediaIdentitySeed(
-                            anilistId: anilistID,
-                            malId: mapping?.malId,
-                            kitsuId: mapping?.kitsuId,
-                            format: mapping?.mediaType
-                        )
-                    } else {
-                        identity = await AniListService.shared.searchAnimeIdentity(title: result.displayTitle)
-                    }
+                    let identity = await AniListService.shared.searchAnimeIdentity(title: result.displayTitle)
                     guard let identity = identity?.sanitizedForPersistence else {
                         return (index, result)
                     }
@@ -855,7 +843,10 @@ struct SearchView: View {
         activeSearchTask?.cancel()
         activeSearchTask = Task {
             do {
-                var results = try await tmdbService.searchMulti(query: query)
+                // One TMDB page is enough for interactive search. Fetching
+                // a second page for every keystroke added latency without
+                // improving exact-title lookup in the common case.
+                var results = try await tmdbService.searchMulti(query: query, maxPages: 1)
                 try Task.checkCancellation()
                 let shouldSearchTVEndpoint = results.isEmpty
                     || (searchFilter == .anime && !results.contains(where: isAnimeResult))
@@ -868,6 +859,21 @@ struct SearchView: View {
                             .filter { seen.insert($0.stableIdentity).inserted }
                         results.append(contentsOf: supplemental)
                     }
+                }
+
+                // TMDB's multi-search index can omit anime or index it under
+                // a translated title. Query AniList directly for the Anime
+                // filter (and as a last resort when TMDB returns nothing).
+                if searchFilter == .anime || results.isEmpty {
+                    let animeResults = await AniListService.shared.searchAnimeResults(
+                        query: query,
+                        tmdbService: tmdbService
+                    )
+                    try Task.checkCancellation()
+                    var seen = Set(results.map(\.stableIdentity))
+                    results.append(contentsOf: animeResults.filter {
+                        seen.insert($0.stableIdentity).inserted
+                    })
                 }
                 let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
                 let requiresGlobalAnimeAgeRating = UserDefaults.standard.bool(forKey: "catalogHideBelowPG13Anime")
