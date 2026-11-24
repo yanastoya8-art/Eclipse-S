@@ -5,9 +5,16 @@ import Foundation
 @available(iOS 16.2, *)
 @MainActor
 enum DownloadLiveActivityController {
-    private static var startingDownloadGenerations: [String: UInt64] = [:]
+    private struct PendingUpdate {
+        let title: String
+        let state: DownloadActivityAttributes.ContentState
+        let generation: UInt64
+    }
+
     private static var generationByDownloadID: [String: UInt64] = [:]
     private static var endedDownloadIDs: Set<String> = []
+    private static var pendingUpdates: [String: PendingUpdate] = [:]
+    private static var drainTasks: [String: Task<Void, Never>] = [:]
 
     private static func generation(for downloadID: String) -> UInt64 {
         generationByDownloadID[downloadID, default: 0]
@@ -16,7 +23,7 @@ enum DownloadLiveActivityController {
     static func prepare(downloadID: String) {
         generationByDownloadID[downloadID, default: 0] &+= 1
         endedDownloadIDs.remove(downloadID)
-        startingDownloadGenerations.removeValue(forKey: downloadID)
+        pendingUpdates.removeValue(forKey: downloadID)
     }
 
     private static func activity(for downloadID: String) -> Activity<DownloadActivityAttributes>? {
@@ -25,6 +32,10 @@ enum DownloadLiveActivityController {
         }
     }
 
+    /// Keep only the newest state while an ActivityKit update is in flight.
+    /// Lock Screen and Dynamic Island are two presentations of this same
+    /// Activity; serializing writes prevents the two surfaces from receiving
+    /// progress snapshots out of order.
     static func update(
         downloadID: String,
         title: String,
@@ -33,63 +44,76 @@ enum DownloadLiveActivityController {
         totalBytes: Int64,
         status: String
     ) async {
-        // A late progress callback must never recreate an activity after the
-        // corresponding download has been removed or cancelled.
         guard !endedDownloadIDs.contains(downloadID) else { return }
-        let generationSnapshot = generation(for: downloadID)
-        let boundedProgress = min(max(progress, 0), 1)
         let state = DownloadActivityAttributes.ContentState(
-            progress: boundedProgress,
+            progress: min(max(progress, 0), 1),
             completedBytes: max(0, completedBytes),
             totalBytes: max(0, totalBytes),
             status: String(status.prefix(80))
         )
-        let content = ActivityContent(state: state, staleDate: Date().addingTimeInterval(15 * 60))
-        if let activity = activity(for: downloadID) {
-            await activity.update(content)
-            guard generation(for: downloadID) == generationSnapshot,
-                  !endedDownloadIDs.contains(downloadID) else { return }
-            return
+        pendingUpdates[downloadID] = PendingUpdate(
+            title: String(title.prefix(100)),
+            state: state,
+            generation: generation(for: downloadID)
+        )
+
+        guard drainTasks[downloadID] == nil else { return }
+        let task = Task { @MainActor in
+            await drainPendingUpdates(for: downloadID)
         }
-        guard ActivityAuthorizationInfo().areActivitiesEnabled,
-              startingDownloadGenerations[downloadID] == nil else { return }
-        startingDownloadGenerations[downloadID] = generationSnapshot
-        defer {
-            if startingDownloadGenerations[downloadID] == generationSnapshot {
-                startingDownloadGenerations.removeValue(forKey: downloadID)
+        drainTasks[downloadID] = task
+    }
+
+    private static func drainPendingUpdates(for downloadID: String) async {
+        defer { drainTasks.removeValue(forKey: downloadID) }
+
+        while let pending = pendingUpdates.removeValue(forKey: downloadID) {
+            guard pending.generation == generation(for: downloadID),
+                  !endedDownloadIDs.contains(downloadID) else { continue }
+
+            let content = ActivityContent(
+                state: pending.state,
+                staleDate: Date().addingTimeInterval(15 * 60)
+            )
+
+            if let currentActivity = activity(for: downloadID) {
+                await currentActivity.update(content)
+                continue
             }
-        }
-        // A previous request may have completed while this update was queued.
-        guard generation(for: downloadID) == generationSnapshot,
-              !endedDownloadIDs.contains(downloadID) else { return }
-        if let activity = activity(for: downloadID) {
-            await activity.update(content)
-            guard generation(for: downloadID) == generationSnapshot,
-                  !endedDownloadIDs.contains(downloadID) else { return }
-            return
-        }
-        let attributes = DownloadActivityAttributes(downloadID: downloadID, title: String(title.prefix(100)))
-        do {
-            _ = try Activity.request(attributes: attributes, content: content, pushType: nil)
-            guard generation(for: downloadID) == generationSnapshot,
-                  !endedDownloadIDs.contains(downloadID) else {
-                if let staleActivity = activity(for: downloadID) {
-                    await staleActivity.end(nil, dismissalPolicy: .immediate)
-                }
-                return
+
+            guard ActivityAuthorizationInfo().areActivitiesEnabled,
+                  pending.generation == generation(for: downloadID),
+                  !endedDownloadIDs.contains(downloadID) else { continue }
+
+            do {
+                _ = try Activity.request(
+                    attributes: DownloadActivityAttributes(
+                        downloadID: downloadID,
+                        title: pending.title
+                    ),
+                    content: content,
+                    pushType: nil
+                )
+            } catch {
+                Logger.shared.log(
+                    "Could not start download Live Activity: \(error.localizedDescription)",
+                    type: "Download"
+                )
             }
-        } catch {
-            Logger.shared.log("Could not start download Live Activity: \(error.localizedDescription)", type: "Download")
         }
     }
 
     static func end(downloadID: String, status: String) async {
-        // Invalidate all progress updates already queued on the main actor before
-        // ending every matching activity. Immediate dismissal prevents a deleted
-        // download from lingering in the Dynamic Island or Lock Screen.
+        // Invalidate queued progress before waiting for an in-flight ActivityKit
+        // write. This prevents an older update from overtaking the terminal state.
         generationByDownloadID[downloadID, default: 0] &+= 1
         endedDownloadIDs.insert(downloadID)
-        startingDownloadGenerations.removeValue(forKey: downloadID)
+        pendingUpdates.removeValue(forKey: downloadID)
+
+        if let drainTask = drainTasks[downloadID] {
+            await drainTask.value
+        }
+
         let matchingActivities = Activity<DownloadActivityAttributes>.activities.filter {
             $0.attributes.downloadID == downloadID
         }
