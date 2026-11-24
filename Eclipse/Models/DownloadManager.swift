@@ -7477,6 +7477,11 @@ final class DownloadManager: NSObject, ObservableObject {
             resetProtectedProviderHLSCheckpoint(id: item.id)
         }
 
+        let safeTransportHeaders = MPVHeaderProxy.shared.directTransportHeaders(
+            effectiveHeaders,
+            for: originalURL,
+            originURL: originalURL
+        )
         let attemptID = UUID()
         guard let latest = downloads.first(where: { $0.id == item.id }),
               latest.status == .queued,
@@ -7495,14 +7500,14 @@ final class DownloadManager: NSObject, ObservableObject {
             attemptID: attemptID,
             providerKind: providerKind,
             authorityURL: originalURL.absoluteString,
-            authorityHeaders: effectiveHeaders,
+            authorityHeaders: safeTransportHeaders,
             authorityReference: authorityReference,
             stremioConfiguredOriginAuthority: stremioAuthority
         )
         return (
             NuvioDownloadTransportPlan.protectedAttempt(
                 authoritativeURL: originalURL,
-                authoritativeHeaders: effectiveHeaders
+                authoritativeHeaders: safeTransportHeaders
             ),
             attemptID
         )
