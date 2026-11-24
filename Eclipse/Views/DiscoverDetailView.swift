@@ -505,7 +505,7 @@ struct DiscoverDetailView: View {
                             contentFilter.filterSearchResults(
                                 unique,
                                 allowUpcomingContent: allowsUpcomingContent
-                            ).map(\\.stableIdentity)
+                            ).map(\.stableIdentity
                         )
                         items.append(contentsOf: unique)
                         let addedVisibleItems = unique.contains { visibleIDs.contains($0.stableIdentity) }
