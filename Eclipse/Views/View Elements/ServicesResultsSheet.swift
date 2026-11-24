@@ -2116,7 +2116,7 @@ struct ModulesSearchResultsSheet: View {
                     index: offset,
                     item: item,
                     stremioStreams: visibleStremioStreams(for: addon),
-                    stremioFailureOutcome: outcome?.explainsAnEmptyList == true ? outcome : nil
+                    stremioFailureOutcome: !ServicesStreamAppearanceSettings.hidesAddonMessages() && outcome?.explainsAnEmptyList == true ? outcome : nil
                 )
 #if (os(iOS) && !targetEnvironment(macCatalyst)) || os(tvOS) || os(macOS)
             case .skyStream(let provider):
@@ -2133,7 +2133,7 @@ struct ModulesSearchResultsSheet: View {
                     item: item,
                     nuvioOptions: visibleNuvioOptions(for: scraper),
                     nuvioIsSearching: nuvioSearchingSourceIds.contains(scraper.id),
-                    nuvioFailureOutcome: outcome?.isFailure == true ? outcome : nil
+                    nuvioFailureOutcome: !ServicesStreamAppearanceSettings.hidesAddonMessages() && outcome?.isFailure == true ? outcome : nil
                 )
 #endif
             }
@@ -7372,7 +7372,9 @@ struct ModulesSearchResultsSheet: View {
                     let outcome = viewModel.stremioOutcomes[addon.id]
                     let returnedCount = viewModel.stremioResults[addon.id]?.count ?? 0
                     if let outcome, outcome.explainsAnEmptyList {
-                        stremioOutcomeRow(outcome)
+                        if !ServicesStreamAppearanceSettings.hidesAddonMessages() {
+                            stremioOutcomeRow(outcome)
+                        }
                     } else if returnedCount > 0 {
                         filteredOutRow(count: returnedCount)
                     } else {
@@ -8172,7 +8174,9 @@ struct ModulesSearchResultsSheet: View {
                         detail: nil
                     )
                 } else if let outcome {
-                    nuvioOutcomeRow(outcome)
+                    if !ServicesStreamAppearanceSettings.hidesAddonMessages() {
+                        nuvioOutcomeRow(outcome)
+                    }
                 } else {
                     noResultsRow
                 }
@@ -11542,6 +11546,16 @@ private extension View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(ServicesStreamAppearanceSettings.streamCardColor())
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay {
+                if ServicesStreamAppearanceSettings.showsStreamFrame() {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(
+                            ServicesStreamAppearanceSettings.streamFrameColor(),
+                            lineWidth: ServicesStreamAppearanceSettings.streamFrameWidth()
+                        )
+                        .allowsHitTesting(false)
+                }
+            }
     }
 }
 
