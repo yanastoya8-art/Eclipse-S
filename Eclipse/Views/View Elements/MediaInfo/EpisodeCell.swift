@@ -510,9 +510,9 @@ struct EpisodeCell: View {
                         .padding(.vertical, 2)
                         .applyLiquidGlassBackground(
                             cornerRadius: 16,
-                            fallbackFill: Color.gray.opacity(0.2),
+                            fallbackFill: accentColorManager.currentAccentColor.opacity(0.18),
                             fallbackMaterial: .thinMaterial,
-                            glassTint: Color.gray.opacity(0.15)
+                            glassTint: accentColorManager.currentAccentColor.opacity(0.22)
                         )
                         .clipShape(Capsule())
                     }
