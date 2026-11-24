@@ -19,6 +19,8 @@ enum ServicesSettingsSearchTarget: Hashable {
     case blockAddonSubtitles
     case blockAddonCatalogs
     case stremioStyleSheet
+    case streamCardColor
+    case streamIconColor
     case rankingSimilarity
     case dropMismatchedResults
     case languagesToInclude
@@ -42,6 +44,8 @@ enum ServicesSettingsSearchTarget: Hashable {
         case .blockAddonSubtitles: return "services-settings-search-blockAddonSubtitles"
         case .blockAddonCatalogs: return "services-settings-search-blockAddonCatalogs"
         case .stremioStyleSheet: return "services-settings-search-stremioStyleSheet"
+        case .streamCardColor: return "services-settings-search-streamCardColor"
+        case .streamIconColor: return "services-settings-search-streamIconColor"
         case .rankingSimilarity: return "services-settings-search-rankingSimilarity"
         case .dropMismatchedResults: return "services-settings-search-dropMismatchedResults"
         case .languagesToInclude: return "services-settings-search-languagesToInclude"
@@ -59,6 +63,8 @@ enum ServicesSettingsSearchTarget: Hashable {
     var opensExtraServiceSettings: Bool {
         switch self {
         case .stremioStyleSheet,
+             .streamCardColor,
+             .streamIconColor,
              .languagesToInclude,
              .languagesToExclude,
              .assumeOriginalAudio,
@@ -95,6 +101,8 @@ enum ServicesSettingsSearchTarget: Hashable {
              .blockAddonSubtitles,
              .blockAddonCatalogs,
              .stremioStyleSheet,
+             .streamCardColor,
+             .streamIconColor,
              .rankingSimilarity,
              .dropMismatchedResults,
              .languagesToInclude,
@@ -2689,7 +2697,9 @@ private struct ExtraServiceSettingsView: View {
 
                 Section {
                     ColorPicker("Stream Card Color", selection: $streamCardColor, supportsOpacity: true)
+                        .id(ServicesSettingsSearchTarget.streamCardColor.anchorID)
                     ColorPicker("Stream Icon Color", selection: $streamIconColor, supportsOpacity: true)
+                        .id(ServicesSettingsSearchTarget.streamIconColor.anchorID)
                     Button("Reset Stream Colors") {
                         ServicesStreamAppearanceSettings.reset()
                         streamCardColor = ServicesStreamAppearanceSettings.streamCardColor()
