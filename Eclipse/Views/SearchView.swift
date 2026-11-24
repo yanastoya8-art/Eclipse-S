@@ -1890,8 +1890,8 @@ private struct BrowseMediaView: View {
         .frame(maxHeight: 280)
         .applyLiquidGlassBackground(
             cornerRadius: 14,
-            fallbackFill: glassAppearance.lightBarColor.opacity(0.42),
-            glassTint: glassAppearance.lightBarColor.opacity(0.30)
+            fallbackFill: glassAppearance.browseFilterOptionsColor.opacity(0.48),
+            glassTint: glassAppearance.browseFilterOptionsColor.opacity(0.34)
         )
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -1960,7 +1960,7 @@ private struct BrowseMediaView: View {
             .foregroundColor(.primary)
             .padding(.horizontal, 14)
             .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
-            .background(Color.primary.opacity(0.06))
+            .background(glassAppearance.browseFilterButtonColor.opacity(0.46))
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .buttonStyle(PlainButtonStyle())
@@ -2185,7 +2185,7 @@ private struct BrowseMediaView: View {
         }
         .padding(.horizontal, isTvOS ? 24 : 12)
         .frame(maxWidth: .infinity, minHeight: isTvOS ? 96 : 48, alignment: .leading)
-        .background(Color.primary.opacity(0.06))
+        .background(glassAppearance.browseFilterChipColor.opacity(0.46))
         .clipShape(RoundedRectangle(cornerRadius: isTvOS ? 18 : 10, style: .continuous))
     }
 
