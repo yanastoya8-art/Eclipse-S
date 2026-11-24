@@ -8878,6 +8878,9 @@ final class LiquidGlassAppearanceSettings: ObservableObject {
     static let darkBarColorKey = "liquidGlassDarkBarColor"
     static let lightBarColorKey = "liquidGlassLightBarColor"
     static let bottomBarColorKey = "liquidGlassBottomBarColor"
+    static let browseFilterChipColorKey = "browseFilterChipColor"
+    static let browseFilterButtonColorKey = "browseFilterButtonColor"
+    static let browseFilterOptionsColorKey = "browseFilterOptionsColor"
 
     private var isReloadingProfile = false
 
@@ -8902,6 +8905,27 @@ final class LiquidGlassAppearanceSettings: ObservableObject {
         }
     }
 
+    @Published var browseFilterChipColor: Color {
+        didSet {
+            guard !isReloadingProfile else { return }
+            Self.persist(browseFilterChipColor, key: Self.browseFilterChipColorKey)
+        }
+    }
+
+    @Published var browseFilterButtonColor: Color {
+        didSet {
+            guard !isReloadingProfile else { return }
+            Self.persist(browseFilterButtonColor, key: Self.browseFilterButtonColorKey)
+        }
+    }
+
+    @Published var browseFilterOptionsColor: Color {
+        didSet {
+            guard !isReloadingProfile else { return }
+            Self.persist(browseFilterOptionsColor, key: Self.browseFilterOptionsColorKey)
+        }
+    }
+
     var bottomBarTint: Color { bottomBarColor.opacity(0.42) }
 
     func searchFieldColor(for colorScheme: ColorScheme) -> Color {
@@ -8912,6 +8936,9 @@ final class LiquidGlassAppearanceSettings: ObservableObject {
         darkBarColor = Self.restore(key: Self.darkBarColorKey, fallback: Color(red: 0.10, green: 0.10, blue: 0.15))
         lightBarColor = Self.restore(key: Self.lightBarColorKey, fallback: Color(red: 0.42, green: 0.42, blue: 0.48))
         bottomBarColor = Self.restore(key: Self.bottomBarColorKey, fallback: Color(red: 0.08, green: 0.08, blue: 0.13))
+        browseFilterChipColor = Self.restore(key: Self.browseFilterChipColorKey, fallback: Color(red: 0.20, green: 0.20, blue: 0.25))
+        browseFilterButtonColor = Self.restore(key: Self.browseFilterButtonColorKey, fallback: Color(red: 0.20, green: 0.20, blue: 0.25))
+        browseFilterOptionsColor = Self.restore(key: Self.browseFilterOptionsColorKey, fallback: Color(red: 0.14, green: 0.14, blue: 0.19))
 
         NotificationCenter.default.addObserver(
             forName: .activeProfileDidChange,
@@ -8929,6 +8956,9 @@ final class LiquidGlassAppearanceSettings: ObservableObject {
         darkBarColor = Self.restore(key: Self.darkBarColorKey, fallback: Color(red: 0.10, green: 0.10, blue: 0.15))
         lightBarColor = Self.restore(key: Self.lightBarColorKey, fallback: Color(red: 0.42, green: 0.42, blue: 0.48))
         bottomBarColor = Self.restore(key: Self.bottomBarColorKey, fallback: Color(red: 0.08, green: 0.08, blue: 0.13))
+        browseFilterChipColor = Self.restore(key: Self.browseFilterChipColorKey, fallback: Color(red: 0.20, green: 0.20, blue: 0.25))
+        browseFilterButtonColor = Self.restore(key: Self.browseFilterButtonColorKey, fallback: Color(red: 0.20, green: 0.20, blue: 0.25))
+        browseFilterOptionsColor = Self.restore(key: Self.browseFilterOptionsColorKey, fallback: Color(red: 0.14, green: 0.14, blue: 0.19))
         isReloadingProfile = false
     }
 
