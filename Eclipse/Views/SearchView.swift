@@ -1471,6 +1471,8 @@ private struct BrowseMediaView: View {
 
     @StateObject private var tmdbService = TMDBService.shared
     @StateObject private var contentFilter = TMDBContentFilter.shared
+    @StateObject private var glassAppearance = LiquidGlassAppearanceSettings.shared
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.eclipseVerticalSizeClass) private var verticalSizeClass
 
     private struct RestoredBrowseFilters {
@@ -1739,6 +1741,12 @@ private struct BrowseMediaView: View {
             }
         }
         .pickerStyle(.segmented)
+        .tint(AccentColorManager.shared.currentAccentColor)
+        .padding(4)
+        .background(
+            glassAppearance.searchFieldColor(for: colorScheme).opacity(0.42),
+            in: Capsule()
+        )
     }
 
     private var filterChipsGrid: some View {
@@ -1880,7 +1888,11 @@ private struct BrowseMediaView: View {
             .padding(8)
         }
         .frame(maxHeight: 280)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .applyLiquidGlassBackground(
+            cornerRadius: 14,
+            fallbackFill: glassAppearance.searchFieldColor(for: colorScheme).opacity(0.42),
+            glassTint: glassAppearance.searchFieldColor(for: colorScheme).opacity(0.30)
+        )
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(Color.primary.opacity(0.10), lineWidth: 1)
