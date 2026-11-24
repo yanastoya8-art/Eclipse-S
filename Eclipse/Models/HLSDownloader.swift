@@ -355,6 +355,19 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
                 self.session.getAllTasks { tasks in
                     self.queue.async {
                         guard self.pending[description] != nil else { return }
+                        let prefix = self.taskPrefix(downloadID: downloadID)
+                        for staleTask in tasks where staleTask.taskDescription?.hasPrefix(prefix) == true
+                            && staleTask.taskDescription != description {
+                            staleTask.cancel()
+                        }
+                        let staleKeys = self.activeTasks.keys.filter {
+                            $0.hasPrefix(prefix) && $0 != description
+                        }
+                        for key in staleKeys {
+                            self.activeTasks.removeValue(forKey: key)
+                        }
+                        self.removeCachedResults(withPrefix: prefix, excluding: description)
+
                         if let existing = tasks.first(where: { $0.taskDescription == description }) as? URLSessionDownloadTask {
                             self.activeTasks[description] = existing
                             if existing.state == .suspended { existing.resume() }
@@ -586,12 +599,13 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
         return HLSBackgroundDownloadResult(data: data, response: response)
     }
 
-    private func removeCachedResults(withPrefix prefix: String) {
+    private func removeCachedResults(withPrefix prefix: String, excluding description: String? = nil) {
         guard let urls = try? FileManager.default.contentsOfDirectory(
             at: cacheDirectoryURL(),
             includingPropertiesForKeys: nil
         ) else { return }
-        for url in urls where url.lastPathComponent.hasPrefix(prefix) {
+        for url in urls where url.lastPathComponent.hasPrefix(prefix)
+            && description.map({ !url.lastPathComponent.hasPrefix($0) }) ?? true {
             try? FileManager.default.removeItem(at: url)
         }
     }
