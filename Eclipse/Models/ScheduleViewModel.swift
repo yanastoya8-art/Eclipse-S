@@ -47,6 +47,10 @@ enum AnimeScheduleLanguageLookupPolicy {
 /// episodes are still excluded; unknown values remain visible until metadata
 /// can be resolved.
 enum AnimeScheduleRuntimeFilterPolicy {
+    static func resolvedRuntime(providerRuntimeMinutes: Int?, nativeRuntimeMinutes: Int?) -> Int? {
+        providerRuntimeMinutes ?? nativeRuntimeMinutes
+    }
+
     static func shouldInclude(runtimeMinutes: Int?, enabled: Bool) -> Bool {
         guard enabled else { return true }
         guard let runtimeMinutes, runtimeMinutes > 0 else { return true }
@@ -1188,6 +1192,7 @@ final class ScheduleViewModel: ObservableObject {
                 )
                 let result: AnimeAiringScheduleResult
                 var verifiedNativeLanguageEntries: [ScheduleEntry] = []
+                var nativeAnimeMetadataEntries: [AniListAiringScheduleEntry] = []
                 var spanishDubResearchCandidates: [AniListAiringScheduleEntry] = []
                 let permitsEnglishDubSchedule = AnimeScheduleFallback.permitsEnglishDubSchedule(
                     selectedDubLanguages: selectedDubLanguages,
@@ -1238,6 +1243,7 @@ final class ScheduleViewModel: ObservableObject {
                         ) {
                             try await AniListService.shared.fetchNativeAiringScheduleForDubResearch(daysAhead: dayCount)
                         }) ?? []
+                            nativeAnimeMetadataEntries = nativeSchedule
                             let nativeEntries = nativeSchedule.map(ScheduleEntry.init(animeEntry:))
                             verifiedNativeLanguageEntries = AnimeScheduleLanguageLookupPolicy.nativeLanguageEntries(
                                 nativeEntries,
@@ -1312,8 +1318,30 @@ final class ScheduleViewModel: ObservableObject {
                 // Preserve all provider candidates in the cache. The selected
                 // language policy must run before episode deduplication so a
                 // non-selected language cannot hide a qualifying dub date.
-                let entries = result.entries.map(ScheduleEntry.init(animeEntry:))
-                    + verifiedNativeLanguageEntries
+                var nativeMetadataByID: [Int: AniListAiringScheduleEntry] = [:]
+                for metadata in nativeAnimeMetadataEntries {
+                    nativeMetadataByID[metadata.mediaId] = metadata
+                    if let malID = metadata.malID, malID > 0 {
+                        nativeMetadataByID[-malID] = metadata
+                    }
+                }
+                let enrichedDubEntries = result.entries.map { providerEntry -> ScheduleEntry in
+                    var enriched = providerEntry
+                    let metadata = nativeMetadataByID[providerEntry.mediaId]
+                        ?? providerEntry.malID.flatMap { nativeMetadataByID[-$0] }
+                    if let metadata {
+                        enriched.runtimeMinutes = AnimeScheduleRuntimeFilterPolicy.resolvedRuntime(
+                            providerRuntimeMinutes: providerEntry.runtimeMinutes,
+                            nativeRuntimeMinutes: metadata.runtimeMinutes
+                        )
+                        enriched.releaseYear = enriched.releaseYear ?? metadata.releaseYear
+                        enriched.tags = enriched.tags ?? metadata.tags
+                        enriched.originalLanguage = metadata.originalLanguage
+                        enriched.malID = enriched.malID ?? metadata.malID
+                    }
+                    return ScheduleEntry(animeEntry: enriched)
+                }
+                let entries = enrichedDubEntries + verifiedNativeLanguageEntries
                 try Task.checkCancellation()
                 // Hide the routine language-verification explanation. Keep a
                 // concise outage notice only when every selected-language source
