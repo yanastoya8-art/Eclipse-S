@@ -310,19 +310,19 @@ struct SearchResultCard: View {
 #endif
     }
 
-    @ViewBuilder
     private var posterArtwork: some View {
-        if isTvOS || isIPad {
-            Color.clear
-                .aspectRatio(2/3, contentMode: .fit)
-                .overlay {
-                    posterImage
-                }
-                .clipped()
-        } else {
+        // Use the same width-derived 2:3 poster cell on every platform.
+        // A fixed 180pt height on iPhone made the card geometry depend on the
+        // current column count; when Browse changed orientation or appended a
+        // page, SwiftUI had to reflow rows while remote artwork was still loading.
+        GeometryReader { geometry in
             posterImage
-                .frame(height: 180 * iPadScale)
+                .frame(width: geometry.size.width, height: geometry.size.height)
+                .clipped()
         }
+        .aspectRatio(2.0 / 3.0, contentMode: .fit)
+        .frame(maxWidth: .infinity)
+        .clipped()
     }
 
     private var posterDecodeWidth: CGFloat {
