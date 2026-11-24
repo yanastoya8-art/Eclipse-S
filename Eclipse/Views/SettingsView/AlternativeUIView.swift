@@ -25,6 +25,9 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
     case liquidGlassDarkBarColor
     case liquidGlassLightBarColor
     case liquidGlassBottomBarColor
+    case browseFilterChipColor
+    case browseFilterButtonColor
+    case browseFilterOptionsColor
     case animatedBackground
     case animationQuality
     case animationColor
@@ -65,7 +68,7 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
         switch self {
         case .palette, .backgroundStyle, .solidColorSource, .customBackgroundColor, .backgroundIntensity:
             return "theme"
-        case .interface, .globalAppearance, .accentColor, .liquidGlassDarkBarColor, .liquidGlassLightBarColor, .liquidGlassBottomBarColor:
+        case .interface, .globalAppearance, .accentColor, .liquidGlassDarkBarColor, .liquidGlassLightBarColor, .liquidGlassBottomBarColor, .browseFilterChipColor, .browseFilterButtonColor, .browseFilterOptionsColor:
             return "interface"
         case .animatedBackground, .animationQuality, .animationColor, .customAnimationColor, .animationFrameRate, .appPerformanceOverlay, .hideSplashScreen:
             return "motion"
@@ -508,6 +511,33 @@ struct AlternativeUIView: View {
                         .labelsHidden()
                 }
                 .id(AppearanceSettingsSearchTarget.liquidGlassBottomBarColor.anchorID)
+
+                settingRow(
+                    title: "Browse Filter Chips",
+                    description: "Background color for the genre, year, country, order, rating, and age filter chips in Browse."
+                ) {
+                    ColorPicker("", selection: $glassAppearance.browseFilterChipColor)
+                        .labelsHidden()
+                }
+                .id(AppearanceSettingsSearchTarget.browseFilterChipColor.anchorID)
+
+                settingRow(
+                    title: "Browse Filters Button",
+                    description: "Background color for the Filters button shown above Browse results."
+                ) {
+                    ColorPicker("", selection: $glassAppearance.browseFilterButtonColor)
+                        .labelsHidden()
+                }
+                .id(AppearanceSettingsSearchTarget.browseFilterButtonColor.anchorID)
+
+                settingRow(
+                    title: "Browse Filter Options Panel",
+                    description: "Background color for the expanded list of filter choices."
+                ) {
+                    ColorPicker("", selection: $glassAppearance.browseFilterOptionsColor)
+                        .labelsHidden()
+                }
+                .id(AppearanceSettingsSearchTarget.browseFilterOptionsColor.anchorID)
             }
             .padding(.vertical, 6)
 #endif
