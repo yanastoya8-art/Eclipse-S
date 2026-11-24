@@ -12278,7 +12278,7 @@ struct AniListAiringScheduleEntry: Identifiable, Codable, Sendable {
     let englishTitle: String?
     let romajiTitle: String?
     let nativeTitle: String?
-    let format: String?
+    var format: String?
     let hasKnownAiringTime: Bool
     var scheduleProvider: ScheduleProvider? = nil
     var malID: Int? = nil
