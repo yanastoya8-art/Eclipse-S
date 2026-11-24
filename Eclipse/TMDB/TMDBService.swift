@@ -705,16 +705,39 @@ class TMDBService: ObservableObject {
 #endif
     }
 
+    private func searchEndpointURL(
+        _ endpoint: String,
+        query: String,
+        page: Int? = nil,
+        language: String? = nil
+    ) -> URL? {
+        guard var components = URLComponents(string: "\(baseURL)/search/\(endpoint)") else {
+            return nil
+        }
+        var items = [
+            URLQueryItem(name: "api_key", value: apiKey),
+            URLQueryItem(name: "query", value: query),
+            URLQueryItem(name: "language", value: language ?? currentLanguage),
+            URLQueryItem(name: "include_adult", value: "false")
+        ]
+        if let page {
+            items.append(URLQueryItem(name: "page", value: String(page)))
+        }
+        components.queryItems = items
+        return components.url
+    }
+
     func searchMulti(query: String, maxPages: Int = 2) async throws -> [TMDBSearchResult] {
         guard !query.isEmpty else { return [] }
 
-        let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        guard (1...5).contains(maxPages),
+              !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return []
+        }
         var allResults: [TMDBSearchResult] = []
 
         for page in 1...maxPages {
-            let urlString = "\(baseURL)/search/multi?api_key=\(apiKey)&query=\(encodedQuery)&language=\(currentLanguage)&include_adult=false&page=\(page)"
-
-            guard let url = URL(string: urlString) else {
+            guard let url = searchEndpointURL("multi", query: query, page: page) else {
                 throw TMDBError.invalidURL
             }
 
@@ -856,10 +879,7 @@ class TMDBService: ObservableObject {
     func searchMovies(query: String) async throws -> [TMDBMovie] {
         guard !query.isEmpty else { return [] }
 
-        let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        let urlString = "\(baseURL)/search/movie?api_key=\(apiKey)&query=\(encodedQuery)&language=\(currentLanguage)&include_adult=false"
-
-        guard let url = URL(string: urlString) else {
+        guard let url = searchEndpointURL("movie", query: query) else {
             throw TMDBError.invalidURL
         }
 
@@ -872,13 +892,10 @@ class TMDBService: ObservableObject {
         }
     }
 
-    func searchTVShows(query: String) async throws -> [TMDBTVShow] {
-        guard !query.isEmpty else { return [] }
+    func searchTVShows(query: String, languageOverride: String? = nil) async throws -> [TMDBTVShow] {
+        guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [] }
 
-        let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        let urlString = "\(baseURL)/search/tv?api_key=\(apiKey)&query=\(encodedQuery)&language=\(currentLanguage)&include_adult=false"
-
-        guard let url = URL(string: urlString) else {
+        guard let url = searchEndpointURL("tv", query: query, language: languageOverride) else {
             throw TMDBError.invalidURL
         }
 
