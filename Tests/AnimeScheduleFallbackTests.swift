@@ -115,6 +115,21 @@ final class AnimeScheduleFallbackTests: XCTestCase {
             runtimeMinutes: 20,
             enabled: true
         ))
+        XCTAssertEqual(
+            AnimeScheduleRuntimeFilterPolicy.resolvedRuntime(
+                providerRuntimeMinutes: nil,
+                nativeRuntimeMinutes: 24
+            ),
+            24
+        )
+        XCTAssertEqual(
+            AnimeScheduleRuntimeFilterPolicy.resolvedRuntime(
+                providerRuntimeMinutes: 22,
+                nativeRuntimeMinutes: 24
+            ),
+            22,
+            "The provider's own episode runtime takes precedence"
+        )
         XCTAssertTrue(AnimeScheduleRuntimeFilterPolicy.shouldInclude(
             runtimeMinutes: 19,
             enabled: false
