@@ -208,7 +208,7 @@ final class HLSBackgroundDownloadTests: XCTestCase {
             XCTAssertEqual(fixture.item.status, .paused)
             XCTAssertTrue(fixture.item.hasVerifiedHLSCheckpoint)
             XCTAssertEqual(fixture.item.error, "Background time expired. Resume when app is active.")
-            XCTAssertEqual(fixture.scheduler.finishes.map(\\.success), [false])
+            XCTAssertEqual(fixture.scheduler.finishes.map { $0.success }, [false])
 
             let paths = fixture.requestedPaths
             fixture.foreground = true
