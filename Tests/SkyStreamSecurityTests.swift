@@ -636,6 +636,43 @@ final class NuvioBoundaryHardeningTests: XCTestCase {
         XCTAssertTrue(plan.mustRegenerateHLSCheckpoint)
     }
 
+    func testDirectBackgroundTransportNeverLeaksCredentialsAcrossOrigins() throws {
+        let origin = try XCTUnwrap(URL(string: "https://provider.example/watch?id=42"))
+        let sameOrigin = try XCTUnwrap(URL(string: "https://provider.example/file.mp4"))
+        let crossOrigin = try XCTUnwrap(URL(string: "https://cdn.example/file.mp4"))
+        let headers = [
+            "Authorization": "Bearer secret",
+            "Cookie": "session=secret",
+            "X-Api-Key": "secret-key",
+            "User-Agent": "Eclipse",
+            "Accept-Language": "en-US",
+            "Referer": "https://provider.example/watch?id=42&token=secret",
+            "Origin": "https://provider.example/watch"
+        ]
+
+        let sameOriginHeaders = MPVHeaderProxy.shared.directTransportHeaders(
+            headers,
+            for: sameOrigin,
+            originURL: origin
+        )
+        XCTAssertEqual(sameOriginHeaders["Authorization"], "Bearer secret")
+        XCTAssertEqual(sameOriginHeaders["Cookie"], "session=secret")
+        XCTAssertEqual(sameOriginHeaders["X-Api-Key"], "secret-key")
+
+        let crossOriginHeaders = MPVHeaderProxy.shared.directTransportHeaders(
+            headers,
+            for: crossOrigin,
+            originURL: origin
+        )
+        XCTAssertNil(crossOriginHeaders["Authorization"])
+        XCTAssertNil(crossOriginHeaders["Cookie"])
+        XCTAssertNil(crossOriginHeaders["X-Api-Key"])
+        XCTAssertEqual(crossOriginHeaders["User-Agent"], "Eclipse")
+        XCTAssertEqual(crossOriginHeaders["Accept-Language"], "en-US")
+        XCTAssertEqual(crossOriginHeaders["Referer"], "https://provider.example/watch")
+        XCTAssertEqual(crossOriginHeaders["Origin"], "https://provider.example")
+    }
+
     func testNuvioPersistenceScrubsEveryTransportSecretAndForcesRefresh() throws {
         let sourceID = "nuvio:fixture"
         let owner = UUID()
