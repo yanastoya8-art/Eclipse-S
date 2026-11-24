@@ -9736,8 +9736,7 @@ final class DownloadManager: NSObject, ObservableObject {
                 var retainedTaskIDs = Set<String>()
 
                 for case let task as URLSessionDownloadTask in tasks {
-                    if (task.state == .running || task.state == .suspended),
-                       let id = task.taskDescription,
+                    if let id = task.taskDescription,
                        let index = downloads.firstIndex(where: { $0.id == id }),
                        downloads[index].claimsProtectedProviderTransport,
                        !restoreProtectedDirectTask(task, id: id, item: downloads[index]) {
@@ -9753,7 +9752,12 @@ final class DownloadManager: NSObject, ObservableObject {
                         }
                         continue
                     }
-                    guard task.state == .running || task.state == .suspended,
+                    // URLSession can relaunch Eclipse with a task that has
+                    // completed its transfer but is still awaiting delegate
+                    // delivery. Keep it attached so the temporary file is saved.
+                    guard task.state == .running
+                        || task.state == .suspended
+                        || task.state == .completed,
                           let id = task.taskDescription,
                           let index = downloads.firstIndex(where: { $0.id == id }),
                           !downloads[index].isHLS,
