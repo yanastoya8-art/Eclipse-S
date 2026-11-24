@@ -2032,6 +2032,7 @@ private struct NotificationSettingsView: View {
 
     @Environment(\.eclipseSettingsSearchPresentation) private var settingsSearchPresentation
     @StateObject private var manager = LocalNotificationManager.shared
+    @StateObject private var accentColorManager = AccentColorManager.shared
     @AppStorage(LocalNotificationManager.episodeLeadTimeKey)
     private var episodeLeadTimeRaw = EpisodeNotificationLeadTime.atAirtime.rawValue
     @AppStorage(LocalNotificationManager.seasonLeadTimeKey)
@@ -2972,6 +2973,7 @@ private func notificationSettingsAlert(_ notice: LocalNotificationNotice) -> Ale
 
 private struct NotificationSubscriptionSettingsRow: View {
     @StateObject private var manager = LocalNotificationManager.shared
+    @StateObject private var accentColorManager = AccentColorManager.shared
     @State private var isUpdating = false
     let subscription: LocalMediaNotificationSubscription
     let onOpenDetails: () -> Void
