@@ -7025,16 +7025,32 @@ final class AniListService {
         }
 
         let queryKey = normalized(trimmed)
-        guard queryKey.count >= 2 else { return [] }
+        let queryTokens = Set(
+            trimmed.folding(
+                options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+                locale: Locale(identifier: "en_US_POSIX")
+            )
+            .lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+        )
+        guard queryKey.count >= 2, !queryTokens.isEmpty else { return [] }
         let nodes = await supplementalStructureNodeLookup(title: trimmed, token: nil)
         let candidates = nodes.values
             .filter { anime in
                 guard anime.isAdult != true else { return false }
-                let titles = AniListTitlePicker.titleCandidates(from: anime.title)
-                    .map(normalized)
-                    .filter { !$0.isEmpty }
-                return titles.contains { title in
-                    title == queryKey || title.contains(queryKey) || queryKey.contains(title)
+                let titleCandidates = AniListTitlePicker.titleCandidates(from: anime.title)
+                return titleCandidates.contains { candidate in
+                    let titleKey = normalized(candidate)
+                    let titleTokens = Set(
+                        candidate.lowercased()
+                            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+                            .filter { !$0.isEmpty }
+                    )
+                    return titleKey == queryKey
+                        || titleKey.contains(queryKey)
+                        || queryKey.contains(titleKey)
+                        || queryTokens.isSubset(of: titleTokens)
                 }
             }
             .sorted { lhs, rhs in
