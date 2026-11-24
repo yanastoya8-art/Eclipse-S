@@ -3301,7 +3301,7 @@ struct SearchBarEclipse: View {
                 .applyLiquidGlassBackground(
                     cornerRadius: 12,
                     fallbackFill: glassAppearance.lightBarColor.opacity(0.34),
-                    glassTint: glassAppearance.searchFieldColor(for: colorScheme).opacity(0.30)
+                    glassTint: glassAppearance.lightBarColor.opacity(0.30)
                 )
 #endif
                 .cornerRadius(12)
