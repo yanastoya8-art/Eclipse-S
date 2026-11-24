@@ -2560,6 +2560,8 @@ private struct ExtraServiceSettingsView: View {
     @State private var includedStreamLanguages: [String] = StreamLanguageFilter.includedLanguages()
     @State private var hiddenStreamLanguages: [String] = StreamLanguageFilter.hiddenLanguages()
     @State private var hiddenStreamQualities = Set(StreamLanguageFilter.hiddenQualityHeights())
+    @State private var streamCardColor = ServicesStreamAppearanceSettings.streamCardColor()
+    @State private var streamIconColor = ServicesStreamAppearanceSettings.streamIconColor()
     @State private var extraRulesSourceIds: Set<String>? = StreamLanguageFilter.extraRulesSourceIds().map { Set($0) }
     @State private var didFocusInitialSearchTarget = false
     @State private var languagePicker: LanguagePickerContext?
@@ -2684,6 +2686,27 @@ private struct ExtraServiceSettingsView: View {
                 }
                 .eclipseExperimentalSettingsRows()
                 .disabled(!isAdministrable)
+
+                Section {
+                    ColorPicker("Stream Card Color", selection: $streamCardColor, supportsOpacity: true)
+                    ColorPicker("Stream Icon Color", selection: $streamIconColor, supportsOpacity: true)
+                    Button("Reset Stream Colors") {
+                        ServicesStreamAppearanceSettings.reset()
+                        streamCardColor = ServicesStreamAppearanceSettings.streamCardColor()
+                        streamIconColor = ServicesStreamAppearanceSettings.streamIconColor()
+                    }
+                } header: {
+                    Text("Stream Results Appearance")
+                } footer: {
+                    Text("Customize the background of stream result cards and the circular play or download icons. These colors are saved separately for each profile.")
+                }
+                .disabled(!isAdministrable)
+                .onChangeComp(of: streamCardColor) { _, color in
+                    ServicesStreamAppearanceSettings.setStreamCardColor(color)
+                }
+                .onChangeComp(of: streamIconColor) { _, color in
+                    ServicesStreamAppearanceSettings.setStreamIconColor(color)
+                }
 
                 Section {
                     Toggle(isOn: $blockAddonSubtitles) {
@@ -2870,6 +2893,8 @@ private struct ExtraServiceSettingsView: View {
             .eclipsePageTitle("Extra Source Settings")
             .eclipseSettingsStyle()
             .onAppear {
+                streamCardColor = ServicesStreamAppearanceSettings.streamCardColor()
+                streamIconColor = ServicesStreamAppearanceSettings.streamIconColor()
                 let storedSimilarity = ServicesResultRankingSettings.minimumSimilarity()
                 if serviceResultMinimumSimilarity != storedSimilarity {
                     serviceResultMinimumSimilarity = storedSimilarity
