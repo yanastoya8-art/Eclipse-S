@@ -393,7 +393,7 @@ final class DownloadResumeTests: XCTestCase {
     }
 
     @MainActor
-    func testBackgroundReturnDiscardsOldRefreshWithoutBlockingTheNewAttempt() async throws {
+    func testBackgroundReturnKeepsOSManagedTransferRunningWithoutRefresh() async throws {
         let fixture = try DownloadLifecycleFixture()
         defer { fixture.cleanUp() }
         let started = expectation(description: "Initial transfer starts")
@@ -401,40 +401,23 @@ final class DownloadResumeTests: XCTestCase {
         fixture.manager.applicationDidBecomeActive()
         await fulfillment(of: [started], timeout: 3)
 
+        let originalURL = fixture.manager.downloads.first?.streamURL
         fixture.isActive = false
         fixture.manager.applicationDidEnterBackground()
-        XCTAssertEqual(fixture.manager.downloads.first?.status, .queued)
-        XCTAssertEqual(fixture.manager.downloads.first?.streamURL, "")
 
-        let firstRefresh = expectation(description: "First foreground refresh")
-        fixture.onRefresh = { firstRefresh.fulfill() }
-        fixture.isActive = true
-        fixture.manager.applicationDidBecomeActive()
-        await fulfillment(of: [firstRefresh], timeout: 3)
-
-        fixture.isActive = false
-        fixture.manager.applicationDidEnterBackground()
-        let secondRefresh = expectation(description: "Fresh foreground operation")
-        fixture.onRefresh = { secondRefresh.fulfill() }
-        fixture.isActive = true
-        fixture.manager.applicationDidBecomeActive()
-        await fulfillment(of: [secondRefresh], timeout: 3)
-
-        fixture.resolve(0, url: "https://cdn.example/old.mp4")
-        await fixture.settle()
-        fixture.manager.applicationDidBecomeActive()
-        await fixture.settle()
-        XCTAssertEqual(fixture.requestCount, 2)
-        XCTAssertEqual(fixture.startedURLs.count, 1)
-        XCTAssertEqual(fixture.manager.downloads.first?.status, .queued)
-        XCTAssertEqual(fixture.manager.downloads.first?.error, "Refreshing protected download access")
-
-        let resumed = expectation(description: "Current refresh resumes transfer")
-        fixture.onStart = { _ in resumed.fulfill() }
-        fixture.resolve(1, url: "https://cdn.example/current.mp4")
-        await fulfillment(of: [resumed], timeout: 3)
-        XCTAssertEqual(fixture.startedURLs.last, "https://cdn.example/current.mp4")
+        // Backgrounding must not convert an active OS-managed transfer into a
+        // queued refresh. The same task and source remain authoritative.
         XCTAssertEqual(fixture.manager.downloads.first?.status, .downloading)
+        XCTAssertEqual(fixture.manager.downloads.first?.streamURL, originalURL)
+
+        fixture.isActive = true
+        fixture.manager.applicationDidBecomeActive()
+        await fixture.settle()
+
+        XCTAssertEqual(fixture.requestCount, 0)
+        XCTAssertEqual(fixture.startedURLs.count, 1)
+        XCTAssertEqual(fixture.manager.downloads.first?.status, .downloading)
+        XCTAssertEqual(fixture.manager.downloads.first?.streamURL, originalURL)
     }
 
     @MainActor
