@@ -7541,6 +7541,9 @@ final class DownloadManager: NSObject, ObservableObject {
             for: originalURL,
             originURL: originalURL
         )
+        let directBackgroundApproved = nuvioDirectBackgroundApprovedIDs.remove(item.id) != nil
+            && (providerKind == .nuvio || providerKind == .service)
+            && originalURL.scheme?.lowercased() == "https"
         let attemptID = UUID()
         guard let latest = downloads.first(where: { $0.id == item.id }),
               latest.status == .queued,
@@ -7553,23 +7556,73 @@ final class DownloadManager: NSObject, ObservableObject {
             return nil
         }
 
-        // Credentials remain in this in-memory attempt and the active
+        let proxyURL: URL?
+        let plan: NuvioDownloadTransportPlan
+        let attemptHeaders: [String: String]
+        if directBackgroundApproved {
+            // Only public HTTPS Nuvio/service URLs that passed DNS validation
+            // use the OS-owned session. Stremio and SkyStream retain the
+            // pinned local proxy because their routing grants private-origin
+            // access that URLSession cannot safely reproduce.
+            proxyURL = nil
+            attemptHeaders = safeTransportHeaders
+            plan = NuvioDownloadTransportPlan.directBackgroundAttempt(
+                authoritativeURL: originalURL,
+                authoritativeHeaders: safeTransportHeaders
+            )
+        } else {
+            guard let createdProxyURL = MPVHeaderProxy.shared.makeProxyURL(
+                for: originalURL,
+                headers: effectiveHeaders,
+                logType: "ProviderDownload",
+                traceID: "provider-dl-\(String(attemptID.uuidString.prefix(8)))",
+                stremioAuthority: stremioAuthority,
+                onConfirmedCloudflareChallenge: { [weak self] url, rejectedCookie, interactive, status in
+                    self?.handleNuvioProxyRejection(
+                        id: item.id,
+                        attemptID: attemptID,
+                        url: url,
+                        rejectedCookieHeader: rejectedCookie,
+                        isInteractive: interactive,
+                        statusCode: status
+                    )
+                }
+            ) else {
+                return nil
+            }
+            proxyURL = createdProxyURL
+            attemptHeaders = effectiveHeaders
+            plan = NuvioDownloadTransportPlan.proxiedAttempt(
+                authoritativeURL: originalURL,
+                authoritativeHeaders: effectiveHeaders,
+                proxyURL: createdProxyURL
+            )
+        }
+
+        guard let latest = downloads.first(where: { $0.id == item.id }),
+              latest.status == .queued,
+              latest.streamURL == item.streamURL,
+              latest.headers == item.headers,
+              latest.lastSourceId == item.lastSourceId,
+              latest.lastContentReference == item.lastContentReference,
+              protectedOwnerMatchesActiveProfile(latest),
+              latest.effectiveProtectedProviderKind == providerKind else {
+            if let proxyURL { MPVHeaderProxy.shared.invalidateSession(for: proxyURL) }
+            return nil
+        }
+
+        // Provider credentials remain in this in-memory attempt and the active
         // URLSession request; they are not copied into download metadata.
         protectedProviderAttempts[item.id] = ProtectedProviderDownloadAttempt(
             attemptID: attemptID,
             providerKind: providerKind,
             authorityURL: originalURL.absoluteString,
-            authorityHeaders: safeTransportHeaders,
+            authorityHeaders: attemptHeaders,
             authorityReference: authorityReference,
-            stremioConfiguredOriginAuthority: stremioAuthority
+            stremioConfiguredOriginAuthority: stremioAuthority,
+            mainProxyURL: proxyURL
         )
-        return (
-            NuvioDownloadTransportPlan.protectedAttempt(
-                authoritativeURL: originalURL,
-                authoritativeHeaders: safeTransportHeaders
-            ),
-            attemptID
-        )
+        return (plan, attemptID)
     }
 
     private func registerNuvioMainTask(
