@@ -22,6 +22,9 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
     case interface
     case globalAppearance
     case accentColor
+    case liquidGlassDarkBarColor
+    case liquidGlassLightBarColor
+    case liquidGlassBottomBarColor
     case animatedBackground
     case animationQuality
     case animationColor
@@ -62,7 +65,7 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
         switch self {
         case .palette, .backgroundStyle, .solidColorSource, .customBackgroundColor, .backgroundIntensity:
             return "theme"
-        case .interface, .globalAppearance, .accentColor:
+        case .interface, .globalAppearance, .accentColor, .liquidGlassDarkBarColor, .liquidGlassLightBarColor, .liquidGlassBottomBarColor:
             return "interface"
         case .animatedBackground, .animationQuality, .animationColor, .customAnimationColor, .animationFrameRate, .appPerformanceOverlay, .hideSplashScreen:
             return "motion"
@@ -126,6 +129,7 @@ struct AlternativeUIView: View {
     @State private var showRestartAlert = false
 
     @StateObject private var accentColorManager = AccentColorManager.shared
+    @StateObject private var glassAppearance = LiquidGlassAppearanceSettings.shared
     @ObservedObject private var theme = EclipseTheme.shared
     @State private var mediaDetailElements = MediaDetailElement.orderedElements()
     @State private var hiddenMediaDetailElements = MediaDetailElement.hiddenElements()
@@ -470,6 +474,42 @@ struct AlternativeUIView: View {
                 }
             }
             .id(AppearanceSettingsSearchTarget.accentColor.anchorID)
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Liquid Glass")
+                    .font(.subheadline.weight(.semibold))
+                Text("Liquid Glass buttons and selected controls follow Accent Color. Choose separate colors for the bars behind them.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                settingRow(
+                    title: "Dark Liquid Glass Bars",
+                    description: "Color for darker control bars and search fields."
+                ) {
+                    ColorPicker("", selection: $glassAppearance.darkBarColor)
+                        .labelsHidden()
+                }
+                .id(AppearanceSettingsSearchTarget.liquidGlassDarkBarColor.anchorID)
+
+                settingRow(
+                    title: "Light Liquid Glass Bars",
+                    description: "Color for lighter control bars and search fields."
+                ) {
+                    ColorPicker("", selection: $glassAppearance.lightBarColor)
+                        .labelsHidden()
+                }
+                .id(AppearanceSettingsSearchTarget.liquidGlassLightBarColor.anchorID)
+
+                settingRow(
+                    title: "Bottom Liquid Glass Bar",
+                    description: "Color of the bottom navigation bar, independent of its buttons."
+                ) {
+                    ColorPicker("", selection: $glassAppearance.bottomBarColor)
+                        .labelsHidden()
+                }
+                .id(AppearanceSettingsSearchTarget.liquidGlassBottomBarColor.anchorID)
+            }
+            .padding(.vertical, 6)
 #endif
         } header: {
             Text("Interface & Scope")
