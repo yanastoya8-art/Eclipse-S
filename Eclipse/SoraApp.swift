@@ -122,8 +122,13 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication,
                      handleEventsForBackgroundURLSession identifier: String,
                      completionHandler: @escaping () -> Void) {
-        if identifier == "app.eclipse.soupy.downloads" {
+        switch identifier {
+        case "app.eclipse.soupy.downloads":
             DownloadManager.shared.backgroundCompletionHandler = completionHandler
+        case HLSBackgroundURLSessionCoordinator.identifier:
+            HLSBackgroundURLSessionCoordinator.shared.handleEvents(completionHandler: completionHandler)
+        default:
+            completionHandler()
         } else if identifier == HLSBackgroundURLSessionCoordinator.identifier {
             HLSBackgroundURLSessionCoordinator.shared.handleEvents(completionHandler)
             // Recreate the download manager while iOS is delivering the
