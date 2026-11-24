@@ -2075,11 +2075,13 @@ final class DownloadManager: NSObject, ObservableObject {
         #if os(macOS)
         let config = URLSessionConfiguration.default
         #else
-        // Every non-HLS stream (including MP4, MKV, and WebM files) uses this
-        // OS-managed background session. iOS continues the transfer after the
-        // app is suspended and relaunches the app for delegate completion events.
-        // HLS uses the segment downloader plus the iOS 26 continued-processing
-        // coordinator because it is not a single URLSession download task.
+        // Every single-resource HTTP(S) download uses this OS-managed
+        // background session: MP4, MKV, MP3, WebM, FLV, WebDAV-hosted files,
+        // extensionless provider streams, and other direct media formats.
+        // iOS can continue these URLSession transfers while the app is suspended
+        // and relaunch the app for delegate completion events. HLS playlists use
+        // the checkpointed segment downloader and, on iOS 26+, the continued-
+        // processing coordinator because they require multiple dependent requests.
         let config = URLSessionConfiguration.background(withIdentifier: "app.eclipse.soupy.downloads")
         config.isDiscretionary = false
         config.sessionSendsLaunchEvents = true
@@ -2990,15 +2992,23 @@ final class DownloadManager: NSObject, ObservableObject {
         if activeHLSAttemptIDs[id] == attempt.attemptID {
             attempt.downloader.setContinuedProcessingGranted(false)
         }
-        attempt.downloader.cancel()
-        if let index = downloads.firstIndex(where: { $0.id == id }),
-           downloads[index].status != .completed {
-            downloads[index].status = .paused
-            downloads[index].error = "Background time expired. Resume when app is active."
-            saveDownloads()
+        // If the app is already active, expiration only removes the
+        // continued-processing allowance. The foreground worker still has
+        // execution time and must be allowed to finish without interruption.
+        // When the app is backgrounded, stop at the last durable segment and
+        // recover from that checkpoint on the next foreground activation.
+        let canContinueInForeground = hlsApplicationIsActive && hlsIntentIsCurrent(attempt.intent)
+        if !canContinueInForeground {
+            attempt.downloader.cancel()
+            if let index = downloads.firstIndex(where: { $0.id == id }),
+               downloads[index].status != .completed {
+                downloads[index].status = .paused
+                downloads[index].error = "Background time expired. Resume when app is active."
+                saveDownloads()
+            }
         }
-        // waitForCheckpoint below persists the last fully-written segment before
-        // releasing the scheduler slot and allowing foreground recovery.
+        // waitForCheckpoint persists the last fully-written segment before
+        // releasing the scheduler slot in either foreground or background.
         finishHLSBackgroundAttempt(id: id, attempt: attempt, success: false)
     }
 
@@ -6178,6 +6188,45 @@ final class DownloadManager: NSObject, ObservableObject {
         "Download failed due to a network or file error (\(boundedTransportErrorToken(error)))."
     }
 
+    /// Transient transport failures are interruptions, not a user's decision
+    /// to stop a download. Retry them for every direct format and HLS instead
+    /// of moving the item to Failed and requiring a manual Resume.
+    private func isTransientDownloadInterruption(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        guard nsError.domain == NSURLErrorDomain else { return false }
+        let retryableCodes: Set<Int> = [
+            NSURLErrorTimedOut,
+            NSURLErrorNetworkConnectionLost,
+            NSURLErrorNotConnectedToInternet,
+            NSURLErrorCannotFindHost,
+            NSURLErrorCannotConnectToHost,
+            NSURLErrorDNSLookupFailed,
+            NSURLErrorResourceUnavailable,
+            NSURLErrorInternationalRoamingOff,
+            NSURLErrorDataNotAllowed,
+            NSURLErrorBackgroundSessionWasDisconnected
+        ]
+        return retryableCodes.contains(nsError.code)
+    }
+
+    /// Keep retrying transient network interruptions with a bounded delay.
+    /// The queued state is persisted so the retry survives app suspension or
+    /// relaunch; explicit pause/cancel/delete paths do not call this helper.
+    private func scheduleTransientDownloadRetry(id: String) {
+        guard let index = downloads.firstIndex(where: { $0.id == id }),
+              downloads[index].status == .downloading
+                || downloads[index].status == .queued else {
+            processQueue()
+            return
+        }
+        downloads[index].status = .queued
+        downloads[index].retryNotBefore = Date().addingTimeInterval(15)
+        downloads[index].error = "Connection interrupted. Retrying automatically..."
+        saveDownloads()
+        Logger.shared.log("Transient network interruption; retry scheduled for download id=\(id)", type: "Download")
+        processQueue()
+    }
+
     private func processQueue() {
         guard Thread.isMainThread else {
             DispatchQueue.main.async { [weak self] in
@@ -6982,11 +7031,17 @@ final class DownloadManager: NSObject, ObservableObject {
                                 rejectedCookieHeader: rejectedCookieHeader
                             )
                         default:
-                            self.markFailed(
-                                id: item.id,
-                                error: self.boundedDownloadFailureMessage(error)
-                            )
+                            if self.isTransientDownloadInterruption(error) {
+                                self.scheduleTransientDownloadRetry(id: item.id)
+                            } else {
+                                self.markFailed(
+                                    id: item.id,
+                                    error: self.boundedDownloadFailureMessage(error)
+                                )
+                            }
                         }
+                    } else if self.isTransientDownloadInterruption(error) {
+                        self.scheduleTransientDownloadRetry(id: item.id)
                     } else {
                         self.markFailed(
                             id: item.id,
@@ -7873,7 +7928,7 @@ final class DownloadManager: NSObject, ObservableObject {
     private static let knownVideoExtensions: Set<String> = [
         "mp4", "mkv", "webm", "mov", "avi", "wmv", "flv", "ts", "m2ts",
         "mpg", "mpeg", "ogv", "3gp", "m4v", "vob", "divx", "asf", "rm",
-        "rmvb", "f4v", "mts"
+        "rmvb", "f4v", "mts", "mp3"
     ]
 
     private static let knownSubtitleExtensions: Set<String> = [
@@ -10594,6 +10649,7 @@ extension DownloadManager: URLSessionDownloadDelegate {
             case "video/3gpp":                                       ext = "3gp"
             case "video/ogg":                                        ext = "ogv"
             case "video/mpeg":                                       ext = "mpg"
+            case "audio/mpeg", "audio/mp3":                            ext = "mp3"
 
             case "application/x-mpegurl", "application/vnd.apple.mpegurl": ext = "m3u8"
 
@@ -10791,6 +10847,13 @@ extension DownloadManager: URLSessionDownloadDelegate {
                         self.saveDownloads()
                         self.processQueue()
                     }
+                    return
+                }
+                if self.isTransientDownloadInterruption(error),
+                   let item = self.downloads.first(where: { $0.id == downloadId }),
+                   !item.isHLS {
+                    self.scheduleTransientDownloadRetry(id: downloadId)
+                    self.invalidatedDirectTaskIdentifiers.remove(task.taskIdentifier)
                     return
                 }
                 self.markFailed(

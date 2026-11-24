@@ -728,7 +728,7 @@ class TMDBService: ObservableObject {
                     break
                 }
             } catch {
-                throw TMDBError.networkError(error)
+                throw TMDBError.wrapping(error)
             }
         }
 
@@ -765,7 +765,7 @@ class TMDBService: ObservableObject {
 
             return response.tvResults.first?.asSearchResult
         } catch {
-            throw TMDBError.networkError(error)
+            throw TMDBError.wrapping(error)
         }
     }
 
@@ -868,7 +868,7 @@ class TMDBService: ObservableObject {
             let response = try decodeTMDBListResponse(TMDBMovieSearchResponse.self, from: data, endpoint: url.path)
             return response.results
         } catch {
-            throw TMDBError.networkError(error)
+            throw TMDBError.wrapping(error)
         }
     }
 
@@ -887,7 +887,7 @@ class TMDBService: ObservableObject {
             let response = try decodeTMDBListResponse(TMDBTVSearchResponse.self, from: data, endpoint: url.path)
             return response.results
         } catch {
-            throw TMDBError.networkError(error)
+            throw TMDBError.wrapping(error)
         }
     }
 
@@ -910,7 +910,7 @@ class TMDBService: ObservableObject {
             detailCache.set(key: "movie_\(id)_\(language)", value: movieDetail)
             return movieDetail
         } catch {
-            throw TMDBError.networkError(error)
+            throw TMDBError.wrapping(error)
         }
     }
 
@@ -940,7 +940,7 @@ class TMDBService: ObservableObject {
             detailCache.set(key: cacheKey, value: tvShowDetail)
             return tvShowDetail
         } catch {
-            throw TMDBError.networkError(error)
+            throw TMDBError.wrapping(error)
         }
     }
 
@@ -970,7 +970,7 @@ class TMDBService: ObservableObject {
             detailCache.set(key: cacheKey, value: tvShowDetail)
             return tvShowDetail
         } catch {
-            throw TMDBError.networkError(error)
+            throw TMDBError.wrapping(error)
         }
     }
 
@@ -1033,7 +1033,7 @@ class TMDBService: ObservableObject {
                 detailCache.set(key: cacheKey, value: seasonDetail)
                 return seasonDetail
             } catch {
-                throw TMDBError.networkError(error)
+                throw TMDBError.wrapping(error)
             }
         }
     }
@@ -1056,7 +1056,7 @@ class TMDBService: ObservableObject {
             detailCache.set(key: cacheKey, value: alternativeTitles)
             return alternativeTitles
         } catch {
-            throw TMDBError.networkError(error)
+            throw TMDBError.wrapping(error)
         }
     }
 
@@ -1078,7 +1078,7 @@ class TMDBService: ObservableObject {
             detailCache.set(key: cacheKey, value: alternativeTitles)
             return alternativeTitles
         } catch {
-            throw TMDBError.networkError(error)
+            throw TMDBError.wrapping(error)
         }
     }
 
@@ -1094,7 +1094,7 @@ class TMDBService: ObservableObject {
             let response = try decodeTMDBListResponse(TMDBSearchResponse.self, from: data, endpoint: url.path)
             return response.results
         } catch {
-            throw TMDBError.networkError(error)
+            throw TMDBError.wrapping(error)
         }
     }
 
@@ -1110,7 +1110,7 @@ class TMDBService: ObservableObject {
             let response = try decodeTMDBListResponse(TMDBMovieSearchResponse.self, from: data, endpoint: url.path)
             return response.results
         } catch {
-            throw TMDBError.networkError(error)
+            throw TMDBError.wrapping(error)
         }
     }
 
@@ -1126,7 +1126,7 @@ class TMDBService: ObservableObject {
             let response = try decodeTMDBListResponse(TMDBMovieSearchResponse.self, from: data, endpoint: url.path)
             return response.results
         } catch {
-            throw TMDBError.networkError(error)
+            throw TMDBError.wrapping(error)
         }
     }
 
@@ -1142,7 +1142,7 @@ class TMDBService: ObservableObject {
             let response = try decodeTMDBListResponse(TMDBMovieSearchResponse.self, from: data, endpoint: url.path)
             return response.results
         } catch {
-            throw TMDBError.networkError(error)
+            throw TMDBError.wrapping(error)
         }
     }
 
@@ -1158,7 +1158,7 @@ class TMDBService: ObservableObject {
             let response = try decodeTMDBListResponse(TMDBTVSearchResponse.self, from: data, endpoint: url.path)
             return response.results
         } catch {
-            throw TMDBError.networkError(error)
+            throw TMDBError.wrapping(error)
         }
     }
 
@@ -1174,7 +1174,7 @@ class TMDBService: ObservableObject {
             let response = try decodeTMDBListResponse(TMDBTVSearchResponse.self, from: data, endpoint: url.path)
             return response.results
         } catch {
-            throw TMDBError.networkError(error)
+            throw TMDBError.wrapping(error)
         }
     }
 
@@ -1190,7 +1190,7 @@ class TMDBService: ObservableObject {
             let response = try decodeTMDBListResponse(TMDBTVSearchResponse.self, from: data, endpoint: url.path)
             return response.results
         } catch {
-            throw TMDBError.networkError(error)
+            throw TMDBError.wrapping(error)
         }
     }
 
@@ -1217,7 +1217,7 @@ class TMDBService: ObservableObject {
                 return firstAirDate >= tomorrowDate
             }
         } catch {
-            throw TMDBError.networkError(error)
+            throw TMDBError.wrapping(error)
         }
     }
 
@@ -1233,7 +1233,7 @@ class TMDBService: ObservableObject {
             let response = try decodeTMDBListResponse(TMDBMovieSearchResponse.self, from: data, endpoint: url.path)
             return response.results
         } catch {
-            throw TMDBError.networkError(error)
+            throw TMDBError.wrapping(error)
         }
     }
 
@@ -1249,7 +1249,7 @@ class TMDBService: ObservableObject {
             let response = try decodeTMDBListResponse(TMDBTVSearchResponse.self, from: data, endpoint: url.path)
             return response.results
         } catch {
-            throw TMDBError.networkError(error)
+            throw TMDBError.wrapping(error)
         }
     }
 
@@ -1265,7 +1265,7 @@ class TMDBService: ObservableObject {
             let response = try decodeTMDBListResponse(TMDBTVSearchResponse.self, from: data, endpoint: url.path)
             return response.results
         } catch {
-            throw TMDBError.networkError(error)
+            throw TMDBError.wrapping(error)
         }
     }
 
@@ -1281,7 +1281,7 @@ class TMDBService: ObservableObject {
             let response = try decodeTMDBListResponse(TMDBTVSearchResponse.self, from: data, endpoint: url.path)
             return response.results
         } catch {
-            throw TMDBError.networkError(error)
+            throw TMDBError.wrapping(error)
         }
     }
 
@@ -1924,7 +1924,7 @@ class TMDBService: ObservableObject {
             detailCache.set(key: cacheKey, value: decodedResponse)
             return decodedResponse
         } catch {
-            throw TMDBError.networkError(error)
+            throw TMDBError.wrapping(error)
         }
     }
 
@@ -1948,7 +1948,7 @@ class TMDBService: ObservableObject {
             detailCache.set(key: cacheKey, value: response)
             return response
         } catch {
-            throw TMDBError.networkError(error)
+            throw TMDBError.wrapping(error)
         }
     }
 
@@ -2025,7 +2025,7 @@ class TMDBService: ObservableObject {
             throw CancellationError()
         } catch {
             if Task.isCancelled { throw CancellationError() }
-            throw TMDBError.networkError(error)
+            throw TMDBError.wrapping(error)
         }
     }
 
@@ -2962,6 +2962,16 @@ private struct TMDBKeyword: Decodable {
 }
 
 enum TMDBError: Error, LocalizedError {
+    /// Preserve structured TMDB failures when a service method adds context.
+    /// Wrapping an existing TMDBError as a generic network error hides its
+    /// HTTP status and can make Home report an API rejection as connectivity.
+    static func wrapping(_ error: Error) -> TMDBError {
+        if let tmdbError = error as? TMDBError {
+            return tmdbError
+        }
+        return .networkError(error)
+    }
+
     case invalidURL
     case networkError(Error)
     case decodingError

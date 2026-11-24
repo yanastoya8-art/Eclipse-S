@@ -274,6 +274,36 @@ final class HomeCatalogFailurePresentationTests: XCTestCase {
         XCTAssertTrue(unavailable.contains("503"))
     }
 
+    func testServiceErrorWrappingPreservesStructuredTMDBFailures() {
+        let original = TMDBError.httpError(
+            statusCode: 401,
+            path: "/trending/all",
+            message: "Invalid API key"
+        )
+
+        guard case .httpError(let statusCode, let path, let message) = TMDBError.wrapping(original) else {
+            XCTFail("A structured TMDB HTTP error must not be downgraded to a network error.")
+            return
+        }
+
+        XCTAssertEqual(statusCode, 401)
+        XCTAssertEqual(path, "/trending/all")
+        XCTAssertEqual(message, "Invalid API key")
+        XCTAssertTrue(
+            HomeCatalogFailurePresentation.message(
+                for: TMDBError.wrapping(original)
+            ).contains("rejected")
+        )
+    }
+
+    func testServiceErrorWrappingRetainsUnderlyingTransportFailures() {
+        guard case .networkError(let underlying) = TMDBError.wrapping(URLError(.notConnectedToInternet)) else {
+            XCTFail("A URLSession transport failure should remain a network error.")
+            return
+        }
+        XCTAssertEqual((underlying as? URLError)?.code, .notConnectedToInternet)
+    }
+
     func testWrappedTMDBTransportErrorPreservesConnectivityGuidance() {
         let error = TMDBError.networkError(URLError(.notConnectedToInternet))
         let message = HomeCatalogFailurePresentation.message(for: error)
