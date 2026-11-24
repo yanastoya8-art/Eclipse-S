@@ -6208,7 +6208,14 @@ final class DownloadManager: NSObject, ObservableObject {
             NSURLErrorResourceUnavailable,
             NSURLErrorInternationalRoamingOff,
             NSURLErrorDataNotAllowed,
-            NSURLErrorBackgroundSessionWasDisconnected
+            NSURLErrorCannotLoadFromNetwork,
+            NSURLErrorBackgroundSessionWasDisconnected,
+            // Explicit Pause/Cancel/Delete callbacks are consumed earlier by
+            // invalidatedDirectTaskIdentifiers. A cancellation reaching this
+            // classifier is therefore an unexpected OS/session interruption;
+            // preserve the item and automatically re-admit it instead of
+            // leaving a non-HLS download permanently Failed.
+            NSURLErrorCancelled
         ]
         return retryableCodes.contains(nsError.code)
     }
