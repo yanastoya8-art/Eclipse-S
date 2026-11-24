@@ -629,6 +629,16 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
     ) throws -> HLSBackgroundDownloadResult? {
         let fileURL = cacheBaseURL(for: description)
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return nil }
+        let attributes = try? FileManager.default.attributesOfItem(atPath: fileURL.path)
+        let modifiedAt = attributes?[.modificationDate] as? Date ?? .distantPast
+        let cacheLifetime: TimeInterval = maximumResponseBytes <= 5 * 1_024 * 1_024
+            ? 5 * 60
+            : 24 * 60 * 60
+        guard Date().timeIntervalSince(modifiedAt) <= cacheLifetime else {
+            try? FileManager.default.removeItem(at: fileURL)
+            try? FileManager.default.removeItem(at: responseURL(for: description))
+            return nil
+        }
         let size = Self.regularFileSize(at: fileURL)
         guard size >= 0, size <= Int64(maximumResponseBytes) else {
             try? FileManager.default.removeItem(at: fileURL)
