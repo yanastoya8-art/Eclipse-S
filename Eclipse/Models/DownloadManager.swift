@@ -6862,8 +6862,9 @@ final class DownloadManager: NSObject, ObservableObject {
             pinnedVariantURL: pinnedVariant,
             expectedTotalSegments: expectedTotal,
             expectedManifestSHA256: item.hlsResumeManifestSHA256,
-            canonicalResumeURL: { candidate in
-                guard let protectedNuvioAttemptID,
+            canonicalResumeURL: { [weak self] candidate in
+                guard let self,
+                      let protectedNuvioAttemptID,
                       let attempt = self.protectedProviderAttempts[item.id],
                       attempt.attemptID == protectedNuvioAttemptID,
                       attempt.mainProxyURL != nil else { return candidate }
