@@ -61,6 +61,7 @@ struct SettingsView: View {
 #endif
     @State private var isCheckingGitHubRelease = false
     @StateObject private var profileManager = ProfileManager.shared
+    @StateObject private var accentColorManager = AccentColorManager.shared
 
     private var sourceCodeURL: URL { Bundle.main.eclipseSourceURL }
     private let licenseURL = URL(string: "https://www.gnu.org/licenses/gpl-3.0.html")!
@@ -466,6 +467,7 @@ struct SettingsView: View {
             }
         #endif
         }
+        .tint(accentColorManager.currentAccentColor)
         .onAppear {
             AppPerformanceRuntimeContext.shared.setSurface("settings")
         }
@@ -794,7 +796,7 @@ struct SettingsView: View {
                             GlassSettingsRow(icon: "arrow.triangle.2.circlepath", iconColor: .mint, title: "Auto-check GitHub Releases") {
                                 Toggle("", isOn: $autoCheckGitHubReleases)
                                     .labelsHidden()
-                                    .tint(.mint)
+                                    .tint(accentColorManager.currentAccentColor)
                             }
 
                             GlassDivider()
@@ -2197,7 +2199,7 @@ private struct NotificationSettingsView: View {
 #if os(tvOS)
                         .accessibilityLabel("Anime Specials & OVAs")
 #endif
-                        .tint(.pink)
+                        .tint(accentColorManager.currentAccentColor)
                 }
             }
         }
@@ -3029,7 +3031,7 @@ private struct NotificationSubscriptionSettingsRow: View {
             Toggle("", isOn: Binding(get: { isOn }, set: action))
                 .labelsHidden()
                 .scaleEffect(isTvOS ? 1 : 0.82)
-                .tint(.orange)
+                .tint(accentColorManager.currentAccentColor)
                 .disabled(isUpdating)
                 .accessibilityLabel(title)
         }
@@ -4779,7 +4781,7 @@ struct ExperimentalCloudSyncView: View {
 #if os(tvOS)
                                     .accessibilityLabel("Sync Settings Across Devices")
 #endif
-                                    .tint(.blue)
+                                    .tint(accentColorManager.currentAccentColor)
                             }
 
                             GlassDivider()
