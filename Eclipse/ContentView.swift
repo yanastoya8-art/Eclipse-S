@@ -50,14 +50,115 @@ private func autoUpdateSkyStreamSourcesIfNeeded() async {
 #endif
 }
 
+
+enum MainAppSection: String, CaseIterable, Identifiable {
+    case home, schedule, downloads, search
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .home: return "Home"
+        case .schedule: return "Schedule"
+        case .downloads: return "Downloads"
+        case .search: return "Search"
+        }
+    }
+    var systemImage: String {
+        switch self {
+        case .home: return "house.fill"
+        case .schedule: return "calendar"
+        case .downloads: return "arrow.down.circle.fill"
+        case .search: return "magnifyingglass"
+        }
+    }
+}
+
+@MainActor
+final class MainTabConfiguration: ObservableObject {
+    static let shared = MainTabConfiguration()
+    private let visibilityKey = "mainTabVisibilityV1"
+    private let orderKey = "mainTabOrderV1"
+    @Published private(set) var visibleSections: [MainAppSection] = MainAppSection.allCases
+    @Published private(set) var orderedSections: [MainAppSection] = MainAppSection.allCases
+
+    private init() {
+        reload()
+        NotificationCenter.default.addObserver(forName: .activeProfileDidChange, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.reload() }
+        }
+    }
+
+    func reload() {
+        let defaults = ProfileSettingsStore.active
+        let all = MainAppSection.allCases
+        let hidden = Set(defaults.stringArray(forKey: visibilityKey) ?? [])
+        let visible = all.filter { !hidden.contains($0.rawValue) }
+        visibleSections = visible.isEmpty ? [.home] : visible
+        let savedOrder = defaults.stringArray(forKey: orderKey) ?? []
+        let decoded = savedOrder.compactMap(MainAppSection.init(rawValue:))
+        orderedSections = (decoded + all.filter { !decoded.contains($0) }).reduce(into: [MainAppSection]()) { result, item in
+            if !result.contains(item) { result.append(item) }
+        }
+    }
+
+    func setVisible(_ section: MainAppSection, _ isVisible: Bool) {
+        let defaults = ProfileSettingsStore.active
+        var hidden = Set(defaults.stringArray(forKey: visibilityKey) ?? [])
+        if isVisible { hidden.remove(section.rawValue) } else { hidden.insert(section.rawValue) }
+        if hidden.count == MainAppSection.allCases.count { hidden.remove(section.rawValue) }
+        defaults.set(Array(hidden), forKey: visibilityKey)
+        reload()
+    }
+
+    func move(from source: IndexSet, to destination: Int) {
+        var order = orderedSections
+        order.move(fromOffsets: source, toOffset: destination)
+        orderedSections = order
+        ProfileSettingsStore.active.set(order.map(\.rawValue), forKey: orderKey)
+    }
+
+    var tabsForDisplay: [MainAppSection] {
+        orderedSections.filter { visibleSections.contains($0) }
+    }
+}
+
+struct MainTabCustomizationView: View {
+    @StateObject private var configuration = MainTabConfiguration.shared
+
+    var body: some View {
+        List {
+            Section {
+                ForEach(configuration.orderedSections) { section in
+                    HStack {
+                        Label(section.title, systemImage: section.systemImage)
+                        Spacer()
+                        Toggle("Show", isOn: Binding(
+                            get: { configuration.visibleSections.contains(section) },
+                            set: { configuration.setVisible(section, $0) }
+                        ))
+                        .labelsHidden()
+                    }
+                    .accessibilityIdentifier("settings.tabs.\\(section.rawValue)")
+                }
+                .onMove(perform: configuration.move)
+            } footer: {
+                Text("Choose which main sections appear in the tab bar. Drag the handles to change their order. At least one section must remain visible.")
+            }
+        }
+        .navigationTitle("Main Sections")
+        .navigationBarTitleDisplayMode(.inline)
+        .environment(\.editMode, .constant(.active))
+    }
+}
+
 struct ContentView: View {
-    private enum AppTab: Hashable {
+    private enum AppTab: String, Hashable {
         case home, schedule, downloads, library, search
     }
 
     @ObservedObject private var downloadManager = DownloadManager.shared
     @StateObject private var accentColorManager = AccentColorManager.shared
     @StateObject private var glassAppearance = LiquidGlassAppearanceSettings.shared
+    @StateObject private var tabConfiguration = MainTabConfiguration.shared
     @AppStorage("githubReleaseShowAlertPending", store: .standard) private var githubReleaseShowAlertPending = false
     @AppStorage("githubReleaseLatestVersion", store: .standard) private var githubReleaseLatestVersion = ""
     @AppStorage("githubReleaseURL", store: .standard) private var githubReleaseURL = ""
@@ -203,6 +304,11 @@ struct ContentView: View {
         .onChange(of: selectedTab) { _ in
             updatePerformanceSurface()
         }
+        .onReceive(tabConfiguration.$visibleSections) { visible in
+            if !visible.contains(where: { AppTab(rawValue: $0.rawValue) == selectedTab }) {
+                selectedTab = visible.first.map { AppTab(rawValue: $0.rawValue) ?? .home } ?? .home
+            }
+        }
         .onChange(of: showingSettings) { _ in
             updatePerformanceSurface()
         }
@@ -305,30 +411,32 @@ struct ContentView: View {
     @available(iOS 26.0, tvOS 26.0, *)
     private var modernTabView: some View {
         TabView(selection: $selectedTab) {
-            Tab("Home", systemImage: "house.fill", value: AppTab.home) {
-                HomeView(
-                    isActive: selectedTab == .home && !showingSettings && !playerCoversInterface,
-                    onStartupReady: onStartupReady
-                )
-            }
-
-            Tab("Schedule", systemImage: "calendar", value: AppTab.schedule) {
-                ScheduleView(isActive: selectedTab == .schedule)
-            }
-
-            Tab("Downloads", systemImage: "arrow.down.circle.fill", value: AppTab.downloads) {
-                DownloadsView()
-            }
+            ForEach(tabConfiguration.tabsForDisplay) { section in
+                switch section {
+                case .home:
+                    Tab("Home", systemImage: "house.fill", value: AppTab.home) {
+                        HomeView(isActive: selectedTab == .home && !showingSettings && !playerCoversInterface, onStartupReady: onStartupReady)
+                    }
+                case .schedule:
+                    Tab("Schedule", systemImage: "calendar", value: AppTab.schedule) {
+                        ScheduleView(isActive: selectedTab == .schedule)
+                    }
+                case .downloads:
+                    Tab("Downloads", systemImage: "arrow.down.circle.fill", value: AppTab.downloads) {
+                        DownloadsView()
+                    }
 #if !os(tvOS)
-            .badge(downloadManager.activeDownloadCount > 0 ? downloadManager.activeDownloadCount : 0)
+                    .badge(downloadManager.activeDownloadCount > 0 ? downloadManager.activeDownloadCount : 0)
 #endif
+                case .search:
+                    Tab("Search", systemImage: "magnifyingglass", value: AppTab.search, role: .search) {
+                        SearchView()
+                    }
+                }
+            }
 
             Tab("Library", systemImage: "books.vertical.fill", value: AppTab.library) {
                 LibraryView()
-            }
-
-            Tab("Search", systemImage: "magnifyingglass", value: AppTab.search, role: .search) {
-                SearchView()
             }
         }
 #if !os(tvOS)
@@ -437,46 +545,34 @@ struct ContentView: View {
 
     private var olderTabView: some View {
         TabView(selection: $selectedTab) {
-            HomeView(
-                isActive: selectedTab == .home && !showingSettings && !playerCoversInterface,
-                onStartupReady: onStartupReady
-            )
-                .tabItem {
-                    Image(systemName: "house.fill")
-                    Text("Home")
-                }
-                .tag(AppTab.home)
-
-            ScheduleView(isActive: selectedTab == .schedule)
-                .tabItem {
-                    Image(systemName: "calendar")
-                    Text("Schedule")
-                }
-                .tag(AppTab.schedule)
-
-            DownloadsView()
-                .tabItem {
-                    Image(systemName: "arrow.down.circle.fill")
-                    Text("Downloads")
-                }
-                .tag(AppTab.downloads)
+            ForEach(tabConfiguration.tabsForDisplay) { section in
+                Group {
+                    switch section {
+                    case .home:
+                        HomeView(isActive: selectedTab == .home && !showingSettings && !playerCoversInterface, onStartupReady: onStartupReady)
+                            .tabItem { Image(systemName: section.systemImage); Text(section.title) }
+                            .tag(AppTab.home)
+                    case .schedule:
+                        ScheduleView(isActive: selectedTab == .schedule)
+                            .tabItem { Image(systemName: section.systemImage); Text(section.title) }
+                            .tag(AppTab.schedule)
+                    case .downloads:
+                        DownloadsView()
+                            .tabItem { Image(systemName: section.systemImage); Text(section.title) }
+                            .tag(AppTab.downloads)
 #if !os(tvOS)
-                .badge(downloadManager.activeDownloadCount > 0 ? downloadManager.activeDownloadCount : 0)
+                            .badge(downloadManager.activeDownloadCount > 0 ? downloadManager.activeDownloadCount : 0)
 #endif
-
+                    case .search:
+                        SearchView()
+                            .tabItem { Image(systemName: section.systemImage); Text(section.title) }
+                            .tag(AppTab.search)
+                    }
+                }
+            }
             LibraryView()
-                .tabItem {
-                    Image(systemName: "books.vertical.fill")
-                    Text("Library")
-                }
+                .tabItem { Image(systemName: "books.vertical.fill"); Text("Library") }
                 .tag(AppTab.library)
-
-            SearchView()
-                .tabItem {
-                    Image(systemName: "magnifyingglass")
-                    Text("Search")
-                }
-                .tag(AppTab.search)
         }
         .tint(accentColorManager.currentAccentColor)
 #if os(iOS)
