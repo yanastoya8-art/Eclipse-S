@@ -3020,7 +3020,11 @@ final class DownloadManager: NSObject, ObservableObject {
         // recover from that checkpoint on the next foreground activation.
         let canContinueInForeground = hlsApplicationIsActive && hlsIntentIsCurrent(attempt.intent)
         if !canContinueInForeground {
-            attempt.downloader.cancel()
+            // Continued-processing expiration is a system interruption,
+            // not a user cancellation. Detach the in-flight OS-owned HLS
+            // resource task so URLSession can finish it and the next worker
+            // can reattach after iOS grants execution again.
+            attempt.downloader.cancel(reason: .backgroundProcessingExpired)
             if let index = downloads.firstIndex(where: { $0.id == id }),
                downloads[index].status != .completed {
                 downloads[index].status = .paused

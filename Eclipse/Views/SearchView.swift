@@ -1445,6 +1445,7 @@ private struct BrowseMediaView: View {
     @State private var mediaType: BrowseMediaType
     @State private var filterConfigurations: [BrowseMediaType: BrowseFilterConfiguration]
     @State private var showingFilters = false
+    @State private var expandedFilterMenu: String?
     @State private var results: [TMDBSearchResult] = []
     // Keep the provider snapshot separate from the visible filtered grid.
     // Metadata notifications should re-filter these rows, not restart the query.
@@ -1741,24 +1742,174 @@ private struct BrowseMediaView: View {
     }
 
     private var filterChipsGrid: some View {
-        LazyVGrid(
-            columns: [GridItem(.adaptive(minimum: isTvOS ? 420 : 132), spacing: isTvOS ? 20 : 10, alignment: .leading)],
-            alignment: .leading,
-            spacing: isTvOS ? 20 : 10
-        ) {
-            genreMenu
-            excludedGenreMenu
-            yearMenu
-            excludedYearMenu
-            countryMenu
-            sortMenu
-            ratingMenu
-            ageRatingMenu
+        VStack(alignment: .leading, spacing: 12) {
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: isTvOS ? 420 : 132), spacing: isTvOS ? 20 : 10, alignment: .leading)],
+                alignment: .leading,
+                spacing: isTvOS ? 20 : 10
+            ) {
+                genreMenu
+                excludedGenreMenu
+                yearMenu
+                excludedYearMenu
+                countryMenu
+                sortMenu
+                ratingMenu
+                ageRatingMenu
 
-            if hasActiveFilters {
-                resetFiltersButton
+                if hasActiveFilters {
+                    resetFiltersButton
+                }
+            }
+
+            if let expandedFilterMenu {
+                filterOptionsPanel(for: expandedFilterMenu)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
+        .animation(.easeInOut(duration: 0.16), value: expandedFilterMenu)
+    }
+
+    private func filterMenuButton(
+        _ key: String,
+        title: String,
+        value: String,
+        systemImage: String
+    ) -> some View {
+        Button {
+            expandedFilterMenu = expandedFilterMenu == key ? nil : key
+        } label: {
+            filterChip(title: title, value: value, systemImage: systemImage)
+                .overlay(alignment: .topTrailing) {
+                    if expandedFilterMenu == key {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.caption)
+                            .foregroundColor(.accentColor)
+                            .padding(7)
+                    }
+                }
+        }
+        .buttonStyle(PlainButtonStyle())
+        .accessibilityAddTraits(expandedFilterMenu == key ? .isSelected : [])
+    }
+
+    @ViewBuilder
+    private func filterOptionsPanel(for key: String) -> some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 2) {
+                switch key {
+                case "genres":
+                    filterOption("Any Genre", selected: selectedGenreKeys.isEmpty) {
+                        updateCurrentFilters { $0.selectedGenreKeys = [] }
+                    }
+                    ForEach(mediaType.genres) { genre in
+                        filterOption(genre.name, selected: selectedGenreKeys.contains(genre.id)) {
+                            toggleGenre(genre)
+                        }
+                    }
+                case "excludedGenres":
+                    filterOption("Exclude None", selected: excludedGenreKeys.isEmpty) {
+                        updateCurrentFilters { $0.excludedGenreKeys = [] }
+                    }
+                    ForEach(mediaType.genres) { genre in
+                        filterOption(genre.name, selected: excludedGenreKeys.contains(genre.id)) {
+                            toggleGenre(genre, excluded: true)
+                        }
+                    }
+                case "years":
+                    filterOption("Any Year", selected: selectedYears.isEmpty && currentFilters.showsUpcomingOnly != true) {
+                        updateCurrentFilters {
+                            $0.selectedYears = []
+                            $0.showsUpcomingOnly = false
+                        }
+                    }
+                    filterOption("Upcoming (announced date)", selected: currentFilters.showsUpcomingOnly == true) {
+                        updateCurrentFilters {
+                            $0.selectedYears = []
+                            $0.showsUpcomingOnly = true
+                        }
+                    }
+                    ForEach(availableYears, id: \.self) { year in
+                        filterOption(String(year), selected: selectedYears.contains(year)) {
+                            toggleYear(year)
+                        }
+                    }
+                case "excludedYears":
+                    filterOption("Exclude None", selected: excludedYears.isEmpty) {
+                        updateCurrentFilters { $0.excludedYears = [] }
+                    }
+                    ForEach(availableYears, id: \.self) { year in
+                        filterOption(String(year), selected: excludedYears.contains(year)) {
+                            toggleYear(year, excluded: true)
+                        }
+                    }
+                case "countries":
+                    filterOption("Any Country", selected: selectedCountryCodes.isEmpty) {
+                        updateCurrentFilters { $0.selectedCountryCodes = [] }
+                    }
+                    ForEach(mediaType.countries) { country in
+                        filterOption(country.name, selected: selectedCountryCodes.contains(country.code)) {
+                            toggleCountry(country)
+                        }
+                    }
+                case "sort":
+                    ForEach(BrowseSort.allCases) { option in
+                        filterOption(option.title, selected: sort == option) {
+                            updateCurrentFilters { $0.sortRawValue = option.rawValue }
+                        }
+                    }
+                case "rating":
+                    filterOption("Any Rating", selected: minimumRating == 0) {
+                        updateCurrentFilters { $0.minimumRating = 0 }
+                    }
+                    ForEach([5, 6, 7, 8, 9], id: \.self) { star in
+                        filterOption("\(star)+ Stars", selected: Int(minimumRating) == star) {
+                            updateCurrentFilters { $0.minimumRating = Double(star) }
+                        }
+                    }
+                case "ageRating":
+                    ForEach(BrowseAgeRating.allCases) { option in
+                        filterOption(option.title, selected: ageRating == option) {
+                            updateCurrentFilters { $0.ageRatingRawValue = option.rawValue }
+                        }
+                    }
+                default:
+                    EmptyView()
+                }
+            }
+            .padding(8)
+        }
+        .frame(maxHeight: 280)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.primary.opacity(0.10), lineWidth: 1)
+        }
+        .accessibilityIdentifier("browse.filterOptions.\(key)")
+    }
+
+    private func filterOption(
+        _ title: String,
+        selected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Text(title)
+                    .foregroundColor(.primary)
+                Spacer(minLength: 8)
+                if selected {
+                    Image(systemName: "checkmark")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.accentColor)
+                }
+            }
+            .font(.subheadline)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 
     private var filterPanel: some View {
@@ -1828,113 +1979,27 @@ private struct BrowseMediaView: View {
     }
 
     private var genreMenu: some View {
-        Menu {
-            Button(action: { updateCurrentFilters { $0.selectedGenreKeys = [] } }) {
-                menuRow("Any Genre", isSelected: selectedGenreKeys.isEmpty)
-            }
-
-            ForEach(mediaType.genres) { genre in
-                Button(action: { toggleGenre(genre) }) {
-                    menuRow(genre.name, isSelected: selectedGenreKeys.contains(genre.id))
-                }
-            }
-        } label: {
-            filterChip(
-                title: mediaType.isAnime ? "Anime Genres" : "Genres",
-                value: selectedGenreName,
-                systemImage: "theatermasks.fill"
-            )
-        }
+        filterMenuButton("genres", title: mediaType.isAnime ? "Anime Genres" : "Genres", value: selectedGenreName, systemImage: "theatermasks.fill")
     }
 
     private var excludedGenreMenu: some View {
-        Menu {
-            Button(action: { updateCurrentFilters { $0.excludedGenreKeys = [] } }) {
-                menuRow("Exclude None", isSelected: excludedGenreKeys.isEmpty)
-            }
-
-            ForEach(mediaType.genres) { genre in
-                Button(action: { toggleGenre(genre, excluded: true) }) {
-                    menuRow(genre.name, isSelected: excludedGenreKeys.contains(genre.id))
-                }
-            }
-        } label: {
-            filterChip(title: "Exclude Genres", value: excludedGenreName, systemImage: "theatermasks")
-        }
+        filterMenuButton("excludedGenres", title: "Exclude Genres", value: excludedGenreName, systemImage: "theatermasks")
     }
 
     private var yearMenu: some View {
-        Menu {
-            Button(action: {
-                updateCurrentFilters {
-                    $0.selectedYears = []
-                    $0.showsUpcomingOnly = false
-                }
-            }) {
-                menuRow("Any Year", isSelected: selectedYears.isEmpty && currentFilters.showsUpcomingOnly != true)
-            }
-
-            Button(action: {
-                updateCurrentFilters {
-                    $0.selectedYears = []
-                    $0.showsUpcomingOnly = true
-                }
-            }) {
-                menuRow("Upcoming (announced date)", isSelected: currentFilters.showsUpcomingOnly == true)
-            }
-
-            ForEach(availableYears, id: \.self) { year in
-                Button(action: { toggleYear(year) }) {
-                    menuRow("\(year)", isSelected: selectedYears.contains(year))
-                }
-            }
-        } label: {
-            filterChip(title: "Year", value: selectedYearName, systemImage: "calendar")
-        }
+        filterMenuButton("years", title: "Year", value: selectedYearName, systemImage: "calendar")
     }
 
     private var excludedYearMenu: some View {
-        Menu {
-            Button(action: { updateCurrentFilters { $0.excludedYears = [] } }) {
-                menuRow("Exclude None", isSelected: excludedYears.isEmpty)
-            }
-
-            ForEach(availableYears, id: \.self) { year in
-                Button(action: { toggleYear(year, excluded: true) }) {
-                    menuRow("\(year)", isSelected: excludedYears.contains(year))
-                }
-            }
-        } label: {
-            filterChip(title: "Exclude Years", value: excludedYearName, systemImage: "calendar.badge.minus")
-        }
+        filterMenuButton("excludedYears", title: "Exclude Years", value: excludedYearName, systemImage: "calendar.badge.minus")
     }
 
     private var countryMenu: some View {
-        Menu {
-            Button(action: { updateCurrentFilters { $0.selectedCountryCodes = [] } }) {
-                menuRow("Any Country", isSelected: selectedCountryCodes.isEmpty)
-            }
-
-            ForEach(mediaType.countries) { country in
-                Button(action: { toggleCountry(country) }) {
-                    menuRow(country.name, isSelected: selectedCountryCodes.contains(country.code))
-                }
-            }
-        } label: {
-            filterChip(title: "Countries", value: selectedCountryName, systemImage: "globe")
-        }
+        filterMenuButton("countries", title: "Countries", value: selectedCountryName, systemImage: "globe")
     }
 
     private var sortMenu: some View {
-        Menu {
-            ForEach(BrowseSort.allCases) { option in
-                Button(action: { updateCurrentFilters { $0.sortRawValue = option.rawValue } }) {
-                    menuRow(option.title, isSelected: sort == option)
-                }
-            }
-        } label: {
-            filterChip(title: "Order", value: sort.title, systemImage: "arrow.up.arrow.down")
-        }
+        filterMenuButton("sort", title: "Order", value: sort.title, systemImage: "arrow.up.arrow.down")
     }
 
     private var minimumRatingLabel: String {
@@ -1942,35 +2007,11 @@ private struct BrowseMediaView: View {
     }
 
     private var ratingMenu: some View {
-        Menu {
-            Button(action: { updateCurrentFilters { $0.minimumRating = 0 } }) {
-                menuRow("Any Rating", isSelected: minimumRating == 0)
-            }
-
-            ForEach([5, 6, 7, 8, 9], id: \.self) { star in
-                Button(action: { updateCurrentFilters { $0.minimumRating = Double(star) } }) {
-                    menuRow("\(star)+ Stars", isSelected: Int(minimumRating) == star)
-                }
-            }
-        } label: {
-            filterChip(title: "Rating", value: minimumRatingLabel, systemImage: "star.fill")
-        }
+        filterMenuButton("rating", title: "Rating", value: minimumRatingLabel, systemImage: "star.fill")
     }
 
     private var ageRatingMenu: some View {
-        Menu {
-            ForEach(BrowseAgeRating.allCases) { option in
-                Button(action: { updateCurrentFilters { $0.ageRatingRawValue = option.rawValue } }) {
-                    menuRow(option.title, isSelected: ageRating == option)
-                }
-            }
-        } label: {
-            filterChip(
-                title: "Age Rating",
-                value: ageRating.title,
-                systemImage: "18.circle"
-            )
-        }
+        filterMenuButton("ageRating", title: "Age Rating", value: ageRating.title, systemImage: "18.circle")
     }
 
     private var resetFiltersButton: some View {
@@ -2136,14 +2177,6 @@ private struct BrowseMediaView: View {
         .clipShape(RoundedRectangle(cornerRadius: isTvOS ? 18 : 10, style: .continuous))
     }
 
-    private func menuRow(_ title: String, isSelected: Bool) -> some View {
-        HStack {
-            Text(title)
-            if isSelected {
-                Image(systemName: "checkmark")
-            }
-        }
-    }
 
     private func updateCurrentFilters(_ update: (inout BrowseFilterConfiguration) -> Void) {
         var updated = currentFilters

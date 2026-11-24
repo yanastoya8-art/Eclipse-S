@@ -26,21 +26,21 @@ private func copyProviderDownloadURL(_ rawURL: String, headers: [String: String]
           sourceURL.user == nil,
           sourceURL.password == nil else { return }
 
-    // A headerless source is already a usable external download URL. Do not
-    // replace it with a temporary LAN proxy address that stops working when
-    // Eclipse is closed or the receiving device leaves the local network.
+    // Safari treats ordinary video responses as inline media. Route the
+    // copied download link through Eclipse's local response proxy so it can
+    // add Content-Disposition: attachment, even when the provider needs no
+    // authentication headers. Preserve the original URL and headers upstream.
     let sanitizedHeaders = AVPlayerResourceLoader.sanitizedHTTPHeaders(headers ?? [:])
-    guard !sanitizedHeaders.isEmpty else {
-        ProviderExternalApplication.copy(sourceURL.absoluteString)
-        return
-    }
-
-    guard let downloadURL = MPVHeaderProxy.shared.makeLANProxyURL(
+    if let downloadURL = MPVHeaderProxy.shared.makeLANProxyURL(
         for: sourceURL,
         headers: sanitizedHeaders,
         asDownload: true
-    ) else { return }
-    ProviderExternalApplication.copy(downloadURL.absoluteString)
+    ) {
+        ProviderExternalApplication.copy(downloadURL.absoluteString)
+    } else {
+        // If the local proxy is unavailable, retain a usable source link.
+        ProviderExternalApplication.copy(sourceURL.absoluteString)
+    }
 }
 
 extension Notification.Name {

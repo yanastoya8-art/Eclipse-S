@@ -163,6 +163,7 @@ struct AppHubOverlay: View {
                 id: "settings",
                 systemImage: "gear",
                 label: "Settings",
+                pulseTint: accentColorManager.currentAccentColor,
                 activate: { _ in
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) {
                         showingSettings = true
@@ -367,12 +368,15 @@ struct AppHubOverlay: View {
 
                 Image(systemName: action.systemImage)
                     .font(.system(size: AppHubMetrics.buttonIconSize, weight: .semibold))
-                    .foregroundColor(.white)
+                    .foregroundColor(accentColorManager.currentAccentColor)
                     .rotationEffect(.degrees(isActivating ? -12 : 0))
                     .scaleEffect(isActivating ? 1.16 : 1)
             }
             .frame(width: AppHubMetrics.buttonDiameter, height: AppHubMetrics.buttonDiameter)
-            .applyLiquidGlassBackground(cornerRadius: AppHubMetrics.buttonDiameter / 2)
+            .applyLiquidGlassBackground(
+                cornerRadius: AppHubMetrics.buttonDiameter / 2,
+                glassTint: accentColorManager.currentAccentColor.opacity(0.30)
+            )
             .scaleEffect(isActivating ? 0.94 : 1)
             .frame(width: AppHubMetrics.buttonHitDiameter, height: AppHubMetrics.buttonHitDiameter)
             .contentShape(Circle())
