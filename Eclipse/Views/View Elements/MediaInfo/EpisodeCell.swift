@@ -42,6 +42,20 @@ struct EpisodeCell: View {
     @State private var downloadStateRefreshTask: Task<Void, Never>?
     @State private var progressValue: Double = 0
     @AppStorage(MediaDetailPlatformDefaults.horizontalEpisodeListKey) private var horizontalEpisodeList = MediaDetailPlatformDefaults.prefersHorizontalEpisodes
+    @AppStorage(MediaDetailEpisodeCardAppearanceSettings.colorDataKey) private var episodeCardColorData = Data()
+    @ObservedObject private var accentColorManager = AccentColorManager.shared
+
+    private var episodeCardTint: Color {
+        guard !episodeCardColorData.isEmpty,
+              let archived = try? PortableColorArchive.color(from: episodeCardColorData) else {
+            return Color.white.opacity(0.07)
+        }
+#if os(macOS)
+        return Color(nsColor: archived)
+#else
+        return Color(uiColor: archived)
+#endif
+    }
 
     private var horizontalCellWidth: CGFloat {
 #if os(macOS)
@@ -200,6 +214,8 @@ struct EpisodeCell: View {
                 .padding(.horizontal, 2)
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
+            .padding(12)
+            .background(episodeCardTint, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .contentShape(Rectangle())
         }
         .modifier(EpisodePlayButtonModifier())
@@ -325,9 +341,9 @@ struct EpisodeCell: View {
                         .padding(.vertical, 2)
                         .applyLiquidGlassBackground(
                             cornerRadius: 16,
-                            fallbackFill: Color.gray.opacity(0.2),
+                            fallbackFill: accentColorManager.currentAccentColor.opacity(0.18),
                             fallbackMaterial: .thinMaterial,
-                            glassTint: Color.gray.opacity(0.15)
+                            glassTint: accentColorManager.currentAccentColor.opacity(0.22)
                         )
                         .clipShape(Capsule())
                     }
@@ -360,6 +376,8 @@ struct EpisodeCell: View {
                 .frame(width: horizontalCellWidth, height: horizontalDetailsHeight, alignment: .topLeading)
             }
             .frame(width: horizontalCellWidth, height: horizontalCellHeight, alignment: .topLeading)
+            .padding(10)
+            .background(episodeCardTint, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .contentShape(Rectangle())
         }
         .modifier(EpisodePlayButtonModifier())
@@ -517,7 +535,12 @@ struct EpisodeCell: View {
                 }
             }
             .padding(isTvOS ? 20 : 12)
-            .applyLiquidGlassBackground(cornerRadius: 16)
+            .applyLiquidGlassBackground(
+                cornerRadius: 16,
+                fallbackFill: episodeCardTint,
+                fallbackMaterial: .thinMaterial,
+                glassTint: episodeCardTint
+            )
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
                     .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
