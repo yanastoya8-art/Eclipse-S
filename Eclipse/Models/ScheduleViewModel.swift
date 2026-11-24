@@ -1334,6 +1334,7 @@ final class ScheduleViewModel: ObservableObject {
                             providerRuntimeMinutes: providerEntry.runtimeMinutes,
                             nativeRuntimeMinutes: metadata.runtimeMinutes
                         )
+                        enriched.format = enriched.format ?? metadata.format
                         enriched.releaseYear = enriched.releaseYear ?? metadata.releaseYear
                         enriched.tags = enriched.tags ?? metadata.tags
                         enriched.originalLanguage = metadata.originalLanguage
