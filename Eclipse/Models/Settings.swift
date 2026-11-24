@@ -603,9 +603,9 @@ enum ServicesStreamAppearanceSettings {
         guard let data = defaults.data(forKey: key), !data.isEmpty,
               let color = try? PortableColorArchive.color(from: data) else { return nil }
 #if os(macOS)
-        return color.map(Color.init(nsColor:))
+        return Color(nsColor: color)
 #else
-        return color.map(Color.init(uiColor:))
+        return Color(uiColor: color)
 #endif
     }
 
