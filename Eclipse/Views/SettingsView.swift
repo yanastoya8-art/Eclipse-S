@@ -578,6 +578,15 @@ struct SettingsView: View {
                     }
                 }
 
+                GlassSection(header: "Navigation") {
+                    VStack(spacing: 0) {
+                        NavigationLink(destination: settingsSearchableContent(MainTabCustomizationView())) {
+                            GlassSettingsRow(icon: "rectangle.3.group", iconColor: .purple, title: "Main Sections")
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
                 GlassSection(header: "Content Filters") {
                     VStack(spacing: 0) {
                         NavigationLink(destination: settingsSearchableContent(AgeFiltersSettingsView(
