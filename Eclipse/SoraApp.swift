@@ -373,6 +373,17 @@ struct SoraApp: App {
                 homeHydrationComplete = true
                 warmSchedulesAfterStartup()
             }
+            .onOpenURL { url in
+                guard url.scheme?.lowercased() == "luna",
+                      url.host?.lowercased() == "open" else { return }
+                let components = url.pathComponents.dropFirst()
+                guard components.first?.lowercased() == "tab",
+                      components.dropFirst().first?.lowercased() == "downloads" else { return }
+                NotificationCenter.default.post(
+                    name: Notification.Name("eclipse.openDownloadsFromLiveActivity"),
+                    object: nil
+                )
+            }
 #if DEBUG
             .onOpenURL { url in
                 guard url.scheme?.lowercased() == "luna",
