@@ -605,7 +605,7 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
             includingPropertiesForKeys: nil
         ) else { return }
         for url in urls where url.lastPathComponent.hasPrefix(prefix)
-            && description.map({ !url.lastPathComponent.hasPrefix($0) }) ?? true {
+            && (description.map { !url.lastPathComponent.hasPrefix($0) } ?? true) {
             try? FileManager.default.removeItem(at: url)
         }
     }
