@@ -202,6 +202,14 @@ struct HLSEncryptionKey {
 }
 
 private final class HLSRedirectPolicyDelegate: NSObject, URLSessionTaskDelegate {
+    private let headers: [String: String]
+    private let originURL: URL
+
+    init(headers: [String: String], originURL: URL) {
+        self.headers = headers
+        self.originURL = originURL
+    }
+
     func urlSession(
         _ session: URLSession,
         task: URLSessionTask,
@@ -215,7 +223,22 @@ private final class HLSRedirectPolicyDelegate: NSObject, URLSessionTaskDelegate 
             completionHandler(nil)
             return
         }
-        completionHandler(request)
+        let safeHeaders = MPVHeaderProxy.shared.directTransportHeaders(
+            headers,
+            for: destination,
+            originURL: originURL
+        )
+        var redirected = request
+        for name in headers.keys {
+            redirected.setValue(nil, forHTTPHeaderField: name)
+        }
+        for name in ["Authorization", "Cookie", "Proxy-Authorization", "X-Api-Key", "X-Auth-Token"] {
+            redirected.setValue(nil, forHTTPHeaderField: name)
+        }
+        for (name, value) in safeHeaders {
+            redirected.setValue(value, forHTTPHeaderField: name)
+        }
+        completionHandler(redirected)
     }
 }
 
@@ -510,8 +533,7 @@ private final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDown
     }
 
     private func taskPrefix(downloadID: String) -> String {
-        "eclipse-hls-v1-\(digest(downloadID))- "
-            .replacingOccurrences(of: "- ", with: "-")
+        "eclipse-hls-v1-\(digest(downloadID))-"
     }
 
     private func taskDescription(downloadID: String, url: URL?) -> String {
@@ -609,6 +631,7 @@ final class HLSDownloader: @unchecked Sendable {
 
     private let enforcesConservativeDiskCapacityReserve: Bool
     private let durableCheckpoints: Bool
+    private let usesBackgroundURLSession: Bool
 
     private var isCancelled = false
     private var cancellationError: HLSError = .cancelled
@@ -673,6 +696,11 @@ final class HLSDownloader: @unchecked Sendable {
         self.canonicalResumeURL = canonicalResumeURL
         self.enforcesConservativeDiskCapacityReserve = enforcesConservativeDiskCapacityReserve
         self.durableCheckpoints = durableCheckpoints
+#if os(iOS) && !targetEnvironment(macCatalyst)
+        self.usesBackgroundURLSession = sessionConfiguration == nil
+#else
+        self.usesBackgroundURLSession = false
+#endif
         self.requestStartInterval = max(
             minimumRequestStartInterval ?? Self.minimumRequestStartInterval,
             0
@@ -684,7 +712,7 @@ final class HLSDownloader: @unchecked Sendable {
         config.timeoutIntervalForResource = 600
         self.session = URLSession(
             configuration: config,
-            delegate: HLSRedirectPolicyDelegate(),
+            delegate: HLSRedirectPolicyDelegate(headers: headers, originURL: streamURL),
             delegateQueue: nil
         )
     }
@@ -879,6 +907,14 @@ final class HLSDownloader: @unchecked Sendable {
         stateLock.unlock()
 
         task?.cancel()
+#if os(iOS) && !targetEnvironment(macCatalyst)
+        switch reason {
+        case .backgroundTimeExpired, .backgroundProcessingExpired:
+            HLSBackgroundURLSessionCoordinator.shared.detach(downloadID: downloadId)
+        default:
+            HLSBackgroundURLSessionCoordinator.shared.cancel(downloadID: downloadId)
+        }
+#endif
         if retiresIdleSession { session.invalidateAndCancel() }
         if !durableCheckpoints || retiresIdleSession { endBackgroundTask() }
     }
@@ -932,6 +968,12 @@ final class HLSDownloader: @unchecked Sendable {
             let continuedProcessingGranted = self.continuedProcessingGranted
             self.stateLock.unlock()
             guard !continuedProcessingGranted else { return }
+            if self.usesBackgroundURLSession {
+                // URLSession owns the network transfer now. Do not cancel the
+                // worker or its OS task when UIKit's short execution window ends.
+                self.endBackgroundTask()
+                return
+            }
             self.cancel(reason: .backgroundTimeExpired)
         }
         #elseif os(macOS)
@@ -990,18 +1032,42 @@ final class HLSDownloader: @unchecked Sendable {
         publishStage("Downloading HLS data")
 
         let effectiveHeaders = CloudflareBypassManager.shared.headersByApplyingCachedBypass(headers, for: url)
+        let transportHeaders = MPVHeaderProxy.shared.directTransportHeaders(
+            effectiveHeaders,
+            for: url,
+            originURL: streamURL
+        )
         var request = URLRequest(url: url)
-        for (key, value) in effectiveHeaders {
+        for (key, value) in transportHeaders {
             request.setValue(value, forHTTPHeaderField: key)
         }
 
         #if DEBUG
         onBeforeRequestStartForTesting?(url)
         #endif
-        let (data, response) = try await session.boundedData(
+        let data: Data
+        let response: URLResponse?
+#if os(iOS) && !targetEnvironment(macCatalyst)
+        if usesBackgroundURLSession {
+            let result = try await HLSBackgroundURLSessionCoordinator.shared.download(
+                request,
+                downloadID: downloadId,
+                maximumResponseBytes: maximumResponseBytes
+            )
+            data = result.data
+            response = result.response
+        } else {
+            (data, response) = try await session.boundedData(
+                for: request,
+                maximumResponseBytes: maximumResponseBytes
+            )
+        }
+#else
+        (data, response) = try await session.boundedData(
             for: request,
             maximumResponseBytes: maximumResponseBytes
         )
+#endif
         try checkCancelled()
 
         if let httpResponse = response as? HTTPURLResponse {
