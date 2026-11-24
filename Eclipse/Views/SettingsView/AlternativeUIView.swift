@@ -33,6 +33,7 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
     case animationColor
     case customAnimationColor
     case animationFrameRate
+    case animationShape
     case appPerformanceOverlay
     case hideSplashScreen
     case alternativeSeasonMenu
@@ -70,8 +71,10 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
             return "theme"
         case .interface, .globalAppearance, .accentColor, .liquidGlassDarkBarColor, .liquidGlassLightBarColor, .liquidGlassBottomBarColor, .browseFilterChipColor, .browseFilterButtonColor, .browseFilterOptionsColor:
             return "interface"
-        case .animatedBackground, .animationQuality, .animationColor, .customAnimationColor, .animationFrameRate, .appPerformanceOverlay, .hideSplashScreen:
-            return "motion"
+        case .animatedBackground, .animationQuality, .animationColor, .customAnimationColor, .animationFrameRate, .animationShape, .appPerformanceOverlay:
+            return "animation"
+        case .hideSplashScreen:
+            return "startup"
         case .alternativeSeasonMenu, .horizontalEpisodeList, .showUnairedEpisodes, .titleLogoPosition, .titleLogoSize, .titleLogoWeight, .heroActionPosition, .heroSynopsisPosition, .portraitHeroBleedIntensity, .landscapeHeroBleedIntensity, .landscapeTitleLogoPosition, .landscapeTitleLogoHorizontalPosition, .landscapeTitleLogoSize, .landscapeTitleLogoWeight, .landscapeHeroActionPosition, .landscapeHeroSynopsisPosition, .landscapeHeroHorizontalStretch, .landscapeHeroVerticalStretch, .landscapeContentHorizontalPosition, .dataSaver, .ageRating, .similarTitles:
             return "details"
         case .libraryBookmarks, .libraryCollectionLayout:
@@ -121,6 +124,7 @@ struct AlternativeUIView: View {
     @AppStorage(HomeAnimatedBackgroundQuality.storageKey) private var homeAnimatedBackgroundQuality = HomeAnimatedBackgroundQuality.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundFrameRate.storageKey) private var homeAnimatedBackgroundFrameRate = HomeAnimatedBackgroundFrameRate.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundParticleColor.storageKey) private var homeAnimatedBackgroundParticleColor = HomeAnimatedBackgroundParticleColor.defaultValue.rawValue
+    @AppStorage(HomeAnimatedBackgroundShape.storageKey) private var homeAnimatedBackgroundShape = HomeAnimatedBackgroundShape.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundParticleColor.customColorDataKey) private var customAnimationParticleColorData = Data()
     @AppStorage(AppPerformanceOverlaySettings.enabledKey) private var appPerformanceOverlayEnabled = AppPerformanceOverlaySettings.defaultEnabled
 #if !os(tvOS)
@@ -227,15 +231,28 @@ struct AlternativeUIView: View {
 #endif
 
             NavigationLink {
-                AppearanceSettingsSubpage(title: "Motion & Startup", sectionKey: "motion", initialSearchTarget: initialSearchTarget) {
-                    appExperienceSection
+                AppearanceSettingsSubpage(title: "Animation", sectionKey: "animation", initialSearchTarget: initialSearchTarget) {
+                    animationSection
                         .eclipseExperimentalSettingsRows()
                 }
             } label: {
                 appearanceCategoryLabel(
-                    title: "Motion & Startup",
-                    description: "Mode switching, ambient background, and launch behavior.",
+                    title: "Animation",
+                    description: "Animated backgrounds, style, color, quality, and performance.",
                     systemImage: "sparkles"
+                )
+            }
+
+            NavigationLink {
+                AppearanceSettingsSubpage(title: "Startup", sectionKey: "startup", initialSearchTarget: initialSearchTarget) {
+                    startupSection
+                        .eclipseExperimentalSettingsRows()
+                }
+            } label: {
+                appearanceCategoryLabel(
+                    title: "Startup",
+                    description: "Choose what Eclipse displays when it launches.",
+                    systemImage: "power"
                 )
             }
         } header: {
@@ -547,7 +564,7 @@ struct AlternativeUIView: View {
     }
 #endif
 
-    private var appExperienceSection: some View {
+    private var animationSection: some View {
         Section {
             toggleRow(
                 title: "Animated Background",
@@ -597,6 +614,22 @@ struct AlternativeUIView: View {
             }
 
             settingRow(
+                title: "Animation Shape",
+                description: "Choose the glowing motif that floats through the animated background."
+            ) {
+                Picker("", selection: $homeAnimatedBackgroundShape) {
+                    ForEach(HomeAnimatedBackgroundShape.allCases) { shape in
+                        Text(shape.displayName).tag(shape.rawValue)
+                    }
+                }
+                .pickerStyle(.menu)
+                .accessibilityLabel("Animation Shape")
+                .accessibilityIdentifier("settings.appearance.animationShape")
+                .accessibilityValue(HomeAnimatedBackgroundShape.resolved(homeAnimatedBackgroundShape).displayName)
+                .id(AppearanceSettingsSearchTarget.animationShape.anchorID)
+            }
+
+            settingRow(
                 title: "Animation Frame Rate",
                 description: "Choose 20, 30, 60, or 120 FPS for background motion. Higher rates use more power; the display and system may limit the actual rate."
             ) {
@@ -619,6 +652,13 @@ struct AlternativeUIView: View {
             )
             .id(AppearanceSettingsSearchTarget.appPerformanceOverlay.anchorID)
 
+        } header: {
+            Text("Animation")
+        }
+    }
+
+    private var startupSection: some View {
+        Section {
 #if os(iOS)
             toggleRow(
                 title: "Hide Splash Screen",
@@ -628,7 +668,7 @@ struct AlternativeUIView: View {
             .id(AppearanceSettingsSearchTarget.hideSplashScreen.anchorID)
 #endif
         } header: {
-            Text("App Experience")
+            Text("Startup")
         }
     }
 
