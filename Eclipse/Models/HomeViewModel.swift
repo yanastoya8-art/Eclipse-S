@@ -399,10 +399,10 @@ final class HomeViewModel: ObservableObject {
                     guard self.loadGeneration == generation else { return }
                     self.catalogResults = [:]
                     self.widgetData = [:]
-                    self.heroContent = nil
                     self.heroCarouselItems = []
                     self.heroCarouselIndex = 0
                     self.heroLaunchSelectionKey = nil
+                    self.applyHeroBannerSelection()
                     self.isLoading = false
                     self.hasLoadedContent = true
                     self.hasCompletedInitialLoad = true
@@ -1570,6 +1570,8 @@ final class HomeViewModel: ObservableObject {
             becauseYouWatchedTitle = ""
             hasRenderableStartupContent = false
         }
+        // Keep a manually selected hero independent from catalog availability.
+        // Reapply it after a catalog refresh clears the shelf snapshots.
         errorMessage = nil
         hasLoadedContent = false
         hasCompletedInitialLoad = false
