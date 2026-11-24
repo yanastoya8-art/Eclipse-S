@@ -2078,9 +2078,10 @@ final class DownloadManager: NSObject, ObservableObject {
         // background session: MP4, MKV, MP3, WebM, FLV, WebDAV-hosted files,
         // extensionless provider streams, and other direct media formats.
         // iOS can continue these URLSession transfers while the app is suspended
-        // and relaunch the app for delegate completion events. HLS playlists use
-        // the checkpointed segment downloader and, on iOS 26+, the continued-
-        // processing coordinator because they require multiple dependent requests.
+        // and relaunch the app for delegate completion events. HLS resources use
+        // a second background URLSession with durable per-resource checkpoints;
+        // continued processing is an additional execution opportunity, not the
+        // only mechanism keeping HLS network requests alive.
         let config = URLSessionConfiguration.background(withIdentifier: "app.eclipse.soupy.downloads")
         config.isDiscretionary = false
         config.sessionSendsLaunchEvents = true
