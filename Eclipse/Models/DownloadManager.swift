@@ -2990,15 +2990,23 @@ final class DownloadManager: NSObject, ObservableObject {
         if activeHLSAttemptIDs[id] == attempt.attemptID {
             attempt.downloader.setContinuedProcessingGranted(false)
         }
-        attempt.downloader.cancel()
-        if let index = downloads.firstIndex(where: { $0.id == id }),
-           downloads[index].status != .completed {
-            downloads[index].status = .paused
-            downloads[index].error = "Background time expired. Resume when app is active."
-            saveDownloads()
+        // If the app is already active, expiration only removes the
+        // continued-processing allowance. The foreground worker still has
+        // execution time and must be allowed to finish without interruption.
+        // When the app is backgrounded, stop at the last durable segment and
+        // recover from that checkpoint on the next foreground activation.
+        let canContinueInForeground = hlsApplicationIsActive && hlsIntentIsCurrent(attempt.intent)
+        if !canContinueInForeground {
+            attempt.downloader.cancel()
+            if let index = downloads.firstIndex(where: { $0.id == id }),
+               downloads[index].status != .completed {
+                downloads[index].status = .paused
+                downloads[index].error = "Background time expired. Resume when app is active."
+                saveDownloads()
+            }
         }
-        // waitForCheckpoint below persists the last fully-written segment before
-        // releasing the scheduler slot and allowing foreground recovery.
+        // waitForCheckpoint persists the last fully-written segment before
+        // releasing the scheduler slot in either foreground or background.
         finishHLSBackgroundAttempt(id: id, attempt: attempt, success: false)
     }
 
