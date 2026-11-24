@@ -478,7 +478,7 @@ struct ContentView: View {
                 }
                 .tag(AppTab.search)
         }
-        .tint(AccentColorManager.shared.currentAccentColor)
+        .tint(accentColorManager.currentAccentColor)
 #if os(iOS)
         .toolbarBackground(LiquidGlassAppearanceSettings.shared.bottomBarTint, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
@@ -690,7 +690,7 @@ struct ExperimentalContentView: View {
                 }
                 .tag(ExperimentalMediaTab.search)
         }
-        .tint(AccentColorManager.shared.currentAccentColor)
+        .tint(accentColorManager.currentAccentColor)
 #if os(iOS)
         .toolbarBackground(LiquidGlassAppearanceSettings.shared.bottomBarTint, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
