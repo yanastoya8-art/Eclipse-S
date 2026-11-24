@@ -834,7 +834,7 @@ private struct MPVPlayerSkinSettingsView: View {
                         GlassDetailRow(title: "Skin Animations", subtitle: "Use subtle glows and color movement in animated skins.") {
                             Toggle("", isOn: $animationsEnabled)
                                 .labelsHidden()
-                                .tint(primaryColor(for: selection))
+                                .tint(accentColorManager.currentAccentColor)
                         }
                         if animationsEnabled && selection != .defaultSkin {
                             GlassDivider(leadingInset: 16)
