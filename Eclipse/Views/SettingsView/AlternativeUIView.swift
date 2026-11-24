@@ -155,7 +155,6 @@ struct AlternativeUIView: View {
 
     var body: some View {
         List {
-            previewSection
             customizationSection
                 .eclipseExperimentalSettingsRows()
             behaviorSection
@@ -332,17 +331,6 @@ struct AlternativeUIView: View {
             }
         } header: {
             Text("Layout & Details")
-        }
-    }
-
-    private var previewSection: some View {
-        Section {
-            AppearancePreviewCard()
-                .listRowInsets(EdgeInsets(top: 6, leading: 14, bottom: 6, trailing: 14))
-                .listRowBackground(Color.clear)
-#if !os(tvOS)
-                .listRowSeparator(.hidden)
-#endif
         }
     }
 
@@ -1489,37 +1477,4 @@ private struct AppearanceSettingsSubpage<Content: View>: View {
     }
 }
 
-private struct AppearancePreviewCard: View {
-    @ObservedObject private var theme = EclipseTheme.shared
 
-    var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            AtmosphereBackdrop(
-                input: theme.atmosphereInput(
-                    dominant: Color(red: 0.52, green: 0.24, blue: 0.66),
-                    hasHeroBleed: true,
-                    heroHeight: 92,
-                    fadeDistance: 150
-                ),
-                scrollOffset: 0
-            )
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Preview")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(.white.opacity(0.7))
-                Text("Banner color bleeds, then the background takes over")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.92))
-                    .lineLimit(2)
-            }
-            .padding(14)
-        }
-        .frame(height: 188)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
-        )
-    }
-}
