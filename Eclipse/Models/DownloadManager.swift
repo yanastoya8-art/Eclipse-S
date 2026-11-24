@@ -1925,10 +1925,10 @@ final class DownloadManager: NSObject, ObservableObject {
         let authorityHeaders: [String: String]
         let authorityReference: ProviderContentReference?
         let stremioConfiguredOriginAuthority: SkyStreamPinnedOriginAuthority?
-        var mainProxyURL: URL?
+        var mainProxyURL: URL? = nil
         var subtitleProxyURLs = Set<URL>()
         var mainTaskIdentifier: Int?
-        var hlsVariantProxyURL: URL?
+        var hlsVariantProxyURL: URL? = nil
         var mainFinished = false
     }
 
