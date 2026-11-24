@@ -219,6 +219,369 @@ private final class HLSRedirectPolicyDelegate: NSObject, URLSessionTaskDelegate 
     }
 }
 
+#if os(iOS) && !targetEnvironment(macCatalyst)
+private struct HLSBackgroundDownloadResult {
+    let data: Data
+    let response: URLResponse?
+}
+
+/// Downloads each HLS resource as an OS-managed background URLSession task.
+/// Stable task descriptions and a small completed-file cache let a new
+/// HLSDownloader reattach after iOS relaunches Eclipse for background events.
+private final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
+    static let identifier = "app.eclipse.soupy.hls-segments"
+    static let shared = HLSBackgroundURLSessionCoordinator()
+
+    private struct PendingRequest {
+        let maximumResponseBytes: Int
+        let continuation: CheckedContinuation<HLSBackgroundDownloadResult, Error>
+    }
+
+    private struct ResponseSnapshot: Codable {
+        let url: String
+        let statusCode: Int?
+        let headers: [String: String]
+        let mimeType: String?
+        let expectedContentLength: Int64
+        let textEncodingName: String?
+
+        init?(response: URLResponse?, fallbackURL: URL?) {
+            guard let response else { return nil }
+            guard let url = response.url ?? fallbackURL else { return nil }
+            self.url = url.absoluteString
+            self.expectedContentLength = response.expectedContentLength
+            self.mimeType = response.mimeType
+            self.textEncodingName = response.textEncodingName
+            if let http = response as? HTTPURLResponse {
+                statusCode = http.statusCode
+                headers = http.allHeaderFields.reduce(into: [:]) { result, pair in
+                    guard let name = pair.key as? String else { return }
+                    result[name] = String(describing: pair.value)
+                }
+            } else {
+                statusCode = nil
+                headers = [:]
+            }
+        }
+
+        func makeURLResponse() -> URLResponse? {
+            guard let url = URL(string: url) else { return nil }
+            if let statusCode {
+                return HTTPURLResponse(
+                    url: url,
+                    statusCode: statusCode,
+                    httpVersion: "HTTP/1.1",
+                    headerFields: headers
+                )
+            }
+            return URLResponse(
+                url: url,
+                mimeType: mimeType,
+                expectedContentLength: Int(exactly: expectedContentLength) ?? -1,
+                textEncodingName: textEncodingName
+            )
+        }
+    }
+
+    private let queue = DispatchQueue(label: "app.eclipse.hls-background-url-session")
+    private var pending: [String: PendingRequest] = [:]
+    private var activeTasks: [String: URLSessionDownloadTask] = [:]
+    private var backgroundCompletionHandler: (() -> Void)?
+
+    private lazy var session: URLSession = {
+        let configuration = URLSessionConfiguration.background(withIdentifier: Self.identifier)
+        configuration.isDiscretionary = false
+        configuration.sessionSendsLaunchEvents = true
+        configuration.waitsForConnectivity = true
+        configuration.allowsCellularAccess = true
+        configuration.httpMaximumConnectionsPerHost = 4
+        configuration.timeoutIntervalForRequest = 600
+        configuration.timeoutIntervalForResource = 7 * 24 * 60 * 60
+        return URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+    }()
+
+    private override init() {
+        super.init()
+    }
+
+    func handleEvents(completionHandler: @escaping () -> Void) {
+        queue.async {
+            self.backgroundCompletionHandler = completionHandler
+            _ = self.session
+        }
+    }
+
+    func download(
+        _ request: URLRequest,
+        downloadID: String,
+        maximumResponseBytes: Int
+    ) async throws -> HLSBackgroundDownloadResult {
+        let description = taskDescription(downloadID: downloadID, url: request.url)
+        if let cached = try queue.sync(execute: {
+            try readCompletedResult(for: description, maximumResponseBytes: maximumResponseBytes)
+        }) {
+            return cached
+        }
+
+        return try await withCheckedThrowingContinuation { continuation in
+            queue.async {
+                self.pending[description] = PendingRequest(
+                    maximumResponseBytes: maximumResponseBytes,
+                    continuation: continuation
+                )
+                self.session.getAllTasks { tasks in
+                    self.queue.async {
+                        guard self.pending[description] != nil else { return }
+                        if let existing = tasks.first(where: { $0.taskDescription == description }) as? URLSessionDownloadTask {
+                            self.activeTasks[description] = existing
+                            if existing.state == .suspended { existing.resume() }
+                            return
+                        }
+
+                        var backgroundRequest = request
+                        backgroundRequest.timeoutInterval = max(backgroundRequest.timeoutInterval, 600)
+                        let task = self.session.downloadTask(with: backgroundRequest)
+                        task.taskDescription = description
+                        self.activeTasks[description] = task
+                        task.resume()
+                    }
+                }
+            }
+        }
+    }
+
+    /// Ends only the in-process waiter. The OS-owned transfer is deliberately
+    /// left alive; its completed file is cached for the next worker to consume.
+    func detach(downloadID: String) {
+        let prefix = taskPrefix(downloadID: downloadID)
+        queue.async {
+            let keys = self.pending.keys.filter { $0.hasPrefix(prefix) }
+            for key in keys {
+                guard let request = self.pending.removeValue(forKey: key) else { continue }
+                request.continuation.resume(throwing: URLError(.cancelled))
+            }
+        }
+    }
+
+    /// Explicit user cancellation is different from iOS background expiration:
+    /// cancel all OS tasks and remove cached segments for this download.
+    func cancel(downloadID: String) {
+        let prefix = taskPrefix(downloadID: downloadID)
+        queue.async {
+            let keys = self.pending.keys.filter { $0.hasPrefix(prefix) }
+            for key in keys {
+                guard let request = self.pending.removeValue(forKey: key) else { continue }
+                request.continuation.resume(throwing: URLError(.cancelled))
+            }
+            for (key, task) in self.activeTasks where key.hasPrefix(prefix) {
+                task.cancel()
+                self.activeTasks.removeValue(forKey: key)
+            }
+            self.session.getAllTasks { tasks in
+                tasks.filter { $0.taskDescription?.hasPrefix(prefix) == true }.forEach { $0.cancel() }
+            }
+            self.removeCachedResults(withPrefix: prefix)
+        }
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didFinishDownloadingTo location: URL
+    ) {
+        guard let description = downloadTask.taskDescription,
+              description.hasPrefix("eclipse-hls-v1-") else { return }
+        let maximumBytes = queue.sync {
+            pending[description]?.maximumResponseBytes ?? 128 * 1_024 * 1_024
+        }
+        let size = Self.regularFileSize(at: location)
+        guard size >= 0, size <= Int64(maximumBytes) else {
+            try? FileManager.default.removeItem(at: location)
+            queue.async {
+                self.activeTasks.removeValue(forKey: description)
+                if let request = self.pending.removeValue(forKey: description) {
+                    request.continuation.resume(throwing: URLError(.dataLengthExceedsMaximum))
+                }
+            }
+            return
+        }
+
+        do {
+            let baseURL = cacheBaseURL(for: description)
+            try FileManager.default.createDirectory(
+                at: baseURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            if FileManager.default.fileExists(atPath: baseURL.path) {
+                try FileManager.default.removeItem(at: baseURL)
+            }
+            try FileManager.default.moveItem(at: location, to: baseURL)
+            if let snapshot = ResponseSnapshot(
+                response: downloadTask.response,
+                fallbackURL: downloadTask.originalRequest?.url
+            ) {
+                try JSONEncoder().encode(snapshot).write(
+                    to: responseURL(for: description),
+                    options: .atomic
+                )
+            }
+
+            queue.async {
+                self.activeTasks.removeValue(forKey: description)
+                guard let request = self.pending.removeValue(forKey: description) else {
+                    // No worker survived the app suspension. Keep the completed
+                    // resource on disk so the resumed worker doesn't fetch it again.
+                    return
+                }
+                do {
+                    guard let result = try self.readCompletedResult(
+                        for: description,
+                        maximumResponseBytes: request.maximumResponseBytes
+                    ) else {
+                        throw URLError(.cannotLoadFromNetwork)
+                    }
+                    request.continuation.resume(returning: result)
+                } catch {
+                    request.continuation.resume(throwing: error)
+                }
+            }
+        } catch {
+            try? FileManager.default.removeItem(at: location)
+            queue.async {
+                self.activeTasks.removeValue(forKey: description)
+                if let request = self.pending.removeValue(forKey: description) {
+                    request.continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        guard let description = task.taskDescription,
+              description.hasPrefix("eclipse-hls-v1-") else { return }
+        queue.async {
+            self.activeTasks.removeValue(forKey: description)
+            guard let error,
+                  let request = self.pending.removeValue(forKey: description) else { return }
+            request.continuation.resume(throwing: error)
+        }
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        guard let source = response.url,
+              let destination = request.url,
+              HLSDownloadCompatibility.permitsRedirect(from: source, to: destination) else {
+            completionHandler(nil)
+            return
+        }
+
+        let origin = task.originalRequest?.url ?? source
+        let originalHeaders = task.originalRequest?.allHTTPHeaderFields ?? [:]
+        let safeHeaders = MPVHeaderProxy.shared.directTransportHeaders(
+            originalHeaders,
+            for: destination,
+            originURL: origin
+        )
+        var redirected = request
+        for name in originalHeaders.keys {
+            redirected.setValue(nil, forHTTPHeaderField: name)
+        }
+        for name in ["Authorization", "Cookie", "Proxy-Authorization", "X-Api-Key", "X-Auth-Token"] {
+            redirected.setValue(nil, forHTTPHeaderField: name)
+        }
+        for (name, value) in safeHeaders {
+            redirected.setValue(value, forHTTPHeaderField: name)
+        }
+        completionHandler(redirected)
+    }
+
+    func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
+        queue.async {
+            let completion = self.backgroundCompletionHandler
+            self.backgroundCompletionHandler = nil
+            DispatchQueue.main.async { completion?() }
+        }
+    }
+
+    private func taskPrefix(downloadID: String) -> String {
+        "eclipse-hls-v1-\(digest(downloadID))- "
+            .replacingOccurrences(of: "- ", with: "-")
+    }
+
+    private func taskDescription(downloadID: String, url: URL?) -> String {
+        let urlValue = url?.absoluteString ?? "missing-url"
+        return taskPrefix(downloadID: downloadID) + digest(urlValue)
+    }
+
+    private func digest(_ value: String) -> String {
+        SHA256.hash(data: Data(value.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private func cacheBaseURL(for description: String) -> URL {
+        cacheDirectoryURL().appendingPathComponent(description + ".segment")
+    }
+
+    private func responseURL(for description: String) -> URL {
+        cacheDirectoryURL().appendingPathComponent(description + ".response.json")
+    }
+
+    private func cacheDirectoryURL() -> URL {
+        let directory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("HLSBackgroundSegments", isDirectory: true)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        var mutableDirectory = directory
+        try? mutableDirectory.setResourceValues(values)
+        return directory
+    }
+
+    private func readCompletedResult(
+        for description: String,
+        maximumResponseBytes: Int
+    ) throws -> HLSBackgroundDownloadResult? {
+        let fileURL = cacheBaseURL(for: description)
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return nil }
+        let size = Self.regularFileSize(at: fileURL)
+        guard size >= 0, size <= Int64(maximumResponseBytes) else {
+            try? FileManager.default.removeItem(at: fileURL)
+            try? FileManager.default.removeItem(at: responseURL(for: description))
+            throw URLError(.dataLengthExceedsMaximum)
+        }
+        let data = try Data(contentsOf: fileURL)
+        let response = (try? Data(contentsOf: responseURL(for: description)))
+            .flatMap { try? JSONDecoder().decode(ResponseSnapshot.self, from: $0) }
+            .flatMap { $0.makeURLResponse() }
+        try? FileManager.default.removeItem(at: fileURL)
+        try? FileManager.default.removeItem(at: responseURL(for: description))
+        return HLSBackgroundDownloadResult(data: data, response: response)
+    }
+
+    private func removeCachedResults(withPrefix prefix: String) {
+        guard let urls = try? FileManager.default.contentsOfDirectory(
+            at: cacheDirectoryURL(),
+            includingPropertiesForKeys: nil
+        ) else { return }
+        for url in urls where url.lastPathComponent.hasPrefix(prefix) {
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
+    private static func regularFileSize(at url: URL) -> Int64 {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+              attributes[.type] as? FileAttributeType == .typeRegular,
+              let size = attributes[.size] as? NSNumber else { return -1 }
+        return size.int64Value
+    }
+}
+#endif
+
 struct HLSDownloadCheckpoint {
     let variantURL: URL
     let totalSegments: Int
