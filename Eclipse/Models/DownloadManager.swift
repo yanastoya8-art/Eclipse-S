@@ -9492,6 +9492,66 @@ final class DownloadManager: NSObject, ObservableObject {
         }
     }
 
+    /// Reattaches a provider-backed background URLSession task after iOS
+    /// relaunches Eclipse. Provider URLs and credentials are recovered only
+    /// from the live OS-owned task, never from the persisted download snapshot.
+    private func restoreProtectedDirectTask(
+        _ task: URLSessionDownloadTask,
+        id: String,
+        item: DownloadItem
+    ) -> Bool {
+#if (os(iOS) && !targetEnvironment(macCatalyst)) || os(macOS)
+        guard item.claimsProtectedProviderTransport,
+              protectedOwnerMatchesActiveProfile(item),
+              let request = task.originalRequest,
+              let url = request.url,
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              let host = url.host?.lowercased(),
+              !host.isEmpty,
+              host != "127.0.0.1",
+              host != "localhost",
+              url.user == nil,
+              url.password == nil else { return false }
+
+        let providerKind: ProtectedDownloadProviderKind
+        let authorityReference: ProviderContentReference?
+        switch Self.protectedAuthorityState(for: item) {
+        case .authorized(let kind):
+            providerKind = kind
+            authorityReference = item.lastContentReference
+        case .legacyService:
+            providerKind = .service
+            authorityReference = nil
+        case .legacyStremio:
+            providerKind = .stremio
+            authorityReference = nil
+        case .notProtected, .invalid:
+            return false
+        }
+
+        let requestHeaders = request.allHTTPHeaderFields ?? [:]
+        let safeHeaders = MPVHeaderProxy.shared.directTransportHeaders(
+            requestHeaders,
+            for: url,
+            originURL: url
+        )
+        let attemptID = UUID()
+        protectedProviderAttempts[id] = ProtectedProviderDownloadAttempt(
+            attemptID: attemptID,
+            providerKind: providerKind,
+            authorityURL: url.absoluteString,
+            authorityHeaders: safeHeaders,
+            authorityReference: authorityReference,
+            stremioConfiguredOriginAuthority: nil,
+            mainTaskIdentifier: task.taskIdentifier
+        )
+        return true
+#else
+        return !item.claimsProtectedProviderTransport
+#endif
+    }
+
     private func resumeInterruptedDownloads() {
         guard !metadataLoadFailed else { return }
         backgroundSession.getAllTasks { [weak self] tasks in
@@ -9506,10 +9566,8 @@ final class DownloadManager: NSObject, ObservableObject {
                 for case let task as URLSessionDownloadTask in tasks {
                     if let id = task.taskDescription,
                        let index = downloads.firstIndex(where: { $0.id == id }),
-                       !ProtectedDownloadPersistencePolicy.mayAdoptRestoredBackgroundTask(
-                           claimsProtectedProvider: downloads[index]
-                               .claimsProtectedProviderTransport
-                       ) {
+                       downloads[index].claimsProtectedProviderTransport,
+                       !restoreProtectedDirectTask(task, id: id, item: downloads[index]) {
                         invalidatedDirectTaskIdentifiers.insert(task.taskIdentifier)
                         task.cancel()
 #if (os(iOS) && !targetEnvironment(macCatalyst)) || os(macOS)
