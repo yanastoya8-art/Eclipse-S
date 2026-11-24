@@ -195,31 +195,40 @@ final class HLSBackgroundDownloadTests: XCTestCase {
         await fixture.cleanUp()
     }
 
-    func testExpirationAfterBackgroundingAutomaticallyResumesOnForegroundReturn() async throws {
+    func testExpirationAfterBackgroundingKeepsHLSWorkerRunning() async throws {
         let fixture = try HLSBackgroundFixture(mode: .grant)
         do {
             try fixture.start()
             try await eventually { fixture.heldCount == 1 && fixture.scheduler.grantResults == [true] }
             fixture.foreground = false
             fixture.manager.applicationDidEnterBackground()
+            let pathsBeforeExpiration = fixture.requestedPaths
             fixture.scheduler.expire(0)
             try await eventually { fixture.scheduler.finishes.count == 1 && fixture.heldCount == 0 }
             await fixture.manager.drainIsolatedHLSWorkers()
-            XCTAssertEqual(fixture.item.status, .queued)
+
+            // Expiring the optional continued-processing grant must not cancel
+            // the segment worker or mark a healthy download as queued/paused.
+            XCTAssertTrue(
+                fixture.item.status == .downloading || fixture.item.status == .completed
+            )
             XCTAssertTrue(fixture.item.hasVerifiedHLSCheckpoint)
-            XCTAssertEqual(fixture.scheduler.finishes.map(\.success), [false])
-            let paths = fixture.requestedPaths
+            XCTAssertEqual(fixture.scheduler.finishes.map(\\.success), [false])
+
             fixture.foreground = true
             fixture.manager.applicationDidBecomeActive()
             try await eventually {
-                fixture.item.status == .downloading
-                    && fixture.scheduler.requests.count >= 2
-                    && fixture.requestedPaths.count > paths.count
+                fixture.item.status == .completed
+                    || fixture.requestedPaths.count > pathsBeforeExpiration.count
             }
             await fixture.manager.drainIsolatedPersistence()
-            XCTAssertEqual(fixture.item.status, .downloading)
+            XCTAssertTrue(
+                fixture.item.status == .downloading || fixture.item.status == .completed
+            )
             XCTAssertTrue(fixture.item.hasVerifiedHLSCheckpoint)
-            XCTAssertGreaterThanOrEqual(fixture.scheduler.requests.count, 2)
+            // Do not create a second continued-processing request for the same
+            // worker after the first grant expired; it is already continuing.
+            XCTAssertEqual(fixture.scheduler.requests.count, 1)
         } catch {
             await fixture.cleanUp()
             throw error
