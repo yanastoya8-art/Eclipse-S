@@ -2304,7 +2304,6 @@ struct ModulesSearchResultsSheet: View {
 
                 Spacer(minLength: 0)
             }
-            .stremioStyleStreamCard()
         }
 
 #if os(tvOS)
@@ -2312,6 +2311,7 @@ struct ModulesSearchResultsSheet: View {
 #else
         .buttonStyle(.plain)
 #endif
+        .stremioStyleStreamCard()
         .listRowBackground(Color.clear)
         .eclipseHideListRowSeparator()
         .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 5, trailing: 14))
@@ -2353,13 +2353,13 @@ struct ModulesSearchResultsSheet: View {
 
                 Spacer(minLength: 0)
             }
-            .stremioStyleStreamCard()
         }
 #if os(tvOS)
         .buttonStyle(TVGlassRowButtonStyle())
 #else
         .buttonStyle(.plain)
 #endif
+        .stremioStyleStreamCard()
         .listRowBackground(Color.clear)
         .eclipseHideListRowSeparator()
         .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 5, trailing: 14))
@@ -2486,13 +2486,13 @@ struct ModulesSearchResultsSheet: View {
 
                 Spacer(minLength: 0)
             }
-            .stremioStyleStreamCard()
         }
 #if os(tvOS)
         .buttonStyle(TVGlassRowButtonStyle())
 #else
         .buttonStyle(.plain)
 #endif
+        .stremioStyleStreamCard()
         .listRowBackground(Color.clear)
         .eclipseHideListRowSeparator()
         .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 5, trailing: 14))
@@ -8034,13 +8034,13 @@ struct ModulesSearchResultsSheet: View {
                 }
                 Spacer(minLength: 0)
             }
-            .stremioStyleStreamCard()
         }
 #if os(tvOS)
         .buttonStyle(TVGlassRowButtonStyle())
 #else
         .buttonStyle(.plain)
 #endif
+        .stremioStyleStreamCard()
         .listRowBackground(Color.clear)
         .eclipseHideListRowSeparator()
         .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 5, trailing: 14))
@@ -8401,13 +8401,13 @@ struct ModulesSearchResultsSheet: View {
                 }
                 Spacer(minLength: 0)
             }
-            .stremioStyleStreamCard()
         }
 #if os(tvOS)
         .buttonStyle(TVGlassRowButtonStyle())
 #else
         .buttonStyle(.plain)
 #endif
+        .stremioStyleStreamCard()
         .listRowBackground(Color.clear)
         .eclipseHideListRowSeparator()
         .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 5, trailing: 14))
