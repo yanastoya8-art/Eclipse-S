@@ -574,6 +574,55 @@ enum ServicesResultRankingSettings {
     }
 }
 
+enum ServicesStreamAppearanceSettings {
+    static let streamCardColorKey = "servicesStreamCardColor"
+    static let streamIconColorKey = "servicesStreamIconColor"
+
+    static func streamCardColor(defaults: UserDefaults = ProfileSettingsStore.services) -> Color {
+        archivedColor(forKey: streamCardColorKey, defaults: defaults) ?? Color.primary.opacity(0.07)
+    }
+
+    static func streamIconColor(defaults: UserDefaults = ProfileSettingsStore.services) -> Color {
+        archivedColor(forKey: streamIconColorKey, defaults: defaults) ?? .green
+    }
+
+    static func setStreamCardColor(_ color: Color, defaults: UserDefaults = ProfileSettingsStore.services) {
+        save(color, forKey: streamCardColorKey, defaults: defaults)
+    }
+
+    static func setStreamIconColor(_ color: Color, defaults: UserDefaults = ProfileSettingsStore.services) {
+        save(color, forKey: streamIconColorKey, defaults: defaults)
+    }
+
+    static func reset(defaults: UserDefaults = ProfileSettingsStore.services) {
+        defaults.removeObject(forKey: streamCardColorKey)
+        defaults.removeObject(forKey: streamIconColorKey)
+    }
+
+    private static func archivedColor(forKey key: String, defaults: UserDefaults) -> Color? {
+        guard let data = defaults.data(forKey: key), !data.isEmpty,
+              let color = try? PortableColorArchive.color(from: data) else { return nil }
+#if os(macOS)
+        return color.map(Color.init(nsColor:))
+#else
+        return color.map(Color.init(uiColor:))
+#endif
+    }
+
+    private static func save(_ color: Color, forKey key: String, defaults: UserDefaults) {
+        do {
+#if os(macOS)
+            let platformColor = NSColor(color)
+#else
+            let platformColor = UIColor(color)
+#endif
+            defaults.set(try PortableColorArchive.data(for: platformColor), forKey: key)
+        } catch {
+            Logger.shared.log("Failed to save stream appearance color", type: "Error")
+        }
+    }
+}
+
 enum ContentBlockingSettings {
     static let blockAddonSubtitlesKey = "contentBlockingBlockAddonSubtitles"
     static let blockAddonCatalogsKey = "contentBlockingBlockAddonCatalogs"
