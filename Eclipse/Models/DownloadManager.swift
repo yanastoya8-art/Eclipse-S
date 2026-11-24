@@ -6709,7 +6709,6 @@ final class DownloadManager: NSObject, ObservableObject {
                 && normalizedDispatchURL?.host?.lowercased() == url.host?.lowercased()
             outcome = isSyntacticallyApproved ? .approved : .rejected
 
-            var directBackgroundAllowed = false
 #if (os(iOS) && !targetEnvironment(macCatalyst)) || os(macOS)
             let authorityState = Self.protectedAuthorityState(for: item)
             let directCandidate: Bool
@@ -6719,6 +6718,7 @@ final class DownloadManager: NSObject, ObservableObject {
             default:
                 directCandidate = false
             }
+            let directBackgroundAllowed: Bool
             if isSyntacticallyApproved, directCandidate, scheme == "https" {
                 do {
                     let validated = try await SkyStreamRemoteURLPolicy.shared.validateForNetworkDispatch(
@@ -6731,7 +6731,11 @@ final class DownloadManager: NSObject, ObservableObject {
                     // cannot be safely dispatched by the OS background session.
                     directBackgroundAllowed = false
                 }
+            } else {
+                directBackgroundAllowed = false
             }
+#else
+            let directBackgroundAllowed = false
 #endif
 
             await MainActor.run { [weak self] in
