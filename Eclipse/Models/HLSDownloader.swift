@@ -462,13 +462,13 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
                 try FileManager.default.removeItem(at: baseURL)
             }
             try? FileManager.default.removeItem(at: responseURL(for: description))
-            try FileManager.default.moveItem(at: location, to: baseURL)
             if let snapshot = ResponseSnapshot(response: downloadTask.response) {
-                try JSONEncoder().encode(snapshot).write(
+                try? JSONEncoder().encode(snapshot).write(
                     to: responseURL(for: description),
                     options: .atomic
                 )
             }
+            try FileManager.default.moveItem(at: location, to: baseURL)
 
             queue.async {
                 self.activeTasks.removeValue(forKey: description)
