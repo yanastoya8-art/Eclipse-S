@@ -1009,8 +1009,13 @@ final class ScheduleViewModel: ObservableObject {
                 malID: malID
             )
         }
+        // Apply selected-language eligibility before collapsing duplicate
+        // episodes. Otherwise an earlier non-selected-language date (for
+        // example, Japanese broadcast when only English/Spanish is selected)
+        // can win the merge and then be filtered out, hiding the valid dub row.
+        let eligibleEntries = ScheduleEntryMergePolicy.earliestByEpisode(entries)
         return AnimeScheduleLoadResult(
-            entries: entries,
+            entries: eligibleEntries,
             isAuthoritativeForNotifications: result.isAuthoritativeForNotifications,
             notice: result.notice
         )
@@ -1052,7 +1057,11 @@ final class ScheduleViewModel: ObservableObject {
 
         // Merge by shared AniList/MAL identity so fallback rows cannot
         // duplicate an episode merely because the providers use different IDs.
-        let mergedEntries = ScheduleEntryMergePolicy.earliestByEpisode(currentResult.entries + additions)
+        // Keep alternate-language candidates until the configured language
+        // policy has run. Deduplicating first can let an earlier English row
+        // mask a later Spanish row (or vice versa) even when only one language
+        // is selected.
+        let mergedEntries = currentResult.entries + additions
 
         // Spanish research runs after the first calendar paint. Re-run the
         // complete anime policy (language, specials/OVAs, categories, era and
@@ -1286,9 +1295,11 @@ final class ScheduleViewModel: ObservableObject {
                         try await AniListService.shared.fetchAiringScheduleResult(daysAhead: dayCount)
                     }
                 }
-                let entries = ScheduleEntryMergePolicy.earliestByEpisode(
-                    result.entries.map(ScheduleEntry.init(animeEntry:)) + verifiedNativeLanguageEntries
-                )
+                // Preserve all provider candidates in the cache. The selected
+                // language policy must run before episode deduplication so a
+                // non-selected language cannot hide a qualifying dub date.
+                let entries = result.entries.map(ScheduleEntry.init(animeEntry:))
+                    + verifiedNativeLanguageEntries
                 try Task.checkCancellation()
                 // Hide the routine language-verification explanation. Keep a
                 // concise outage notice only when every selected-language source
