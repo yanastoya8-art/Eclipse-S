@@ -264,6 +264,7 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
         // Persist only non-secret response metadata. Never write a signed
         // provider URL, Set-Cookie, Location, or authorization-related headers
         // into the app's cache when a background task finishes after relaunch.
+        let responseOrigin: String?
         let statusCode: Int?
         let headers: [String: String]
         let mimeType: String?
@@ -272,6 +273,17 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
 
         init?(response: URLResponse?) {
             guard let response else { return nil }
+            if let responseURL = response.url,
+               var components = URLComponents(url: responseURL, resolvingAgainstBaseURL: false) {
+                components.user = nil
+                components.password = nil
+                components.path = ""
+                components.query = nil
+                components.fragment = nil
+                responseOrigin = components.url?.absoluteString
+            } else {
+                responseOrigin = nil
+            }
             self.expectedContentLength = response.expectedContentLength
             self.mimeType = response.mimeType
             self.textEncodingName = response.textEncodingName
@@ -293,7 +305,8 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
         }
 
         func makeURLResponse(fallbackURL: URL?) -> URLResponse? {
-            guard let url = fallbackURL else { return nil }
+            let url = responseOrigin.flatMap(URL.init(string:)) ?? fallbackURL
+            guard let url else { return nil }
             if let statusCode {
                 return HTTPURLResponse(
                     url: url,
