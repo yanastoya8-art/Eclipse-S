@@ -3022,19 +3022,28 @@ private struct BrowseMediaView: View {
             }
             guard !Task.isCancelled else { return [] }
         }
-        guard ageRating != .all || requiresAnimeIdentity else {
+        let defaults = UserDefaults.standard
+        let requiresBrowseMetadata = defaults.bool(forKey: "catalogHideUnder20MinuteContent")
+            || defaults.bool(forKey: "catalogHideUnofficialContent")
+            || defaults.bool(forKey: "catalogHideBelowPG13Movies")
+            || defaults.bool(forKey: "catalogHideBelowTV14Shows")
+            || defaults.bool(forKey: "catalogHideBelowPG13Anime")
+            || defaults.bool(forKey: "catalogHideAllAgesMovies")
+            || defaults.bool(forKey: "catalogHideAllAgesSeries")
+            || defaults.bool(forKey: "catalogHideAllAgesAnime")
+            || defaults.bool(forKey: "catalogRequireEnglishSpanishAudio")
+        guard ageRating != .all || requiresAnimeIdentity || requiresBrowseMetadata else {
             return typeFiltered
         }
         guard !Task.isCancelled else { return [] }
 
-        // Resolve missing anime identities before age filtering and language
-        // filtering. Previously this entire resolver was skipped when age rating
-        // was set to All, so dub-filtered anime could never obtain AniList IDs
-        // and were incorrectly removed as unverified.
-        //
-        // AniList/Taizen cannot supply the rating for TMDB discover rows with
-        // incomplete metadata and those titles are incorrectly treated as unrated.
-        let ratingCandidates = mediaType.isAnime
+        // Resolve anime identity only when an anime-specific filter needs it.
+        // Production-company/runtime filters also apply to ordinary TV and
+        // movies, so they must still resolve metadata when Browse's age menu is
+        // set to "Any Age Rating".
+        let shouldResolveAnimeIdentity = mediaType.isAnime
+            && (requiresAnimeIdentity || ageRating != .all)
+        let ratingCandidates = shouldResolveAnimeIdentity
             ? await resolveAnimeBrowseIdentities(typeFiltered, resolveArtwork: false)
             : typeFiltered
         guard !Task.isCancelled else { return [] }

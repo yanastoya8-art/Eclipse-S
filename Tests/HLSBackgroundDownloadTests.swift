@@ -74,7 +74,7 @@ final class HLSBackgroundDownloadTests: XCTestCase {
             XCTAssertEqual(try fixture.completedData(), Data("AABBCC".utf8))
             // The system-expired task is reported as unsuccessful even though
             // the actual transfer completed using the fallback allowance.
-            XCTAssertEqual(fixture.scheduler.finishes.map(\.success), [false])
+            XCTAssertEqual(fixture.scheduler.finishes.map { $0.success }, [false])
         } catch {
             await fixture.cleanUp()
             throw error
@@ -195,7 +195,7 @@ final class HLSBackgroundDownloadTests: XCTestCase {
         await fixture.cleanUp()
     }
 
-    func testExpirationAfterBackgroundingAutomaticallyResumesOnForegroundReturn() async throws {
+    func testExpirationAfterBackgroundingAutomaticallyResumesFromCheckpoint() async throws {
         let fixture = try HLSBackgroundFixture(mode: .grant)
         do {
             try fixture.start()
@@ -205,9 +205,11 @@ final class HLSBackgroundDownloadTests: XCTestCase {
             fixture.scheduler.expire(0)
             try await eventually { fixture.scheduler.finishes.count == 1 && fixture.heldCount == 0 }
             await fixture.manager.drainIsolatedHLSWorkers()
-            XCTAssertEqual(fixture.item.status, .queued)
+            XCTAssertEqual(fixture.item.status, .paused)
             XCTAssertTrue(fixture.item.hasVerifiedHLSCheckpoint)
-            XCTAssertEqual(fixture.scheduler.finishes.map(\.success), [false])
+            XCTAssertEqual(fixture.item.error, "Background time expired. Resume when app is active.")
+            XCTAssertEqual(fixture.scheduler.finishes.map { $0.success }, [false])
+
             let paths = fixture.requestedPaths
             fixture.foreground = true
             fixture.manager.applicationDidBecomeActive()

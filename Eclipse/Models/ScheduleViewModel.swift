@@ -41,6 +41,23 @@ enum AnimeScheduleLanguageLookupPolicy {
     }
 }
 
+/// Schedule providers often supply a confirmed dub date without episode
+/// runtime metadata. Unknown runtime must not erase the entire dubbed calendar
+/// when the optional under-20-minute catalogue filter is enabled. Known short
+/// episodes are still excluded; unknown values remain visible until metadata
+/// can be resolved.
+enum AnimeScheduleRuntimeFilterPolicy {
+    static func resolvedRuntime(providerRuntimeMinutes: Int?, nativeRuntimeMinutes: Int?) -> Int? {
+        providerRuntimeMinutes ?? nativeRuntimeMinutes
+    }
+
+    static func shouldInclude(runtimeMinutes: Int?, enabled: Bool) -> Bool {
+        guard enabled else { return true }
+        guard let runtimeMinutes, runtimeMinutes > 0 else { return true }
+        return runtimeMinutes >= 20
+    }
+}
+
 enum AnimeScheduleProviderLanguagePolicy {
     /// Returns nil for providers whose eligibility is decided by the verified
     /// title-level dub index instead of a provider-specific language timetable.
@@ -984,8 +1001,11 @@ final class ScheduleViewModel: ObservableObject {
                let year = entry.releaseYear, year < 1994 {
                 return false
             }
-            if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
-                guard CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: entry.runtimeMinutes) else { return false }
+            if !AnimeScheduleRuntimeFilterPolicy.shouldInclude(
+                runtimeMinutes: entry.runtimeMinutes,
+                enabled: UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent")
+            ) {
+                return false
             }
 
             // With no dub-language filter selected, preserve the existing
@@ -1009,8 +1029,13 @@ final class ScheduleViewModel: ObservableObject {
                 malID: malID
             )
         }
+        // Apply selected-language eligibility before collapsing duplicate
+        // episodes. Otherwise an earlier non-selected-language date (for
+        // example, Japanese broadcast when only English/Spanish is selected)
+        // can win the merge and then be filtered out, hiding the valid dub row.
+        let eligibleEntries = ScheduleEntryMergePolicy.earliestByEpisode(entries)
         return AnimeScheduleLoadResult(
-            entries: entries,
+            entries: eligibleEntries,
             isAuthoritativeForNotifications: result.isAuthoritativeForNotifications,
             notice: result.notice
         )
@@ -1050,9 +1075,11 @@ final class ScheduleViewModel: ObservableObject {
     ) async {
         guard !additions.isEmpty else { return }
 
-        // Merge by shared AniList/MAL identity so fallback rows cannot
-        // duplicate an episode merely because the providers use different IDs.
-        let mergedEntries = ScheduleEntryMergePolicy.earliestByEpisode(currentResult.entries + additions)
+        // Keep provider candidates until the configured language policy has
+        // run. Deduplicating first can let an earlier English row mask a later
+        // Spanish row (or vice versa) even when only one language is selected.
+        // The filtered snapshot is deduplicated after language eligibility.
+        let mergedEntries = currentResult.entries + additions
 
         // Spanish research runs after the first calendar paint. Re-run the
         // complete anime policy (language, specials/OVAs, categories, era and
@@ -1165,6 +1192,7 @@ final class ScheduleViewModel: ObservableObject {
                 )
                 let result: AnimeAiringScheduleResult
                 var verifiedNativeLanguageEntries: [ScheduleEntry] = []
+                var nativeAnimeMetadataEntries: [AniListAiringScheduleEntry] = []
                 var spanishDubResearchCandidates: [AniListAiringScheduleEntry] = []
                 let permitsEnglishDubSchedule = AnimeScheduleFallback.permitsEnglishDubSchedule(
                     selectedDubLanguages: selectedDubLanguages,
@@ -1215,6 +1243,7 @@ final class ScheduleViewModel: ObservableObject {
                         ) {
                             try await AniListService.shared.fetchNativeAiringScheduleForDubResearch(daysAhead: dayCount)
                         }) ?? []
+                            nativeAnimeMetadataEntries = nativeSchedule
                             let nativeEntries = nativeSchedule.map(ScheduleEntry.init(animeEntry:))
                             verifiedNativeLanguageEntries = AnimeScheduleLanguageLookupPolicy.nativeLanguageEntries(
                                 nativeEntries,
@@ -1286,9 +1315,34 @@ final class ScheduleViewModel: ObservableObject {
                         try await AniListService.shared.fetchAiringScheduleResult(daysAhead: dayCount)
                     }
                 }
-                let entries = ScheduleEntryMergePolicy.earliestByEpisode(
-                    result.entries.map(ScheduleEntry.init(animeEntry:)) + verifiedNativeLanguageEntries
-                )
+                // Preserve all provider candidates in the cache. The selected
+                // language policy must run before episode deduplication so a
+                // non-selected language cannot hide a qualifying dub date.
+                var nativeMetadataByID: [Int: AniListAiringScheduleEntry] = [:]
+                for metadata in nativeAnimeMetadataEntries {
+                    nativeMetadataByID[metadata.mediaId] = metadata
+                    if let malID = metadata.malID, malID > 0 {
+                        nativeMetadataByID[-malID] = metadata
+                    }
+                }
+                let enrichedDubEntries = result.entries.map { providerEntry -> ScheduleEntry in
+                    var enriched = providerEntry
+                    let metadata = nativeMetadataByID[providerEntry.mediaId]
+                        ?? providerEntry.malID.flatMap { nativeMetadataByID[-$0] }
+                    if let metadata {
+                        enriched.runtimeMinutes = AnimeScheduleRuntimeFilterPolicy.resolvedRuntime(
+                            providerRuntimeMinutes: providerEntry.runtimeMinutes,
+                            nativeRuntimeMinutes: metadata.runtimeMinutes
+                        )
+                        enriched.format = enriched.format ?? metadata.format
+                        enriched.releaseYear = enriched.releaseYear ?? metadata.releaseYear
+                        enriched.tags = enriched.tags ?? metadata.tags
+                        enriched.originalLanguage = metadata.originalLanguage
+                        enriched.malID = enriched.malID ?? metadata.malID
+                    }
+                    return ScheduleEntry(animeEntry: enriched)
+                }
+                let entries = enrichedDubEntries + verifiedNativeLanguageEntries
                 try Task.checkCancellation()
                 // Hide the routine language-verification explanation. Keep a
                 // concise outage notice only when every selected-language source
@@ -1547,8 +1601,18 @@ final class ScheduleViewModel: ObservableObject {
         }
 
         return resolved.filter { entry in
-            if hideShortRuntime,
-               !CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: entry.runtimeMinutes) {
+            if entry.source == .anime {
+                // Dub timetable feeds rarely include runtime. Do not treat
+                // missing runtime as proof that a confirmed episode is under
+                // 20 minutes; known short anime episodes remain excluded.
+                if !AnimeScheduleRuntimeFilterPolicy.shouldInclude(
+                    runtimeMinutes: entry.runtimeMinutes,
+                    enabled: hideShortRuntime
+                ) {
+                    return false
+                }
+            } else if hideShortRuntime,
+                      !CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: entry.runtimeMinutes) {
                 return false
             }
             if hideUnofficial, entry.tmdbId != nil && !entry.productionMetadataChecked {

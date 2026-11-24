@@ -2979,20 +2979,26 @@ final class DownloadManager: NSObject, ObservableObject {
 
     private func expireHLSBackgroundAttempt(id: String, attempt: HLSBackgroundAttempt) {
         guard hlsBackgroundAttempts[id] === attempt, !attempt.revoked else { return }
-        // Continued-processing time can expire while the transfer itself is
-        // healthy. Do not cancel the HLS worker or mark the item paused here:
-        // downgrade to the normal UIKit background-time allowance and let the
-        // worker finish if iOS still grants execution time. Every iOS HLS
-        // worker now has durable checkpoints, so a later OS suspension can
-        // resume from the last fully-written segment instead of byte zero.
+        // The continued-processing grant is the execution allowance for this
+        // segmented worker. Once iOS expires it, leaving the downloader in the
+        // active-worker registry can strand a suspended worker forever: the
+        // foreground recovery path sees the stale object and assumes it is live.
+        // Stop at the durable segment checkpoint, retain the row, and let
+        // applicationDidBecomeActive start a fresh worker from that checkpoint.
         hlsBackgroundSubtitles.removeValue(forKey: id)?.task.cancel()
         hlsForegroundIntents.removeValue(forKey: id)
         if activeHLSAttemptIDs[id] == attempt.attemptID {
             attempt.downloader.setContinuedProcessingGranted(false)
         }
-        // Keep the protected transport lease alive while the existing
-        // worker uses its already-authorized request. If the worker itself
-        // expires, its completion path performs the normal secure invalidation.
+        attempt.downloader.cancel()
+        if let index = downloads.firstIndex(where: { $0.id == id }),
+           downloads[index].status != .completed {
+            downloads[index].status = .paused
+            downloads[index].error = "Background time expired. Resume when app is active."
+            saveDownloads()
+        }
+        // waitForCheckpoint below persists the last fully-written segment before
+        // releasing the scheduler slot and allowing foreground recovery.
         finishHLSBackgroundAttempt(id: id, attempt: attempt, success: false)
     }
 

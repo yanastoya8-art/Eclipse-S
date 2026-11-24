@@ -123,6 +123,7 @@ struct AnimeScheduleTimetableEntry: Codable {
     let delayedUntil: String?
     let mediaTypes: [AnimeScheduleCategory]?
     let imageVersionRoute: String?
+    let lengthMin: Int?
 }
 
 struct AnimeScheduleAnime: Codable {
@@ -243,7 +244,8 @@ enum AnimeScheduleEntryMapper {
                 hasKnownAiringTime: knownTime,
                 scheduleProvider: .dubOnly,
                 malID: anime?.malID,
-                airingTimeWithdrawn: delayed && !stale
+                airingTimeWithdrawn: delayed && !stale,
+                runtimeMinutes: row.lengthMin
             )
         }
     }
@@ -367,9 +369,9 @@ actor AnimeScheduleService {
     }
 
     func fetchSchedule(daysAhead: Int, now: Date = Date(), preferredLanguageCode: String = "en") async throws -> AnimeAiringScheduleResult {
-        // AnimeSchedule.net's documented v3 timetable endpoints are public.
-        // Do not make a user-supplied token a prerequisite: the website/API work
-        // without one, and a stale token can turn a healthy provider into 401s.
+        // The documented v3 API requires an application bearer token. When
+        // none is configured, this provider may fail and the no-key Tsuzuki and
+        // SeaDub sources remain available as independent fallbacks.
         guard (1...30).contains(daysAhead) else { throw AnimeScheduleError.invalidResponse }
         try Task.checkCancellation()
         loadCache(now: now)
@@ -528,6 +530,9 @@ actor AnimeScheduleService {
         request.timeoutInterval = min(12, max(0.1, deadline.timeIntervalSinceNow))
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("Eclipse/AnimeSchedule", forHTTPHeaderField: "User-Agent")
+        if !token.isEmpty {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
         let (data, response) = try await session.boundedData(for: request, maximumResponseBytes: 2 * 1024 * 1024)
         try Task.checkCancellation()
         guard let response = response as? HTTPURLResponse else { throw AnimeScheduleError.invalidResponse }
