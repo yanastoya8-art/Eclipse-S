@@ -324,6 +324,11 @@ struct ContentView: View {
 #if !os(tvOS)
         .tabBarMinimizeBehavior(.never)
 #endif
+        .tint(AccentColorManager.shared.currentAccentColor)
+#if os(iOS)
+        .toolbarBackground(LiquidGlassAppearanceSettings.shared.bottomBarTint, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
+#endif
     }
 #endif
 
@@ -463,6 +468,11 @@ struct ContentView: View {
                 }
                 .tag(AppTab.search)
         }
+        .tint(AccentColorManager.shared.currentAccentColor)
+#if os(iOS)
+        .toolbarBackground(LiquidGlassAppearanceSettings.shared.bottomBarTint, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
+#endif
     }
 }
 
@@ -670,6 +680,11 @@ struct ExperimentalContentView: View {
                 }
                 .tag(ExperimentalMediaTab.search)
         }
+        .tint(AccentColorManager.shared.currentAccentColor)
+#if os(iOS)
+        .toolbarBackground(LiquidGlassAppearanceSettings.shared.bottomBarTint, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
+#endif
     }
 
     private var experimentalSettingsFullScreen: some View {
