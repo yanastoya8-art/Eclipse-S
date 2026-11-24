@@ -4176,6 +4176,7 @@ final class DownloadManager: NSObject, ObservableObject {
             nuvioDispatchValidationPendingIDs.remove(id)
             nuvioDispatchValidationTokens.removeValue(forKey: id)
             nuvioDispatchApprovedIDs.remove(id)
+            nuvioDirectBackgroundApprovedIDs.remove(id)
 
 #if (os(iOS) && !targetEnvironment(macCatalyst)) || os(macOS)
             let isProtectedProvider = downloads[index].claimsProtectedProviderTransport
@@ -4524,6 +4525,7 @@ final class DownloadManager: NSObject, ObservableObject {
 #endif
         nuvioDispatchValidationPendingIDs.removeAll()
         nuvioDispatchApprovedIDs.removeAll()
+        nuvioDirectBackgroundApprovedIDs.removeAll()
         nuvioDispatchValidationTokens.removeAll()
         for item in downloads { storeResumeData(nil, id: item.id) }
         resumeDataStore.removeAll()
