@@ -74,7 +74,7 @@ final class HLSBackgroundDownloadTests: XCTestCase {
             XCTAssertEqual(try fixture.completedData(), Data("AABBCC".utf8))
             // The system-expired task is reported as unsuccessful even though
             // the actual transfer completed using the fallback allowance.
-            XCTAssertEqual(fixture.scheduler.finishes.map(\.success), [false])
+            XCTAssertEqual(fixture.scheduler.finishes.map { $0.success }, [false])
         } catch {
             await fixture.cleanUp()
             throw error
