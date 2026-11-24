@@ -7928,7 +7928,7 @@ final class DownloadManager: NSObject, ObservableObject {
     private static let knownVideoExtensions: Set<String> = [
         "mp4", "mkv", "webm", "mov", "avi", "wmv", "flv", "ts", "m2ts",
         "mpg", "mpeg", "ogv", "3gp", "m4v", "vob", "divx", "asf", "rm",
-        "rmvb", "f4v", "mts"
+        "rmvb", "f4v", "mts", "mp3"
     ]
 
     private static let knownSubtitleExtensions: Set<String> = [
@@ -10649,6 +10649,7 @@ extension DownloadManager: URLSessionDownloadDelegate {
             case "video/3gpp":                                       ext = "3gp"
             case "video/ogg":                                        ext = "ogv"
             case "video/mpeg":                                       ext = "mpg"
+            case "audio/mpeg", "audio/mp3":                            ext = "mp3"
 
             case "application/x-mpegurl", "application/vnd.apple.mpegurl": ext = "m3u8"
 
