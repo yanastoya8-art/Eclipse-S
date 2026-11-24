@@ -343,12 +343,14 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
     func download(
         _ request: URLRequest,
         downloadID: String,
-        maximumResponseBytes: Int
+        maximumResponseBytes: Int,
+        requiresPublicNetworkValidation: Bool
     ) async throws -> HLSBackgroundDownloadResult {
         let description = taskDescription(
             downloadID: downloadID,
             url: request.url,
-            maximumResponseBytes: maximumResponseBytes
+            maximumResponseBytes: maximumResponseBytes,
+            requiresPublicNetworkValidation: requiresPublicNetworkValidation
         )
         if let cached = try queue.sync(execute: {
             try readCompletedResult(for: description, maximumResponseBytes: maximumResponseBytes, fallbackURL: request.url)
@@ -552,6 +554,10 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
         }
 
         let origin = task.originalRequest?.url ?? source
+        guard destination.scheme?.lowercased() == "https" else {
+            completionHandler(nil)
+            return
+        }
         let originalHeaders = task.originalRequest?.allHTTPHeaderFields ?? [:]
         let safeHeaders = MPVHeaderProxy.shared.directTransportHeaders(
             originalHeaders,
@@ -568,7 +574,23 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
         for (name, value) in safeHeaders {
             redirected.setValue(value, forHTTPHeaderField: name)
         }
-        completionHandler(redirected)
+
+        guard let description = task.taskDescription,
+              requiresPublicValidation(for: description) else {
+            completionHandler(redirected)
+            return
+        }
+        Task {
+            do {
+                _ = try await SkyStreamRemoteURLPolicy.shared.validateForNetworkDispatch(
+                    destination.absoluteString,
+                    purpose: .mediaSegment
+                )
+                completionHandler(redirected)
+            } catch {
+                completionHandler(nil)
+            }
+        }
     }
 
     func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
@@ -586,17 +608,25 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
     private func taskDescription(
         downloadID: String,
         url: URL?,
-        maximumResponseBytes: Int
+        maximumResponseBytes: Int,
+        requiresPublicNetworkValidation: Bool
     ) -> String {
         let urlValue = url?.absoluteString ?? "missing-url"
         let boundedMaximum = min(max(maximumResponseBytes, 1), 128 * 1_024 * 1_024)
-        return taskPrefix(downloadID: downloadID) + digest(urlValue) + "-\(boundedMaximum)"
+        let validationMode = requiresPublicNetworkValidation ? "public" : "user"
+        return taskPrefix(downloadID: downloadID)
+            + digest(urlValue)
+            + "-\(boundedMaximum)-\(validationMode)"
     }
 
     private func maximumBytes(from description: String) -> Int {
-        guard let value = description.split(separator: "-").last.flatMap({ Int($0) }),
+        guard let value = description.split(separator: "-").reversed().compactMap({ Int($0) }).first,
               value > 0 else { return 128 * 1_024 * 1_024 }
         return min(value, 128 * 1_024 * 1_024)
+    }
+
+    private func requiresPublicValidation(for description: String) -> Bool {
+        description.hasSuffix("-public")
     }
 
     private func digest(_ value: String) -> String {
@@ -702,6 +732,7 @@ final class HLSDownloader: @unchecked Sendable {
     private let enforcesConservativeDiskCapacityReserve: Bool
     private let durableCheckpoints: Bool
     private let usesBackgroundURLSession: Bool
+    private let requiresPublicNetworkValidationForBackgroundURLSession: Bool
 
     private var isCancelled = false
     private var cancellationError: HLSError = .cancelled
@@ -753,7 +784,9 @@ final class HLSDownloader: @unchecked Sendable {
          minimumRequestStartInterval: TimeInterval? = nil,
          enforcesConservativeDiskCapacityReserve: Bool = false,
          durableCheckpoints: Bool = false,
-         sessionConfiguration: URLSessionConfiguration? = nil) {
+         sessionConfiguration: URLSessionConfiguration? = nil,
+         useBackgroundURLSession: Bool = false,
+         requiresPublicNetworkValidationForBackgroundURLSession: Bool = false) {
         self.streamURL = streamURL
         self.headers = headers
         self.destinationURL = destinationURL
@@ -767,10 +800,12 @@ final class HLSDownloader: @unchecked Sendable {
         self.enforcesConservativeDiskCapacityReserve = enforcesConservativeDiskCapacityReserve
         self.durableCheckpoints = durableCheckpoints
 #if os(iOS) && !targetEnvironment(macCatalyst)
-        self.usesBackgroundURLSession = sessionConfiguration == nil
+        self.usesBackgroundURLSession = useBackgroundURLSession && sessionConfiguration == nil
 #else
         self.usesBackgroundURLSession = false
 #endif
+        self.requiresPublicNetworkValidationForBackgroundURLSession =
+            requiresPublicNetworkValidationForBackgroundURLSession
         self.requestStartInterval = max(
             minimumRequestStartInterval ?? Self.minimumRequestStartInterval,
             0
@@ -1119,10 +1154,26 @@ final class HLSDownloader: @unchecked Sendable {
         let response: URLResponse?
 #if os(iOS) && !targetEnvironment(macCatalyst)
         if usesBackgroundURLSession {
+            if requiresPublicNetworkValidationForBackgroundURLSession {
+                guard url.scheme?.lowercased() == "https" else {
+                    throw HLSError.unsupportedLayout(reason: "This protected HLS source requires HTTPS for background transfer.")
+                }
+                do {
+                    _ = try await SkyStreamRemoteURLPolicy.shared.validateForNetworkDispatch(
+                        url.absoluteString,
+                        purpose: .mediaSegment
+                    )
+                } catch {
+                    throw HLSError.unsupportedLayout(
+                        reason: "An HLS resource was rejected by the protected-source network policy."
+                    )
+                }
+            }
             let result = try await HLSBackgroundURLSessionCoordinator.shared.download(
                 request,
                 downloadID: downloadId,
-                maximumResponseBytes: maximumResponseBytes
+                maximumResponseBytes: maximumResponseBytes,
+                requiresPublicNetworkValidation: requiresPublicNetworkValidationForBackgroundURLSession
             )
             data = result.data
             response = result.response
