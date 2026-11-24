@@ -41,6 +41,19 @@ enum AnimeScheduleLanguageLookupPolicy {
     }
 }
 
+/// Schedule providers often supply a confirmed dub date without episode
+/// runtime metadata. Unknown runtime must not erase the entire dubbed calendar
+/// when the optional under-20-minute catalogue filter is enabled. Known short
+/// episodes are still excluded; unknown values remain visible until metadata
+/// can be resolved.
+enum AnimeScheduleRuntimeFilterPolicy {
+    static func shouldInclude(runtimeMinutes: Int?, enabled: Bool) -> Bool {
+        guard enabled else { return true }
+        guard let runtimeMinutes, runtimeMinutes > 0 else { return true }
+        return runtimeMinutes >= 20
+    }
+}
+
 enum AnimeScheduleProviderLanguagePolicy {
     /// Returns nil for providers whose eligibility is decided by the verified
     /// title-level dub index instead of a provider-specific language timetable.
@@ -984,8 +997,11 @@ final class ScheduleViewModel: ObservableObject {
                let year = entry.releaseYear, year < 1994 {
                 return false
             }
-            if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
-                guard CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: entry.runtimeMinutes) else { return false }
+            if !AnimeScheduleRuntimeFilterPolicy.shouldInclude(
+                runtimeMinutes: entry.runtimeMinutes,
+                enabled: UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent")
+            ) {
+                return false
             }
 
             // With no dub-language filter selected, preserve the existing
@@ -1556,8 +1572,18 @@ final class ScheduleViewModel: ObservableObject {
         }
 
         return resolved.filter { entry in
-            if hideShortRuntime,
-               !CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: entry.runtimeMinutes) {
+            if entry.source == .anime {
+                // Dub timetable feeds rarely include runtime. Do not treat
+                // missing runtime as proof that a confirmed episode is under
+                // 20 minutes; known short anime episodes remain excluded.
+                if !AnimeScheduleRuntimeFilterPolicy.shouldInclude(
+                    runtimeMinutes: entry.runtimeMinutes,
+                    enabled: hideShortRuntime
+                ) {
+                    return false
+                }
+            } else if hideShortRuntime,
+                      !CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: entry.runtimeMinutes) {
                 return false
             }
             if hideUnofficial, entry.tmdbId != nil && !entry.productionMetadataChecked {
