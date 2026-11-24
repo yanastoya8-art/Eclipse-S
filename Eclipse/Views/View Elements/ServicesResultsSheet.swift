@@ -2519,7 +2519,7 @@ struct ModulesSearchResultsSheet: View {
             .font(.caption.bold())
             .foregroundColor(.white)
             .frame(width: 34, height: 34)
-            .background(Color.green)
+            .background(ServicesStreamAppearanceSettings.streamIconColor())
             .clipShape(Circle())
     }
 
@@ -6134,6 +6134,7 @@ struct ModulesSearchResultsSheet: View {
                     Text("\(ServicesHighQualityThresholdPolicy.percentage(stremioStyleSheetEnabled ? serviceResultMinimumSimilarity : viewModel.highQualityThreshold, usesRankingRange: stremioStyleSheetEnabled))%")
                         .foregroundColor(.secondary)
                 }
+                .tint(AccentColorManager.shared.currentAccentColor)
             }
         }
     }
@@ -6197,6 +6198,7 @@ struct ModulesSearchResultsSheet: View {
                 dismissSheetWithoutPlaybackHandoff()
             }
             .buttonStyle(.borderedProminent)
+            .tint(AccentColorManager.shared.currentAccentColor)
         }
         .padding(.vertical, 8)
         .listRowBackground(Color.clear)
@@ -6343,6 +6345,7 @@ struct ModulesSearchResultsSheet: View {
                         Button("Done") {
                             dismissSheetWithoutPlaybackHandoff()
                         }
+                        .tint(AccentColorManager.shared.currentAccentColor)
                     }
                 }
             }
@@ -11537,7 +11540,7 @@ private extension View {
         self
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.primary.opacity(0.07))
+            .background(ServicesStreamAppearanceSettings.streamCardColor())
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
