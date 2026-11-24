@@ -2084,6 +2084,11 @@ final class DownloadManager: NSObject, ObservableObject {
         let config = URLSessionConfiguration.background(withIdentifier: "app.eclipse.soupy.downloads")
         config.isDiscretionary = false
         config.sessionSendsLaunchEvents = true
+        // Let iOS hold background transfers until connectivity returns instead
+        // of surfacing a transient offline failure as a stopped download.
+        config.waitsForConnectivity = true
+        config.timeoutIntervalForRequest = 600
+        config.timeoutIntervalForResource = 7 * 24 * 60 * 60
         #endif
         config.allowsCellularAccess = true
         config.httpMaximumConnectionsPerHost = 4
