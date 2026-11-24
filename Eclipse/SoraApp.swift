@@ -127,7 +127,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             DownloadManager.shared.backgroundCompletionHandler = completionHandler
 #if os(iOS) && !targetEnvironment(macCatalyst)
         case HLSBackgroundURLSessionCoordinator.identifier:
-            HLSBackgroundURLSessionCoordinator.shared.handleEvents(completionHandler)
+            HLSBackgroundURLSessionCoordinator.shared.handleEvents(completionHandler: completionHandler)
             // Recreate the download manager while iOS is delivering the
             // background-session wake-up. It reattaches persisted downloads
             // and resumes from the last durable segment checkpoint.

@@ -6053,6 +6053,19 @@ final class MPVHeaderProxy {
 
     private init() {}
 
+    /// Applies the proxy's credential-origin restrictions to direct URLSession transports.
+    func directTransportHeaders(
+        _ headers: [String: String],
+        for destinationURL: URL,
+        originURL: URL
+    ) -> [String: String] {
+        proxy.directTransportHeaders(
+            headers,
+            for: destinationURL,
+            originURL: originURL
+        )
+    }
+
     func makeLANProxyURL(
         for targetURL: URL,
         headers: [String: String],

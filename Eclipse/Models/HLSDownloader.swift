@@ -453,7 +453,7 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
         guard let description = downloadTask.taskDescription,
               description.hasPrefix("eclipse-hls-v1-") else { return }
         let maximumBytes = queue.sync {
-            pending[description]?.maximumResponseBytes ?? maximumResponseBytes(from: description)
+            pending[description]?.maximumResponseBytes ?? self.maximumBytes(from: description)
         }
         let size = Self.regularFileSize(at: location)
         guard size >= 0, size <= Int64(maximumBytes) else {
@@ -530,7 +530,7 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
         guard let description = downloadTask.taskDescription,
               description.hasPrefix("eclipse-hls-v1-") else { return }
         let maximumBytes = queue.sync {
-            pending[description]?.maximumResponseBytes ?? maximumBytes(from: description)
+            pending[description]?.maximumResponseBytes ?? self.maximumBytes(from: description)
         }
         if totalBytesWritten > Int64(maximumBytes)
             || totalBytesExpectedToWrite > Int64(maximumBytes) {
