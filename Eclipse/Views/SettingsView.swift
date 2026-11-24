@@ -200,14 +200,15 @@ struct SettingsView: View {
             .init(id: "appearance-browse-filter-chips", title: "Browse Filter Chips", location: "Appearance > Interface", icon: "line.3.horizontal.decrease", color: .purple, keywords: ["browse", "filters", "genre", "year", "country", "chip color"], action: .destination(.appearanceTarget(.browseFilterChipColor))),
             .init(id: "appearance-browse-filter-button", title: "Browse Filters Button", location: "Appearance > Interface", icon: "slider.horizontal.3", color: .purple, keywords: ["browse", "filters button", "filter color"], action: .destination(.appearanceTarget(.browseFilterButtonColor))),
             .init(id: "appearance-browse-filter-options", title: "Browse Filter Options Panel", location: "Appearance > Interface", icon: "rectangle.inset.filled", color: .purple, keywords: ["browse", "filter options", "panel color"], action: .destination(.appearanceTarget(.browseFilterOptionsColor))),
-            .init(id: "appearance-animated-background", title: "Animated Background", location: "Appearance > Motion & Startup", icon: "sparkles", color: .purple, keywords: ["ambient motion", "background animation", "motion"], action: .destination(.appearanceTarget(.animatedBackground))),
-            .init(id: "appearance-animation-quality", title: "Animation Quality", location: "Appearance > Motion & Startup", icon: "dial.medium", color: .purple, keywords: ["low", "medium", "high", "FPS", "background quality"], action: .destination(.appearanceTarget(.animationQuality))),
-            .init(id: "appearance-animation-color", title: "Animation Color", location: "Appearance > Motion & Startup", icon: "paintpalette", color: .purple, keywords: ["stars", "circles", "particles", "rings", "ambient color"], action: .destination(.appearanceTarget(.animationColor))),
-            .init(id: "appearance-custom-animation-color", title: "Custom Animation Color", location: "Appearance > Motion & Startup", icon: "paintpalette", color: .purple, keywords: ["custom particles", "hex color", "background particle tint"], action: .destination(.appearanceTarget(.customAnimationColor))),
-            .init(id: "appearance-animation-frame-rate", title: "Animation Frame Rate", location: "Appearance > Motion & Startup", icon: "speedometer", color: .purple, keywords: ["20 FPS", "30 FPS", "60 FPS", "120 FPS", "smooth", "battery", "background motion"], action: .destination(.appearanceTarget(.animationFrameRate))),
+            .init(id: "appearance-animated-background", title: "Animated Background", location: "Appearance > Animation", icon: "sparkles", color: .purple, keywords: ["ambient motion", "background animation", "motion"], action: .destination(.appearanceTarget(.animatedBackground))),
+            .init(id: "appearance-animation-quality", title: "Animation Quality", location: "Appearance > Animation", icon: "dial.medium", color: .purple, keywords: ["low", "medium", "high", "FPS", "background quality"], action: .destination(.appearanceTarget(.animationQuality))),
+            .init(id: "appearance-animation-color", title: "Animation Color", location: "Appearance > Animation", icon: "paintpalette", color: .purple, keywords: ["stars", "circles", "particles", "rings", "ambient color"], action: .destination(.appearanceTarget(.animationColor))),
+            .init(id: "appearance-custom-animation-color", title: "Custom Animation Color", location: "Appearance > Animation", icon: "paintpalette", color: .purple, keywords: ["custom particles", "hex color", "background particle tint"], action: .destination(.appearanceTarget(.customAnimationColor))),
+            .init(id: "appearance-animation-frame-rate", title: "Animation Frame Rate", location: "Appearance > Animation", icon: "speedometer", color: .purple, keywords: ["20 FPS", "30 FPS", "60 FPS", "120 FPS", "smooth", "battery", "background motion"], action: .destination(.appearanceTarget(.animationFrameRate))),
+            .init(id: "appearance-animation-shape", title: "Animation Shape", location: "Appearance > Animation", icon: "sparkles", color: .purple, keywords: ["wolf", "paw", "stars", "crescent moon", "sun", "cat", "mermaid", "bird", "snake", "dragon", "background motif"], action: .destination(.appearanceTarget(.animationShape))),
             .init(id: "image-data-saver", title: "Image Data Saver", location: "Appearance", icon: "photo", color: .purple, keywords: ["lower quality", "images", "data saver", "bandwidth"], action: .destination(.appearanceTarget(.dataSaver))),
-            .init(id: "appearance-app-performance-overlay", title: "App Performance Overlay", location: "Appearance > Motion & Startup", icon: "gauge.with.dots.needle.67percent", color: .cyan, keywords: ["CPU", "RAM", "memory", "thermal", "stats", "logs", "spikes", "app performance", "home performance"], action: .destination(.appearanceTarget(.appPerformanceOverlay))),
-            .init(id: "appearance-hide-splash", title: "Hide Splash Screen", location: "Appearance > Motion & Startup", icon: "rectangle.slash", color: .purple, keywords: ["launch screen", "startup", "splash"], action: .destination(.appearanceTarget(.hideSplashScreen))),
+            .init(id: "appearance-app-performance-overlay", title: "App Performance Overlay", location: "Appearance > Animation", icon: "gauge.with.dots.needle.67percent", color: .cyan, keywords: ["CPU", "RAM", "memory", "thermal", "stats", "logs", "spikes", "app performance", "home performance"], action: .destination(.appearanceTarget(.appPerformanceOverlay))),
+            .init(id: "appearance-hide-splash", title: "Hide Splash Screen", location: "Appearance > Startup", icon: "rectangle.slash", color: .purple, keywords: ["launch screen", "startup", "splash"], action: .destination(.appearanceTarget(.hideSplashScreen))),
             .init(id: "appearance-season-menu", title: "Alternative Season Menu", location: "Appearance > Detail Pages", icon: "list.bullet", color: .purple, keywords: ["season dropdown", "specials", "OVAs"], action: .destination(.appearanceTarget(.alternativeSeasonMenu))),
             .init(id: "appearance-horizontal-episodes", title: "Horizontal Episode List", location: "Appearance > Detail Pages", icon: "rectangle.split.3x1", color: .purple, keywords: ["episode layout", "vertical episodes"], action: .destination(.appearanceTarget(.horizontalEpisodeList))),
             .init(id: "appearance-unaired-episodes", title: "Show Unaired Episodes", location: "Appearance > Detail Pages", icon: "calendar.badge.clock", color: .purple, keywords: ["hide future episodes", "upcoming episodes", "aired episodes", "episode visibility"], action: .destination(.appearanceTarget(.showUnairedEpisodes))),
@@ -5363,6 +5364,7 @@ private struct CloudSyncHealthSection: View {
 
 
 private struct SearchPrivacySettingsView: View {
+    @StateObject private var accentColorManager = AccentColorManager.shared
     @AppStorage("searchHistorySavingEnabled") private var saveSearchHistory = true
     @AppStorage("searchHistory") private var searchHistoryData: Data = Data()
 
@@ -5382,11 +5384,13 @@ private struct SearchPrivacySettingsView: View {
         }
         .eclipsePageTitle("Search History")
         .eclipseSettingsStyle()
+        .tint(accentColorManager.currentAccentColor)
         .preferredColorScheme(.dark)
     }
 }
 
 private struct AgeFiltersSettingsView: View {
+    @StateObject private var accentColorManager = AccentColorManager.shared
     @Binding var hideBelowPG13Movies: Bool
     @Binding var hideBelowTV14Shows: Bool
     @Binding var hideBelowPG13Anime: Bool
@@ -5427,11 +5431,13 @@ private struct AgeFiltersSettingsView: View {
         }
         .eclipsePageTitle("Age Filters")
         .eclipseSettingsStyle()
+        .tint(accentColorManager.currentAccentColor)
         .preferredColorScheme(.dark)
     }
 }
 
 private struct LanguageFiltersSettingsView: View {
+    @StateObject private var accentColorManager = AccentColorManager.shared
     @Binding var requireEnglishSpanishAudio: Bool
     @State private var selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguages
 
@@ -5489,12 +5495,14 @@ private struct LanguageFiltersSettingsView: View {
 
         .eclipsePageTitle("Language Filters")
         .eclipseSettingsStyle()
+        .tint(accentColorManager.currentAccentColor)
         .preferredColorScheme(.dark)
     }
 }
 
 
 private struct ReleaseDateFiltersSettingsView: View {
+    @StateObject private var accentColorManager = AccentColorManager.shared
     @AppStorage("catalogHidePre1994Anime", store: .standard) private var hidePre1994Anime = false
     @AppStorage("catalogHidePre1994Movies", store: .standard) private var hidePre1994Movies = false
     @AppStorage("catalogHidePre1994TVShows", store: .standard) private var hidePre1994TVShows = false
@@ -5532,11 +5540,13 @@ private struct ReleaseDateFiltersSettingsView: View {
         .onChange(of: hideUnreleasedTVShows) { _ in filtersDidChange() }
         .eclipsePageTitle("Release Date Filters")
         .eclipseSettingsStyle()
+        .tint(accentColorManager.currentAccentColor)
         .preferredColorScheme(.dark)
     }
 }
 
 private struct ProductionsSettingsView: View {
+    @StateObject private var accentColorManager = AccentColorManager.shared
     @AppStorage("catalogHideUnofficialContent", store: .standard) private var hideUnofficialContent = false
 
     private func filtersDidChange() {
@@ -5556,11 +5566,13 @@ private struct ProductionsSettingsView: View {
         .onChange(of: hideUnofficialContent) { _ in filtersDidChange() }
         .eclipsePageTitle("Productions")
         .eclipseSettingsStyle()
+        .tint(accentColorManager.currentAccentColor)
         .preferredColorScheme(.dark)
     }
 }
 
 private struct AnimeFiltersSettingsView: View {
+    @StateObject private var accentColorManager = AccentColorManager.shared
     @AppStorage("catalogHideAnime", store: .standard) private var hideAnime = false
     @AppStorage("catalogHideHentai", store: .standard) private var hideHentai = false
     @AppStorage("catalogHideYuri", store: .standard) private var hideYuri = false
@@ -5601,11 +5613,13 @@ private struct AnimeFiltersSettingsView: View {
         .onChange(of: hideYaoi) { _ in filtersDidChange() }
         .eclipsePageTitle("Anime Filters")
         .eclipseSettingsStyle()
+        .tint(accentColorManager.currentAccentColor)
         .preferredColorScheme(.dark)
     }
 }
 
 private struct RuntimeFiltersSettingsView: View {
+    @StateObject private var accentColorManager = AccentColorManager.shared
     @AppStorage("catalogHideUnder20MinuteContent", store: .standard) private var hideUnder20MinuteContent = false
 
     private func filtersDidChange() {
@@ -5625,6 +5639,7 @@ private struct RuntimeFiltersSettingsView: View {
         }
         .eclipsePageTitle("Runtime Filters")
         .eclipseSettingsStyle()
+        .tint(accentColorManager.currentAccentColor)
         .preferredColorScheme(.dark)
     }
 }
