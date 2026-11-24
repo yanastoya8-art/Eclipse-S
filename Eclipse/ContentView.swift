@@ -205,6 +205,10 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .animeMetadataDidSwitchToMALFallback)) { _ in
             showingAniListFallbackAlert = true
         }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("eclipse.openDownloadsFromLiveActivity"))) { _ in
+            showingSettings = false
+            selectedTab = .downloads
+        }
         .onReceive(NotificationCenter.default.publisher(for: .openScheduleFromLocalNotification)) { _ in
 #if !os(tvOS)
             openPendingNotificationRouteIfNeeded()
@@ -576,6 +580,10 @@ struct ExperimentalContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .animeMetadataDidSwitchToMALFallback)) { _ in
             showingAniListFallbackAlert = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("eclipse.openDownloadsFromLiveActivity"))) { _ in
+            showingSettings = false
+            selectedTab = .downloads
         }
         .onReceive(NotificationCenter.default.publisher(for: .openScheduleFromLocalNotification)) { _ in
             openPendingNotificationRouteIfNeeded()
