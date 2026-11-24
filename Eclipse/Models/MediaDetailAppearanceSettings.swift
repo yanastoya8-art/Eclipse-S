@@ -100,6 +100,10 @@ enum LandscapeMediaDetailAppearanceSettings {
 }
 
 
+enum MediaDetailEpisodeCardAppearanceSettings {
+    static let colorDataKey = "mediaDetailEpisodeCardColorData"
+}
+
 enum MediaDetailRatingNotesPositionSettings {
     static let portraitOffsetKey = "mediaDetailPortraitRatingNotesOffset"
     static let landscapeOffsetKey = "mediaDetailLandscapeRatingNotesOffset"
