@@ -38,6 +38,7 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
     case hideSplashScreen
     case alternativeSeasonMenu
     case horizontalEpisodeList
+    case episodeCardColor
     case showUnairedEpisodes
     case titleLogoPosition
     case titleLogoSize
@@ -75,7 +76,7 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
             return "animation"
         case .hideSplashScreen:
             return "startup"
-        case .alternativeSeasonMenu, .horizontalEpisodeList, .showUnairedEpisodes, .titleLogoPosition, .titleLogoSize, .titleLogoWeight, .heroActionPosition, .heroSynopsisPosition, .portraitHeroBleedIntensity, .landscapeHeroBleedIntensity, .landscapeTitleLogoPosition, .landscapeTitleLogoHorizontalPosition, .landscapeTitleLogoSize, .landscapeTitleLogoWeight, .landscapeHeroActionPosition, .landscapeHeroSynopsisPosition, .landscapeHeroHorizontalStretch, .landscapeHeroVerticalStretch, .landscapeContentHorizontalPosition, .dataSaver, .ageRating, .similarTitles:
+        case .alternativeSeasonMenu, .horizontalEpisodeList, .episodeCardColor, .showUnairedEpisodes, .titleLogoPosition, .titleLogoSize, .titleLogoWeight, .heroActionPosition, .heroSynopsisPosition, .portraitHeroBleedIntensity, .landscapeHeroBleedIntensity, .landscapeTitleLogoPosition, .landscapeTitleLogoHorizontalPosition, .landscapeTitleLogoSize, .landscapeTitleLogoWeight, .landscapeHeroActionPosition, .landscapeHeroSynopsisPosition, .landscapeHeroHorizontalStretch, .landscapeHeroVerticalStretch, .landscapeContentHorizontalPosition, .dataSaver, .ageRating, .similarTitles:
             return "details"
         case .libraryBookmarks, .libraryCollectionLayout:
             return "library"
@@ -88,6 +89,7 @@ struct AlternativeUIView: View {
 
     @AppStorage(MediaDetailPlatformDefaults.seasonMenuKey) private var useSeasonMenu = MediaDetailPlatformDefaults.prefersCompactSeasonMenu
     @AppStorage(MediaDetailPlatformDefaults.horizontalEpisodeListKey) private var horizontalEpisodeList = MediaDetailPlatformDefaults.prefersHorizontalEpisodes
+    @AppStorage(MediaDetailEpisodeCardAppearanceSettings.colorDataKey) private var episodeCardColorData = Data()
     @AppStorage(MediaDetailEpisodeVisibilitySettings.showUnairedEpisodesKey) private var showUnairedEpisodes = MediaDetailEpisodeVisibilitySettings.defaultShowUnairedEpisodes
     @AppStorage(MediaDetailTitleLogoPositionSettings.verticalPositionKey) private var titleLogoVerticalPosition = MediaDetailTitleLogoPositionSettings.defaultVerticalPosition
     @AppStorage(MediaDetailTitleLogoAppearanceSettings.sizeKey) private var titleLogoSize = MediaDetailTitleLogoAppearanceSettings.defaultSize
@@ -672,6 +674,32 @@ struct AlternativeUIView: View {
         }
     }
 
+    private var episodeCardColorBinding: Binding<Color> {
+        Binding(
+            get: {
+                guard !episodeCardColorData.isEmpty,
+                      let archived = try? PortableColorArchive.color(from: episodeCardColorData) else {
+                    return Color.white.opacity(0.07)
+                }
+#if os(macOS)
+                return Color(nsColor: archived)
+#else
+                return Color(uiColor: archived)
+#endif
+            },
+            set: { color in
+#if os(macOS)
+                let archived = NSColor(color)
+#else
+                let archived = UIColor(color)
+#endif
+                if let data = try? PortableColorArchive.data(for: archived, requiringSecureCoding: false) {
+                    episodeCardColorData = data
+                }
+            }
+        )
+    }
+
     private var customAnimationParticleColorBinding: Binding<Color> {
         Binding(
             get: {
@@ -715,6 +743,11 @@ struct AlternativeUIView: View {
                 isOn: $horizontalEpisodeList
             )
             .id(AppearanceSettingsSearchTarget.horizontalEpisodeList.anchorID)
+            ColorPicker("Episode Card Color", selection: episodeCardColorBinding, supportsOpacity: true)
+                .id(AppearanceSettingsSearchTarget.episodeCardColor.anchorID)
+            Text("Episode cards use the selected tint in portrait, horizontal and iPad layouts.")
+                .font(.caption)
+                .foregroundColor(.secondary)
             toggleRow(
                 title: "Show Unaired Episodes",
                 description: "Keep future episodes visible in show and anime episode lists.",
@@ -1351,6 +1384,7 @@ struct AlternativeUIView: View {
 #endif
         mediaDetailAgeRatingEnabled = MediaDetailAgeRatingSettings.defaultEnabled
         showUnairedEpisodes = MediaDetailEpisodeVisibilitySettings.defaultShowUnairedEpisodes
+        episodeCardColorData = Data()
         mediaDetailSimilarTitlesEnabled = MediaDetailSimilarTitlesSettings.defaultEnabled
         showsBookmarksSection = LibraryDisplaySettings.defaultShowBookmarksSection
         collectionLayoutRaw = LibraryCollectionLayout.defaultValue.rawValue
