@@ -848,6 +848,9 @@ struct SearchView: View {
                 // improving exact-title lookup in the common case.
                 var results = try await tmdbService.searchMulti(query: query, maxPages: 1)
                 try Task.checkCancellation()
+                let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
+                let requiresGlobalAnimeAgeRating = UserDefaults.standard.bool(forKey: "catalogHideBelowPG13Anime")
+                    || UserDefaults.standard.bool(forKey: "catalogHideAllAgesAnime")
                 let shouldSearchTVEndpoint = results.isEmpty
                     || (searchFilter == .anime && !results.contains(where: isAnimeResult))
                 if shouldSearchTVEndpoint {
@@ -864,7 +867,8 @@ struct SearchView: View {
                 // TMDB's multi-search index can omit anime or index it under
                 // a translated title. Query AniList directly for the Anime
                 // filter (and as a last resort when TMDB returns nothing).
-                if searchFilter == .anime || results.isEmpty {
+                if searchFilter == .anime || results.isEmpty
+                    || !selectedDubLanguages.isEmpty || requiresGlobalAnimeAgeRating {
                     let animeResults = await AniListService.shared.searchAnimeResults(
                         query: query,
                         tmdbService: tmdbService
@@ -875,9 +879,6 @@ struct SearchView: View {
                         seen.insert($0.stableIdentity).inserted
                     })
                 }
-                let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
-                let requiresGlobalAnimeAgeRating = UserDefaults.standard.bool(forKey: "catalogHideBelowPG13Anime")
-                    || UserDefaults.standard.bool(forKey: "catalogHideAllAgesAnime")
                 let needsAnimeIdentity = searchFilter == .anime
                     || !selectedDubLanguages.isEmpty
                     || requiresGlobalAnimeAgeRating
