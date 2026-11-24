@@ -493,10 +493,26 @@ struct DiscoverDetailView: View {
                     guard generation == loadGeneration else { return }
                     let existingIDs = Set(items.map { $0.stableIdentity })
                     let unique = newItems.filter { !existingIDs.contains($0.stableIdentity) }
-                    paginationCursor.didLoadPage(hasUniqueItems: !unique.isEmpty)
+
                     if !unique.isEmpty {
+                        // Resolve metadata while retaining the raw provider
+                        // results. A dub/age lookup may complete after this page
+                        // arrives; keeping the rows lets the filter notification
+                        // reveal them later instead of losing the page forever.
+                        await contentFilter.resolveBrowseFilterMetadata(for: unique)
+                        guard generation == loadGeneration else { return }
+                        let visibleIDs = Set(
+                            contentFilter.filterSearchResults(
+                                unique,
+                                allowUpcomingContent: allowsUpcomingContent
+                            ).map(\\.stableIdentity)
+                        )
                         items.append(contentsOf: unique)
-                        break
+                        let addedVisibleItems = unique.contains { visibleIDs.contains($0.stableIdentity) }
+                        paginationCursor.didLoadPage(hasUniqueItems: addedVisibleItems)
+                        if addedVisibleItems { break }
+                    } else {
+                        paginationCursor.didLoadPage(hasUniqueItems: false)
                     }
                 } catch {
                     guard generation == loadGeneration else { return }
