@@ -6700,12 +6700,11 @@ final class DownloadManager: NSObject, ObservableObject {
             // instead, while leaving the persisted source identity untouched.
             let normalizedDispatchURL = URL(string: comparisonURLString)
             let hasSafeAuthority = url.user == nil && url.password == nil
-            outcome = (scheme == "http" || scheme == "https")
+            let isSyntacticallyApproved = (scheme == "http" || scheme == "https")
                 && url.host?.isEmpty == false
                 && hasSafeAuthority
                 && normalizedDispatchURL?.host?.lowercased() == url.host?.lowercased()
-                ? .approved
-                : .rejected
+            outcome = isSyntacticallyApproved ? .approved : .rejected
 
             var directBackgroundAllowed = false
 #if (os(iOS) && !targetEnvironment(macCatalyst)) || os(macOS)
@@ -6717,7 +6716,7 @@ final class DownloadManager: NSObject, ObservableObject {
             default:
                 directCandidate = false
             }
-            if outcome == .approved, directCandidate, scheme == "https" {
+            if isSyntacticallyApproved, directCandidate, scheme == "https" {
                 do {
                     let validated = try await SkyStreamRemoteURLPolicy.shared.validateForNetworkDispatch(
                         comparisonURLString,
