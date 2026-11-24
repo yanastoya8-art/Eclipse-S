@@ -377,6 +377,7 @@ class TMDBService: ObservableObject {
     }
     private let seasonRequestCoordinator = TMDBSeasonRequestCoordinator()
     @MainActor private var fastAnimeAdultKeywordIDsCache: (language: String, ids: [Int])?
+    @MainActor private var fastAnimeCatalogResultsCache: [String: [TMDBSearchResult]] = [:]
     @MainActor private var fastAnimeAdultKeywordIDsTask: (language: String, id: UUID, task: Task<[Int], Never>)?
     @MainActor private var keywordIDLookupCache: [String: KeywordIDCacheEntry] = [:]
 
@@ -1310,6 +1311,12 @@ class TMDBService: ObservableObject {
     }
 
     func getFastAnimeCatalog(kind: FastAnimeCatalogKind, limit: Int = 20) async throws -> [TMDBSearchResult] {
+        let boundedLimit = min(max(limit, 1), 100)
+        let cacheKey = "\\(kind.rawValue)|\\(fastAnimeDateString(Date()))"
+        if let cached = await cachedFastAnimeCatalog(for: cacheKey) {
+            return Array(cached.prefix(boundedLimit))
+        }
+
         let adultKeywordIDs = await fastAnimeAdultKeywordIDs()
         let results: [TMDBSearchResult]
         switch kind {
@@ -1349,14 +1356,32 @@ class TMDBService: ObservableObject {
 
         }
 
-        return Array(deduplicatedFastAnimeResults(results).prefix(limit))
+        let deduplicated = deduplicatedFastAnimeResults(results)
+        if !deduplicated.isEmpty {
+            await storeFastAnimeCatalog(deduplicated, for: cacheKey)
+        }
+        return Array(deduplicated.prefix(boundedLimit))
+    }
+
+    @MainActor
+    private func cachedFastAnimeCatalog(for key: String) -> [TMDBSearchResult]? {
+        fastAnimeCatalogResultsCache[key]
+    }
+
+    @MainActor
+    private func storeFastAnimeCatalog(_ results: [TMDBSearchResult], for key: String) {
+        fastAnimeCatalogResultsCache[key] = results
+        // Keep only the current day's four catalog variants in memory.
+        if fastAnimeCatalogResultsCache.count > 4 {
+            fastAnimeCatalogResultsCache = [key: results]
+        }
     }
 
     private func getFastTrendingAnime(limit: Int, adultKeywordIDs: [Int]) async throws -> [TMDBSearchResult] {
         let trending = try await getTrending(mediaType: "tv", timeWindow: "week")
             .filter { self.isFastAnimeSearchResult($0) }
         guard trending.count < min(limit, 10) else {
-            return Array(deduplicatedFastAnimeResults(trending).prefix(limit))
+            return deduplicatedFastAnimeResults(trending)
         }
 
         let fallback = try await getFastAnimeDiscoverCatalog(
@@ -1364,7 +1389,7 @@ class TMDBService: ObservableObject {
             limit: limit,
             adultKeywordIDs: adultKeywordIDs
         )
-        return Array(deduplicatedFastAnimeResults(trending + fallback).prefix(limit))
+        return deduplicatedFastAnimeResults(trending + fallback)
     }
 
     private func getFastAnimeDiscoverCatalog(
@@ -1409,7 +1434,7 @@ class TMDBService: ObservableObject {
             .flatMap { _, shows in
                 shows.filter { self.isFastAnimeTVShow($0) }.map(\.asSearchResult)
             }
-        return Array(deduplicatedFastAnimeResults(combined).prefix(limit))
+        return deduplicatedFastAnimeResults(combined)
     }
 
     private func discoverFastAnimeShows(
