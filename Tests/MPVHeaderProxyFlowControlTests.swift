@@ -634,10 +634,17 @@ final class MPVHeaderProxyFlowControlTests: XCTestCase {
             RunLoop.current.run(until: Date().addingTimeInterval(0.02))
         }
         XCTAssertGreaterThan(proxy.upstreamHealth(for: url)?.failureCount ?? 0, 0)
-        // Once the upstream has failed, the producer side must be sealed.
-        // Bytes already accepted by the downstream socket remain ordered and
-        // are still drained to the reader before the response closes.
+        // Once the upstream has failed, the producer side must eventually
+        // be sealed. Wait for the bridge's serialized completion callback
+        // rather than racing the earlier transport-health counter update.
+        let flowClosed = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in capture.all.first?.snapshot.closed == true },
+            object: nil
+        )
+        wait(for: [flowClosed], timeout: 5)
         XCTAssertTrue(try XCTUnwrap(capture.all.first).snapshot.closed)
+        // Closing the producer must not discard bytes already accepted by the
+        // downstream socket; the paused reader still receives the full prefix.
         client.resume()
         wait(for: [completed], timeout: 20)
         let result = try XCTUnwrap(client.result)
