@@ -61,6 +61,7 @@ struct SettingsView: View {
 #endif
     @State private var isCheckingGitHubRelease = false
     @StateObject private var profileManager = ProfileManager.shared
+    @StateObject private var accentColorManager = AccentColorManager.shared
 
     private var sourceCodeURL: URL { Bundle.main.eclipseSourceURL }
     private let licenseURL = URL(string: "https://www.gnu.org/licenses/gpl-3.0.html")!
@@ -211,6 +212,8 @@ struct SettingsView: View {
             .init(id: "appearance-hide-splash", title: "Hide Splash Screen", location: "Appearance > Startup", icon: "rectangle.slash", color: .purple, keywords: ["launch screen", "startup", "splash"], action: .destination(.appearanceTarget(.hideSplashScreen))),
             .init(id: "appearance-season-menu", title: "Alternative Season Menu", location: "Appearance > Detail Pages", icon: "list.bullet", color: .purple, keywords: ["season dropdown", "specials", "OVAs"], action: .destination(.appearanceTarget(.alternativeSeasonMenu))),
             .init(id: "appearance-horizontal-episodes", title: "Horizontal Episode List", location: "Appearance > Detail Pages", icon: "rectangle.split.3x1", color: .purple, keywords: ["episode layout", "vertical episodes"], action: .destination(.appearanceTarget(.horizontalEpisodeList))),
+            .init(id: "appearance-episode-card-color", title: "Episode Card Color", location: "Appearance > Detail Pages", icon: "rectangle.fill", color: .purple, keywords: ["episode card background", "episode list color", "episode tint", "show episode tiles"], action: .destination(.appearanceTarget(.episodeCardColor))),
+            .init(id: "appearance-schedule-card-color", title: "Schedule Card Color", location: "Appearance > Schedule", icon: "calendar", color: .purple, keywords: ["schedule background", "calendar card color", "release card tint", "schedule appearance"], action: .destination(.appearanceTarget(.scheduleCardColor))),
             .init(id: "appearance-unaired-episodes", title: "Show Unaired Episodes", location: "Appearance > Detail Pages", icon: "calendar.badge.clock", color: .purple, keywords: ["hide future episodes", "upcoming episodes", "aired episodes", "episode visibility"], action: .destination(.appearanceTarget(.showUnairedEpisodes))),
             .init(id: "appearance-title-logo-position", title: "Title Logo Vertical Position", location: "Appearance > Detail Pages", icon: "arrow.up.and.down", color: .purple, keywords: ["poster title", "logo height", "move title logo", "logo position"], action: .destination(.appearanceTarget(.titleLogoPosition))),
             .init(id: "appearance-title-logo-size", title: "Title Logo Size", location: "Appearance > Detail Pages", icon: "arrow.up.left.and.arrow.down.right", color: .purple, keywords: ["logo scale", "bigger title logo", "smaller title logo"], action: .destination(.appearanceTarget(.titleLogoSize))),
@@ -258,6 +261,10 @@ struct SettingsView: View {
             .init(id: "services-assume-original-audio", title: "Assume Original Language", location: "Services > Extra Source Settings", icon: "waveform", color: .orange, keywords: ["original language", "untagged streams", "missing language", "TMDB language", "stream language"], action: .destination(.servicesTarget(.assumeOriginalAudio))),
             .init(id: "services-dubbed-anime-english", title: "Treat Dubbed Anime Streams as English", location: "Services > Extra Source Settings", icon: "waveform.and.mic", color: .orange, keywords: ["dubbed anime", "anime dub", "english audio", "english filter", "stream language"], action: .destination(.servicesTarget(.treatDubbedAnimeAsEnglish))),
             .init(id: "services-stremio-style", title: "Stremio-Style Stream List", location: "Services > Extra Source Settings", icon: "rectangle.grid.1x2", color: .blue, keywords: ["stream list", "layout", "flat", "results", "Stremio"], action: .destination(.servicesTarget(.stremioStyleSheet))),
+            .init(id: "services-stream-card-color", title: "Stream Card Color", location: "Services > Extra Source Settings > Stream Results Appearance", icon: "rectangle.fill", color: .blue, keywords: ["stream background", "source result card tint", "stream appearance"], action: .destination(.servicesTarget(.streamCardColor))),
+            .init(id: "services-stream-icon-color", title: "Stream Icon Color", location: "Services > Extra Source Settings > Stream Results Appearance", icon: "play.circle.fill", color: .green, keywords: ["play icon", "download icon", "stream icon tint"], action: .destination(.servicesTarget(.streamIconColor))),
+            .init(id: "services-hide-addon-messages", title: "Hide Add-on Messages", location: "Services > Extra Source Settings > Stream Results Appearance", icon: "message.slash", color: .orange, keywords: ["hide addon messages", "hide addon errors", "provider status messages"], action: .destination(.servicesTarget(.hideAddonMessages))),
+            .init(id: "services-stream-frame", title: "Stream Frame", location: "Services > Extra Source Settings > Stream Results Appearance", icon: "square", color: .blue, keywords: ["stream border", "frame color", "frame thickness", "border boldness"], action: .destination(.servicesTarget(.streamFrame))),
             .init(id: "services-ranking-similarity", title: "Ranking Similarity", location: "Services > Extra Source Settings", icon: "chart.bar.xaxis", color: .orange, keywords: ["similarity percentage", "matching threshold", "rank results", "title match"], action: .destination(.servicesTarget(.rankingSimilarity))),
             .init(id: "services-drop-unmatched", title: "Drop Unmatched Search Results", location: "Services > Extra Source Settings", icon: "line.3.horizontal.decrease.circle", color: .orange, keywords: ["drop streams", "drop unmatched service results", "similarity filter", "mismatched results", "auto mode"], action: .destination(.servicesTarget(.dropMismatchedResults))),
             .init(id: "services-missing-language", title: "Hide Streams Without Language Data", location: "Services > Extra Source Settings", icon: "questionmark.bubble", color: .orange, keywords: ["unknown", "missing", "untagged"], action: .destination(.servicesTarget(.missingLanguageData))),
@@ -460,6 +467,7 @@ struct SettingsView: View {
             }
         #endif
         }
+        .tint(accentColorManager.currentAccentColor)
         .onAppear {
             AppPerformanceRuntimeContext.shared.setSurface("settings")
         }
@@ -788,7 +796,7 @@ struct SettingsView: View {
                             GlassSettingsRow(icon: "arrow.triangle.2.circlepath", iconColor: .mint, title: "Auto-check GitHub Releases") {
                                 Toggle("", isOn: $autoCheckGitHubReleases)
                                     .labelsHidden()
-                                    .tint(.mint)
+                                    .tint(accentColorManager.currentAccentColor)
                             }
 
                             GlassDivider()
@@ -2191,7 +2199,7 @@ private struct NotificationSettingsView: View {
 #if os(tvOS)
                         .accessibilityLabel("Anime Specials & OVAs")
 #endif
-                        .tint(.pink)
+                        .tint(accentColorManager.currentAccentColor)
                 }
             }
         }
@@ -3023,7 +3031,7 @@ private struct NotificationSubscriptionSettingsRow: View {
             Toggle("", isOn: Binding(get: { isOn }, set: action))
                 .labelsHidden()
                 .scaleEffect(isTvOS ? 1 : 0.82)
-                .tint(.orange)
+                .tint(accentColorManager.currentAccentColor)
                 .disabled(isUpdating)
                 .accessibilityLabel(title)
         }
@@ -4773,7 +4781,7 @@ struct ExperimentalCloudSyncView: View {
 #if os(tvOS)
                                     .accessibilityLabel("Sync Settings Across Devices")
 #endif
-                                    .tint(.blue)
+                                    .tint(accentColorManager.currentAccentColor)
                             }
 
                             GlassDivider()

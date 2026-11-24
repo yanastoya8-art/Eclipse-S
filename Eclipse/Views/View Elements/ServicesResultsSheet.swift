@@ -2116,7 +2116,7 @@ struct ModulesSearchResultsSheet: View {
                     index: offset,
                     item: item,
                     stremioStreams: visibleStremioStreams(for: addon),
-                    stremioFailureOutcome: outcome?.explainsAnEmptyList == true ? outcome : nil
+                    stremioFailureOutcome: !ServicesStreamAppearanceSettings.hidesAddonMessages() && outcome?.explainsAnEmptyList == true ? outcome : nil
                 )
 #if (os(iOS) && !targetEnvironment(macCatalyst)) || os(tvOS) || os(macOS)
             case .skyStream(let provider):
@@ -2133,7 +2133,7 @@ struct ModulesSearchResultsSheet: View {
                     item: item,
                     nuvioOptions: visibleNuvioOptions(for: scraper),
                     nuvioIsSearching: nuvioSearchingSourceIds.contains(scraper.id),
-                    nuvioFailureOutcome: outcome?.isFailure == true ? outcome : nil
+                    nuvioFailureOutcome: !ServicesStreamAppearanceSettings.hidesAddonMessages() && outcome?.isFailure == true ? outcome : nil
                 )
 #endif
             }
@@ -2304,7 +2304,6 @@ struct ModulesSearchResultsSheet: View {
 
                 Spacer(minLength: 0)
             }
-            .stremioStyleStreamCard()
         }
 
 #if os(tvOS)
@@ -2312,6 +2311,7 @@ struct ModulesSearchResultsSheet: View {
 #else
         .buttonStyle(.plain)
 #endif
+        .stremioStyleStreamCard()
         .listRowBackground(Color.clear)
         .eclipseHideListRowSeparator()
         .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 5, trailing: 14))
@@ -2353,13 +2353,13 @@ struct ModulesSearchResultsSheet: View {
 
                 Spacer(minLength: 0)
             }
-            .stremioStyleStreamCard()
         }
 #if os(tvOS)
         .buttonStyle(TVGlassRowButtonStyle())
 #else
         .buttonStyle(.plain)
 #endif
+        .stremioStyleStreamCard()
         .listRowBackground(Color.clear)
         .eclipseHideListRowSeparator()
         .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 5, trailing: 14))
@@ -2486,13 +2486,13 @@ struct ModulesSearchResultsSheet: View {
 
                 Spacer(minLength: 0)
             }
-            .stremioStyleStreamCard()
         }
 #if os(tvOS)
         .buttonStyle(TVGlassRowButtonStyle())
 #else
         .buttonStyle(.plain)
 #endif
+        .stremioStyleStreamCard()
         .listRowBackground(Color.clear)
         .eclipseHideListRowSeparator()
         .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 5, trailing: 14))
@@ -2519,7 +2519,7 @@ struct ModulesSearchResultsSheet: View {
             .font(.caption.bold())
             .foregroundColor(.white)
             .frame(width: 34, height: 34)
-            .background(Color.green)
+            .background(ServicesStreamAppearanceSettings.streamIconColor())
             .clipShape(Circle())
     }
 
@@ -6134,6 +6134,7 @@ struct ModulesSearchResultsSheet: View {
                     Text("\(ServicesHighQualityThresholdPolicy.percentage(stremioStyleSheetEnabled ? serviceResultMinimumSimilarity : viewModel.highQualityThreshold, usesRankingRange: stremioStyleSheetEnabled))%")
                         .foregroundColor(.secondary)
                 }
+                .tint(AccentColorManager.shared.currentAccentColor)
             }
         }
     }
@@ -6197,6 +6198,7 @@ struct ModulesSearchResultsSheet: View {
                 dismissSheetWithoutPlaybackHandoff()
             }
             .buttonStyle(.borderedProminent)
+            .tint(AccentColorManager.shared.currentAccentColor)
         }
         .padding(.vertical, 8)
         .listRowBackground(Color.clear)
@@ -6343,6 +6345,7 @@ struct ModulesSearchResultsSheet: View {
                         Button("Done") {
                             dismissSheetWithoutPlaybackHandoff()
                         }
+                        .tint(AccentColorManager.shared.currentAccentColor)
                     }
                 }
             }
@@ -7369,7 +7372,9 @@ struct ModulesSearchResultsSheet: View {
                     let outcome = viewModel.stremioOutcomes[addon.id]
                     let returnedCount = viewModel.stremioResults[addon.id]?.count ?? 0
                     if let outcome, outcome.explainsAnEmptyList {
-                        stremioOutcomeRow(outcome)
+                        if !ServicesStreamAppearanceSettings.hidesAddonMessages() {
+                            stremioOutcomeRow(outcome)
+                        }
                     } else if returnedCount > 0 {
                         filteredOutRow(count: returnedCount)
                     } else {
@@ -8029,13 +8034,13 @@ struct ModulesSearchResultsSheet: View {
                 }
                 Spacer(minLength: 0)
             }
-            .stremioStyleStreamCard()
         }
 #if os(tvOS)
         .buttonStyle(TVGlassRowButtonStyle())
 #else
         .buttonStyle(.plain)
 #endif
+        .stremioStyleStreamCard()
         .listRowBackground(Color.clear)
         .eclipseHideListRowSeparator()
         .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 5, trailing: 14))
@@ -8169,7 +8174,9 @@ struct ModulesSearchResultsSheet: View {
                         detail: nil
                     )
                 } else if let outcome {
-                    nuvioOutcomeRow(outcome)
+                    if !ServicesStreamAppearanceSettings.hidesAddonMessages() {
+                        nuvioOutcomeRow(outcome)
+                    }
                 } else {
                     noResultsRow
                 }
@@ -8394,13 +8401,13 @@ struct ModulesSearchResultsSheet: View {
                 }
                 Spacer(minLength: 0)
             }
-            .stremioStyleStreamCard()
         }
 #if os(tvOS)
         .buttonStyle(TVGlassRowButtonStyle())
 #else
         .buttonStyle(.plain)
 #endif
+        .stremioStyleStreamCard()
         .listRowBackground(Color.clear)
         .eclipseHideListRowSeparator()
         .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 5, trailing: 14))
@@ -11537,8 +11544,18 @@ private extension View {
         self
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.primary.opacity(0.07))
+            .background(ServicesStreamAppearanceSettings.streamCardColor())
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay {
+                if ServicesStreamAppearanceSettings.showsStreamFrame() {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(
+                            ServicesStreamAppearanceSettings.streamFrameColor(),
+                            lineWidth: ServicesStreamAppearanceSettings.streamFrameWidth()
+                        )
+                        .allowsHitTesting(false)
+                }
+            }
     }
 }
 

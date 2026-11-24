@@ -574,6 +574,92 @@ enum ServicesResultRankingSettings {
     }
 }
 
+enum ServicesStreamAppearanceSettings {
+    static let streamCardColorKey = "servicesStreamCardColor"
+    static let streamIconColorKey = "servicesStreamIconColor"
+    static let showStreamFrameKey = "servicesShowStreamFrame"
+    static let streamFrameColorKey = "servicesStreamFrameColor"
+    static let streamFrameWidthKey = "servicesStreamFrameWidth"
+    static let hideAddonMessagesKey = "servicesHideAddonMessages"
+
+    static let defaultShowStreamFrame = false
+    static let defaultStreamFrameWidth = 1.5
+    static let defaultHideAddonMessages = false
+
+    static func streamCardColor(defaults: UserDefaults = ProfileSettingsStore.services) -> Color {
+        archivedColor(forKey: streamCardColorKey, defaults: defaults) ?? Color.primary.opacity(0.07)
+    }
+
+    static func streamIconColor(defaults: UserDefaults = ProfileSettingsStore.services) -> Color {
+        archivedColor(forKey: streamIconColorKey, defaults: defaults) ?? .green
+    }
+
+    static func streamFrameColor(defaults: UserDefaults = ProfileSettingsStore.services) -> Color {
+        archivedColor(forKey: streamFrameColorKey, defaults: defaults) ?? .white
+    }
+
+    static func showsStreamFrame(defaults: UserDefaults = ProfileSettingsStore.services) -> Bool {
+        defaults.object(forKey: showStreamFrameKey) as? Bool ?? defaultShowStreamFrame
+    }
+
+    static func streamFrameWidth(defaults: UserDefaults = ProfileSettingsStore.services) -> Double {
+        let value = defaults.object(forKey: streamFrameWidthKey) as? Double ?? defaultStreamFrameWidth
+        return min(max(value, 0.5), 6)
+    }
+
+    static func hidesAddonMessages(defaults: UserDefaults = ProfileSettingsStore.services) -> Bool {
+        defaults.object(forKey: hideAddonMessagesKey) as? Bool ?? defaultHideAddonMessages
+    }
+
+    static func setStreamCardColor(_ color: Color, defaults: UserDefaults = ProfileSettingsStore.services) {
+        save(color, forKey: streamCardColorKey, defaults: defaults)
+    }
+
+    static func setStreamIconColor(_ color: Color, defaults: UserDefaults = ProfileSettingsStore.services) {
+        save(color, forKey: streamIconColorKey, defaults: defaults)
+    }
+
+    static func setStreamFrameColor(_ color: Color, defaults: UserDefaults = ProfileSettingsStore.services) {
+        save(color, forKey: streamFrameColorKey, defaults: defaults)
+    }
+
+    static func setStreamFrameWidth(_ width: Double, defaults: UserDefaults = ProfileSettingsStore.services) {
+        defaults.set(min(max(width, 0.5), 6), forKey: streamFrameWidthKey)
+    }
+
+    static func reset(defaults: UserDefaults = ProfileSettingsStore.services) {
+        defaults.removeObject(forKey: streamCardColorKey)
+        defaults.removeObject(forKey: streamIconColorKey)
+        defaults.removeObject(forKey: showStreamFrameKey)
+        defaults.removeObject(forKey: streamFrameColorKey)
+        defaults.removeObject(forKey: streamFrameWidthKey)
+        defaults.removeObject(forKey: hideAddonMessagesKey)
+    }
+
+    private static func archivedColor(forKey key: String, defaults: UserDefaults) -> Color? {
+        guard let data = defaults.data(forKey: key), !data.isEmpty,
+              let color = try? PortableColorArchive.color(from: data) else { return nil }
+#if os(macOS)
+        return Color(nsColor: color)
+#else
+        return Color(uiColor: color)
+#endif
+    }
+
+    private static func save(_ color: Color, forKey key: String, defaults: UserDefaults) {
+        do {
+#if os(macOS)
+            let platformColor = NSColor(color)
+#else
+            let platformColor = UIColor(color)
+#endif
+            defaults.set(try PortableColorArchive.data(for: platformColor), forKey: key)
+        } catch {
+            Logger.shared.log("Failed to save stream appearance color", type: "Error")
+        }
+    }
+}
+
 enum ContentBlockingSettings {
     static let blockAddonSubtitlesKey = "contentBlockingBlockAddonSubtitles"
     static let blockAddonCatalogsKey = "contentBlockingBlockAddonCatalogs"

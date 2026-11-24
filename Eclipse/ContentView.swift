@@ -594,6 +594,7 @@ private enum ExperimentalMediaTab: Hashable {
 
 struct ExperimentalContentView: View {
     @ObservedObject private var downloadManager = DownloadManager.shared
+    @StateObject private var accentColorManager = AccentColorManager.shared
     @AppStorage("githubReleaseShowAlertPending", store: .standard) private var githubReleaseShowAlertPending = false
     @AppStorage("githubReleaseLatestVersion", store: .standard) private var githubReleaseLatestVersion = ""
     @AppStorage("githubReleaseURL", store: .standard) private var githubReleaseURL = ""

@@ -38,6 +38,8 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
     case hideSplashScreen
     case alternativeSeasonMenu
     case horizontalEpisodeList
+    case episodeCardColor
+    case scheduleCardColor
     case showUnairedEpisodes
     case titleLogoPosition
     case titleLogoSize
@@ -75,8 +77,10 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
             return "animation"
         case .hideSplashScreen:
             return "startup"
-        case .alternativeSeasonMenu, .horizontalEpisodeList, .showUnairedEpisodes, .titleLogoPosition, .titleLogoSize, .titleLogoWeight, .heroActionPosition, .heroSynopsisPosition, .portraitHeroBleedIntensity, .landscapeHeroBleedIntensity, .landscapeTitleLogoPosition, .landscapeTitleLogoHorizontalPosition, .landscapeTitleLogoSize, .landscapeTitleLogoWeight, .landscapeHeroActionPosition, .landscapeHeroSynopsisPosition, .landscapeHeroHorizontalStretch, .landscapeHeroVerticalStretch, .landscapeContentHorizontalPosition, .dataSaver, .ageRating, .similarTitles:
+        case .alternativeSeasonMenu, .horizontalEpisodeList, .episodeCardColor, .showUnairedEpisodes, .titleLogoPosition, .titleLogoSize, .titleLogoWeight, .heroActionPosition, .heroSynopsisPosition, .portraitHeroBleedIntensity, .landscapeHeroBleedIntensity, .landscapeTitleLogoPosition, .landscapeTitleLogoHorizontalPosition, .landscapeTitleLogoSize, .landscapeTitleLogoWeight, .landscapeHeroActionPosition, .landscapeHeroSynopsisPosition, .landscapeHeroHorizontalStretch, .landscapeHeroVerticalStretch, .landscapeContentHorizontalPosition, .dataSaver, .ageRating, .similarTitles:
             return "details"
+        case .scheduleCardColor:
+            return "schedule"
         case .libraryBookmarks, .libraryCollectionLayout:
             return "library"
         }
@@ -88,6 +92,8 @@ struct AlternativeUIView: View {
 
     @AppStorage(MediaDetailPlatformDefaults.seasonMenuKey) private var useSeasonMenu = MediaDetailPlatformDefaults.prefersCompactSeasonMenu
     @AppStorage(MediaDetailPlatformDefaults.horizontalEpisodeListKey) private var horizontalEpisodeList = MediaDetailPlatformDefaults.prefersHorizontalEpisodes
+    @AppStorage(MediaDetailEpisodeCardAppearanceSettings.colorDataKey) private var episodeCardColorData = Data()
+    @AppStorage(ScheduleCardAppearanceSettings.colorDataKey) private var scheduleCardColorData = Data()
     @AppStorage(MediaDetailEpisodeVisibilitySettings.showUnairedEpisodesKey) private var showUnairedEpisodes = MediaDetailEpisodeVisibilitySettings.defaultShowUnairedEpisodes
     @AppStorage(MediaDetailTitleLogoPositionSettings.verticalPositionKey) private var titleLogoVerticalPosition = MediaDetailTitleLogoPositionSettings.defaultVerticalPosition
     @AppStorage(MediaDetailTitleLogoAppearanceSettings.sizeKey) private var titleLogoSize = MediaDetailTitleLogoAppearanceSettings.defaultSize
@@ -149,7 +155,6 @@ struct AlternativeUIView: View {
 
     var body: some View {
         List {
-            previewSection
             customizationSection
                 .eclipseExperimentalSettingsRows()
             behaviorSection
@@ -287,6 +292,19 @@ struct AlternativeUIView: View {
             }
 
             NavigationLink {
+                AppearanceSettingsSubpage(title: "Schedule", sectionKey: "schedule", initialSearchTarget: initialSearchTarget) {
+                    scheduleAppearanceSection
+                        .eclipseExperimentalSettingsRows()
+                }
+            } label: {
+                appearanceCategoryLabel(
+                    title: "Schedule",
+                    description: "Customize schedule cards and release-time badges.",
+                    systemImage: "calendar"
+                )
+            }
+
+            NavigationLink {
                 AppearanceSettingsSubpage(title: "Library", sectionKey: "library", initialSearchTarget: initialSearchTarget) {
                     librarySection
                         .eclipseExperimentalSettingsRows()
@@ -313,17 +331,6 @@ struct AlternativeUIView: View {
             }
         } header: {
             Text("Layout & Details")
-        }
-    }
-
-    private var previewSection: some View {
-        Section {
-            AppearancePreviewCard()
-                .listRowInsets(EdgeInsets(top: 6, leading: 14, bottom: 6, trailing: 14))
-                .listRowBackground(Color.clear)
-#if !os(tvOS)
-                .listRowSeparator(.hidden)
-#endif
         }
     }
 
@@ -672,6 +679,58 @@ struct AlternativeUIView: View {
         }
     }
 
+    private var episodeCardColorBinding: Binding<Color> {
+        Binding(
+            get: {
+                guard !episodeCardColorData.isEmpty,
+                      let archived = try? PortableColorArchive.color(from: episodeCardColorData) else {
+                    return Color.white.opacity(0.07)
+                }
+#if os(macOS)
+                return Color(nsColor: archived)
+#else
+                return Color(uiColor: archived)
+#endif
+            },
+            set: { color in
+#if os(macOS)
+                let archived = NSColor(color)
+#else
+                let archived = UIColor(color)
+#endif
+                if let data = try? PortableColorArchive.data(for: archived, requiringSecureCoding: false) {
+                    episodeCardColorData = data
+                }
+            }
+        )
+    }
+
+    private var scheduleCardColorBinding: Binding<Color> {
+        Binding(
+            get: {
+                guard !scheduleCardColorData.isEmpty,
+                      let archived = try? PortableColorArchive.color(from: scheduleCardColorData) else {
+                    return Color.white.opacity(0.07)
+                }
+#if os(macOS)
+                return Color(nsColor: archived)
+#else
+                return Color(uiColor: archived)
+#endif
+            },
+            set: { color in
+#if os(macOS)
+                let archived = NSColor(color)
+#else
+                let archived = UIColor(color)
+#endif
+                if let data = try? PortableColorArchive.data(for: archived, requiringSecureCoding: false) {
+                    scheduleCardColorData = data
+                }
+            }
+        )
+    }
+
     private var customAnimationParticleColorBinding: Binding<Color> {
         Binding(
             get: {
@@ -715,6 +774,11 @@ struct AlternativeUIView: View {
                 isOn: $horizontalEpisodeList
             )
             .id(AppearanceSettingsSearchTarget.horizontalEpisodeList.anchorID)
+            ColorPicker("Episode Card Color", selection: episodeCardColorBinding, supportsOpacity: true)
+                .id(AppearanceSettingsSearchTarget.episodeCardColor.anchorID)
+            Text("Episode cards use the selected tint in portrait, horizontal and iPad layouts.")
+                .font(.caption)
+                .foregroundColor(.secondary)
             toggleRow(
                 title: "Show Unaired Episodes",
                 description: "Keep future episodes visible in show and anime episode lists.",
@@ -827,6 +891,18 @@ struct AlternativeUIView: View {
             .id(AppearanceSettingsSearchTarget.landscapeHeroBleedIntensity.anchorID)
         } header: {
             Text("Detail Pages")
+        }
+    }
+
+    private var scheduleAppearanceSection: some View {
+        Section {
+            ColorPicker("Schedule Card Color", selection: scheduleCardColorBinding, supportsOpacity: true)
+                .id(AppearanceSettingsSearchTarget.scheduleCardColor.anchorID)
+            Text("Choose the background tint for scheduled movies, series and anime. The release-time Liquid Glass badge follows the selected app accent color.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        } header: {
+            Text("Schedule Appearance")
         }
     }
 
@@ -1351,6 +1427,7 @@ struct AlternativeUIView: View {
 #endif
         mediaDetailAgeRatingEnabled = MediaDetailAgeRatingSettings.defaultEnabled
         showUnairedEpisodes = MediaDetailEpisodeVisibilitySettings.defaultShowUnairedEpisodes
+        episodeCardColorData = Data()
         mediaDetailSimilarTitlesEnabled = MediaDetailSimilarTitlesSettings.defaultEnabled
         showsBookmarksSection = LibraryDisplaySettings.defaultShowBookmarksSection
         collectionLayoutRaw = LibraryCollectionLayout.defaultValue.rawValue
@@ -1400,37 +1477,4 @@ private struct AppearanceSettingsSubpage<Content: View>: View {
     }
 }
 
-private struct AppearancePreviewCard: View {
-    @ObservedObject private var theme = EclipseTheme.shared
 
-    var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            AtmosphereBackdrop(
-                input: theme.atmosphereInput(
-                    dominant: Color(red: 0.52, green: 0.24, blue: 0.66),
-                    hasHeroBleed: true,
-                    heroHeight: 92,
-                    fadeDistance: 150
-                ),
-                scrollOffset: 0
-            )
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Preview")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(.white.opacity(0.7))
-                Text("Banner color bleeds, then the background takes over")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.92))
-                    .lineLimit(2)
-            }
-            .padding(14)
-        }
-        .frame(height: 188)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
-        )
-    }
-}
