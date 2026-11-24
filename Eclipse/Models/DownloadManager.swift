@@ -438,17 +438,30 @@ struct ProtectedDownloadTransportPlan: Equatable {
     let mayUseResumeData: Bool
     let mustRegenerateHLSCheckpoint: Bool
 
-    static func protectedAttempt(
+    static func directBackgroundAttempt(
         authoritativeURL: URL,
         authoritativeHeaders: [String: String]
     ) -> Self {
-        // Background URLSession must connect to the provider itself. A local
-        // 127.0.0.1 proxy is suspended with the app and breaks the transfer.
         Self(
             authoritativeURL: authoritativeURL,
             authoritativeHeaders: authoritativeHeaders,
             dispatchURL: authoritativeURL,
             dispatchHeaders: authoritativeHeaders,
+            mayUseResumeData: false,
+            mustRegenerateHLSCheckpoint: true
+        )
+    }
+
+    static func proxiedAttempt(
+        authoritativeURL: URL,
+        authoritativeHeaders: [String: String],
+        proxyURL: URL
+    ) -> Self {
+        Self(
+            authoritativeURL: authoritativeURL,
+            authoritativeHeaders: authoritativeHeaders,
+            dispatchURL: proxyURL,
+            dispatchHeaders: [:],
             mayUseResumeData: false,
             mustRegenerateHLSCheckpoint: true
         )
@@ -1912,8 +1925,10 @@ final class DownloadManager: NSObject, ObservableObject {
         let authorityHeaders: [String: String]
         let authorityReference: ProviderContentReference?
         let stremioConfiguredOriginAuthority: SkyStreamPinnedOriginAuthority?
+        var mainProxyURL: URL?
         var subtitleProxyURLs = Set<URL>()
         var mainTaskIdentifier: Int?
+        var hlsVariantProxyURL: URL?
         var mainFinished = false
     }
 
@@ -1927,6 +1942,7 @@ final class DownloadManager: NSObject, ObservableObject {
 
     private var nuvioDispatchValidationPendingIDs = Set<String>()
     private var nuvioDispatchApprovedIDs = Set<String>()
+    private var nuvioDirectBackgroundApprovedIDs = Set<String>()
     private var nuvioDispatchValidationTokens: [String: UUID] = [:]
 
     private var sourceRefreshes = DownloadSourceRefreshRegistry()
