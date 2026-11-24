@@ -40,6 +40,7 @@ struct HomeLayoutView: View {
     @AppStorage("homeHeroTitleLogoSize") private var homeHeroTitleLogoSize = 1.0
     @AppStorage("homeHeroBannerBleedIntensity") private var homeHeroBannerBleedIntensity = 1.0
 
+    @State private var hasCustomHeroSelection = !HomeHeroSelectionSettings.load().isEmpty
     @StateObject private var catalogManager = CatalogManager.shared
     @StateObject private var layoutStore = HomeCatalogLayoutStore.shared
     @StateObject private var accentColorManager = AccentColorManager.shared
@@ -62,6 +63,12 @@ struct HomeLayoutView: View {
         .eclipsePageTitle("Home Layout")
         .accessibilityIdentifier("tv.appearance.homeLayout.screen")
         .eclipseSettingsStyle()
+        .onAppear {
+            hasCustomHeroSelection = !HomeHeroSelectionSettings.load().isEmpty
+        }
+        .onReceive(NotificationCenter.default.publisher(for: HomeHeroSelectionSettings.didChangeNotification)) { _ in
+            hasCustomHeroSelection = !HomeHeroSelectionSettings.load().isEmpty
+        }
 #if os(tvOS)
         .onAppear {
             let density = TVCardDensity(rawValue: tvCardDensityRaw) ?? .standard
@@ -200,10 +207,14 @@ struct HomeLayoutView: View {
 
             pickerRow(
                 title: "Hero Banner",
-                description: "The home catalogue used for the large banner.",
+                description: hasCustomHeroSelection
+                    ? "Unavailable while custom hero shows are selected. Clear the custom selection to choose a catalogue."
+                    : "The home catalogue used for the large banner.",
                 selection: $heroBannerCatalogId,
                 values: [("anime", "Anime")] + sortedCatalogs.map { ($0.id, $0.name) }
             )
+            .disabled(hasCustomHeroSelection)
+            .opacity(hasCustomHeroSelection ? 0.55 : 1)
 
             settingRow(title: "Hero Behavior", description: "When the banner changes.") {
                 Picker("", selection: heroBehaviorBinding) {
