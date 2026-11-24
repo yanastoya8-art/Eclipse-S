@@ -1473,6 +1473,7 @@ private struct BrowseMediaView: View {
     @StateObject private var tmdbService = TMDBService.shared
     @StateObject private var contentFilter = TMDBContentFilter.shared
     @StateObject private var glassAppearance = LiquidGlassAppearanceSettings.shared
+    @StateObject private var accentColorManager = AccentColorManager.shared
     @Environment(\.eclipseVerticalSizeClass) private var verticalSizeClass
 
     private struct RestoredBrowseFilters {
