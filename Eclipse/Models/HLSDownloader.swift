@@ -380,19 +380,17 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
                 self.session.getAllTasks { tasks in
                     self.queue.async {
                         guard self.pending[description] != nil else { return }
-                        let prefix = self.taskPrefix(downloadID: downloadID)
-                        for staleTask in tasks where staleTask.taskDescription?.hasPrefix(prefix) == true
-                            && staleTask.taskDescription != description {
-                            staleTask.cancel()
-                        }
-                        let staleKeys = self.activeTasks.keys.filter {
-                            $0.hasPrefix(prefix) && $0 != description
-                        }
-                        for key in staleKeys {
-                            self.activeTasks.removeValue(forKey: key)
-                        }
-                        self.removeCachedResults(withPrefix: prefix, excluding: description)
 
+                        // A download consists of many distinct HLS resources
+                        // (playlist, key, init section and media segments).
+                        // A task from the previous worker may still be owned by
+                        // background URLSession after iOS suspends Eclipse.
+                        // Never cancel a different resource just because it
+                        // belongs to the same download ID: the resumed worker
+                        // will reach that exact URL and reattach to its task.
+                        // Likewise, keep completed resource files until their
+                        // matching request consumes them. Explicit Cancel/Delete
+                        // still removes every task and cache entry for the ID.
                         if let existing = tasks.first(where: { $0.taskDescription == description }) as? URLSessionDownloadTask {
                             self.activeTasks[description] = existing
                             if existing.state == .suspended { existing.resume() }
