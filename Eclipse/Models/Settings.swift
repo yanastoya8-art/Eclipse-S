@@ -8879,16 +8879,27 @@ final class LiquidGlassAppearanceSettings: ObservableObject {
     static let lightBarColorKey = "liquidGlassLightBarColor"
     static let bottomBarColorKey = "liquidGlassBottomBarColor"
 
+    private var isReloadingProfile = false
+
     @Published var darkBarColor: Color {
-        didSet { Self.persist(darkBarColor, key: Self.darkBarColorKey) }
+        didSet {
+            guard !isReloadingProfile else { return }
+            Self.persist(darkBarColor, key: Self.darkBarColorKey)
+        }
     }
 
     @Published var lightBarColor: Color {
-        didSet { Self.persist(lightBarColor, key: Self.lightBarColorKey) }
+        didSet {
+            guard !isReloadingProfile else { return }
+            Self.persist(lightBarColor, key: Self.lightBarColorKey)
+        }
     }
 
     @Published var bottomBarColor: Color {
-        didSet { Self.persist(bottomBarColor, key: Self.bottomBarColorKey) }
+        didSet {
+            guard !isReloadingProfile else { return }
+            Self.persist(bottomBarColor, key: Self.bottomBarColorKey)
+        }
     }
 
     var bottomBarTint: Color { bottomBarColor.opacity(0.42) }
@@ -8901,6 +8912,24 @@ final class LiquidGlassAppearanceSettings: ObservableObject {
         darkBarColor = Self.restore(key: Self.darkBarColorKey, fallback: Color(red: 0.10, green: 0.10, blue: 0.15))
         lightBarColor = Self.restore(key: Self.lightBarColorKey, fallback: Color(red: 0.42, green: 0.42, blue: 0.48))
         bottomBarColor = Self.restore(key: Self.bottomBarColorKey, fallback: Color(red: 0.08, green: 0.08, blue: 0.13))
+
+        NotificationCenter.default.addObserver(
+            forName: .activeProfileDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.reloadForActiveProfile()
+            }
+        }
+    }
+
+    private func reloadForActiveProfile() {
+        isReloadingProfile = true
+        darkBarColor = Self.restore(key: Self.darkBarColorKey, fallback: Color(red: 0.10, green: 0.10, blue: 0.15))
+        lightBarColor = Self.restore(key: Self.lightBarColorKey, fallback: Color(red: 0.42, green: 0.42, blue: 0.48))
+        bottomBarColor = Self.restore(key: Self.bottomBarColorKey, fallback: Color(red: 0.08, green: 0.08, blue: 0.13))
+        isReloadingProfile = false
     }
 
     private static func restore(key: String, fallback: Color) -> Color {
