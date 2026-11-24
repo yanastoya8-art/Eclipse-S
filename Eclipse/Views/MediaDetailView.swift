@@ -3343,7 +3343,7 @@ struct MediaDetailContentView: View {
                 // updates automatically if the independent lookup later succeeds.
                 return hasLoadedContent ? "Not rated" : nil
             }
-            return "Anime · \(animeAgeCertification.ageBand)"
+            return animeAgeCertification.ageBand
         }
 
         // Observe the store revision so a rating fetched independently of the
@@ -3352,7 +3352,7 @@ struct MediaDetailContentView: View {
         let certification = searchResult.isMovie
             ? movieDetail?.releaseDates?.preferredCertification
             : tvShowDetail?.contentRatings?.preferredCertification
-        if let certification { return certification.displayValue }
+        if let certification { return certification.ageBand }
         if let rating = tmdbMaturityRatingStore.rating(isMovie: searchResult.isMovie, id: searchResult.id) {
             return rating == .unknown ? "Not rated" : rating.ageBand
         }
