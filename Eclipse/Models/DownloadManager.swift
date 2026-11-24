@@ -11077,8 +11077,10 @@ extension DownloadManager: URLSessionDownloadDelegate {
             }
 
             var updatedRequest = request
+            let requiresPublicValidation: Bool
             if let attempt = self.protectedProviderAttempts[downloadId],
                let originURL = URL(string: attempt.authorityURL) {
+                requiresPublicValidation = attempt.mainProxyURL == nil
                 let effective = self.effectiveHeaders(attempt.authorityHeaders, for: destination)
                 let safeHeaders = MPVHeaderProxy.shared.directTransportHeaders(
                     effective,
@@ -11098,6 +11100,7 @@ extension DownloadManager: URLSessionDownloadDelegate {
                     updatedRequest.setValue(value, forHTTPHeaderField: key)
                 }
             } else {
+                requiresPublicValidation = false
                 let refreshedHeaders = self.effectiveHeaders(item.headers, for: destination)
                 for (key, value) in refreshedHeaders {
                     let lowerKey = key.lowercased()
@@ -11115,7 +11118,25 @@ extension DownloadManager: URLSessionDownloadDelegate {
                 completionHandler(nil)
                 return
             }
-            completionHandler(updatedRequest)
+            if requiresPublicValidation {
+                guard scheme == "https" else {
+                    completionHandler(nil)
+                    return
+                }
+                Task {
+                    do {
+                        _ = try await SkyStreamRemoteURLPolicy.shared.validateForNetworkDispatch(
+                            destination.absoluteString,
+                            purpose: .mediaSegment
+                        )
+                        completionHandler(updatedRequest)
+                    } catch {
+                        completionHandler(nil)
+                    }
+                }
+            } else {
+                completionHandler(updatedRequest)
+            }
         }
     }
 }
