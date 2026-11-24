@@ -46,6 +46,7 @@ struct SearchView: View {
 
     @StateObject private var tmdbService = TMDBService.shared
     @StateObject private var contentFilter = TMDBContentFilter.shared
+    @StateObject private var accentColorManager = AccentColorManager.shared
     @Environment(\.eclipseVerticalSizeClass) var verticalSizeClass
 
     enum SearchFilter: String, CaseIterable {
@@ -1472,7 +1473,6 @@ private struct BrowseMediaView: View {
     @StateObject private var tmdbService = TMDBService.shared
     @StateObject private var contentFilter = TMDBContentFilter.shared
     @StateObject private var glassAppearance = LiquidGlassAppearanceSettings.shared
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.eclipseVerticalSizeClass) private var verticalSizeClass
 
     private struct RestoredBrowseFilters {
@@ -1741,7 +1741,7 @@ private struct BrowseMediaView: View {
             }
         }
         .pickerStyle(.segmented)
-        .tint(AccentColorManager.shared.currentAccentColor)
+        .tint(accentColorManager.currentAccentColor)
         .padding(4)
         .background(
             glassAppearance.darkBarColor.opacity(0.42),
