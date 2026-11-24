@@ -10,6 +10,9 @@ import UIKit
 import AppKit
 #endif
 #endif
+#if canImport(UIKit)
+import UIKit
+#endif
 #if canImport(CryptoKit)
 import CryptoKit
 #endif
