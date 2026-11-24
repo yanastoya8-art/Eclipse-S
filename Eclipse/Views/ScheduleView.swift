@@ -1089,7 +1089,7 @@ struct ScheduleView: View {
         .padding(.vertical, 10)
         .applyLiquidGlassBackground(
             cornerRadius: 10,
-            fallbackFill: glassAppearance.searchFieldColor(for: colorScheme).opacity(0.42),
+            fallbackFill: glassAppearance.darkBarColor.opacity(0.42),
             glassTint: glassAppearance.searchFieldColor(for: colorScheme).opacity(0.30)
         )
         .padding(.horizontal)
