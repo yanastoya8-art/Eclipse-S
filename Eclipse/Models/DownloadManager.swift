@@ -6713,13 +6713,22 @@ final class DownloadManager: NSObject, ObservableObject {
             let authorityState = Self.protectedAuthorityState(for: item)
             let directCandidate: Bool
             switch authorityState {
-            case .authorized(.nuvio), .authorized(.service), .legacyService:
+            case .authorized(.nuvio), .authorized(.service), .authorized(.stremio), .legacyService:
                 directCandidate = true
             default:
                 directCandidate = false
             }
             let directBackgroundAllowed: Bool
-            if isSyntacticallyApproved, directCandidate, scheme == "https" {
+            let stremioAuthorityAllowsDirect = {
+                if case .authorized(.stremio) = authorityState {
+                    return stremioAuthority != nil
+                }
+                return true
+            }()
+            if isSyntacticallyApproved,
+               directCandidate,
+               stremioAuthorityAllowsDirect,
+               scheme == "https" {
                 do {
                     let validated = try await SkyStreamRemoteURLPolicy.shared.validateForNetworkDispatch(
                         comparisonURLString,
@@ -7572,7 +7581,7 @@ final class DownloadManager: NSObject, ObservableObject {
             originURL: originalURL
         )
         let directBackgroundApproved = nuvioDirectBackgroundApprovedIDs.remove(item.id) != nil
-            && (providerKind == .nuvio || providerKind == .service)
+            && (providerKind == .nuvio || providerKind == .service || providerKind == .stremio)
             && originalURL.scheme?.lowercased() == "https"
         let attemptID = UUID()
         guard let latest = downloads.first(where: { $0.id == item.id }),
@@ -9704,7 +9713,7 @@ final class DownloadManager: NSObject, ObservableObject {
         // Only provider types approved for direct public HTTPS background
         // transport may be reattached. Stremio/SkyStream retain their pinned
         // proxy path and must be re-resolved after a relaunch.
-        guard providerKind == .nuvio || providerKind == .service else { return false }
+        guard providerKind == .nuvio || providerKind == .service || providerKind == .stremio else { return false }
 
         let requestHeaders = request.allHTTPHeaderFields ?? [:]
         let safeHeaders = MPVHeaderProxy.shared.directTransportHeaders(
