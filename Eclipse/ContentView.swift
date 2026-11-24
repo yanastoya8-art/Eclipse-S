@@ -205,6 +205,9 @@ struct ContentView: View {
         .onChange(of: showingSettings) { _ in
             updatePerformanceSurface()
         }
+        .onReceive(glassAppearance.$bottomBarColor.dropFirst()) { _ in
+            configureTabBarAppearance()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .playerInterfaceCoverageDidChange)) { notification in
             playerInterfaceCoverage.consume(notification)
         }
