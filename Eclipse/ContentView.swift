@@ -56,6 +56,7 @@ struct ContentView: View {
     }
 
     @ObservedObject private var downloadManager = DownloadManager.shared
+    @StateObject private var accentColorManager = AccentColorManager.shared
     @StateObject private var glassAppearance = LiquidGlassAppearanceSettings.shared
     @AppStorage("githubReleaseShowAlertPending", store: .standard) private var githubReleaseShowAlertPending = false
     @AppStorage("githubReleaseLatestVersion", store: .standard) private var githubReleaseLatestVersion = ""
@@ -333,7 +334,7 @@ struct ContentView: View {
 #if !os(tvOS)
         .tabBarMinimizeBehavior(.never)
 #endif
-        .tint(AccentColorManager.shared.currentAccentColor)
+        .tint(accentColorManager.currentAccentColor)
 #if os(iOS)
         .toolbarBackground(LiquidGlassAppearanceSettings.shared.bottomBarTint, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
