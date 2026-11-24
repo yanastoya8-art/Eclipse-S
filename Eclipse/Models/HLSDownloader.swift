@@ -261,24 +261,29 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
     }
 
     private struct ResponseSnapshot: Codable {
-        let url: String
+        // Persist only non-secret response metadata. Never write a signed
+        // provider URL, Set-Cookie, Location, or authorization-related headers
+        // into the app's cache when a background task finishes after relaunch.
         let statusCode: Int?
         let headers: [String: String]
         let mimeType: String?
         let expectedContentLength: Int64
         let textEncodingName: String?
 
-        init?(response: URLResponse?, fallbackURL: URL?) {
+        init?(response: URLResponse?) {
             guard let response else { return nil }
-            guard let url = response.url ?? fallbackURL else { return nil }
-            self.url = url.absoluteString
             self.expectedContentLength = response.expectedContentLength
             self.mimeType = response.mimeType
             self.textEncodingName = response.textEncodingName
             if let http = response as? HTTPURLResponse {
                 statusCode = http.statusCode
+                let safeNames: Set<String> = [
+                    "content-type", "content-length", "content-encoding",
+                    "retry-after", "server", "cf-ray", "cf-mitigated"
+                ]
                 headers = http.allHeaderFields.reduce(into: [:]) { result, pair in
-                    guard let name = pair.key as? String else { return }
+                    guard let name = pair.key as? String,
+                          safeNames.contains(name.lowercased()) else { return }
                     result[name] = String(describing: pair.value)
                 }
             } else {
@@ -287,8 +292,8 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
             }
         }
 
-        func makeURLResponse() -> URLResponse? {
-            guard let url = URL(string: url) else { return nil }
+        func makeURLResponse(fallbackURL: URL?) -> URLResponse? {
+            guard let url = fallbackURL else { return nil }
             if let statusCode {
                 return HTTPURLResponse(
                     url: url,
@@ -341,7 +346,7 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
     ) async throws -> HLSBackgroundDownloadResult {
         let description = taskDescription(downloadID: downloadID, url: request.url)
         if let cached = try queue.sync(execute: {
-            try readCompletedResult(for: description, maximumResponseBytes: maximumResponseBytes)
+            try readCompletedResult(for: description, maximumResponseBytes: maximumResponseBytes, fallbackURL: request.url)
         }) {
             return cached
         }
@@ -453,10 +458,7 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
             }
             try? FileManager.default.removeItem(at: responseURL(for: description))
             try FileManager.default.moveItem(at: location, to: baseURL)
-            if let snapshot = ResponseSnapshot(
-                response: downloadTask.response,
-                fallbackURL: downloadTask.originalRequest?.url
-            ) {
+            if let snapshot = ResponseSnapshot(response: downloadTask.response) {
                 try JSONEncoder().encode(snapshot).write(
                     to: responseURL(for: description),
                     options: .atomic
@@ -471,13 +473,18 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
                     return
                 }
                 do {
-                    guard let result = try self.readCompletedResult(
-                        for: description,
-                        maximumResponseBytes: request.maximumResponseBytes
-                    ) else {
-                        throw URLError(.cannotLoadFromNetwork)
+                    let fileURL = self.cacheBaseURL(for: description)
+                    let size = Self.regularFileSize(at: fileURL)
+                    guard size >= 0, size <= Int64(request.maximumResponseBytes) else {
+                        throw URLError(.dataLengthExceedsMaximum)
                     }
-                    request.continuation.resume(returning: result)
+                    let data = try Data(contentsOf: fileURL)
+                    let response = downloadTask.response
+                    try? FileManager.default.removeItem(at: fileURL)
+                    try? FileManager.default.removeItem(at: self.responseURL(for: description))
+                    request.continuation.resume(
+                        returning: HLSBackgroundDownloadResult(data: data, response: response)
+                    )
                 } catch {
                     request.continuation.resume(throwing: error)
                 }
@@ -580,7 +587,8 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
 
     private func readCompletedResult(
         for description: String,
-        maximumResponseBytes: Int
+        maximumResponseBytes: Int,
+        fallbackURL: URL?
     ) throws -> HLSBackgroundDownloadResult? {
         let fileURL = cacheBaseURL(for: description)
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return nil }
@@ -593,7 +601,7 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
         let data = try Data(contentsOf: fileURL)
         let response = (try? Data(contentsOf: responseURL(for: description)))
             .flatMap { try? JSONDecoder().decode(ResponseSnapshot.self, from: $0) }
-            .flatMap { $0.makeURLResponse() }
+            .flatMap { $0.makeURLResponse(fallbackURL: fallbackURL) }
         try? FileManager.default.removeItem(at: fileURL)
         try? FileManager.default.removeItem(at: responseURL(for: description))
         return HLSBackgroundDownloadResult(data: data, response: response)
