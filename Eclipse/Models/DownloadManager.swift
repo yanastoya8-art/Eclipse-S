@@ -9736,7 +9736,8 @@ final class DownloadManager: NSObject, ObservableObject {
                 var retainedTaskIDs = Set<String>()
 
                 for case let task as URLSessionDownloadTask in tasks {
-                    if let id = task.taskDescription,
+                    if (task.state == .running || task.state == .suspended || task.state == .completed),
+                       let id = task.taskDescription,
                        let index = downloads.firstIndex(where: { $0.id == id }),
                        downloads[index].claimsProtectedProviderTransport,
                        !restoreProtectedDirectTask(task, id: id, item: downloads[index]) {
