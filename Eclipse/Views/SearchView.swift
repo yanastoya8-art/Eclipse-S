@@ -865,8 +865,12 @@ struct SearchView: View {
                 let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
                 let requiresGlobalAnimeAgeRating = UserDefaults.standard.bool(forKey: "catalogHideBelowPG13Anime")
                     || UserDefaults.standard.bool(forKey: "catalogHideAllAgesAnime")
-                let shouldSearchTVEndpoint = results.isEmpty
-                    || (searchFilter == .anime && !results.contains(where: isAnimeResult))
+                // TMDB's multi-search endpoint is not a complete TV index:
+                // it can rank movies above shows or omit a show for a query
+                // that the dedicated /search/tv endpoint does return. Always
+                // supplement All, TV Shows and Anime searches with the TV
+                // endpoint; only the Movies filter can safely skip it.
+                let shouldSearchTVEndpoint = searchFilter != .movies
                 if shouldSearchTVEndpoint {
                     if let tvResults = try? await tmdbService.searchTVShows(query: query) {
                         try Task.checkCancellation()
