@@ -1103,10 +1103,12 @@ final class ScheduleViewModel: ObservableObject {
         let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
         if !selectedDubLanguages.isEmpty,
            !MyDubListDubFilter.shared.prepareCachedSnapshot() {
-            let refreshed = await MyDubListDubFilter.shared.refresh()
-            try Task.checkCancellation()
-            guard refreshed || MyDubListDubFilter.shared.prepareCachedSnapshot() else {
-                throw ScheduleSourceLoadError.languageMetadataUnavailable
+            // Verified timetable providers carry their own language evidence and
+            // must not wait for an unrelated title-level index request. ScheduleView
+            // listens for didRefreshNotification and reloads the cached schedule
+            // once this background refresh publishes a newer snapshot.
+            Task(priority: .utility) {
+                _ = await MyDubListDubFilter.shared.refresh()
             }
         }
         let policyKey = currentAnimeSchedulePolicyKey()

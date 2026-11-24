@@ -1401,11 +1401,10 @@ private struct BrowseCountry: Identifiable, Hashable {
 }
 
 private struct BrowseMediaView: View {
-    // Filter-heavy anime queries can reject most results on each TMDB page.
-    // Search further automatically only when a page produces no visible match;
-    // once a small result set is available, keep it stable and offer a manual
-    // next-page action instead of leaving a spinner running continuously.
-    private static let maximumAutomaticFilteredPages = 8
+    // Filter-heavy anime and TV queries can reject most results on each TMDB page.
+    // Automatically fill a usable grid before handing pagination to the scroll sentinel.
+    // The cap prevents an unbounded request chain when filters legitimately match very few titles.
+    private static let maximumAutomaticFilteredPages = 30
 
     @AppStorage("mediaColumnsPortrait") private var mediaColumnsPortrait: Int = 3
     @AppStorage("mediaColumnsLandscape") private var mediaColumnsLandscape: Int = 5
@@ -2021,10 +2020,6 @@ private struct BrowseMediaView: View {
             if hasMorePages && currentPage < Self.maximumAutomaticFilteredPages {
                 ProgressView("Searching for titles that match your filters…")
                     .font(.caption)
-            } else if hasMorePages {
-                Button("Search More") { loadNextPage() }
-                    .buttonStyle(.bordered)
-                    .disabled(isLoading)
             }
         }
         .frame(maxWidth: .infinity)
@@ -2037,10 +2032,9 @@ private struct BrowseMediaView: View {
                 ForEach(results, id: \.stableIdentity) { result in
                     SearchResultCard(result: result)
                         .onAppear {
-                            // Do not auto-fetch another page merely because a
-                            // small filtered first page fits on screen. That
-                            // repeatedly re-arms the sentinel and leaves Browse
-                            // showing a spinner while pages stream in one by one.
+                            // Small filtered grids are filled automatically by loadPage.
+                            // Once the grid is usable, this card and the trailing sentinel
+                            // continue pagination only as the user approaches the bottom.
                             if results.count >= 12,
                                result.stableIdentity == results.last?.stableIdentity {
                                 loadNextPage()
@@ -2056,24 +2050,11 @@ private struct BrowseMediaView: View {
             // each successful append. Re-arm the sentinel after every append
             // so pagination remains
             // automatic at every depth without a manual "Load More" control.
-            if hasMorePages {
-                if results.count >= 12 {
-                    Color.clear
-                        .frame(height: 1)
-                        .id("browse-search-pagination-\(currentPage)-\(results.count)")
-                        .onAppear { loadNextPage() }
-                } else {
-                    Button(action: { loadNextPage() }) {
-                        Text("Load More Results")
-                            .font(.subheadline.weight(.semibold))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 13)
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(isLoading)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 10)
-                }
+            if hasMorePages, results.count >= 12 {
+                Color.clear
+                    .frame(height: 1)
+                    .id("browse-search-pagination-\(currentPage)-\(results.count)")
+                    .onAppear { loadNextPage() }
             }
 
             if let errorMessage {
@@ -2418,13 +2399,12 @@ private struct BrowseMediaView: View {
                         reapplyCurrentFiltersToRetainedResults()
                     }
 
-                    // Continue searching automatically only while no
-                    // item has survived the active filters. Once results exist,
-                    // leave a small result set stable and let the user request
-                    // another page instead of running a long hidden page chain.
+                    // Automatically fill small filtered grids (especially Anime and
+                    // TV, where metadata/audio filters can reject most rows on a page).
+                    // Once twelve results are available, the scroll sentinel takes over.
                     if !filterDataUnavailable,
                        hasMorePages,
-                       results.isEmpty,
+                       results.count < 12,
                        page < Self.maximumAutomaticFilteredPages {
                         loadNextPage()
                     }
@@ -2715,7 +2695,7 @@ private struct BrowseMediaView: View {
         _ results: [TMDBSearchResult],
         resolveArtwork: Bool = true
     ) async -> [TMDBSearchResult] {
-        let selectedDubLanguageCodes = Set(MyDubListDubFilter.shared.selectedLanguages.compactMap {
+        let selectedDubLanguageCodes = Set(MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement.compactMap {
             MyDubListLanguage(rawValue: $0)?.taizenLanguageCode
         })
         let originalAudioFilterEnabled = UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
@@ -3034,14 +3014,13 @@ private struct BrowseMediaView: View {
             // identity snapshot is ready. Publishing an empty grid first and
             // replacing it after a background refresh caused a visible empty
             // state/flicker and repeated filtering work.
-            let refreshed = await MyDubListDubFilter.shared.refresh()
-            guard !Task.isCancelled else { return [] }
-            guard refreshed || MyDubListDubFilter.shared.prepareCachedSnapshot() else {
-                await MainActor.run {
-                    errorMessage = "Unable to verify the selected dub-language data. Check your connection and try again."
-                }
-                return []
+            // Do not hold the first Browse page on a slow global index request.
+            // Per-title Taizen/audio checks below verify candidates immediately;
+            // the refresh notification re-applies filters when the shared index arrives.
+            Task(priority: .utility) {
+                _ = await MyDubListDubFilter.shared.refresh()
             }
+            guard !Task.isCancelled else { return [] }
         }
         guard ageRating != .all || requiresAnimeIdentity else {
             return typeFiltered

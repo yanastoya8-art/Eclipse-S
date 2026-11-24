@@ -1031,7 +1031,12 @@ class TMDBContentFilter: ObservableObject {
         // particular, an English-only selection used to reject every Japanese
         // anime card before the language index had finished loading.
         if !selectedLanguages.isEmpty, !dubFilter.prepareCachedSnapshot() {
-            _ = await dubFilter.refresh()
+            // Verified per-title audio lookups can proceed while the shared index
+            // refreshes. The catalogue observes the refresh notification and
+            // re-filters retained results when the index becomes available.
+            Task(priority: .utility) {
+                _ = await dubFilter.refresh()
+            }
         }
 
         if !selectedLanguages.isEmpty, !animeResults.isEmpty {

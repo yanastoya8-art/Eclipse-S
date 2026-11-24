@@ -1373,6 +1373,19 @@ final class AnimeScheduleProviderLanguagePolicyTests: XCTestCase {
         ) == true)
     }
 
+    func testEveryVerifiedEnglishDubProviderIsEligibleWithoutTitleLevelIndex() {
+        for provider: ScheduleProvider in [.dubOnly, .tsuzuki, .seaDub] {
+            XCTAssertTrue(
+                AnimeScheduleProviderLanguagePolicy.includes(
+                    provider: provider,
+                    originalLanguage: nil,
+                    selectedLanguages: ["english"]
+                ) == true,
+                "\(provider.rawValue) should provide its own English-dub evidence"
+            )
+        }
+    }
+
     func testUnverifiedProvidersFallThroughToTitleLevelVerification() {
         XCTAssertNil(AnimeScheduleProviderLanguagePolicy.includes(
             provider: .aniList,
