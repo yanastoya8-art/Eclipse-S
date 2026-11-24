@@ -761,6 +761,7 @@ enum PlayerSettingsSearchTarget: String, Hashable {
 
 private struct MPVPlayerSkinSettingsView: View {
     @Binding var selection: MPVPlayerSkin
+    @StateObject private var accentColorManager = AccentColorManager.shared
     @AppStorage(MPVPlayerSkinSettings.customPrimaryColorKey) private var customPrimaryColorData = Data()
     @AppStorage(MPVPlayerSkinSettings.customSecondaryColorKey) private var customSecondaryColorData = Data()
     @AppStorage(MPVPlayerSkinSettings.animationsEnabledKey) private var animationsEnabled = MPVPlayerSkinSettings.defaultAnimationsEnabled
@@ -823,7 +824,7 @@ private struct MPVPlayerSkinSettingsView: View {
                         GlassDetailRow(title: "Tint Controls Only", subtitle: "Color the buttons and menus but keep the standard dark player background.") {
                             Toggle("", isOn: $tintControlsOnly)
                                 .labelsHidden()
-                                .tint(primaryColor(for: selection))
+                                .tint(accentColorManager.currentAccentColor)
                         }
                     }
                 }
