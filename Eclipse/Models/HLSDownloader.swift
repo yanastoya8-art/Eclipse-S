@@ -344,7 +344,11 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
         downloadID: String,
         maximumResponseBytes: Int
     ) async throws -> HLSBackgroundDownloadResult {
-        let description = taskDescription(downloadID: downloadID, url: request.url)
+        let description = taskDescription(
+            downloadID: downloadID,
+            url: request.url,
+            maximumResponseBytes: maximumResponseBytes
+        )
         if let cached = try queue.sync(execute: {
             try readCompletedResult(for: description, maximumResponseBytes: maximumResponseBytes, fallbackURL: request.url)
         }) {
@@ -433,7 +437,7 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
         guard let description = downloadTask.taskDescription,
               description.hasPrefix("eclipse-hls-v1-") else { return }
         let maximumBytes = queue.sync {
-            pending[description]?.maximumResponseBytes ?? 128 * 1_024 * 1_024
+            pending[description]?.maximumResponseBytes ?? maximumResponseBytes(from: description)
         }
         let size = Self.regularFileSize(at: location)
         guard size >= 0, size <= Int64(maximumBytes) else {
@@ -500,6 +504,24 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
         }
     }
 
+    func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didWriteData bytesWritten: Int64,
+        totalBytesWritten: Int64,
+        totalBytesExpectedToWrite: Int64
+    ) {
+        guard let description = downloadTask.taskDescription,
+              description.hasPrefix("eclipse-hls-v1-") else { return }
+        let maximumBytes = queue.sync {
+            pending[description]?.maximumResponseBytes ?? maximumBytes(from: description)
+        }
+        if totalBytesWritten > Int64(maximumBytes)
+            || totalBytesExpectedToWrite > Int64(maximumBytes) {
+            downloadTask.cancel()
+        }
+    }
+
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         guard let description = task.taskDescription,
               description.hasPrefix("eclipse-hls-v1-") else { return }
@@ -557,9 +579,20 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
         "eclipse-hls-v1-\(digest(downloadID))-"
     }
 
-    private func taskDescription(downloadID: String, url: URL?) -> String {
+    private func taskDescription(
+        downloadID: String,
+        url: URL?,
+        maximumResponseBytes: Int
+    ) -> String {
         let urlValue = url?.absoluteString ?? "missing-url"
-        return taskPrefix(downloadID: downloadID) + digest(urlValue)
+        let boundedMaximum = min(max(maximumResponseBytes, 1), 128 * 1_024 * 1_024)
+        return taskPrefix(downloadID: downloadID) + digest(urlValue) + "-\(boundedMaximum)"
+    }
+
+    private func maximumBytes(from description: String) -> Int {
+        guard let value = description.split(separator: "-").last.flatMap({ Int($0) }),
+              value > 0 else { return 128 * 1_024 * 1_024 }
+        return min(value, 128 * 1_024 * 1_024)
     }
 
     private func digest(_ value: String) -> String {
