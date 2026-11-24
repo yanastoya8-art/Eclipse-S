@@ -251,7 +251,7 @@ private struct HLSBackgroundDownloadResult {
 /// Downloads each HLS resource as an OS-managed background URLSession task.
 /// Stable task descriptions and a small completed-file cache let a new
 /// HLSDownloader reattach after iOS relaunches Eclipse for background events.
-private final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
+final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
     static let identifier = "app.eclipse.soupy.hls-segments"
     static let shared = HLSBackgroundURLSessionCoordinator()
 
