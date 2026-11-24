@@ -123,6 +123,7 @@ struct AnimeScheduleTimetableEntry: Codable {
     let delayedUntil: String?
     let mediaTypes: [AnimeScheduleCategory]?
     let imageVersionRoute: String?
+    let lengthMin: Int?
 }
 
 struct AnimeScheduleAnime: Codable {
@@ -243,7 +244,8 @@ enum AnimeScheduleEntryMapper {
                 hasKnownAiringTime: knownTime,
                 scheduleProvider: .dubOnly,
                 malID: anime?.malID,
-                airingTimeWithdrawn: delayed && !stale
+                airingTimeWithdrawn: delayed && !stale,
+                runtimeMinutes: row.lengthMin
             )
         }
     }
