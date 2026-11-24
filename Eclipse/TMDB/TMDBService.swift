@@ -1312,7 +1312,7 @@ class TMDBService: ObservableObject {
 
     func getFastAnimeCatalog(kind: FastAnimeCatalogKind, limit: Int = 20) async throws -> [TMDBSearchResult] {
         let boundedLimit = min(max(limit, 1), 100)
-        let cacheKey = "\\(kind.rawValue)|\\(fastAnimeDateString(Date()))"
+        let cacheKey = "\(kind.rawValue)|\(fastAnimeDateString(Date()))
         if let cached = await cachedFastAnimeCatalog(for: cacheKey) {
             return Array(cached.prefix(boundedLimit))
         }
