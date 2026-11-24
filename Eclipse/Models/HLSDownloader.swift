@@ -554,10 +554,10 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
         }
 
         let origin = task.originalRequest?.url ?? source
-        let requiresPublicValidation = task.taskDescription.map {
+        let requiresPublicRedirectValidation = task.taskDescription.map {
             requiresPublicValidation(for: $0)
         } ?? false
-        if requiresPublicValidation, destination.scheme?.lowercased() != "https" {
+        if requiresPublicRedirectValidation, destination.scheme?.lowercased() != "https" {
             completionHandler(nil)
             return
         }
@@ -578,7 +578,7 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
             redirected.setValue(value, forHTTPHeaderField: name)
         }
 
-        guard requiresPublicValidation else {
+        guard requiresPublicRedirectValidation else {
             completionHandler(redirected)
             return
         }
