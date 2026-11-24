@@ -146,7 +146,13 @@ final class HLSBackgroundDownloadCoordinator: HLSBackgroundDownloadScheduling {
             title: request.title,
             subtitle: "Preparing download"
         )
-        taskRequest.strategy = .fail
+        // HLS transfers are segmented and still need the app process to
+        // coordinate playlist, key, and segment requests. A fail-fast request
+        // is rejected whenever iOS cannot grant execution immediately, after
+        // which the app only has its short UIKit background allowance. Queue
+        // the user-initiated continuation so iOS can grant it when resources
+        // become available rather than silently falling back to that timeout.
+        taskRequest.strategy = .queue
         let token = request.token
         DispatchQueue.global(qos: .utility).async { [weak self, weak slot] in
             do {

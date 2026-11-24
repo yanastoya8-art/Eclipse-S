@@ -438,7 +438,21 @@ struct ProtectedDownloadTransportPlan: Equatable {
     let mayUseResumeData: Bool
     let mustRegenerateHLSCheckpoint: Bool
 
-    static func protectedAttempt(
+    static func directBackgroundAttempt(
+        authoritativeURL: URL,
+        authoritativeHeaders: [String: String]
+    ) -> Self {
+        Self(
+            authoritativeURL: authoritativeURL,
+            authoritativeHeaders: authoritativeHeaders,
+            dispatchURL: authoritativeURL,
+            dispatchHeaders: authoritativeHeaders,
+            mayUseResumeData: false,
+            mustRegenerateHLSCheckpoint: true
+        )
+    }
+
+    static func proxiedAttempt(
         authoritativeURL: URL,
         authoritativeHeaders: [String: String],
         proxyURL: URL
@@ -1911,10 +1925,10 @@ final class DownloadManager: NSObject, ObservableObject {
         let authorityHeaders: [String: String]
         let authorityReference: ProviderContentReference?
         let stremioConfiguredOriginAuthority: SkyStreamPinnedOriginAuthority?
-        let mainProxyURL: URL
+        var mainProxyURL: URL? = nil
         var subtitleProxyURLs = Set<URL>()
         var mainTaskIdentifier: Int?
-        var hlsVariantProxyURL: URL?
+        var hlsVariantProxyURL: URL? = nil
         var mainFinished = false
     }
 
@@ -1928,6 +1942,7 @@ final class DownloadManager: NSObject, ObservableObject {
 
     private var nuvioDispatchValidationPendingIDs = Set<String>()
     private var nuvioDispatchApprovedIDs = Set<String>()
+    private var nuvioDirectBackgroundApprovedIDs = Set<String>()
     private var nuvioDispatchValidationTokens: [String: UUID] = [:]
 
     private var sourceRefreshes = DownloadSourceRefreshRegistry()
@@ -2079,12 +2094,18 @@ final class DownloadManager: NSObject, ObservableObject {
         // background session: MP4, MKV, MP3, WebM, FLV, WebDAV-hosted files,
         // extensionless provider streams, and other direct media formats.
         // iOS can continue these URLSession transfers while the app is suspended
-        // and relaunch the app for delegate completion events. HLS playlists use
-        // the checkpointed segment downloader and, on iOS 26+, the continued-
-        // processing coordinator because they require multiple dependent requests.
+        // and relaunch the app for delegate completion events. HLS resources use
+        // a second background URLSession with durable per-resource checkpoints;
+        // continued processing is an additional execution opportunity, not the
+        // only mechanism keeping HLS network requests alive.
         let config = URLSessionConfiguration.background(withIdentifier: "app.eclipse.soupy.downloads")
         config.isDiscretionary = false
         config.sessionSendsLaunchEvents = true
+        // Let iOS hold background transfers until connectivity returns instead
+        // of surfacing a transient offline failure as a stopped download.
+        config.waitsForConnectivity = true
+        config.timeoutIntervalForRequest = 600
+        config.timeoutIntervalForResource = 7 * 24 * 60 * 60
         #endif
         config.allowsCellularAccess = true
         config.httpMaximumConnectionsPerHost = 4
@@ -4155,6 +4176,7 @@ final class DownloadManager: NSObject, ObservableObject {
             nuvioDispatchValidationPendingIDs.remove(id)
             nuvioDispatchValidationTokens.removeValue(forKey: id)
             nuvioDispatchApprovedIDs.remove(id)
+            nuvioDirectBackgroundApprovedIDs.remove(id)
 
 #if (os(iOS) && !targetEnvironment(macCatalyst)) || os(macOS)
             let isProtectedProvider = downloads[index].claimsProtectedProviderTransport
@@ -4503,6 +4525,7 @@ final class DownloadManager: NSObject, ObservableObject {
 #endif
         nuvioDispatchValidationPendingIDs.removeAll()
         nuvioDispatchApprovedIDs.removeAll()
+        nuvioDirectBackgroundApprovedIDs.removeAll()
         nuvioDispatchValidationTokens.removeAll()
         for item in downloads { storeResumeData(nil, id: item.id) }
         resumeDataStore.removeAll()
@@ -6204,7 +6227,14 @@ final class DownloadManager: NSObject, ObservableObject {
             NSURLErrorResourceUnavailable,
             NSURLErrorInternationalRoamingOff,
             NSURLErrorDataNotAllowed,
-            NSURLErrorBackgroundSessionWasDisconnected
+            NSURLErrorCannotLoadFromNetwork,
+            NSURLErrorBackgroundSessionWasDisconnected,
+            // Explicit Pause/Cancel/Delete callbacks are consumed earlier by
+            // invalidatedDirectTaskIdentifiers. A cancellation reaching this
+            // classifier is therefore an unexpected OS/session interruption;
+            // preserve the item and automatically re-admit it instead of
+            // leaving a non-HLS download permanently Failed.
+            NSURLErrorCancelled
         ]
         return retryableCodes.contains(nsError.code)
     }
@@ -6648,6 +6678,7 @@ final class DownloadManager: NSObject, ObservableObject {
         }
 #endif
         guard nuvioDispatchValidationPendingIDs.insert(item.id).inserted else { return }
+        nuvioDirectBackgroundApprovedIDs.remove(item.id)
         let validationToken = UUID()
         nuvioDispatchValidationTokens[item.id] = validationToken
         guard let url = URL(string: item.streamURL) else {
@@ -6672,12 +6703,49 @@ final class DownloadManager: NSObject, ObservableObject {
             // instead, while leaving the persisted source identity untouched.
             let normalizedDispatchURL = URL(string: comparisonURLString)
             let hasSafeAuthority = url.user == nil && url.password == nil
-            outcome = (scheme == "http" || scheme == "https")
+            let isSyntacticallyApproved = (scheme == "http" || scheme == "https")
                 && url.host?.isEmpty == false
                 && hasSafeAuthority
                 && normalizedDispatchURL?.host?.lowercased() == url.host?.lowercased()
-                ? .approved
-                : .rejected
+            outcome = isSyntacticallyApproved ? .approved : .rejected
+
+#if os(iOS) && !targetEnvironment(macCatalyst)
+            let authorityState = Self.protectedAuthorityState(for: item)
+            let directCandidate: Bool
+            switch authorityState {
+            case .authorized(.nuvio), .authorized(.service), .authorized(.stremio), .legacyService:
+                directCandidate = true
+            default:
+                directCandidate = false
+            }
+            let directBackgroundAllowed: Bool
+            let stremioAuthorityAllowsDirect = {
+                if case .authorized(.stremio) = authorityState {
+                    return stremioAuthority != nil
+                }
+                return true
+            }()
+            if isSyntacticallyApproved,
+               directCandidate,
+               stremioAuthorityAllowsDirect,
+               scheme == "https" {
+                do {
+                    let validated = try await SkyStreamRemoteURLPolicy.shared.validateForNetworkDispatch(
+                        comparisonURLString,
+                        purpose: .mediaSegment
+                    )
+                    directBackgroundAllowed = validated.url.scheme?.lowercased() == "https"
+                } catch {
+                    // Retain the existing protected proxy route when a URL
+                    // cannot be safely dispatched by the OS background session.
+                    directBackgroundAllowed = false
+                }
+            } else {
+                directBackgroundAllowed = false
+            }
+#else
+            let directBackgroundAllowed = false
+#endif
 
             await MainActor.run { [weak self] in
                 guard let self else { return }
@@ -6714,8 +6782,14 @@ final class DownloadManager: NSObject, ObservableObject {
                 switch outcome {
                 case .approved:
                     self.nuvioDispatchApprovedIDs.insert(item.id)
+                    if directBackgroundAllowed {
+                        self.nuvioDirectBackgroundApprovedIDs.insert(item.id)
+                    } else {
+                        self.nuvioDirectBackgroundApprovedIDs.remove(item.id)
+                    }
                     self.processQueue()
                 case .rejected:
+                    self.nuvioDirectBackgroundApprovedIDs.remove(item.id)
                     self.markFailed(
                         id: item.id,
                         error: "This download source no longer resolves to an authorized address."
@@ -6801,16 +6875,26 @@ final class DownloadManager: NSObject, ObservableObject {
             pinnedVariantURL: pinnedVariant,
             expectedTotalSegments: expectedTotal,
             expectedManifestSHA256: item.hlsResumeManifestSHA256,
-            canonicalResumeURL: { candidate in
-                if streamURLOverride != nil {
-                    return MPVHeaderProxy.shared.originalTargetURL(for: candidate)
-                }
-                return candidate
+            canonicalResumeURL: { [weak self] candidate in
+                guard let self,
+                      let protectedNuvioAttemptID,
+                      let attempt = self.protectedProviderAttempts[item.id],
+                      attempt.attemptID == protectedNuvioAttemptID,
+                      attempt.mainProxyURL != nil else { return candidate }
+                return MPVHeaderProxy.shared.originalTargetURL(for: candidate)
             },
-            minimumRequestStartInterval: streamURLOverride == nil ? nil : 0,
+            minimumRequestStartInterval: protectedNuvioAttemptID != nil
+                && protectedProviderAttempts[item.id]?.mainProxyURL != nil ? 0 : nil,
             enforcesConservativeDiskCapacityReserve: item.providerTransportKind == .skyStreamHLS,
             durableCheckpoints: usesDurableCheckpoints,
-            sessionConfiguration: hlsSessionConfiguration
+            sessionConfiguration: hlsSessionConfiguration,
+            useBackgroundURLSession: url.scheme?.lowercased() == "https"
+                && !["127.0.0.1", "localhost", "::1"].contains(url.host?.lowercased() ?? "")
+                && item.providerTransportKind != .skyStreamHLS
+                && (protectedNuvioAttemptID == nil
+                    || protectedProviderAttempts[item.id]?.mainProxyURL == nil),
+            requiresPublicNetworkValidationForBackgroundURLSession: protectedNuvioAttemptID != nil
+                && protectedProviderAttempts[item.id]?.mainProxyURL == nil
         )
 
 #if os(iOS) && !targetEnvironment(macCatalyst)
@@ -6833,11 +6917,14 @@ final class DownloadManager: NSObject, ObservableObject {
             if let index = self.downloads.firstIndex(where: { $0.id == item.id }) {
 #if (os(iOS) && !targetEnvironment(macCatalyst)) || os(macOS)
                 if let protectedNuvioAttemptID {
-                    self.recordNuvioHLSVariantProxyURL(
-                        variantURL,
-                        id: item.id,
-                        attemptID: protectedNuvioAttemptID
-                    )
+                    if self.protectedProviderAttempts[item.id]?.attemptID == protectedNuvioAttemptID,
+                       self.protectedProviderAttempts[item.id]?.mainProxyURL != nil {
+                        self.recordNuvioHLSVariantProxyURL(
+                            variantURL,
+                            id: item.id,
+                            attemptID: protectedNuvioAttemptID
+                        )
+                    }
                     self.downloads[index].hlsVariantURL = nil
                 } else if persistResolvedVariant {
                     self.downloads[index].hlsVariantURL = variantURL.absoluteString
@@ -7488,25 +7575,67 @@ final class DownloadManager: NSObject, ObservableObject {
             resetProtectedProviderHLSCheckpoint(id: item.id)
         }
 
-        let attemptID = UUID()
-        guard let proxyURL = MPVHeaderProxy.shared.makeProxyURL(
+        let safeTransportHeaders = MPVHeaderProxy.shared.directTransportHeaders(
+            effectiveHeaders,
             for: originalURL,
-            headers: effectiveHeaders,
-            logType: "ProviderDownload",
-            traceID: "provider-dl-\(String(attemptID.uuidString.prefix(8)))",
-            stremioAuthority: stremioAuthority,
-            onConfirmedCloudflareChallenge: { [weak self] url, rejectedCookie, interactive, status in
-                self?.handleNuvioProxyRejection(
-                    id: item.id,
-                    attemptID: attemptID,
-                    url: url,
-                    rejectedCookieHeader: rejectedCookie,
-                    isInteractive: interactive,
-                    statusCode: status
-                )
-            }
-        ) else {
+            originURL: originalURL
+        )
+        let directBackgroundApproved = nuvioDirectBackgroundApprovedIDs.remove(item.id) != nil
+            && (providerKind == .nuvio || providerKind == .service || providerKind == .stremio)
+            && originalURL.scheme?.lowercased() == "https"
+        let attemptID = UUID()
+        guard let latest = downloads.first(where: { $0.id == item.id }),
+              latest.status == .queued,
+              latest.streamURL == item.streamURL,
+              latest.headers == item.headers,
+              latest.lastSourceId == item.lastSourceId,
+              latest.lastContentReference == item.lastContentReference,
+              protectedOwnerMatchesActiveProfile(latest),
+              latest.effectiveProtectedProviderKind == providerKind else {
             return nil
+        }
+
+        let proxyURL: URL?
+        let plan: NuvioDownloadTransportPlan
+        let attemptHeaders: [String: String]
+        if directBackgroundApproved {
+            // Only public HTTPS Nuvio/service URLs that passed DNS validation
+            // use the OS-owned session. Stremio and SkyStream retain the
+            // pinned local proxy because their routing grants private-origin
+            // access that URLSession cannot safely reproduce.
+            proxyURL = nil
+            attemptHeaders = safeTransportHeaders
+            plan = NuvioDownloadTransportPlan.directBackgroundAttempt(
+                authoritativeURL: originalURL,
+                authoritativeHeaders: safeTransportHeaders
+            )
+        } else {
+            guard let createdProxyURL = MPVHeaderProxy.shared.makeProxyURL(
+                for: originalURL,
+                headers: effectiveHeaders,
+                logType: "ProviderDownload",
+                traceID: "provider-dl-\(String(attemptID.uuidString.prefix(8)))",
+                stremioAuthority: stremioAuthority,
+                onConfirmedCloudflareChallenge: { [weak self] url, rejectedCookie, interactive, status in
+                    self?.handleNuvioProxyRejection(
+                        id: item.id,
+                        attemptID: attemptID,
+                        url: url,
+                        rejectedCookieHeader: rejectedCookie,
+                        isInteractive: interactive,
+                        statusCode: status
+                    )
+                }
+            ) else {
+                return nil
+            }
+            proxyURL = createdProxyURL
+            attemptHeaders = effectiveHeaders
+            plan = NuvioDownloadTransportPlan.proxiedAttempt(
+                authoritativeURL: originalURL,
+                authoritativeHeaders: effectiveHeaders,
+                proxyURL: createdProxyURL
+            )
         }
 
         guard let latest = downloads.first(where: { $0.id == item.id }),
@@ -7517,27 +7646,22 @@ final class DownloadManager: NSObject, ObservableObject {
               latest.lastContentReference == item.lastContentReference,
               protectedOwnerMatchesActiveProfile(latest),
               latest.effectiveProtectedProviderKind == providerKind else {
-            MPVHeaderProxy.shared.invalidateSession(for: proxyURL)
+            if let proxyURL { MPVHeaderProxy.shared.invalidateSession(for: proxyURL) }
             return nil
         }
 
+        // Provider credentials remain in this in-memory attempt and the active
+        // URLSession request; they are not copied into download metadata.
         protectedProviderAttempts[item.id] = ProtectedProviderDownloadAttempt(
             attemptID: attemptID,
             providerKind: providerKind,
             authorityURL: originalURL.absoluteString,
-            authorityHeaders: item.headers,
+            authorityHeaders: attemptHeaders,
             authorityReference: authorityReference,
             stremioConfiguredOriginAuthority: stremioAuthority,
             mainProxyURL: proxyURL
         )
-        return (
-            NuvioDownloadTransportPlan.protectedAttempt(
-                authoritativeURL: originalURL,
-                authoritativeHeaders: item.headers,
-                proxyURL: proxyURL
-            ),
-            attemptID
-        )
+        return (plan, attemptID)
     }
 
     private func registerNuvioMainTask(
@@ -7586,17 +7710,6 @@ final class DownloadManager: NSObject, ObservableObject {
         return proxyURL
     }
 
-    private func recordNuvioHLSVariantProxyURL(
-        _ url: URL,
-        id: String,
-        attemptID: UUID
-    ) {
-        guard var attempt = protectedProviderAttempts[id],
-              attempt.attemptID == attemptID else { return }
-        attempt.hlsVariantProxyURL = url
-        protectedProviderAttempts[id] = attempt
-    }
-
     private func nuvioAttemptIsCurrent(id: String, attemptID: UUID) -> Bool {
         if Thread.isMainThread {
             return protectedProviderAttempts[id]?.attemptID == attemptID
@@ -7632,16 +7745,30 @@ final class DownloadManager: NSObject, ObservableObject {
         }
     }
 
+    private func recordNuvioHLSVariantProxyURL(
+        _ url: URL,
+        id: String,
+        attemptID: UUID
+    ) {
+        guard var attempt = protectedProviderAttempts[id],
+              attempt.attemptID == attemptID else { return }
+        attempt.hlsVariantProxyURL = url
+        protectedProviderAttempts[id] = attempt
+    }
+
     private func finishNuvioMainTransport(id: String, attemptID: UUID) {
         guard var attempt = protectedProviderAttempts[id],
               attempt.attemptID == attemptID else { return }
-        MPVHeaderProxy.shared.invalidateSession(for: attempt.mainProxyURL)
+        if let proxyURL = attempt.mainProxyURL {
+            MPVHeaderProxy.shared.invalidateSession(for: proxyURL)
+        }
         if let variantURL = attempt.hlsVariantProxyURL {
             MPVHeaderProxy.shared.invalidateSession(for: variantURL)
         }
+        attempt.mainProxyURL = nil
+        attempt.hlsVariantProxyURL = nil
         attempt.mainFinished = true
         attempt.mainTaskIdentifier = nil
-        attempt.hlsVariantProxyURL = nil
         storeResumeData(nil, id: id)
         pendingResumeDataTaskIdentifiers.removeValue(forKey: id)
         nuvioDispatchApprovedIDs.remove(id)
@@ -7684,7 +7811,9 @@ final class DownloadManager: NSObject, ObservableObject {
         guard let attempt = protectedProviderAttempts[id],
               expectedAttemptID == nil || attempt.attemptID == expectedAttemptID else { return }
         protectedProviderAttempts.removeValue(forKey: id)
-        MPVHeaderProxy.shared.invalidateSession(for: attempt.mainProxyURL)
+        if let proxyURL = attempt.mainProxyURL {
+            MPVHeaderProxy.shared.invalidateSession(for: proxyURL)
+        }
         if let variantURL = attempt.hlsVariantProxyURL {
             MPVHeaderProxy.shared.invalidateSession(for: variantURL)
         }
@@ -9544,6 +9673,70 @@ final class DownloadManager: NSObject, ObservableObject {
         }
     }
 
+    /// Reattaches a provider-backed background URLSession task after iOS
+    /// relaunches Eclipse. Provider URLs and credentials are recovered only
+    /// from the live OS-owned task, never from the persisted download snapshot.
+    private func restoreProtectedDirectTask(
+        _ task: URLSessionDownloadTask,
+        id: String,
+        item: DownloadItem
+    ) -> Bool {
+#if os(iOS) && !targetEnvironment(macCatalyst)
+        guard item.claimsProtectedProviderTransport,
+              protectedOwnerMatchesActiveProfile(item),
+              let request = task.originalRequest,
+              let url = request.url,
+              let scheme = url.scheme?.lowercased(),
+              scheme == "https",
+              let host = url.host?.lowercased(),
+              !host.isEmpty,
+              host != "127.0.0.1",
+              host != "localhost",
+              url.user == nil,
+              url.password == nil else { return false }
+
+        let providerKind: ProtectedDownloadProviderKind
+        let authorityReference: ProviderContentReference?
+        switch Self.protectedAuthorityState(for: item) {
+        case .authorized(let kind):
+            providerKind = kind
+            authorityReference = item.lastContentReference
+        case .legacyService:
+            providerKind = .service
+            authorityReference = nil
+        case .legacyStremio:
+            providerKind = .stremio
+            authorityReference = nil
+        case .notProtected, .invalid:
+            return false
+        }
+        // Only provider types approved for direct public HTTPS background
+        // transport may be reattached. Stremio/SkyStream retain their pinned
+        // proxy path and must be re-resolved after a relaunch.
+        guard providerKind == .nuvio || providerKind == .service || providerKind == .stremio else { return false }
+
+        let requestHeaders = request.allHTTPHeaderFields ?? [:]
+        let safeHeaders = MPVHeaderProxy.shared.directTransportHeaders(
+            requestHeaders,
+            for: url,
+            originURL: url
+        )
+        let attemptID = UUID()
+        protectedProviderAttempts[id] = ProtectedProviderDownloadAttempt(
+            attemptID: attemptID,
+            providerKind: providerKind,
+            authorityURL: url.absoluteString,
+            authorityHeaders: safeHeaders,
+            authorityReference: authorityReference,
+            stremioConfiguredOriginAuthority: nil,
+            mainTaskIdentifier: task.taskIdentifier
+        )
+        return true
+#else
+        return !item.claimsProtectedProviderTransport
+#endif
+    }
+
     private func resumeInterruptedDownloads() {
         guard !metadataLoadFailed else { return }
         backgroundSession.getAllTasks { [weak self] tasks in
@@ -9556,12 +9749,11 @@ final class DownloadManager: NSObject, ObservableObject {
                 var retainedTaskIDs = Set<String>()
 
                 for case let task as URLSessionDownloadTask in tasks {
-                    if let id = task.taskDescription,
+                    if (task.state == .running || task.state == .suspended || task.state == .completed),
+                       let id = task.taskDescription,
                        let index = downloads.firstIndex(where: { $0.id == id }),
-                       !ProtectedDownloadPersistencePolicy.mayAdoptRestoredBackgroundTask(
-                           claimsProtectedProvider: downloads[index]
-                               .claimsProtectedProviderTransport
-                       ) {
+                       downloads[index].claimsProtectedProviderTransport,
+                       !restoreProtectedDirectTask(task, id: id, item: downloads[index]) {
                         invalidatedDirectTaskIdentifiers.insert(task.taskIdentifier)
                         task.cancel()
 #if (os(iOS) && !targetEnvironment(macCatalyst)) || os(macOS)
@@ -9574,7 +9766,12 @@ final class DownloadManager: NSObject, ObservableObject {
                         }
                         continue
                     }
-                    guard task.state == .running || task.state == .suspended,
+                    // URLSession can relaunch Eclipse with a task that has
+                    // completed its transfer but is still awaiting delegate
+                    // delivery. Keep it attached so the temporary file is saved.
+                    guard task.state == .running
+                        || task.state == .suspended
+                        || task.state == .completed,
                           let id = task.taskDescription,
                           let index = downloads.firstIndex(where: { $0.id == id }),
                           !downloads[index].isHLS,
@@ -10577,8 +10774,8 @@ extension DownloadManager: URLSessionDownloadDelegate {
                     self.saveDownloads()
                     self.startHLSDownload(
                         hlsItem,
-                        streamURLOverride: attempt.mainProxyURL,
-                        headersOverride: [:],
+                        streamURLOverride: attempt.mainProxyURL ?? URL(string: attempt.authorityURL),
+                        headersOverride: attempt.mainProxyURL == nil ? attempt.authorityHeaders : [:],
                         persistResolvedVariant: false,
                         protectedNuvioAttemptID: attempt.attemptID
                     )
@@ -10902,13 +11099,38 @@ extension DownloadManager: URLSessionDownloadDelegate {
             }
 
             var updatedRequest = request
-            let refreshedHeaders = self.effectiveHeaders(item.headers, for: destination)
-            for (key, value) in refreshedHeaders {
-                let lowerKey = key.lowercased()
-                if lowerKey == "cookie" || lowerKey == "user-agent" {
+            let requiresPublicValidation: Bool
+            if let attempt = self.protectedProviderAttempts[downloadId],
+               let originURL = URL(string: attempt.authorityURL) {
+                requiresPublicValidation = attempt.mainProxyURL == nil
+                let effective = self.effectiveHeaders(attempt.authorityHeaders, for: destination)
+                let safeHeaders = MPVHeaderProxy.shared.directTransportHeaders(
+                    effective,
+                    for: destination,
+                    originURL: originURL
+                )
+                // URLSession may carry custom authorization headers across a
+                // redirect. Remove the original provider credentials first,
+                // then restore only headers allowed for the destination origin.
+                for name in attempt.authorityHeaders.keys {
+                    updatedRequest.setValue(nil, forHTTPHeaderField: name)
+                }
+                for name in ["Authorization", "Cookie", "Proxy-Authorization", "X-Api-Key", "X-Auth-Token"] {
+                    updatedRequest.setValue(nil, forHTTPHeaderField: name)
+                }
+                for (key, value) in safeHeaders {
                     updatedRequest.setValue(value, forHTTPHeaderField: key)
-                } else if updatedRequest.value(forHTTPHeaderField: key) == nil {
-                    updatedRequest.setValue(value, forHTTPHeaderField: key)
+                }
+            } else {
+                requiresPublicValidation = false
+                let refreshedHeaders = self.effectiveHeaders(item.headers, for: destination)
+                for (key, value) in refreshedHeaders {
+                    let lowerKey = key.lowercased()
+                    if lowerKey == "cookie" || lowerKey == "user-agent" {
+                        updatedRequest.setValue(value, forHTTPHeaderField: key)
+                    } else if updatedRequest.value(forHTTPHeaderField: key) == nil {
+                        updatedRequest.setValue(value, forHTTPHeaderField: key)
+                    }
                 }
             }
 
@@ -10918,7 +11140,25 @@ extension DownloadManager: URLSessionDownloadDelegate {
                 completionHandler(nil)
                 return
             }
-            completionHandler(updatedRequest)
+            if requiresPublicValidation {
+                guard scheme == "https" else {
+                    completionHandler(nil)
+                    return
+                }
+                Task {
+                    do {
+                        _ = try await SkyStreamRemoteURLPolicy.shared.validateForNetworkDispatch(
+                            destination.absoluteString,
+                            purpose: .mediaSegment
+                        )
+                        completionHandler(updatedRequest)
+                    } catch {
+                        completionHandler(nil)
+                    }
+                }
+            } else {
+                completionHandler(updatedRequest)
+            }
         }
     }
 }

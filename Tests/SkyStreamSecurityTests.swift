@@ -620,21 +620,73 @@ final class NuvioBoundaryHardeningTests: XCTestCase {
         XCTAssertFalse(SkyStreamPinnedHTTPClient.redirectChangesToGET(status: 308, method: "PUT"))
     }
 
-    func testProtectedDownloadPlanDispatchesOnlyThroughFreshProxy() throws {
+    func testProtectedDownloadPlanUsesDirectOSManagedTransport() throws {
         let remote = try XCTUnwrap(URL(string: "https://media.example/movie.mp4?token=secret"))
+        let headers = ["Authorization": "Bearer secret", "User-Agent": "Eclipse"]
+        let plan = NuvioDownloadTransportPlan.directBackgroundAttempt(
+            authoritativeURL: remote,
+            authoritativeHeaders: headers
+        )
+
+        XCTAssertEqual(plan.authoritativeURL, remote)
+        XCTAssertEqual(plan.authoritativeHeaders, headers)
+        XCTAssertEqual(plan.dispatchURL, remote)
+        XCTAssertEqual(plan.dispatchHeaders, headers)
+        XCTAssertFalse(plan.mayUseResumeData)
+        XCTAssertTrue(plan.mustRegenerateHLSCheckpoint)
+    }
+
+    func testPinnedProviderPlanKeepsTheLocalProxyRoute() throws {
+        let remote = try XCTUnwrap(URL(string: "https://media.example/movie.mp4"))
         let proxy = try XCTUnwrap(URL(string: "http://127.0.0.1:49152/session-token"))
-        let plan = NuvioDownloadTransportPlan.protectedAttempt(
+        let plan = NuvioDownloadTransportPlan.proxiedAttempt(
             authoritativeURL: remote,
             authoritativeHeaders: ["Authorization": "Bearer secret"],
             proxyURL: proxy
         )
 
         XCTAssertEqual(plan.authoritativeURL, remote)
-        XCTAssertEqual(plan.authoritativeHeaders["Authorization"], "Bearer secret")
         XCTAssertEqual(plan.dispatchURL, proxy)
         XCTAssertTrue(plan.dispatchHeaders.isEmpty)
         XCTAssertFalse(plan.mayUseResumeData)
         XCTAssertTrue(plan.mustRegenerateHLSCheckpoint)
+    }
+
+    func testDirectBackgroundTransportNeverLeaksCredentialsAcrossOrigins() throws {
+        let origin = try XCTUnwrap(URL(string: "https://provider.example/watch?id=42"))
+        let sameOrigin = try XCTUnwrap(URL(string: "https://provider.example/file.mp4"))
+        let crossOrigin = try XCTUnwrap(URL(string: "https://cdn.example/file.mp4"))
+        let headers = [
+            "Authorization": "Bearer secret",
+            "Cookie": "session=secret",
+            "X-Api-Key": "secret-key",
+            "User-Agent": "Eclipse",
+            "Accept-Language": "en-US",
+            "Referer": "https://provider.example/watch?id=42&token=secret",
+            "Origin": "https://provider.example/watch"
+        ]
+
+        let sameOriginHeaders = MPVHeaderProxy.shared.directTransportHeaders(
+            headers,
+            for: sameOrigin,
+            originURL: origin
+        )
+        XCTAssertEqual(sameOriginHeaders["Authorization"], "Bearer secret")
+        XCTAssertEqual(sameOriginHeaders["Cookie"], "session=secret")
+        XCTAssertEqual(sameOriginHeaders["X-Api-Key"], "secret-key")
+
+        let crossOriginHeaders = MPVHeaderProxy.shared.directTransportHeaders(
+            headers,
+            for: crossOrigin,
+            originURL: origin
+        )
+        XCTAssertNil(crossOriginHeaders["Authorization"])
+        XCTAssertNil(crossOriginHeaders["Cookie"])
+        XCTAssertNil(crossOriginHeaders["X-Api-Key"])
+        XCTAssertEqual(crossOriginHeaders["User-Agent"], "Eclipse")
+        XCTAssertEqual(crossOriginHeaders["Accept-Language"], "en-US")
+        XCTAssertEqual(crossOriginHeaders["Referer"], "https://provider.example/watch")
+        XCTAssertEqual(crossOriginHeaders["Origin"], "https://provider.example")
     }
 
     func testNuvioPersistenceScrubsEveryTransportSecretAndForcesRefresh() throws {
