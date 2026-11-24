@@ -725,12 +725,26 @@ struct SearchView: View {
     }
 
     private func scheduleSearch(for value: String) {
+        let query = value.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Do not cancel a request that is already resolving this exact query.
+        // Previously every SwiftUI text refresh cancelled the active task,
+        // then the debounce callback short-circuited in performSearch because
+        // lastSubmittedSearchQuery already matched. That left Search stuck in
+        // its loading state with no request capable of completing.
+        if !query.isEmpty,
+           query.caseInsensitiveCompare(lastSubmittedSearchQuery) == .orderedSame {
+            pendingSearchTask?.cancel()
+            pendingSearchTask = nil
+            isLoading = activeSearchTask != nil
+            return
+        }
+
         pendingSearchTask?.cancel()
         activeSearchTask?.cancel()
         activeSearchTask = nil
         searchRequestSerial += 1
 
-        let query = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else {
             searchResults = []
 #if os(tvOS)
@@ -867,8 +881,12 @@ struct SearchView: View {
                 // TMDB's multi-search index can omit anime or index it under
                 // a translated title. Query AniList directly for the Anime
                 // filter (and as a last resort when TMDB returns nothing).
-                if searchFilter == .anime || results.isEmpty
-                    || !selectedDubLanguages.isEmpty || requiresGlobalAnimeAgeRating {
+                // Do not make every ordinary movie/TV query wait on AniList
+                // merely because the user has dub or age filters enabled:
+                // those filters are applied to anime candidates already found
+                // in TMDB results, while the dedicated Anime filter performs
+                // the broader AniList lookup.
+                if searchFilter == .anime || results.isEmpty {
                     let animeResults = await AniListService.shared.searchAnimeResults(
                         query: query,
                         tmdbService: tmdbService
