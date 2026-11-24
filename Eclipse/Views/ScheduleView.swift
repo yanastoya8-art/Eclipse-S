@@ -25,6 +25,7 @@ struct ScheduleView: View {
     @AppStorage(ScheduleWindow.storageKey) private var scheduleWindowDays = ScheduleWindow.defaultValue.rawValue
     @StateObject private var viewModel: ScheduleViewModel
     @StateObject private var accentColorManager = AccentColorManager.shared
+    @AppStorage(ScheduleCardAppearanceSettings.colorDataKey) private var scheduleCardColorData = Data()
     @StateObject private var glassAppearance = LiquidGlassAppearanceSettings.shared
 
     @ObservedObject private var contentFilter = TMDBContentFilter.shared
@@ -48,6 +49,18 @@ struct ScheduleView: View {
 
     @State private var kidsScheduleFilterGeneration = 0
     @State private var scheduleNeedsFilterRefresh = false
+
+    private var scheduleCardTint: Color {
+        guard !scheduleCardColorData.isEmpty,
+              let archived = try? PortableColorArchive.color(from: scheduleCardColorData) else {
+            return Color.white.opacity(0.07)
+        }
+#if os(macOS)
+        return Color(nsColor: archived)
+#else
+        return Color(uiColor: archived)
+#endif
+    }
 
     private func refreshScheduleAgeFilter(_ entries: [ScheduleEntry]) {
         scheduleAgeFilterGeneration &+= 1
@@ -941,7 +954,7 @@ struct ScheduleView: View {
             tvScheduleMetadata(item: item)
         }
         .padding(12)
-        .background(tvScheduleCardBackground)
+        .background(scheduleCardTint, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay(tvScheduleCardBorder)
     }
 
@@ -994,7 +1007,7 @@ struct ScheduleView: View {
 
     private var tvScheduleCardBackground: some View {
         RoundedRectangle(cornerRadius: 22, style: .continuous)
-            .fill(Color.white.opacity(0.07))
+            .fill(scheduleCardTint)
     }
 
     private var tvScheduleCardBorder: some View {
@@ -1246,6 +1259,7 @@ struct ScheduleView: View {
         }
         .padding(12)
         .glassCard(cornerRadius: EclipseRadius.card)
+        .background(scheduleCardTint, in: RoundedRectangle(cornerRadius: EclipseRadius.card, style: .continuous))
         .animation(.easeInOut(duration: 0.2), value: loadingItemId)
     }
 
@@ -1302,7 +1316,8 @@ struct ScheduleView: View {
                 .foregroundColor(.white)
                 .padding(.horizontal, 9)
                 .padding(.vertical, 5)
-                .background(Capsule().fill(Color.white.opacity(0.12)))
+                .background(Capsule().fill(accentColorManager.currentAccentColor.opacity(0.22)))
+                .overlay(Capsule().strokeBorder(accentColorManager.currentAccentColor.opacity(0.38), lineWidth: 0.8))
                 .fixedSize(horizontal: true, vertical: false)
 
                 if let countdown = countdownLabel(for: item) {
