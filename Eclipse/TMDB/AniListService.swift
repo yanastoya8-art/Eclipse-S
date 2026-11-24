@@ -7004,6 +7004,58 @@ final class AniListService {
         }
         return result
     }
+    /// Searches AniList directly when TMDB's general search misses an anime.
+    /// Candidates are narrowed by their actual AniList titles before mapping to
+    /// TMDB, so partial queries do not attach unrelated series.
+    func searchAnimeResults(query: String, tmdbService: TMDBService) async -> [TMDBSearchResult] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.utf8.count <= 200,
+              !trimmed.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) else {
+            return []
+        }
+
+        func normalized(_ value: String) -> String {
+            value.folding(
+                options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+                locale: Locale(identifier: "en_US_POSIX")
+            )
+            .lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .joined()
+        }
+
+        let queryKey = normalized(trimmed)
+        guard queryKey.count >= 2 else { return [] }
+        let nodes = await supplementalStructureNodeLookup(title: trimmed, token: nil)
+        let candidates = nodes.values
+            .filter { anime in
+                guard anime.isAdult != true else { return false }
+                let titles = AniListTitlePicker.titleCandidates(from: anime.title)
+                    .map(normalized)
+                    .filter { !$0.isEmpty }
+                return titles.contains { title in
+                    title == queryKey || title.contains(queryKey) || queryKey.contains(title)
+                }
+            }
+            .sorted { lhs, rhs in
+                let lhsExact = AniListTitlePicker.titleCandidates(from: lhs.title).contains {
+                    normalized($0) == queryKey
+                }
+                let rhsExact = AniListTitlePicker.titleCandidates(from: rhs.title).contains {
+                    normalized($0) == queryKey
+                }
+                if lhsExact != rhsExact { return lhsExact }
+                if lhs.averageScore != rhs.averageScore {
+                    return (lhs.averageScore ?? 0) > (rhs.averageScore ?? 0)
+                }
+                return lhs.id < rhs.id
+            }
+            .prefix(6)
+
+        guard !candidates.isEmpty, !Task.isCancelled else { return [] }
+        return await mapAniListCatalogToTMDB(Array(candidates), tmdbService: tmdbService)
+    }
+
     /// Resolves a TMDB animation result that has no AniMap entry using an exact
     /// AniList title match. Fuzzy matches are deliberately rejected so dub
     /// filtering cannot attach another show's language evidence.
