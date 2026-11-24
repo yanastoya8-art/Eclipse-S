@@ -636,6 +636,22 @@ final class NuvioBoundaryHardeningTests: XCTestCase {
         XCTAssertTrue(plan.mustRegenerateHLSCheckpoint)
     }
 
+    func testPinnedProviderPlanKeepsTheLocalProxyRoute() throws {
+        let remote = try XCTUnwrap(URL(string: "https://media.example/movie.mp4"))
+        let proxy = try XCTUnwrap(URL(string: "http://127.0.0.1:49152/session-token"))
+        let plan = NuvioDownloadTransportPlan.proxiedAttempt(
+            authoritativeURL: remote,
+            authoritativeHeaders: ["Authorization": "Bearer secret"],
+            proxyURL: proxy
+        )
+
+        XCTAssertEqual(plan.authoritativeURL, remote)
+        XCTAssertEqual(plan.dispatchURL, proxy)
+        XCTAssertTrue(plan.dispatchHeaders.isEmpty)
+        XCTAssertFalse(plan.mayUseResumeData)
+        XCTAssertTrue(plan.mustRegenerateHLSCheckpoint)
+    }
+
     func testDirectBackgroundTransportNeverLeaksCredentialsAcrossOrigins() throws {
         let origin = try XCTUnwrap(URL(string: "https://provider.example/watch?id=42"))
         let sameOrigin = try XCTUnwrap(URL(string: "https://provider.example/file.mp4"))
