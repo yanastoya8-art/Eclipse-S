@@ -2238,12 +2238,12 @@ struct HomeView: View {
         fetch: () async throws -> [TMDBSearchResult]
     ) async throws -> [TMDBSearchResult] {
         do {
-            let rawResults = try await fetch()
-            await contentFilter.resolveBrowseFilterMetadata(for: rawResults)
-            return await contentFilter.filterSearchResultsResolvingRatings(
-                rawResults,
-                allowUpcomingContent: allowUpcomingContent
-            )
+            // Keep the provider page intact. DiscoverDetailView resolves the
+            // active filter metadata before deciding whether a page is visible.
+            // Filtering here discarded rows whose dub/rating metadata was still
+            // being fetched, so Browse could permanently skip otherwise valid
+            // titles and report an empty catalogue.
+            return try await fetch()
         } catch {
             Logger.shared.log("HomeView: section \(catalogId) page \(page) failed: \(error.localizedDescription)", type: "TMDB")
             throw error
@@ -2275,9 +2275,10 @@ struct HomeView: View {
                 limit: limit
             )
             let rawResults = fetchedResults.map { $0.withAnimeHint(true) }
-            await contentFilter.resolveBrowseFilterMetadata(for: rawResults)
-            let results = await contentFilter.filterFastAnimeSearchResultsResolvingRatings(rawResults)
-            return Array(results.dropFirst(offset))
+            // Return the unfiltered page slice. The destination owns metadata
+            // resolution and filtering so unresolved dub/age data cannot make
+            // an entire provider page disappear before it can be re-evaluated.
+            return Array(rawResults.dropFirst(offset))
         } catch {
             Logger.shared.log("HomeView: anime section \(catalogId) page \(page) failed: \(error.localizedDescription)", type: "AniList")
             throw error
@@ -2309,8 +2310,7 @@ struct HomeView: View {
                     tmdbService: tmdbService,
                     limit: limit
                 )
-                await contentFilter.resolveBrowseFilterMetadata(for: items)
-                return await Array(contentFilter.filterSearchResultsResolvingRatings(items).dropFirst(offset))
+                return Array(items.dropFirst(offset))
             }
         case .trakt:
             return { page in
