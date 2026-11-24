@@ -213,7 +213,7 @@ final class HLSBackgroundDownloadTests: XCTestCase {
                 fixture.item.status == .downloading || fixture.item.status == .completed
             )
             XCTAssertTrue(fixture.item.hasVerifiedHLSCheckpoint)
-            XCTAssertEqual(fixture.scheduler.finishes.map(\\.success), [false])
+            XCTAssertEqual(fixture.scheduler.finishes.map(\.success), [false])
 
             fixture.foreground = true
             fixture.manager.applicationDidBecomeActive()
