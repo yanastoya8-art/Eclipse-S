@@ -10850,13 +10850,35 @@ extension DownloadManager: URLSessionDownloadDelegate {
             }
 
             var updatedRequest = request
-            let refreshedHeaders = self.effectiveHeaders(item.headers, for: destination)
-            for (key, value) in refreshedHeaders {
-                let lowerKey = key.lowercased()
-                if lowerKey == "cookie" || lowerKey == "user-agent" {
+            if let attempt = self.protectedProviderAttempts[downloadId],
+               let originURL = URL(string: attempt.authorityURL) {
+                let effective = self.effectiveHeaders(attempt.authorityHeaders, for: destination)
+                let safeHeaders = MPVHeaderProxy.shared.directTransportHeaders(
+                    effective,
+                    for: destination,
+                    originURL: originURL
+                )
+                // URLSession may carry custom authorization headers across a
+                // redirect. Remove the original provider credentials first,
+                // then restore only headers allowed for the destination origin.
+                for name in attempt.authorityHeaders.keys {
+                    updatedRequest.setValue(nil, forHTTPHeaderField: name)
+                }
+                for name in ["Authorization", "Cookie", "Proxy-Authorization", "X-Api-Key", "X-Auth-Token"] {
+                    updatedRequest.setValue(nil, forHTTPHeaderField: name)
+                }
+                for (key, value) in safeHeaders {
                     updatedRequest.setValue(value, forHTTPHeaderField: key)
-                } else if updatedRequest.value(forHTTPHeaderField: key) == nil {
-                    updatedRequest.setValue(value, forHTTPHeaderField: key)
+                }
+            } else {
+                let refreshedHeaders = self.effectiveHeaders(item.headers, for: destination)
+                for (key, value) in refreshedHeaders {
+                    let lowerKey = key.lowercased()
+                    if lowerKey == "cookie" || lowerKey == "user-agent" {
+                        updatedRequest.setValue(value, forHTTPHeaderField: key)
+                    } else if updatedRequest.value(forHTTPHeaderField: key) == nil {
+                        updatedRequest.setValue(value, forHTTPHeaderField: key)
+                    }
                 }
             }
 
