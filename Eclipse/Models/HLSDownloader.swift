@@ -1013,11 +1013,13 @@ final class HLSDownloader: @unchecked Sendable {
 
         task?.cancel()
 #if os(iOS) && !targetEnvironment(macCatalyst)
-        switch reason {
-        case .backgroundTimeExpired, .backgroundProcessingExpired:
-            HLSBackgroundURLSessionCoordinator.shared.detach(downloadID: downloadId)
-        default:
-            HLSBackgroundURLSessionCoordinator.shared.cancel(downloadID: downloadId)
+        if usesBackgroundURLSession {
+            switch reason {
+            case .backgroundTimeExpired, .backgroundProcessingExpired:
+                HLSBackgroundURLSessionCoordinator.shared.detach(downloadID: downloadId)
+            default:
+                HLSBackgroundURLSessionCoordinator.shared.cancel(downloadID: downloadId)
+            }
         }
 #endif
         if retiresIdleSession { session.invalidateAndCancel() }
