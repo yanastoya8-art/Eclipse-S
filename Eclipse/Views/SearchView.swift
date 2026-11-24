@@ -1744,7 +1744,7 @@ private struct BrowseMediaView: View {
         .tint(AccentColorManager.shared.currentAccentColor)
         .padding(4)
         .background(
-            glassAppearance.searchFieldColor(for: colorScheme).opacity(0.42),
+            glassAppearance.darkBarColor.opacity(0.42),
             in: Capsule()
         )
     }
@@ -1890,8 +1890,8 @@ private struct BrowseMediaView: View {
         .frame(maxHeight: 280)
         .applyLiquidGlassBackground(
             cornerRadius: 14,
-            fallbackFill: glassAppearance.searchFieldColor(for: colorScheme).opacity(0.42),
-            glassTint: glassAppearance.searchFieldColor(for: colorScheme).opacity(0.30)
+            fallbackFill: glassAppearance.lightBarColor.opacity(0.42),
+            glassTint: glassAppearance.lightBarColor.opacity(0.30)
         )
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -3275,7 +3275,6 @@ struct SearchBarEclipse: View {
     @Binding var text: String
     var onSearchButtonClicked: () -> Void
     @StateObject private var glassAppearance = LiquidGlassAppearanceSettings.shared
-    @Environment(\.colorScheme) private var colorScheme
 #if os(macOS)
     @FocusState private var macSearchFocused: Bool
     @Environment(\.macSearchFocusRequest) private var macSearchFocusRequest
@@ -3301,7 +3300,7 @@ struct SearchBarEclipse: View {
 #if !os(tvOS)
                 .applyLiquidGlassBackground(
                     cornerRadius: 12,
-                    fallbackFill: glassAppearance.searchFieldColor(for: colorScheme).opacity(0.34),
+                    fallbackFill: glassAppearance.lightBarColor.opacity(0.34),
                     glassTint: glassAppearance.searchFieldColor(for: colorScheme).opacity(0.30)
                 )
 #endif
