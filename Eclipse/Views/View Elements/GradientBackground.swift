@@ -556,6 +556,49 @@ enum HomeAnimatedBackgroundParticleColor: String, CaseIterable, Identifiable {
     }
 }
 
+enum HomeAnimatedBackgroundShape: String, CaseIterable, Identifiable {
+    case wolf, paw, stars, crescentMoon, sun, cat, mermaid, bird, snake, dragon
+
+    static let storageKey = "homeAnimatedBackgroundShape"
+    static let defaultValue: HomeAnimatedBackgroundShape = .stars
+
+    var id: String { rawValue }
+    var displayName: String {
+        switch self {
+        case .wolf: return "Wolf"
+        case .paw: return "Paw"
+        case .stars: return "Stars"
+        case .crescentMoon: return "Crescent Moon"
+        case .sun: return "Sun"
+        case .cat: return "Cat"
+        case .mermaid: return "Mermaid"
+        case .bird: return "Bird"
+        case .snake: return "Snake"
+        case .dragon: return "Dragon"
+        }
+    }
+
+    var glyph: String {
+        switch self {
+        case .wolf: return "🐺"
+        case .paw: return "🐾"
+        case .stars: return "✦"
+        case .crescentMoon: return "☾"
+        case .sun: return "☀"
+        case .cat: return "🐈"
+        case .mermaid: return "🧜"
+        case .bird: return "🕊"
+        case .snake: return "🐍"
+        case .dragon: return "🐉"
+        }
+    }
+
+    static func resolved(_ rawValue: String?) -> HomeAnimatedBackgroundShape {
+        guard let rawValue, let shape = Self(rawValue: rawValue) else { return defaultValue }
+        return shape
+    }
+}
+
 enum HomeAnimatedBackgroundSettings {
     static let enabledKey = "homeAnimatedBackgroundEnabled"
     static let defaultEnabled = true
@@ -759,6 +802,7 @@ struct EclipseAmbientMotionBackground: View {
     @AppStorage(HomeAnimatedBackgroundQuality.storageKey) private var qualityRawValue = HomeAnimatedBackgroundQuality.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundFrameRate.storageKey) private var frameRateRawValue = HomeAnimatedBackgroundFrameRate.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundParticleColor.storageKey) private var particleColorRawValue = HomeAnimatedBackgroundParticleColor.defaultValue.rawValue
+    @AppStorage(HomeAnimatedBackgroundShape.storageKey) private var shapeRawValue = HomeAnimatedBackgroundShape.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundParticleColor.customColorDataKey) private var customParticleColorData = Data()
 
     private let particles: [(x: CGFloat, y: CGFloat, size: CGFloat, drift: CGFloat, opacity: Double)] = [
@@ -794,6 +838,10 @@ struct EclipseAmbientMotionBackground: View {
 
     private var frameInterval: Double {
         HomeAnimatedBackgroundFrameRate.resolved(frameRateRawValue).frameInterval
+    }
+
+    private var selectedShape: HomeAnimatedBackgroundShape {
+        HomeAnimatedBackgroundShape.resolved(shapeRawValue)
     }
 
     var body: some View {
@@ -993,6 +1041,29 @@ struct EclipseAmbientMotionBackground: View {
                 color: Color.white.opacity(particle.opacity * lerpDouble(0.38, 0.55, pulse))
             )
         }
+
+        let shapePulse = lerp(0.94, 1.06, pulse)
+        let shapeCenter = CGPoint(
+            x: center.x + driftX * 0.55,
+            y: center.y + driftY * 0.55
+        )
+        let shapeFont = Font.system(size: min(max(min(width, height) * 0.24, 76), 190), weight: .regular)
+        let motif = Text(selectedShape.glyph)
+            .font(shapeFont)
+            .foregroundColor(primaryColor.opacity(0.82))
+        var motifGlow = context
+        motifGlow.addFilter(.blur(radius: 13))
+        motifGlow.opacity = 0.58
+        let resolvedGlow = motifGlow.resolve(motif)
+        motifGlow.draw(resolvedGlow, at: shapeCenter, anchor: .center)
+        var motifContext = context
+        motifContext.opacity = 0.88
+        let resolvedMotif = motifContext.resolve(motif)
+        motifContext.draw(
+            resolvedMotif,
+            at: CGPoint(x: shapeCenter.x, y: shapeCenter.y),
+            anchor: .center
+        )
 
         guard quality != .low else { return }
 
