@@ -891,6 +891,14 @@ private final class MPVHeaderProxyCore {
         }
     }
 
+    static func directTransportHeaders(
+        _ headers: [String: String],
+        for destinationURL: URL,
+        originURL: URL
+    ) -> [String: String] {
+        credentialHeaders(headers, for: destinationURL, originURL: originURL)
+    }
+
     private static func sameOrigin(_ lhs: URL, _ rhs: URL) -> Bool {
         func origin(_ url: URL) -> (scheme: String, host: String, port: Int)? {
             guard let scheme = url.scheme?.lowercased(),
@@ -1029,6 +1037,20 @@ private final class MPVHeaderProxyCore {
 #else
         return UpstreamTransport(minimumRequestStartInterval: minimumRequestStartInterval, pinsUpstreamAddresses: pinsUpstreamAddresses)
 #endif
+    }
+
+    /// Applies the same credential-origin restrictions as the local proxy,
+    /// but returns headers for an OS-managed direct URLSession request.
+    func directTransportHeaders(
+        _ headers: [String: String],
+        for destinationURL: URL,
+        originURL: URL
+    ) -> [String: String] {
+        MPVHeaderProxyCore.directTransportHeaders(
+            headers,
+            for: destinationURL,
+            originURL: originURL
+        )
     }
 
     func makeProxyURL(
