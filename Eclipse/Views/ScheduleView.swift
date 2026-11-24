@@ -25,6 +25,8 @@ struct ScheduleView: View {
     @AppStorage(ScheduleWindow.storageKey) private var scheduleWindowDays = ScheduleWindow.defaultValue.rawValue
     @StateObject private var viewModel: ScheduleViewModel
     @StateObject private var accentColorManager = AccentColorManager.shared
+    @StateObject private var glassAppearance = LiquidGlassAppearanceSettings.shared
+    @Environment(\.colorScheme) private var colorScheme
 
     @ObservedObject private var contentFilter = TMDBContentFilter.shared
 #if !os(tvOS)
@@ -1046,12 +1048,16 @@ struct ScheduleView: View {
                 }
             }
             .pickerStyle(.segmented)
+            .tint(accentColorManager.currentAccentColor)
 #endif
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .background(EclipseTheme.shared.cardBackground)
-        .cornerRadius(10)
+        .applyLiquidGlassBackground(
+            cornerRadius: 10,
+            fallbackFill: glassAppearance.searchFieldColor(for: colorScheme).opacity(0.42),
+            glassTint: glassAppearance.searchFieldColor(for: colorScheme).opacity(0.30)
+        )
         .padding(.horizontal)
     }
 
@@ -1073,6 +1079,7 @@ struct ScheduleView: View {
                 Text("UTC").tag(false)
             }
             .pickerStyle(.segmented)
+            .tint(accentColorManager.currentAccentColor)
 #if os(tvOS)
             .frame(width: 280)
 #else
@@ -1081,8 +1088,11 @@ struct ScheduleView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .background(EclipseTheme.shared.cardBackground)
-        .cornerRadius(10)
+        .applyLiquidGlassBackground(
+            cornerRadius: 10,
+            fallbackFill: glassAppearance.searchFieldColor(for: colorScheme).opacity(0.42),
+            glassTint: glassAppearance.searchFieldColor(for: colorScheme).opacity(0.30)
+        )
         .padding(.horizontal)
     }
 
