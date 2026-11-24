@@ -314,6 +314,7 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
     private let queue = DispatchQueue(label: "app.eclipse.hls-background-url-session")
     private var pending: [String: PendingRequest] = [:]
     private var activeTasks: [String: URLSessionDownloadTask] = [:]
+    private var oversizedTaskDescriptions = Set<String>()
     private var backgroundCompletionHandler: (() -> Void)?
 
     private lazy var session: URLSession = {
@@ -518,6 +519,7 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
         }
         if totalBytesWritten > Int64(maximumBytes)
             || totalBytesExpectedToWrite > Int64(maximumBytes) {
+            queue.async { self.oversizedTaskDescriptions.insert(description) }
             downloadTask.cancel()
         }
     }
@@ -527,9 +529,11 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
               description.hasPrefix("eclipse-hls-v1-") else { return }
         queue.async {
             self.activeTasks.removeValue(forKey: description)
-            guard let error,
+            let exceededLimit = self.oversizedTaskDescriptions.remove(description) != nil
+            let completionError = exceededLimit ? URLError(.dataLengthExceedsMaximum) : error
+            guard let completionError,
                   let request = self.pending.removeValue(forKey: description) else { return }
-            request.continuation.resume(throwing: error)
+            request.continuation.resume(throwing: completionError)
         }
     }
 
