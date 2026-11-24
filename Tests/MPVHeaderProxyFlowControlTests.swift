@@ -634,7 +634,10 @@ final class MPVHeaderProxyFlowControlTests: XCTestCase {
             RunLoop.current.run(until: Date().addingTimeInterval(0.02))
         }
         XCTAssertGreaterThan(proxy.upstreamHealth(for: url)?.failureCount ?? 0, 0)
-        XCTAssertFalse(try XCTUnwrap(capture.all.first).snapshot.closed)
+        // Once the upstream has failed, the producer side must be sealed.
+        // Bytes already accepted by the downstream socket remain ordered and
+        // are still drained to the reader before the response closes.
+        XCTAssertTrue(try XCTUnwrap(capture.all.first).snapshot.closed)
         client.resume()
         wait(for: [completed], timeout: 20)
         let result = try XCTUnwrap(client.result)
