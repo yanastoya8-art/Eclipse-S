@@ -1047,7 +1047,7 @@ struct EclipseAmbientMotionBackground: View {
             x: center.x + driftX * 0.55,
             y: center.y + driftY * 0.55
         )
-        let shapeFont = Font.system(size: min(max(min(width, height) * 0.24, 76), 190), weight: .regular)
+        let shapeFont = Font.system(size: min(max(min(width, height) * 0.24, 76), 190) * shapePulse, weight: .regular)
         let motif = Text(selectedShape.glyph)
             .font(shapeFont)
             .foregroundColor(primaryColor.opacity(0.82))
