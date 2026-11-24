@@ -1906,6 +1906,8 @@ extension EnvironmentValues {
 
 struct SettingsSearchContainer<Content: View>: View {
     @Binding var text: String
+    @StateObject private var glassAppearance = LiquidGlassAppearanceSettings.shared
+    @Environment(\.colorScheme) private var colorScheme
     let showsResults: Bool
     let content: Content
     let results: (String) -> AnyView
@@ -1923,6 +1925,11 @@ struct SettingsSearchContainer<Content: View>: View {
             )
             .autocorrectionDisabled()
             .providerUncapitalizedInput()
+            .tint(AccentColorManager.shared.currentAccentColor)
+#if os(iOS)
+            .toolbarBackground(glassAppearance.searchFieldColor(for: colorScheme).opacity(0.34), for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+#endif
             .environment(
                 \.eclipseSettingsSearchPresentation,
                 SettingsSearchPresentation(results: results)
