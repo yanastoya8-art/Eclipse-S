@@ -574,6 +574,22 @@ struct AlternativeUIView: View {
             .id(AppearanceSettingsSearchTarget.animatedBackground.anchorID)
 
             settingRow(
+                title: "Animation Shape",
+                description: "Choose the glowing motif that floats through the animated background."
+            ) {
+                Picker("", selection: $homeAnimatedBackgroundShape) {
+                    ForEach(HomeAnimatedBackgroundShape.allCases) { shape in
+                        Text(shape.displayName).tag(shape.rawValue)
+                    }
+                }
+                .pickerStyle(.menu)
+                .accessibilityLabel("Animation Shape")
+                .accessibilityIdentifier("settings.appearance.animationShape")
+                .accessibilityValue(HomeAnimatedBackgroundShape.resolved(homeAnimatedBackgroundShape).displayName)
+                .id(AppearanceSettingsSearchTarget.animationShape.anchorID)
+            }
+
+            settingRow(
                 title: "Animation Quality",
                 description: "Low keeps the core eclipse rings and particles. Medium adds a plasma field, starfield, orbiting embers, energy wavefronts, and a corona. High adds denser motion, a kinetic mesh, more orbiting embers, and meteor bursts."
             ) {
@@ -611,22 +627,6 @@ struct AlternativeUIView: View {
                         .accessibilityIdentifier("settings.appearance.customAnimationColor")
                         .id(AppearanceSettingsSearchTarget.customAnimationColor.anchorID)
                 }
-            }
-
-            settingRow(
-                title: "Animation Shape",
-                description: "Choose the glowing motif that floats through the animated background."
-            ) {
-                Picker("", selection: $homeAnimatedBackgroundShape) {
-                    ForEach(HomeAnimatedBackgroundShape.allCases) { shape in
-                        Text(shape.displayName).tag(shape.rawValue)
-                    }
-                }
-                .pickerStyle(.menu)
-                .accessibilityLabel("Animation Shape")
-                .accessibilityIdentifier("settings.appearance.animationShape")
-                .accessibilityValue(HomeAnimatedBackgroundShape.resolved(homeAnimatedBackgroundShape).displayName)
-                .id(AppearanceSettingsSearchTarget.animationShape.anchorID)
             }
 
             settingRow(
