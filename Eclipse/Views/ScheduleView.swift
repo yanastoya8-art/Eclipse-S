@@ -26,7 +26,6 @@ struct ScheduleView: View {
     @StateObject private var viewModel: ScheduleViewModel
     @StateObject private var accentColorManager = AccentColorManager.shared
     @StateObject private var glassAppearance = LiquidGlassAppearanceSettings.shared
-    @Environment(\.colorScheme) private var colorScheme
 
     @ObservedObject private var contentFilter = TMDBContentFilter.shared
 #if !os(tvOS)
@@ -1055,8 +1054,8 @@ struct ScheduleView: View {
         .padding(.vertical, 10)
         .applyLiquidGlassBackground(
             cornerRadius: 10,
-            fallbackFill: glassAppearance.searchFieldColor(for: colorScheme).opacity(0.42),
-            glassTint: glassAppearance.searchFieldColor(for: colorScheme).opacity(0.30)
+            fallbackFill: glassAppearance.darkBarColor.opacity(0.42),
+            glassTint: glassAppearance.darkBarColor.opacity(0.30)
         )
         .padding(.horizontal)
     }
