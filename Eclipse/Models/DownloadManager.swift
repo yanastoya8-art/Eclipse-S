@@ -6678,6 +6678,7 @@ final class DownloadManager: NSObject, ObservableObject {
         }
 #endif
         guard nuvioDispatchValidationPendingIDs.insert(item.id).inserted else { return }
+        nuvioDirectBackgroundApprovedIDs.remove(item.id)
         let validationToken = UUID()
         nuvioDispatchValidationTokens[item.id] = validationToken
         guard let url = URL(string: item.streamURL) else {
