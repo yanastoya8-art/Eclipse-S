@@ -485,8 +485,15 @@ struct DiscoverDetailView: View {
         Task { @MainActor in
             // Skip a bounded number of pages removed by strict filters, but
             // never treat a network failure as an empty page.
+            var scannedPages = 0
+            // Bound each automatic pagination burst. If strict filters hide
+            // several valid provider pages, retain those raw rows and let the
+            // next sentinel appearance continue instead of scanning the entire
+            // catalog in one main-actor task.
             while paginationCursor.hasMorePages,
-                  paginationCursor.consecutiveEmptyPages < DiscoverPaginationCursor.maximumConsecutiveEmptyPages {
+                  paginationCursor.consecutiveEmptyPages < DiscoverPaginationCursor.maximumConsecutiveEmptyPages,
+                  scannedPages < 6 {
+                scannedPages += 1
                 let requestedPage = paginationCursor.nextPage
                 do {
                     let newItems = try await loadMore(requestedPage)
@@ -509,7 +516,12 @@ struct DiscoverDetailView: View {
                         )
                         items.append(contentsOf: unique)
                         let addedVisibleItems = unique.contains { visibleIDs.contains($0.stableIdentity) }
-                        paginationCursor.didLoadPage(hasUniqueItems: addedVisibleItems)
+                        // Empty-page detection must describe provider output,
+                        // not the current filter result. A valid page containing
+                        // titles that are still resolving dub/age metadata (or
+                        // are excluded by the active filters) is not an empty
+                        // provider page and must not consume the retry budget.
+                        paginationCursor.didLoadPage(hasUniqueItems: true)
                         if addedVisibleItems { break }
                     } else {
                         paginationCursor.didLoadPage(hasUniqueItems: false)
