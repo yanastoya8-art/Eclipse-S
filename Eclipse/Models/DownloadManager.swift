@@ -6707,6 +6707,31 @@ final class DownloadManager: NSObject, ObservableObject {
                 ? .approved
                 : .rejected
 
+            var directBackgroundAllowed = false
+#if (os(iOS) && !targetEnvironment(macCatalyst)) || os(macOS)
+            let authorityState = Self.protectedAuthorityState(for: item)
+            let directCandidate: Bool
+            switch authorityState {
+            case .authorized(.nuvio), .authorized(.service), .legacyService:
+                directCandidate = true
+            default:
+                directCandidate = false
+            }
+            if outcome == .approved, directCandidate, scheme == "https" {
+                do {
+                    let validated = try await SkyStreamRemoteURLPolicy.shared.validateForNetworkDispatch(
+                        comparisonURLString,
+                        purpose: .mediaSegment
+                    )
+                    directBackgroundAllowed = validated.url.scheme?.lowercased() == "https"
+                } catch {
+                    // Retain the existing protected proxy route when a URL
+                    // cannot be safely dispatched by the OS background session.
+                    directBackgroundAllowed = false
+                }
+            }
+#endif
+
             await MainActor.run { [weak self] in
                 guard let self else { return }
                 guard self.nuvioDispatchValidationTokens[item.id] == validationToken else {
@@ -6742,8 +6767,14 @@ final class DownloadManager: NSObject, ObservableObject {
                 switch outcome {
                 case .approved:
                     self.nuvioDispatchApprovedIDs.insert(item.id)
+                    if directBackgroundAllowed {
+                        self.nuvioDirectBackgroundApprovedIDs.insert(item.id)
+                    } else {
+                        self.nuvioDirectBackgroundApprovedIDs.remove(item.id)
+                    }
                     self.processQueue()
                 case .rejected:
+                    self.nuvioDirectBackgroundApprovedIDs.remove(item.id)
                     self.markFailed(
                         id: item.id,
                         error: "This download source no longer resolves to an authorized address."
