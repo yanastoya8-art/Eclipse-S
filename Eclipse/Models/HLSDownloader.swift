@@ -243,7 +243,7 @@ private final class HLSRedirectPolicyDelegate: NSObject, URLSessionTaskDelegate 
 }
 
 #if os(iOS) && !targetEnvironment(macCatalyst)
-private struct HLSBackgroundDownloadResult {
+struct HLSBackgroundDownloadResult {
     let data: Data
     let response: URLResponse?
 }
@@ -396,9 +396,9 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
                 guard let request = self.pending.removeValue(forKey: key) else { continue }
                 request.continuation.resume(throwing: URLError(.cancelled))
             }
-            for (key, task) in self.activeTasks where key.hasPrefix(prefix) {
-                task.cancel()
-                self.activeTasks.removeValue(forKey: key)
+            let activeKeys = self.activeTasks.keys.filter { $0.hasPrefix(prefix) }
+            for key in activeKeys {
+                self.activeTasks.removeValue(forKey: key)?.cancel()
             }
             self.session.getAllTasks { tasks in
                 tasks.filter { $0.taskDescription?.hasPrefix(prefix) == true }.forEach { $0.cancel() }
@@ -438,6 +438,7 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
             if FileManager.default.fileExists(atPath: baseURL.path) {
                 try FileManager.default.removeItem(at: baseURL)
             }
+            try? FileManager.default.removeItem(at: responseURL(for: description))
             try FileManager.default.moveItem(at: location, to: baseURL)
             if let snapshot = ResponseSnapshot(
                 response: downloadTask.response,
