@@ -6709,7 +6709,7 @@ final class DownloadManager: NSObject, ObservableObject {
                 && normalizedDispatchURL?.host?.lowercased() == url.host?.lowercased()
             outcome = isSyntacticallyApproved ? .approved : .rejected
 
-#if (os(iOS) && !targetEnvironment(macCatalyst)) || os(macOS)
+#if os(iOS) && !targetEnvironment(macCatalyst)
             let authorityState = Self.protectedAuthorityState(for: item)
             let directCandidate: Bool
             switch authorityState {
@@ -9672,7 +9672,7 @@ final class DownloadManager: NSObject, ObservableObject {
         id: String,
         item: DownloadItem
     ) -> Bool {
-#if (os(iOS) && !targetEnvironment(macCatalyst)) || os(macOS)
+#if os(iOS) && !targetEnvironment(macCatalyst)
         guard item.claimsProtectedProviderTransport,
               protectedOwnerMatchesActiveProfile(item),
               let request = task.originalRequest,
