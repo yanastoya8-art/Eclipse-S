@@ -3262,6 +3262,8 @@ private struct BrowseMediaView: View {
 struct SearchBarEclipse: View {
     @Binding var text: String
     var onSearchButtonClicked: () -> Void
+    @StateObject private var glassAppearance = LiquidGlassAppearanceSettings.shared
+    @Environment(\.colorScheme) private var colorScheme
 #if os(macOS)
     @FocusState private var macSearchFocused: Bool
     @Environment(\.macSearchFocusRequest) private var macSearchFocusRequest
@@ -3285,7 +3287,11 @@ struct SearchBarEclipse: View {
                 .padding(7)
                 .padding(.horizontal, 25)
 #if !os(tvOS)
-                .background(Color(.systemGray6))
+                .applyLiquidGlassBackground(
+                    cornerRadius: 12,
+                    fallbackFill: glassAppearance.searchFieldColor(for: colorScheme).opacity(0.34),
+                    glassTint: glassAppearance.searchFieldColor(for: colorScheme).opacity(0.30)
+                )
 #endif
                 .cornerRadius(12)
                 .contentShape(Rectangle())
