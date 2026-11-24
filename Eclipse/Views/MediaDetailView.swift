@@ -1999,9 +1999,13 @@ struct MediaDetailContentView: View {
                 }) {
                     Image(systemName: "chevron.backward")
                         .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(accentManager.currentAccentColor)
                         .frame(width: 44, height: 44)
-                        .applyLiquidGlassBackground(cornerRadius: 22)
+                        .applyLiquidGlassBackground(
+                            cornerRadius: 22,
+                            fallbackFill: accentManager.currentAccentColor.opacity(0.18),
+                            glassTint: accentManager.currentAccentColor.opacity(0.30)
+                        )
                 }
                 .accessibilityLabel("Back")
 
