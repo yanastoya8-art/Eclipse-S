@@ -3,9 +3,6 @@ import SwiftUI
 import AuthenticationServices
 import Combine
 import Security
-#if canImport(UIKit)
-import UIKit
-#endif
 #if os(macOS)
 import AppKit
 #endif
