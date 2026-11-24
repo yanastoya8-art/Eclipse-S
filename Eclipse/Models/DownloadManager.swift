@@ -9623,7 +9623,7 @@ final class DownloadManager: NSObject, ObservableObject {
               let request = task.originalRequest,
               let url = request.url,
               let scheme = url.scheme?.lowercased(),
-              scheme == "http" || scheme == "https",
+              scheme == "https",
               let host = url.host?.lowercased(),
               !host.isEmpty,
               host != "127.0.0.1",
@@ -9646,6 +9646,10 @@ final class DownloadManager: NSObject, ObservableObject {
         case .notProtected, .invalid:
             return false
         }
+        // Only provider types approved for direct public HTTPS background
+        // transport may be reattached. Stremio/SkyStream retain their pinned
+        // proxy path and must be re-resolved after a relaunch.
+        guard providerKind == .nuvio || providerKind == .service else { return false }
 
         let requestHeaders = request.allHTTPHeaderFields ?? [:]
         let safeHeaders = MPVHeaderProxy.shared.directTransportHeaders(
