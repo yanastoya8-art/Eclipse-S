@@ -2124,6 +2124,13 @@ private struct BrowseMediaView: View {
                         }
                 }
             }
+            // Appending a page or replacing a poster with provider artwork must
+            // not animate the grid's layout. Stable card IDs plus fixed poster
+            // geometry keep the visible rows anchored while images resolve.
+            .transaction { transaction in
+                transaction.animation = nil
+                transaction.disablesAnimations = true
+            }
 
             // A trailing lazy sentinel is more reliable than relying only on
             // the final card's onAppear. SwiftUI can keep that card alive when
