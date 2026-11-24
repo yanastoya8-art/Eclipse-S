@@ -1055,12 +1055,10 @@ final class ScheduleViewModel: ObservableObject {
     ) async {
         guard !additions.isEmpty else { return }
 
-        // Merge by shared AniList/MAL identity so fallback rows cannot
-        // duplicate an episode merely because the providers use different IDs.
-        // Keep alternate-language candidates until the configured language
-        // policy has run. Deduplicating first can let an earlier English row
-        // mask a later Spanish row (or vice versa) even when only one language
-        // is selected.
+        // Keep provider candidates until the configured language policy has
+        // run. Deduplicating first can let an earlier English row mask a later
+        // Spanish row (or vice versa) even when only one language is selected.
+        // The filtered snapshot is deduplicated after language eligibility.
         let mergedEntries = currentResult.entries + additions
 
         // Spanish research runs after the first calendar paint. Re-run the
