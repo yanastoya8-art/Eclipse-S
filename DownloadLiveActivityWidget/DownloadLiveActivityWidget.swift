@@ -28,7 +28,6 @@ struct DownloadLiveActivityWidget: Widget {
 
                     Text(context.state.progress, format: .percent.precision(.fractionLength(0)))
                         .font(.title3.monospacedDigit().weight(.semibold))
-                        .contentTransition(.numericText())
                 }
 
                 ProgressView(value: context.state.progress)
@@ -67,7 +66,6 @@ struct DownloadLiveActivityWidget: Widget {
                 DynamicIslandExpandedRegion(.trailing) {
                     Text(context.state.progress, format: .percent.precision(.fractionLength(0)))
                         .font(.title3.monospacedDigit().weight(.semibold))
-                        .contentTransition(.numericText())
                 }
                 DynamicIslandExpandedRegion(.center) {
                     Text(context.state.status)
@@ -100,7 +98,6 @@ struct DownloadLiveActivityWidget: Widget {
             } compactTrailing: {
                 Text(context.state.progress, format: .percent.precision(.fractionLength(0)))
                     .font(.caption2.monospacedDigit())
-                    .contentTransition(.numericText())
             } minimal: {
                 Image(systemName: statusSymbol(for: context.state.status))
                     .foregroundStyle(statusTint(for: context.state.status))
