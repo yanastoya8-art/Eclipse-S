@@ -26,8 +26,8 @@ enum DownloadLiveActivityController {
         pendingUpdates.removeValue(forKey: downloadID)
     }
 
-    private static func activity(for downloadID: String) -> Activity<DownloadActivityAttributes>? {
-        Activity<DownloadActivityAttributes>.activities.first {
+    private static func activities(for downloadID: String) -> [Activity<DownloadActivityAttributes>] {
+        Activity<DownloadActivityAttributes>.activities.filter {
             $0.attributes.downloadID == downloadID
         }
     }
@@ -76,8 +76,13 @@ enum DownloadLiveActivityController {
                 staleDate: Date().addingTimeInterval(15 * 60)
             )
 
-            if let currentActivity = activity(for: downloadID) {
-                await currentActivity.update(content)
+            let currentActivities = activities(for: downloadID)
+            if !currentActivities.isEmpty {
+                // Repair any duplicate activities left by an interrupted prior
+                // launch so every visible presentation receives the same state.
+                for currentActivity in currentActivities {
+                    await currentActivity.update(content)
+                }
                 continue
             }
 
