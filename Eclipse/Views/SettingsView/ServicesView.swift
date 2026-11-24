@@ -21,6 +21,8 @@ enum ServicesSettingsSearchTarget: Hashable {
     case stremioStyleSheet
     case streamCardColor
     case streamIconColor
+    case hideAddonMessages
+    case streamFrame
     case rankingSimilarity
     case dropMismatchedResults
     case languagesToInclude
@@ -46,6 +48,8 @@ enum ServicesSettingsSearchTarget: Hashable {
         case .stremioStyleSheet: return "services-settings-search-stremioStyleSheet"
         case .streamCardColor: return "services-settings-search-streamCardColor"
         case .streamIconColor: return "services-settings-search-streamIconColor"
+        case .hideAddonMessages: return "services-settings-search-hideAddonMessages"
+        case .streamFrame: return "services-settings-search-streamFrame"
         case .rankingSimilarity: return "services-settings-search-rankingSimilarity"
         case .dropMismatchedResults: return "services-settings-search-dropMismatchedResults"
         case .languagesToInclude: return "services-settings-search-languagesToInclude"
@@ -65,6 +69,8 @@ enum ServicesSettingsSearchTarget: Hashable {
         case .stremioStyleSheet,
              .streamCardColor,
              .streamIconColor,
+             .hideAddonMessages,
+             .streamFrame,
              .languagesToInclude,
              .languagesToExclude,
              .assumeOriginalAudio,
@@ -103,6 +109,8 @@ enum ServicesSettingsSearchTarget: Hashable {
              .stremioStyleSheet,
              .streamCardColor,
              .streamIconColor,
+             .hideAddonMessages,
+             .streamFrame,
              .rankingSimilarity,
              .dropMismatchedResults,
              .languagesToInclude,
@@ -2570,6 +2578,10 @@ private struct ExtraServiceSettingsView: View {
     @State private var hiddenStreamQualities = Set(StreamLanguageFilter.hiddenQualityHeights())
     @State private var streamCardColor = ServicesStreamAppearanceSettings.streamCardColor()
     @State private var streamIconColor = ServicesStreamAppearanceSettings.streamIconColor()
+    @AppStorage(ServicesStreamAppearanceSettings.hideAddonMessagesKey, store: ProfileSettingsStore.services) private var hideAddonMessages = ServicesStreamAppearanceSettings.defaultHideAddonMessages
+    @AppStorage(ServicesStreamAppearanceSettings.showStreamFrameKey, store: ProfileSettingsStore.services) private var showStreamFrame = ServicesStreamAppearanceSettings.defaultShowStreamFrame
+    @State private var streamFrameColor = ServicesStreamAppearanceSettings.streamFrameColor()
+    @State private var streamFrameWidth = ServicesStreamAppearanceSettings.streamFrameWidth()
     @State private var extraRulesSourceIds: Set<String>? = StreamLanguageFilter.extraRulesSourceIds().map { Set($0) }
     @State private var didFocusInitialSearchTarget = false
     @State private var languagePicker: LanguagePickerContext?
@@ -2700,15 +2712,34 @@ private struct ExtraServiceSettingsView: View {
                         .id(ServicesSettingsSearchTarget.streamCardColor.anchorID)
                     ColorPicker("Stream Icon Color", selection: $streamIconColor, supportsOpacity: true)
                         .id(ServicesSettingsSearchTarget.streamIconColor.anchorID)
-                    Button("Reset Stream Colors") {
+                    Toggle("Show Stream Frame", isOn: $showStreamFrame)
+                        .id(ServicesSettingsSearchTarget.streamFrame.anchorID)
+                    if showStreamFrame {
+                        ColorPicker("Stream Frame Color", selection: $streamFrameColor, supportsOpacity: true)
+                        HStack {
+                            Text("Frame Boldness")
+                            Spacer()
+                            Text(String(format: "%.1f pt", streamFrameWidth))
+                                .foregroundColor(.secondary)
+                                .monospacedDigit()
+                        }
+                        Slider(value: $streamFrameWidth, in: 0.5...6, step: 0.5)
+                    }
+                    Toggle("Hide Add-on Messages", isOn: $hideAddonMessages)
+                        .id(ServicesSettingsSearchTarget.hideAddonMessages.anchorID)
+                    Button("Reset Stream Appearance") {
                         ServicesStreamAppearanceSettings.reset()
                         streamCardColor = ServicesStreamAppearanceSettings.streamCardColor()
                         streamIconColor = ServicesStreamAppearanceSettings.streamIconColor()
+                        streamFrameColor = ServicesStreamAppearanceSettings.streamFrameColor()
+                        streamFrameWidth = ServicesStreamAppearanceSettings.streamFrameWidth()
+                        showStreamFrame = ServicesStreamAppearanceSettings.defaultShowStreamFrame
+                        hideAddonMessages = ServicesStreamAppearanceSettings.defaultHideAddonMessages
                     }
                 } header: {
                     Text("Stream Results Appearance")
                 } footer: {
-                    Text("Customize the background of stream result cards and the circular play or download icons. These colors are saved separately for each profile.")
+                    Text("Customize stream card and icon colors, optionally add a colored frame with adjustable boldness, and hide status messages returned by add-ons. Preferences are saved separately for each profile.")
                 }
                 .disabled(!isAdministrable)
                 .onChangeComp(of: streamCardColor) { _, color in
@@ -2716,6 +2747,12 @@ private struct ExtraServiceSettingsView: View {
                 }
                 .onChangeComp(of: streamIconColor) { _, color in
                     ServicesStreamAppearanceSettings.setStreamIconColor(color)
+                }
+                .onChangeComp(of: streamFrameColor) { _, color in
+                    ServicesStreamAppearanceSettings.setStreamFrameColor(color)
+                }
+                .onChangeComp(of: streamFrameWidth) { _, width in
+                    ServicesStreamAppearanceSettings.setStreamFrameWidth(width)
                 }
 
                 Section {
@@ -2905,6 +2942,8 @@ private struct ExtraServiceSettingsView: View {
             .onAppear {
                 streamCardColor = ServicesStreamAppearanceSettings.streamCardColor()
                 streamIconColor = ServicesStreamAppearanceSettings.streamIconColor()
+                streamFrameColor = ServicesStreamAppearanceSettings.streamFrameColor()
+                streamFrameWidth = ServicesStreamAppearanceSettings.streamFrameWidth()
                 let storedSimilarity = ServicesResultRankingSettings.minimumSimilarity()
                 if serviceResultMinimumSimilarity != storedSimilarity {
                     serviceResultMinimumSimilarity = storedSimilarity
