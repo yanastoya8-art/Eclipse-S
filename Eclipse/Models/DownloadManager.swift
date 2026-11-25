@@ -2753,11 +2753,8 @@ final class DownloadManager: NSObject, ObservableObject {
         for (id, downloader) in activeHLSDownloaders {
             guard let attemptID = activeHLSAttemptIDs[id],
                   let item = downloads.first(where: { $0.id == id }),
-                  item.status == .downloading else { continue }
-            // Request continued processing as soon as an HLS worker starts.
-            // Requiring the first durable segment checkpoint here meant a new
-            // download could be backgrounded before its first segment finished,
-            // leaving it with no execution grant at all.
+                  item.status == .downloading,
+                  item.hasVerifiedHLSCheckpoint || item.hlsResumeManifestSHA256 != nil else { continue }
             beginHLSBackgroundAttempt(
                 id: id,
                 attemptID: attemptID,
@@ -2960,6 +2957,7 @@ final class DownloadManager: NSObject, ObservableObject {
               hlsIntentIsCurrent(intent), hlsBackgroundAttempts[id] == nil,
               let item = downloads.first(where: { $0.id == id }),
               item.status == .downloading,
+              item.hasVerifiedHLSCheckpoint || item.hlsResumeManifestSHA256 != nil,
               let scheduler = hlsBackgroundScheduler else { return }
         let attempt = HLSBackgroundAttempt(attemptID: attemptID, intent: intent, protectedAttemptID: protectedAttemptID, downloader: downloader, dateAdded: item.dateAdded)
         hlsBackgroundAttempts[id] = attempt
@@ -7179,22 +7177,6 @@ final class DownloadManager: NSObject, ObservableObject {
             }
             saveDownloads()
         }
-
-#if os(iOS) && !targetEnvironment(macCatalyst)
-        // Acquire the continued-processing grant before starting playlist and
-        // segment work. Waiting for onResumeManifestResolved left a window in
-        // which iOS could suspend a brand-new download before its first
-        // checkpoint/manifest callback, so it never received a background grant.
-        if let backgroundIntent {
-            beginHLSBackgroundAttempt(
-                id: item.id,
-                attemptID: attemptID,
-                intent: backgroundIntent,
-                protectedAttemptID: protectedNuvioAttemptID,
-                downloader: downloader
-            )
-        }
-#endif
 
         downloader.start()
 
