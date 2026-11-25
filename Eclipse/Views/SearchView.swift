@@ -310,7 +310,7 @@ struct SearchView: View {
                 }
             } else if filteredResults.isEmpty && !searchResults.isEmpty {
                 VStack(spacing: 12) {
-                    if contentFilter.isResolvingSelectedAudio {
+                    if contentFilter.isResolvingSelectedAudio(for: searchResults) {
                         EclipseLoadingIndicator()
                             .scaleEffect(1.15)
                         Text("Checking selected audio languages…")
