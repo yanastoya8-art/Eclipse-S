@@ -641,9 +641,6 @@ struct ScheduleView: View {
 #else
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                scheduleModePickerSection
-
-                timeZoneToggleSection
                 if let notice = viewModel.scheduleNotice {
                     scheduleNoticeBanner(notice)
                 }

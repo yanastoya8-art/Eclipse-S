@@ -1801,10 +1801,14 @@ private struct BrowseMediaView: View {
 
             if let expandedFilterMenu {
                 filterOptionsPanel(for: expandedFilterMenu)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .transition(
+                        .opacity
+                            .combined(with: .move(edge: .top))
+                            .combined(with: .scale(scale: 0.98, anchor: .top))
+                    )
             }
         }
-        .animation(.easeInOut(duration: 0.16), value: expandedFilterMenu)
+        .animation(.spring(response: 0.34, dampingFraction: 0.86), value: expandedFilterMenu)
     }
 
     private func filterMenuButton(
