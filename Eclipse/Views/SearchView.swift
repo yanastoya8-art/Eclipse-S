@@ -2748,6 +2748,7 @@ private struct BrowseMediaView: View {
                     let fetched = try await tmdbService.discoverMedia(
                         mediaType: mediaType,
                         genreIds: effectiveGenreIds,
+                        requiredGenreIds: requiredGenreIds,
                         excludedGenreIds: excludedGenreIds,
                         keywordIds: selectedKeywordIDs,
                         excludedKeywordIds: excludedKeywordIDs,
