@@ -873,7 +873,7 @@ struct SearchView: View {
                 // endpoint; only the Movies filter can safely skip it.
                 let shouldSearchTVEndpoint = searchFilter != .movies
                 if shouldSearchTVEndpoint {
-                    if let tvResults = try? await tmdbService.searchTVShows(query: query) {
+                    if let tvResults = try? await tmdbService.searchTVShows(query: query, maxPages: 2) {
                         try Task.checkCancellation()
                         var seen = Set(results.map(\.stableIdentity))
                         let supplemental = tvResults

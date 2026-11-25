@@ -580,10 +580,12 @@ enum ServicesStreamAppearanceSettings {
     static let showStreamFrameKey = "servicesShowStreamFrame"
     static let streamFrameColorKey = "servicesStreamFrameColor"
     static let streamFrameWidthKey = "servicesStreamFrameWidth"
+    static let streamCardCornerRadiusKey = "servicesStreamCardCornerRadius"
     static let hideAddonMessagesKey = "servicesHideAddonMessages"
 
     static let defaultShowStreamFrame = false
     static let defaultStreamFrameWidth = 1.5
+    static let defaultStreamCardCornerRadius = 14.0
     static let defaultHideAddonMessages = false
 
     static func streamCardColor(defaults: UserDefaults = ProfileSettingsStore.services) -> Color {
@@ -607,6 +609,11 @@ enum ServicesStreamAppearanceSettings {
         return min(max(value, 0.5), 6)
     }
 
+    static func streamCardCornerRadius(defaults: UserDefaults = ProfileSettingsStore.services) -> Double {
+        let value = defaults.object(forKey: streamCardCornerRadiusKey) as? Double ?? defaultStreamCardCornerRadius
+        return min(max(value, 0), 30)
+    }
+
     static func hidesAddonMessages(defaults: UserDefaults = ProfileSettingsStore.services) -> Bool {
         defaults.object(forKey: hideAddonMessagesKey) as? Bool ?? defaultHideAddonMessages
     }
@@ -627,12 +634,17 @@ enum ServicesStreamAppearanceSettings {
         defaults.set(min(max(width, 0.5), 6), forKey: streamFrameWidthKey)
     }
 
+    static func setStreamCardCornerRadius(_ radius: Double, defaults: UserDefaults = ProfileSettingsStore.services) {
+        defaults.set(min(max(radius, 0), 30), forKey: streamCardCornerRadiusKey)
+    }
+
     static func reset(defaults: UserDefaults = ProfileSettingsStore.services) {
         defaults.removeObject(forKey: streamCardColorKey)
         defaults.removeObject(forKey: streamIconColorKey)
         defaults.removeObject(forKey: showStreamFrameKey)
         defaults.removeObject(forKey: streamFrameColorKey)
         defaults.removeObject(forKey: streamFrameWidthKey)
+        defaults.removeObject(forKey: streamCardCornerRadiusKey)
         defaults.removeObject(forKey: hideAddonMessagesKey)
     }
 

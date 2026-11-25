@@ -893,20 +893,47 @@ class TMDBService: ObservableObject {
         }
     }
 
-    func searchTVShows(query: String, languageOverride: String? = nil) async throws -> [TMDBTVShow] {
-        guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [] }
+    func searchTVShows(
+        query: String,
+        languageOverride: String? = nil,
+        maxPages: Int = 1
+    ) async throws -> [TMDBTVShow] {
+        let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedQuery.isEmpty else { return [] }
+        guard (1...5).contains(maxPages) else { return [] }
 
-        guard let url = searchEndpointURL("tv", query: query, language: languageOverride) else {
-            throw TMDBError.invalidURL
+        var allResults: [TMDBTVShow] = []
+        var seenIDs = Set<Int>()
+
+        for page in 1...maxPages {
+            guard let url = searchEndpointURL(
+                "tv",
+                query: normalizedQuery,
+                language: languageOverride,
+                page: page
+            ) else {
+                throw TMDBError.invalidURL
+            }
+
+            do {
+                let (data, _) = try await throttledData(from: url)
+                let response = try decodeTMDBListResponse(
+                    TMDBTVSearchResponse.self,
+                    from: data,
+                    endpoint: url.path
+                )
+                for show in response.results where seenIDs.insert(show.id).inserted {
+                    allResults.append(show)
+                }
+                if response.results.count < 20 {
+                    break
+                }
+            } catch {
+                throw TMDBError.wrapping(error)
+            }
         }
 
-        do {
-            let (data, _) = try await throttledData(from: url)
-            let response = try decodeTMDBListResponse(TMDBTVSearchResponse.self, from: data, endpoint: url.path)
-            return response.results
-        } catch {
-            throw TMDBError.wrapping(error)
-        }
+        return allResults
     }
 
     func getMovieDetails(id: Int) async throws -> TMDBMovieDetail {

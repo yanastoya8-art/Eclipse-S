@@ -21,6 +21,7 @@ enum ServicesSettingsSearchTarget: Hashable {
     case stremioStyleSheet
     case streamCardColor
     case streamIconColor
+    case streamCardRoundness
     case hideAddonMessages
     case streamFrame
     case rankingSimilarity
@@ -48,6 +49,7 @@ enum ServicesSettingsSearchTarget: Hashable {
         case .stremioStyleSheet: return "services-settings-search-stremioStyleSheet"
         case .streamCardColor: return "services-settings-search-streamCardColor"
         case .streamIconColor: return "services-settings-search-streamIconColor"
+        case .streamCardRoundness: return "services-settings-search-streamCardRoundness"
         case .hideAddonMessages: return "services-settings-search-hideAddonMessages"
         case .streamFrame: return "services-settings-search-streamFrame"
         case .rankingSimilarity: return "services-settings-search-rankingSimilarity"
@@ -69,6 +71,7 @@ enum ServicesSettingsSearchTarget: Hashable {
         case .stremioStyleSheet,
              .streamCardColor,
              .streamIconColor,
+             .streamCardRoundness,
              .hideAddonMessages,
              .streamFrame,
              .languagesToInclude,
@@ -109,6 +112,7 @@ enum ServicesSettingsSearchTarget: Hashable {
              .stremioStyleSheet,
              .streamCardColor,
              .streamIconColor,
+.streamCardRoundness,
              .hideAddonMessages,
              .streamFrame,
              .rankingSimilarity,
@@ -2582,6 +2586,7 @@ private struct ExtraServiceSettingsView: View {
     @AppStorage(ServicesStreamAppearanceSettings.showStreamFrameKey, store: ProfileSettingsStore.services) private var showStreamFrame = ServicesStreamAppearanceSettings.defaultShowStreamFrame
     @State private var streamFrameColor = ServicesStreamAppearanceSettings.streamFrameColor()
     @State private var streamFrameWidth = ServicesStreamAppearanceSettings.streamFrameWidth()
+    @State private var streamCardCornerRadius = ServicesStreamAppearanceSettings.streamCardCornerRadius()
     @State private var extraRulesSourceIds: Set<String>? = StreamLanguageFilter.extraRulesSourceIds().map { Set($0) }
     @State private var didFocusInitialSearchTarget = false
     @State private var languagePicker: LanguagePickerContext?
@@ -2712,6 +2717,15 @@ private struct ExtraServiceSettingsView: View {
                         .id(ServicesSettingsSearchTarget.streamCardColor.anchorID)
                     ColorPicker("Stream Icon Color", selection: $streamIconColor, supportsOpacity: true)
                         .id(ServicesSettingsSearchTarget.streamIconColor.anchorID)
+                    HStack {
+                        Text("Stream Roundness")
+                        Spacer()
+                        Text("\(Int(streamCardCornerRadius)) pt")
+                            .foregroundColor(.secondary)
+                            .monospacedDigit()
+                    }
+                    Slider(value: $streamCardCornerRadius, in: 0...30, step: 1)
+                        .id(ServicesSettingsSearchTarget.streamCardRoundness.anchorID)
                     Toggle("Show Stream Frame", isOn: $showStreamFrame)
                         .id(ServicesSettingsSearchTarget.streamFrame.anchorID)
                     if showStreamFrame {
@@ -2733,6 +2747,7 @@ private struct ExtraServiceSettingsView: View {
                         streamIconColor = ServicesStreamAppearanceSettings.streamIconColor()
                         streamFrameColor = ServicesStreamAppearanceSettings.streamFrameColor()
                         streamFrameWidth = ServicesStreamAppearanceSettings.streamFrameWidth()
+                        streamCardCornerRadius = ServicesStreamAppearanceSettings.defaultStreamCardCornerRadius
                         showStreamFrame = ServicesStreamAppearanceSettings.defaultShowStreamFrame
                         hideAddonMessages = ServicesStreamAppearanceSettings.defaultHideAddonMessages
                     }
@@ -2753,6 +2768,9 @@ private struct ExtraServiceSettingsView: View {
                 }
                 .onChangeComp(of: streamFrameWidth) { _, width in
                     ServicesStreamAppearanceSettings.setStreamFrameWidth(width)
+                }
+                .onChangeComp(of: streamCardCornerRadius) { _, radius in
+                    ServicesStreamAppearanceSettings.setStreamCardCornerRadius(radius)
                 }
 
                 Section {
@@ -2944,6 +2962,7 @@ private struct ExtraServiceSettingsView: View {
                 streamIconColor = ServicesStreamAppearanceSettings.streamIconColor()
                 streamFrameColor = ServicesStreamAppearanceSettings.streamFrameColor()
                 streamFrameWidth = ServicesStreamAppearanceSettings.streamFrameWidth()
+                streamCardCornerRadius = ServicesStreamAppearanceSettings.streamCardCornerRadius()
                 let storedSimilarity = ServicesResultRankingSettings.minimumSimilarity()
                 if serviceResultMinimumSimilarity != storedSimilarity {
                     serviceResultMinimumSimilarity = storedSimilarity

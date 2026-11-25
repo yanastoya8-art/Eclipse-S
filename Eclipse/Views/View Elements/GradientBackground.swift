@@ -601,7 +601,13 @@ enum HomeAnimatedBackgroundShape: String, CaseIterable, Identifiable {
 
 enum HomeAnimatedBackgroundSettings {
     static let enabledKey = "homeAnimatedBackgroundEnabled"
+    static let shapeEnabledKey = "homeAnimatedBackgroundShapeEnabled"
+    static let shapeOpacityKey = "homeAnimatedBackgroundShapeOpacity"
+    static let shapeSizeKey = "homeAnimatedBackgroundShapeSize"
     static let defaultEnabled = true
+    static let defaultShapeEnabled = true
+    static let defaultShapeOpacity = 0.82
+    static let defaultShapeSize = 1.0
 
     static func isEnabled(defaults: UserDefaults = ProfileSettingsStore.active) -> Bool {
         defaults.object(forKey: enabledKey) == nil ? defaultEnabled : defaults.bool(forKey: enabledKey)
@@ -803,6 +809,9 @@ struct EclipseAmbientMotionBackground: View {
     @AppStorage(HomeAnimatedBackgroundFrameRate.storageKey) private var frameRateRawValue = HomeAnimatedBackgroundFrameRate.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundParticleColor.storageKey) private var particleColorRawValue = HomeAnimatedBackgroundParticleColor.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundShape.storageKey) private var shapeRawValue = HomeAnimatedBackgroundShape.defaultValue.rawValue
+    @AppStorage(HomeAnimatedBackgroundSettings.shapeEnabledKey) private var shapeEnabled = HomeAnimatedBackgroundSettings.defaultShapeEnabled
+    @AppStorage(HomeAnimatedBackgroundSettings.shapeOpacityKey) private var shapeOpacity = HomeAnimatedBackgroundSettings.defaultShapeOpacity
+    @AppStorage(HomeAnimatedBackgroundSettings.shapeSizeKey) private var shapeSize = HomeAnimatedBackgroundSettings.defaultShapeSize
     @AppStorage(HomeAnimatedBackgroundParticleColor.customColorDataKey) private var customParticleColorData = Data()
 
     private let particles: [(x: CGFloat, y: CGFloat, size: CGFloat, drift: CGFloat, opacity: Double)] = [
@@ -1042,28 +1051,30 @@ struct EclipseAmbientMotionBackground: View {
             )
         }
 
-        let shapePulse = lerp(0.94, 1.06, pulse)
-        let shapeCenter = CGPoint(
-            x: center.x + driftX * 0.55,
-            y: center.y + driftY * 0.55
-        )
-        let shapeFont = Font.system(size: min(max(min(width, height) * 0.24, 76), 190) * shapePulse, weight: .regular)
-        let motif = Text(selectedShape.glyph)
-            .font(shapeFont)
-            .foregroundColor(primaryColor.opacity(0.82))
-        var motifGlow = context
-        motifGlow.addFilter(.blur(radius: 13))
-        motifGlow.opacity = 0.58
-        let resolvedGlow = motifGlow.resolve(motif)
-        motifGlow.draw(resolvedGlow, at: shapeCenter, anchor: .center)
-        var motifContext = context
-        motifContext.opacity = 0.88
-        let resolvedMotif = motifContext.resolve(motif)
-        motifContext.draw(
-            resolvedMotif,
-            at: CGPoint(x: shapeCenter.x, y: shapeCenter.y),
-            anchor: .center
-        )
+        if shapeEnabled && shapeOpacity > 0 {
+            let shapePulse = lerp(0.94, 1.06, pulse)
+            let shapeCenter = CGPoint(
+                x: center.x + driftX * 0.55,
+                y: center.y + driftY * 0.55
+            )
+            let safeShapeScale = min(max(shapeSize, 0.5), 1.8)
+            let shapeFont = Font.system(
+                size: min(max(min(width, height) * 0.24, 76), 190) * shapePulse * safeShapeScale,
+                weight: .regular
+            )
+            let motif = Text(selectedShape.glyph)
+                .font(shapeFont)
+                .foregroundColor(primaryColor.opacity(shapeOpacity))
+            var motifGlow = context
+            motifGlow.addFilter(.blur(radius: 13))
+            motifGlow.opacity = 0.58 * shapeOpacity
+            let resolvedGlow = motifGlow.resolve(motif)
+            motifGlow.draw(resolvedGlow, at: shapeCenter, anchor: .center)
+            var motifContext = context
+            motifContext.opacity = shapeOpacity
+            let resolvedMotif = motifContext.resolve(motif)
+            motifContext.draw(resolvedMotif, at: shapeCenter, anchor: .center)
+        }
 
         guard quality != .low else { return }
 

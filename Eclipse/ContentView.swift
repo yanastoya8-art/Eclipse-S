@@ -52,7 +52,7 @@ private func autoUpdateSkyStreamSourcesIfNeeded() async {
 
 
 enum MainAppSection: String, CaseIterable, Identifiable {
-    case home, schedule, downloads, search
+    case home, schedule, downloads, search, library
     var id: String { rawValue }
     var title: String {
         switch self {
@@ -60,6 +60,7 @@ enum MainAppSection: String, CaseIterable, Identifiable {
         case .schedule: return "Schedule"
         case .downloads: return "Downloads"
         case .search: return "Search"
+        case .library: return "Library"
         }
     }
     var systemImage: String {
@@ -68,6 +69,7 @@ enum MainAppSection: String, CaseIterable, Identifiable {
         case .schedule: return "calendar"
         case .downloads: return "arrow.down.circle.fill"
         case .search: return "magnifyingglass"
+        case .library: return "books.vertical.fill"
         }
     }
 }
@@ -432,11 +434,11 @@ struct ContentView: View {
                     Tab("Search", systemImage: "magnifyingglass", value: AppTab.search, role: .search) {
                         SearchView()
                     }
+                case .library:
+                    Tab("Library", systemImage: "books.vertical.fill", value: AppTab.library) {
+                        LibraryView()
+                    }
                 }
-            }
-
-            Tab("Library", systemImage: "books.vertical.fill", value: AppTab.library) {
-                LibraryView()
             }
         }
 #if !os(tvOS)
@@ -444,7 +446,7 @@ struct ContentView: View {
 #endif
         .tint(accentColorManager.currentAccentColor)
 #if os(iOS)
-        .toolbarBackground(LiquidGlassAppearanceSettings.shared.bottomBarTint, for: .tabBar)
+        .toolbarBackground(glassAppearance.bottomBarTint, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
 #endif
     }
@@ -567,12 +569,13 @@ struct ContentView: View {
                         SearchView()
                             .tabItem { Image(systemName: section.systemImage); Text(section.title) }
                             .tag(AppTab.search)
+                    case .library:
+                        LibraryView()
+                            .tabItem { Image(systemName: section.systemImage); Text(section.title) }
+                            .tag(AppTab.library)
                     }
                 }
             }
-            LibraryView()
-                .tabItem { Image(systemName: "books.vertical.fill"); Text("Library") }
-                .tag(AppTab.library)
         }
         .tint(accentColorManager.currentAccentColor)
 #if os(iOS)
@@ -584,7 +587,7 @@ struct ContentView: View {
 
 
 #if !os(tvOS)
-private enum ExperimentalMediaTab: Hashable {
+private enum ExperimentalMediaTab: String, Hashable {
     case home
     case schedule
     case downloads
@@ -595,11 +598,13 @@ private enum ExperimentalMediaTab: Hashable {
 struct ExperimentalContentView: View {
     @ObservedObject private var downloadManager = DownloadManager.shared
     @StateObject private var accentColorManager = AccentColorManager.shared
+    @StateObject private var glassAppearance = LiquidGlassAppearanceSettings.shared
     @AppStorage("githubReleaseShowAlertPending", store: .standard) private var githubReleaseShowAlertPending = false
     @AppStorage("githubReleaseLatestVersion", store: .standard) private var githubReleaseLatestVersion = ""
     @AppStorage("githubReleaseURL", store: .standard) private var githubReleaseURL = ""
 
     @State private var selectedTab: ExperimentalMediaTab = .home
+    @StateObject private var tabConfiguration = MainTabConfiguration.shared
     @State private var showingSettings = false
     @State private var showingReleaseAlert = false
     @State private var showingAniListFallbackAlert = false
@@ -622,8 +627,9 @@ struct ExperimentalContentView: View {
 
     private func configureTabBarAppearance() {
         let appearance = UITabBarAppearance()
-        appearance.configureWithOpaqueBackground()
-        appearance.backgroundColor = UIColor(red: 0.06, green: 0.06, blue: 0.06, alpha: 0.92)
+        appearance.configureWithDefaultBackground()
+        appearance.backgroundColor = UIColor(glassAppearance.bottomBarColor).withAlphaComponent(0.46)
+        appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial)
         appearance.shadowColor = .clear
 
         let itemAppearance = UITabBarItemAppearance()
@@ -689,6 +695,10 @@ struct ExperimentalContentView: View {
         .onChange(of: selectedTab) { _ in
             updatePerformanceSurface()
         }
+        .onReceive(tabConfiguration.$visibleSections, perform: synchronizeSelectedTab)
+        .onReceive(glassAppearance.$bottomBarColor.dropFirst()) { _ in
+            configureTabBarAppearance()
+        }
         .onChange(of: showingSettings) { _ in
             updatePerformanceSurface()
         }
@@ -746,46 +756,45 @@ struct ExperimentalContentView: View {
         }
     }
 
+
+    private func synchronizeSelectedTab(with visible: [MainAppSection]) {
+        let visibleTabs = visible.map { ExperimentalMediaTab(rawValue: $0.rawValue) }
+        guard !visibleTabs.contains(where: { $0 == selectedTab }) else { return }
+        selectedTab = visibleTabs.compactMap { $0 }.first ?? .home
+    }
+
     private var experimentalTabView: some View {
         TabView(selection: $selectedTab) {
-            HomeView(
-                isActive: selectedTab == .home && !showingSettings && !playerCoversInterface,
-                onStartupReady: onStartupReady
-            )
-                .tabItem {
-                    Image(systemName: "house.fill")
-                    Text("Home")
+            ForEach(tabConfiguration.tabsForDisplay) { section in
+                Group {
+                    switch section {
+                    case .home:
+                        HomeView(
+                            isActive: selectedTab == .home && !showingSettings && !playerCoversInterface,
+                            onStartupReady: onStartupReady
+                        )
+                        .tabItem { Image(systemName: section.systemImage); Text(section.title) }
+                        .tag(ExperimentalMediaTab.home)
+                    case .schedule:
+                        ScheduleView(isActive: selectedTab == .schedule)
+                            .tabItem { Image(systemName: section.systemImage); Text(section.title) }
+                            .tag(ExperimentalMediaTab.schedule)
+                    case .downloads:
+                        DownloadsView()
+                            .tabItem { Image(systemName: section.systemImage); Text(section.title) }
+                            .tag(ExperimentalMediaTab.downloads)
+                            .badge(downloadManager.activeDownloadCount > 0 ? downloadManager.activeDownloadCount : 0)
+                    case .search:
+                        SearchView()
+                            .tabItem { Image(systemName: section.systemImage); Text(section.title) }
+                            .tag(ExperimentalMediaTab.search)
+                    case .library:
+                        LibraryView()
+                            .tabItem { Image(systemName: section.systemImage); Text(section.title) }
+                            .tag(ExperimentalMediaTab.library)
+                    }
                 }
-                .tag(ExperimentalMediaTab.home)
-
-            ScheduleView(isActive: selectedTab == .schedule)
-                .tabItem {
-                    Image(systemName: "calendar")
-                    Text("Schedule")
-                }
-                .tag(ExperimentalMediaTab.schedule)
-
-            DownloadsView()
-                .tabItem {
-                    Image(systemName: "arrow.down.circle.fill")
-                    Text("Downloads")
-                }
-                .tag(ExperimentalMediaTab.downloads)
-                .badge(downloadManager.activeDownloadCount > 0 ? downloadManager.activeDownloadCount : 0)
-
-            LibraryView()
-                .tabItem {
-                    Image(systemName: "books.vertical.fill")
-                    Text("Library")
-                }
-                .tag(ExperimentalMediaTab.library)
-
-            SearchView()
-                .tabItem {
-                    Image(systemName: "magnifyingglass")
-                    Text("Search")
-                }
-                .tag(ExperimentalMediaTab.search)
+            }
         }
         .tint(accentColorManager.currentAccentColor)
 #if os(iOS)

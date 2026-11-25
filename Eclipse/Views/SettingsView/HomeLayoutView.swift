@@ -27,9 +27,6 @@ struct HomeLayoutView: View {
     @AppStorage(ExperimentalVisualTuning.cardRadiusScaleKey) private var cardRadiusScale = ExperimentalVisualTuning.defaultCardRadiusScale
     @AppStorage(ExperimentalVisualTuning.sectionSpacingScaleKey) private var sectionSpacingScale = ExperimentalVisualTuning.defaultSectionSpacingScale
     @AppStorage(ExperimentalVisualTuning.heroHeightScaleKey) private var heroHeightScale = ExperimentalVisualTuning.defaultHeroHeightScale
-    @AppStorage(HomeAnimatedBackgroundSettings.enabledKey) private var animatedBackgroundEnabled = HomeAnimatedBackgroundSettings.defaultEnabled
-    @AppStorage(HomeAnimatedBackgroundQuality.storageKey) private var animatedBackgroundQuality = HomeAnimatedBackgroundQuality.defaultValue.rawValue
-    @AppStorage(HomeAnimatedBackgroundFrameRate.storageKey) private var animatedBackgroundFrameRate = HomeAnimatedBackgroundFrameRate.defaultValue.rawValue
 #if os(tvOS)
     @AppStorage("tvCardDensity") private var tvCardDensityRaw = TVCardDensity.standard.rawValue
 #endif
@@ -133,33 +130,6 @@ struct HomeLayoutView: View {
                 step: 0.05
             )
 
-            settingRow(
-                title: "Animated Background",
-                description: "Subtle Eclipse-style motion behind broad app surfaces."
-            ) {
-                Toggle("", isOn: $animatedBackgroundEnabled)
-                    .labelsHidden()
-#if os(tvOS)
-                    .accessibilityLabel("Animated Background")
-                    .accessibilityIdentifier("tv.appearance.animatedBackground")
-#endif
-                    .tint(accent)
-            }
-
-            pickerRow(
-                title: "Animation Quality",
-                description: "Low keeps the core eclipse rings and particles. Medium and High progressively add richer motion layers.",
-                selection: $animatedBackgroundQuality,
-                values: HomeAnimatedBackgroundQuality.allCases.map { ($0.rawValue, $0.displayName) }
-            )
-
-            pickerRow(
-                title: "Animation Frame Rate",
-                description: "Choose 20, 30, 60, or 120 FPS for background motion. Higher rates use more power; the display and system may limit the actual rate.",
-                selection: $animatedBackgroundFrameRate,
-                values: HomeAnimatedBackgroundFrameRate.allCases.map { ($0.rawValue, $0.displayName) },
-                accessibilityIdentifier: "tv.appearance.animationFrameRate"
-            )
         } header: {
             Text("Global")
         } footer: {
