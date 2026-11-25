@@ -211,6 +211,11 @@ final class HLSBackgroundDownloadTests: XCTestCase {
             XCTAssertEqual(fixture.scheduler.finishes.map { $0.success }, [false])
 
             let paths = fixture.requestedPaths
+            XCTAssertEqual(
+                fixture.requestedPaths,
+                paths,
+                "An expired HLS worker must not restart network requests while the app is still backgrounded."
+            )
             fixture.foreground = true
             fixture.manager.applicationDidBecomeActive()
             try await eventually {

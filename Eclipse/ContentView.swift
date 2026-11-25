@@ -93,7 +93,10 @@ final class MainTabConfiguration: ObservableObject {
         let defaults = ProfileSettingsStore.active
         let all = MainAppSection.allCases
         let hidden = Set(defaults.stringArray(forKey: visibilityKey) ?? [])
-        let visible = all.filter { !hidden.contains($0.rawValue) }
+        var visible = all.filter { !hidden.contains($0.rawValue) }
+        if ProfileSettingsStore.device.bool(forKey: "openAppInLibrary"), !visible.contains(.library) {
+            visible.append(.library)
+        }
         visibleSections = visible.isEmpty ? [.home] : visible
         let savedOrder = defaults.stringArray(forKey: orderKey) ?? []
         let decoded = savedOrder.compactMap(MainAppSection.init(rawValue:))
@@ -166,6 +169,8 @@ struct ContentView: View {
     @AppStorage("githubReleaseURL", store: .standard) private var githubReleaseURL = ""
 
     @State private var selectedTab: AppTab = .home
+    @AppStorage("openAppInLibrary", store: ProfileSettingsStore.device) private var openAppInLibrary = false
+    @State private var didApplyStartupTab = false
     @State private var showingSettings = false
     @State private var showingReleaseAlert = false
     @State private var showingAniListFallbackAlert = false
@@ -286,6 +291,10 @@ struct ContentView: View {
             }
         }
         .onAppear {
+            if openAppInLibrary && !didApplyStartupTab {
+                selectedTab = .library
+                didApplyStartupTab = true
+            }
             updatePerformanceSurface()
             publishScenePhase(scenePhase)
             presentUpdateAlertIfNeeded()
@@ -604,6 +613,8 @@ struct ExperimentalContentView: View {
     @AppStorage("githubReleaseURL", store: .standard) private var githubReleaseURL = ""
 
     @State private var selectedTab: ExperimentalMediaTab = .home
+    @AppStorage("openAppInLibrary", store: ProfileSettingsStore.device) private var openAppInLibrary = false
+    @State private var didApplyStartupTab = false
     @StateObject private var tabConfiguration = MainTabConfiguration.shared
     @State private var showingSettings = false
     @State private var showingReleaseAlert = false
@@ -679,6 +690,10 @@ struct ExperimentalContentView: View {
             }
         }
         .onAppear {
+            if openAppInLibrary && !didApplyStartupTab {
+                selectedTab = .library
+                didApplyStartupTab = true
+            }
             updatePerformanceSurface()
             publishScenePhase(scenePhase)
             presentUpdateAlertIfNeeded()

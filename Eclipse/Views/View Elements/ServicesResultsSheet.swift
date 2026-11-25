@@ -26,11 +26,17 @@ private func copyProviderDownloadURL(_ rawURL: String, headers: [String: String]
           sourceURL.user == nil,
           sourceURL.password == nil else { return }
 
-    // Safari treats ordinary video responses as inline media. Route the
-    // copied download link through Eclipse's local response proxy so it can
-    // add Content-Disposition: attachment, even when the provider needs no
-    // authentication headers. Preserve the original URL and headers upstream.
     let sanitizedHeaders = AVPlayerResourceLoader.sanitizedHTTPHeaders(headers ?? [:])
+
+    // Prefer the provider's original signed URL when no request headers are
+    // required. A LAN-proxy URL embeds a temporary local port/session token;
+    // Safari can lose access to that listener as Eclipse is backgrounded.
+    // Header-protected streams still need the local response proxy.
+    guard !sanitizedHeaders.isEmpty else {
+        ProviderExternalApplication.copy(sourceURL.absoluteString)
+        return
+    }
+
     if let downloadURL = MPVHeaderProxy.shared.makeLANProxyURL(
         for: sourceURL,
         headers: sanitizedHeaders,
@@ -38,7 +44,6 @@ private func copyProviderDownloadURL(_ rawURL: String, headers: [String: String]
     ) {
         ProviderExternalApplication.copy(downloadURL.absoluteString)
     } else {
-        // If the local proxy is unavailable, retain a usable source link.
         ProviderExternalApplication.copy(sourceURL.absoluteString)
     }
 }
@@ -3650,13 +3655,16 @@ struct ModulesSearchResultsSheet: View {
 
     private func filteredStremioStreams(_ streams: [StremioStream], addon: StremioAddon) -> [StremioStream] {
         let sourceId = SourceHealth.stremioId(addon)
-        guard let configuration = StreamLanguageFilter.configuration(sourceId: sourceId) else {
-            return Array(streams.prefix(Self.maxRetainedStremioStreamsPerAddon))
-        }
+        let configuration = StreamLanguageFilter.configuration(sourceId: sourceId)
         return Array(
             streams.lazy
+                .filter { stream in
+                    guard let url = stream.url else { return true }
+                    return !StreamURLBlocklistSettings.contains(url)
+                }
                 .filter {
-                    !StreamLanguageFilter.shouldHide(
+                    guard let configuration else { return true }
+                    return !StreamLanguageFilter.shouldHide(
                         stremio: $0,
                         configuration: configuration,
                         originalAudioLanguage: originalAudioLanguage,
@@ -3675,9 +3683,7 @@ struct ModulesSearchResultsSheet: View {
 
     private func filteredServiceStreamOptions(_ options: [StreamOption], service: Service) -> [StreamOption] {
         let sourceId = SourceHealth.serviceId(service)
-        guard let configuration = StreamLanguageFilter.configuration(sourceId: sourceId) else {
-            return options
-        }
+        let configuration = StreamLanguageFilter.configuration(sourceId: sourceId)
         return options.filter { option in
             serviceStreamOptionIsVisible(option, configuration: configuration)
         }
@@ -3687,6 +3693,7 @@ struct ModulesSearchResultsSheet: View {
         _ option: StreamOption,
         configuration: StreamLanguageFilter.Configuration?
     ) -> Bool {
+        guard !StreamURLBlocklistSettings.contains(option.url) else { return false }
         guard let configuration else { return true }
         return !StreamLanguageFilter.shouldHide(
             languageHints: option.languageHints,
@@ -3777,9 +3784,8 @@ struct ModulesSearchResultsSheet: View {
         if downloadMode {
             retained = retained.filter(isSkyStreamDownloadCompatible)
         }
-        guard let configuration = StreamLanguageFilter.configuration(sourceId: provider.id) else {
-            return Array(retained.prefix(Self.maxVisibleSkyStreamOptionsPerProvider))
-        }
+        retained = retained.filter { !StreamURLBlocklistSettings.contains($0.option.url) }
+        let configuration = StreamLanguageFilter.configuration(sourceId: provider.id)
         return Array(retained.lazy.filter {
             serviceStreamOptionIsVisible($0.option, configuration: configuration)
         }.prefix(Self.maxVisibleSkyStreamOptionsPerProvider))
@@ -3862,9 +3868,8 @@ struct ModulesSearchResultsSheet: View {
         if downloadMode {
             retained = retained.filter(isNuvioDownloadCompatible)
         }
-        guard let configuration = StreamLanguageFilter.configuration(sourceId: scraper.id) else {
-            return Array(retained.prefix(Self.maxVisibleNuvioOptionsPerScraper))
-        }
+        retained = retained.filter { !StreamURLBlocklistSettings.contains($0.option.url) }
+        let configuration = StreamLanguageFilter.configuration(sourceId: scraper.id)
         return Array(retained.lazy.filter {
             serviceStreamOptionIsVisible($0.option, configuration: configuration)
         }.prefix(Self.maxVisibleNuvioOptionsPerScraper))

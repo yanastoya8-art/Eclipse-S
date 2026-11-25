@@ -15,6 +15,53 @@ final class SettingsScopeTests: XCTestCase {
         XCTAssertEqual(AppearancePalettes.base(for: .ember).displayName, "Ember")
     }
 
+    func testUnofficialYouTubeFilteringUsesProducerMetadataNotSynopsisMentions() {
+        XCTAssertTrue(
+            TMDBContentFilter.isUnofficialCreatorContent(
+                title: "Creator Web Series",
+                overview: "An independent comedy",
+                productionCompanies: ["YouTube"]
+            )
+        )
+        XCTAssertFalse(
+            TMDBContentFilter.isUnofficialCreatorContent(
+                title: "Official Drama",
+                overview: "A story about a video that went viral on YouTube",
+                productionCompanies: ["HBO"]
+            )
+        )
+    }
+
+    func testBlockedStreamURLsAreCanonicalizedInIsolatedSettings() throws {
+        let suiteName = "StreamURLBlocklistTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        defaults.set(
+            "HTTPS://EXAMPLE.COM/series/episode?token=abc#player\nhttps://cdn.example/video.mkv",
+            forKey: StreamURLBlocklistSettings.storageKey
+        )
+
+        XCTAssertTrue(
+            StreamURLBlocklistSettings.contains(
+                "https://example.com/series/episode?token=abc",
+                defaults: defaults
+            )
+        )
+        XCTAssertTrue(
+            StreamURLBlocklistSettings.contains(
+                "https://cdn.example/video.mkv",
+                defaults: defaults
+            )
+        )
+        XCTAssertFalse(
+            StreamURLBlocklistSettings.contains(
+                "https://example.com/series/episode?token=other",
+                defaults: defaults
+            )
+        )
+    }
+
     func testBackgroundStylePickerContainsOnlyThreeRenderingModes() {
         XCTAssertEqual(AtmosphereStyle.selectableCases, [.gradient, .multiGradient, .solid])
         XCTAssertEqual(AtmosphereStyle.allCases, [.gradient, .multiGradient, .solid])
@@ -49,10 +96,21 @@ final class SettingsScopeTests: XCTestCase {
         XCTAssertNil(admittedValue("0.25", forKey: delayKey))
         XCTAssertEqual(EclipseSettingsRegistry.explicitScope(for: "rememberedPlaybackSelectionsV1"), .profile)
         XCTAssertFalse(MediaStateSettingRegistry.allKeys.contains("rememberedPlaybackSelectionsV1"))
-        for key in ["imageDataSaverEnabled", "maximumConcurrentVideoDownloads", "maximumConcurrentHLSDownloads"] {
+        for key in [
+            "imageDataSaverEnabled",
+            "maximumConcurrentVideoDownloads",
+            "maximumConcurrentHLSDownloads",
+            "splashScreenMinimumDuration",
+            "openAppInLibrary"
+        ] {
             XCTAssertEqual(EclipseSettingsRegistry.explicitScope(for: key), .device)
             XCTAssertFalse(MediaStateSettingRegistry.allKeys.contains(key))
         }
+        XCTAssertEqual(
+            EclipseSettingsRegistry.explicitScope(for: StreamURLBlocklistSettings.storageKey),
+            .services
+        )
+        XCTAssertFalse(MediaStateSettingRegistry.allKeys.contains(StreamURLBlocklistSettings.storageKey))
     }
 
     func testFixedAnimeBehaviorAndRemovedWatchTogetherPreferencesAreNotSynced() {

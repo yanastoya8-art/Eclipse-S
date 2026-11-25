@@ -59,6 +59,8 @@ enum EclipseSettingsRegistry {
 
         "showKanzen",
         "hideSplashScreen",
+        "splashScreenMinimumDuration",
+        "openAppInLibrary",
         "macExternalPlayerBundleIdentifier",
         "lastMacNuvioAutoUpdateTimestamp",
         "lastSkyStreamAutoUpdateTimestamp",

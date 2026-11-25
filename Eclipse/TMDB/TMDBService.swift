@@ -1405,8 +1405,21 @@ class TMDBService: ObservableObject {
     }
 
     private func getFastTrendingAnime(limit: Int, adultKeywordIDs: [Int]) async throws -> [TMDBSearchResult] {
-        let trending = try await getTrending(mediaType: "tv", timeWindow: "week")
-            .filter { self.isFastAnimeSearchResult($0) }
+        let trending: [TMDBSearchResult]
+        do {
+            trending = try await getTrending(mediaType: "tv", timeWindow: "week")
+                .filter { self.isFastAnimeSearchResult($0) }
+        } catch {
+            // The trending endpoint is an optional seed, not the only Anime
+            // provider. Fall back to the regional TV discover catalogs when
+            // trending is unavailable so Anime Browse still has results.
+            Logger.shared.log(
+                "TMDB trending anime seed failed; using regional discover fallback: \(error.localizedDescription)",
+                type: "AniList"
+            )
+            trending = []
+        }
+
         guard trending.count < min(limit, 10) else {
             return deduplicatedFastAnimeResults(trending)
         }
@@ -1425,40 +1438,52 @@ class TMDBService: ObservableObject {
         adultKeywordIDs: [Int],
         extraQueryItems: [URLQueryItem] = []
     ) async throws -> [TMDBSearchResult] {
-        let countryResults = try await withThrowingTaskGroup(
-            of: (Int, [TMDBTVShow]).self,
-            returning: [(Int, [TMDBTVShow])].self
+        // TMDB returns at most 20 results per page. Fetch every page needed
+        // for the requested Browse window for each supported origin country;
+        // always requesting page 1 made every later Browse page empty.
+        let pageCount = max(1, Int(ceil(Double(limit) / 20.0)))
+        let countryResults = await withTaskGroup(
+            of: (Int, Int, [TMDBTVShow]).self,
+            returning: [(Int, Int, [TMDBTVShow])].self
         ) { group in
-            for (index, country) in Self.fastAnimeOriginCountries.enumerated() {
-                group.addTask {
-                    let shows = try await self.discoverFastAnimeShows(
-                        originCountry: country,
-                        originalLanguage: Self.fastAnimeOriginalLanguageByCountry[country],
-                        sortBy: sortBy,
-                        page: 1,
-                        adultKeywordIDs: adultKeywordIDs,
-                        extraQueryItems: extraQueryItems
-                    )
-                    return (index, shows)
+            for (countryIndex, country) in Self.fastAnimeOriginCountries.enumerated() {
+                for page in 1...pageCount {
+                    group.addTask {
+                        do {
+                            let shows = try await self.discoverFastAnimeShows(
+                                originCountry: country,
+                                originalLanguage: Self.fastAnimeOriginalLanguageByCountry[country],
+                                sortBy: sortBy,
+                                page: page,
+                                adultKeywordIDs: adultKeywordIDs,
+                                extraQueryItems: extraQueryItems
+                            )
+                            return (countryIndex, page, shows)
+                        } catch {
+                            Logger.shared.log(
+                                "TMDB anime catalog country \(country) page \(page) failed: \(error.localizedDescription)",
+                                type: "AniList"
+                            )
+                            return (countryIndex, page, [])
+                        }
+                    }
                 }
             }
 
-            var loaded: [(Int, [TMDBTVShow])] = []
-            loaded.reserveCapacity(Self.fastAnimeOriginCountries.count)
-            do {
-                for try await result in group {
-                    loaded.append(result)
-                }
-                return loaded
-            } catch {
-                group.cancelAll()
-                throw error
+            var loaded: [(Int, Int, [TMDBTVShow])] = []
+            loaded.reserveCapacity(Self.fastAnimeOriginCountries.count * pageCount)
+            for await result in group {
+                loaded.append(result)
             }
+            return loaded
         }
 
         let combined = countryResults
-            .sorted { $0.0 < $1.0 }
-            .flatMap { _, shows in
+            .sorted {
+                if $0.0 != $1.0 { return $0.0 < $1.0 }
+                return $0.1 < $1.1
+            }
+            .flatMap { _, _, shows in
                 shows.filter { self.isFastAnimeTVShow($0) }.map(\.asSearchResult)
             }
         return deduplicatedFastAnimeResults(combined)

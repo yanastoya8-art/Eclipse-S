@@ -1869,7 +1869,8 @@ class TMDBContentFilter: ObservableObject {
                             names = detail.productionCompanies?.map(\.name) ?? []
                         } else {
                             let detail = try await TMDBService.shared.getTVShowDetails(id: result.id)
-                            names = detail.productionCompanies?.map(\.name) ?? []
+                            names = (detail.productionCompanies ?? []).map(\.name)
+                                + (detail.networks ?? []).map(\.name)
                         }
                         return (key, names, true)
                     } catch {
@@ -1902,7 +1903,8 @@ class TMDBContentFilter: ObservableObject {
                                 names = detail.productionCompanies?.map(\.name) ?? []
                             } else {
                                 let detail = try await TMDBService.shared.getTVShowDetails(id: result.id)
-                                names = detail.productionCompanies?.map(\.name) ?? []
+                                names = (detail.productionCompanies ?? []).map(\.name)
+                                    + (detail.networks ?? []).map(\.name)
                             }
                             return (nextKey, names, true)
                         } catch {
@@ -2165,7 +2167,9 @@ class TMDBContentFilter: ObservableObject {
         overview: String?,
         productionCompanies: [String] = []
     ) -> Bool {
-        let text = normalizedCatalogText(([title, overview ?? ""] + productionCompanies).joined(separator: " "))
+        let text = normalizedCatalogText([title, overview ?? ""].joined(separator: " "))
+        let producerText = normalizedCatalogText(productionCompanies.joined(separator: " "))
+        let producerPlatformIndicators = ["youtube", "youtube premium", "youtube red"]
         let indicators = [
             "fan made", "fanmade", "fan film", "fan films", "fan fiction", "fanfiction",
             "fan work", "fan works", "fan production", "fan productions", "fan project", "fan projects",
@@ -2184,12 +2188,19 @@ class TMDBContentFilter: ObservableObject {
             "rooster teeth", "jubilee media", "dude perfect", "the soul publishing",
             "alan chikin chow", "studio71", "jellysmack", "mythical entertainment"
         ]
-        return indicators.contains { indicator in
+        let hasTextIndicator = indicators.contains { indicator in
             text.range(of: " " + normalizedCatalogText(indicator) + " ") != nil
                 || text.hasPrefix(normalizedCatalogText(indicator) + " ")
                 || text.hasSuffix(" " + normalizedCatalogText(indicator))
                 || text == normalizedCatalogText(indicator)
         }
+        let hasProducerPlatform = producerPlatformIndicators.contains { indicator in
+            producerText.range(of: " " + normalizedCatalogText(indicator) + " ") != nil
+                || producerText.hasPrefix(normalizedCatalogText(indicator) + " ")
+                || producerText.hasSuffix(" " + normalizedCatalogText(indicator))
+                || producerText == normalizedCatalogText(indicator)
+        }
+        return hasTextIndicator || hasProducerPlatform
     }
 
     private func shouldIncludeCatalogTitle(_ title: String) -> Bool {

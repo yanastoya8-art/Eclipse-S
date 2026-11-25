@@ -46,6 +46,7 @@ struct DiscoverDetailView: View {
     @State private var paginationCursor = DiscoverPaginationCursor()
     @State private var paginationError: String?
     @State private var isLoadingMore = false
+    @State private var paginationSentinelVisible = false
     @State private var loadGeneration = UUID()
     @StateObject private var contentFilter = TMDBContentFilter.shared
     @Environment(\.heroNamespace) private var heroNamespace
@@ -124,7 +125,13 @@ struct DiscoverDetailView: View {
                         .frame(maxWidth: .infinity)
                         .frame(height: 1)
                         .id("browse-pagination-\(items.count)-\(paginationCursor.currentPage)")
-                        .onAppear { loadNextPage() }
+                        .onAppear {
+                            paginationSentinelVisible = true
+                            loadNextPage()
+                        }
+                        .onDisappear {
+                            paginationSentinelVisible = false
+                        }
                 }
 
                 if isLoadingMore {
@@ -536,6 +543,18 @@ struct DiscoverDetailView: View {
             }
             guard generation == loadGeneration else { return }
             isLoadingMore = false
+
+            // The sentinel can be recreated while this page is still loading.
+            // Its onAppear then sees isLoadingMore == true and is ignored. If it
+            // remains in the viewport, explicitly request the next page now that
+            // the current request has released the loading gate.
+            if paginationSentinelVisible,
+               paginationCursor.hasMorePages,
+               paginationError == nil {
+                DispatchQueue.main.async {
+                    self.loadNextPage()
+                }
+            }
         }
     }
 }

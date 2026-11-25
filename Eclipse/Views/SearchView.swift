@@ -861,7 +861,7 @@ struct SearchView: View {
                 // One TMDB page is enough for interactive search. Fetching
                 // a second page for every keystroke added latency without
                 // improving exact-title lookup in the common case.
-                var results = try await tmdbService.searchMulti(query: query, maxPages: 1)
+                var results = try await tmdbService.searchMulti(query: query, maxPages: 2)
                 try Task.checkCancellation()
                 let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
                 let requiresGlobalAnimeAgeRating = UserDefaults.standard.bool(forKey: "catalogHideBelowPG13Anime")
@@ -891,7 +891,10 @@ struct SearchView: View {
                 // those filters are applied to anime candidates already found
                 // in TMDB results, while the dedicated Anime filter performs
                 // the broader AniList lookup.
-                if searchFilter == .anime || results.isEmpty {
+                if searchFilter == .anime || searchFilter == .all || results.isEmpty {
+                    // TMDB multi-search can return unrelated movie matches for
+                    // an anime title, so a non-empty TMDB response must not
+                    // suppress AniList lookup in the default All search.
                     let animeResults = await AniListService.shared.searchAnimeResults(
                         query: query,
                         tmdbService: tmdbService
@@ -3305,14 +3308,7 @@ struct SearchBarEclipse: View {
                 .onSubmit(onSearchButtonClicked)
                 .padding(7)
                 .padding(.horizontal, 25)
-#if !os(tvOS)
-                .applyLiquidGlassBackground(
-                    cornerRadius: 12,
-                    fallbackFill: glassAppearance.lightBarColor.opacity(0.34),
-                    glassTint: glassAppearance.lightBarColor.opacity(0.30)
-                )
-#endif
-                .cornerRadius(12)
+                .background(Color.clear)
                 .contentShape(Rectangle())
                 .overlay(
                     HStack {
@@ -3333,5 +3329,16 @@ struct SearchBarEclipse: View {
                     }
                 )
         }
+#if !os(tvOS)
+        // Tint only the actual pill surface. Applying glass to the TextField
+        // itself let its expanding layout/background bleed into adjacent
+        // search controls and the surrounding screen.
+        .applyLiquidGlassBackground(
+            cornerRadius: 12,
+            fallbackFill: glassAppearance.lightBarColor.opacity(0.34),
+            glassTint: glassAppearance.lightBarColor.opacity(0.30)
+        )
+#endif
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
