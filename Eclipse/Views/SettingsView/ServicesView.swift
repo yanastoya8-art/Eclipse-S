@@ -24,6 +24,7 @@ enum ServicesSettingsSearchTarget: Hashable {
     case streamCardRoundness
     case hideAddonMessages
     case streamFrame
+    case blockedStreamURLs
     case rankingSimilarity
     case dropMismatchedResults
     case languagesToInclude
@@ -52,6 +53,7 @@ enum ServicesSettingsSearchTarget: Hashable {
         case .streamCardRoundness: return "services-settings-search-streamCardRoundness"
         case .hideAddonMessages: return "services-settings-search-hideAddonMessages"
         case .streamFrame: return "services-settings-search-streamFrame"
+        case .blockedStreamURLs: return "services-settings-search-blockedStreamURLs"
         case .rankingSimilarity: return "services-settings-search-rankingSimilarity"
         case .dropMismatchedResults: return "services-settings-search-dropMismatchedResults"
         case .languagesToInclude: return "services-settings-search-languagesToInclude"
@@ -74,6 +76,7 @@ enum ServicesSettingsSearchTarget: Hashable {
              .streamCardRoundness,
              .hideAddonMessages,
              .streamFrame,
+             .blockedStreamURLs,
              .languagesToInclude,
              .languagesToExclude,
              .assumeOriginalAudio,
@@ -115,6 +118,7 @@ enum ServicesSettingsSearchTarget: Hashable {
 .streamCardRoundness,
              .hideAddonMessages,
              .streamFrame,
+             .blockedStreamURLs,
              .rankingSimilarity,
              .dropMismatchedResults,
              .languagesToInclude,
