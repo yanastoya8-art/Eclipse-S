@@ -3002,8 +3002,8 @@ final class DownloadManager: NSObject, ObservableObject {
         guard let item = downloads.first(where: { $0.id == id }),
               item.status == .downloading else { return }
         let attempt = hlsBackgroundAttempts[id].flatMap { $0.granted && !$0.revoked ? $0 : nil }
-        let segmentTotal = Int64(max(item.hlsTotalSegments ?? 1, 1)) + 1
-        let completedSegments = min(Int64(max(item.hlsResumeSegmentIndex ?? 0, 0)), segmentTotal - 1)
+        let segmentTotal = Int64(max(item.hlsTotalSegments ?? 1, 1))
+        let completedSegments = min(Int64(max(item.hlsResumeSegmentIndex ?? 0, 0)), segmentTotal)
         let hasByteTotal = item.totalBytes > 0
         let completedBytes = max(item.downloadedBytes, 0)
         let totalBytes = hasByteTotal ? item.totalBytes : 0
@@ -3011,6 +3011,7 @@ final class DownloadManager: NSObject, ObservableObject {
         let progress = hasByteTotal
             ? min(Double(completedBytes) / Double(totalBytes), 1)
             : min(max(progressOverride ?? measuredSegmentProgress, 0), 1)
+        let progressUnitsCompleted = Int64((progress * Double(segmentTotal)).rounded(.down))
         let subtitle = hasByteTotal
             ? "\(DownloadByteCountFormatter.string(fromByteCount: completedBytes)) of \(DownloadByteCountFormatter.string(fromByteCount: totalBytes))"
             : (completedBytes > 0
@@ -3019,7 +3020,7 @@ final class DownloadManager: NSObject, ObservableObject {
         if let attempt {
             hlsBackgroundScheduler?.updateProgress(
                 attemptID: attempt.attemptID,
-                completed: hasByteTotal ? completedBytes : completedSegments,
+                completed: hasByteTotal ? completedBytes : progressUnitsCompleted,
                 total: hasByteTotal ? totalBytes : segmentTotal,
                 subtitle: subtitle
             )
