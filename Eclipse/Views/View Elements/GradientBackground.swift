@@ -967,17 +967,17 @@ private struct HomeAnimatedCreatureMotif: View {
                 path.closeSubpath()
                 for index in 0..<5 {
                     let offset = CGFloat(index) * 15
-                    path.move(to: CGPoint(x: 195 - offset * 0.45, y: 209))
-                    path.addCurve(to: CGPoint(x: 119 - offset * 7, y: 282 - offset * 1.2),
-                                  control1: CGPoint(x: 178 - offset * 2, y: 247),
-                                  control2: CGPoint(x: 142 - offset * 5, y: 272))
-                    path.addQuadCurve(to: CGPoint(x: 200, y: 235), control: CGPoint(x: 162 - offset * 2, y: 270))
+                    path.move(to: CGPoint(x: 195 - offset * 0.25, y: 209))
+                    path.addCurve(to: CGPoint(x: 124 + offset * 0.55, y: 282 - offset * 0.3),
+                                  control1: CGPoint(x: 177 - offset * 0.2, y: 247),
+                                  control2: CGPoint(x: 145 + offset * 0.25, y: 272))
+                    path.addQuadCurve(to: CGPoint(x: 200, y: 235), control: CGPoint(x: 162 - offset * 0.2, y: 270))
                     path.closeSubpath()
-                    path.move(to: CGPoint(x: 205 + offset * 0.45, y: 209))
-                    path.addCurve(to: CGPoint(x: 281 + offset * 7, y: 282 - offset * 1.2),
-                                  control1: CGPoint(x: 222 + offset * 2, y: 247),
-                                  control2: CGPoint(x: 258 + offset * 5, y: 272))
-                    path.addQuadCurve(to: CGPoint(x: 200, y: 235), control: CGPoint(x: 238 + offset * 2, y: 270))
+                    path.move(to: CGPoint(x: 205 + offset * 0.25, y: 209))
+                    path.addCurve(to: CGPoint(x: 276 - offset * 0.55, y: 282 - offset * 0.3),
+                                  control1: CGPoint(x: 223 + offset * 0.2, y: 247),
+                                  control2: CGPoint(x: 255 - offset * 0.25, y: 272))
+                    path.addQuadCurve(to: CGPoint(x: 200, y: 235), control: CGPoint(x: 238 + offset * 0.2, y: 270))
                     path.closeSubpath()
                 }
             case .bird:
@@ -1384,12 +1384,12 @@ private struct HomeAnimatedCreatureMotif: View {
             fineDetails.addQuadCurve(to: CGPoint(x: 222, y: 105), control: CGPoint(x: 200, y: 119))
         case .dragon:
             // Dense scale plates, wing membrane hatching and tiny paw/claw marks.
-            for row in 0..<5 {
-                let y = CGFloat(91 + row * 12)
-                for col in 0..<6 {
-                    let x = CGFloat(157 + col * 17)
+            for row in 0..<4 {
+                let y = CGFloat(183 + row * 9)
+                for col in 0..<5 {
+                    let x = CGFloat(169 + col * 14)
                     fineDetails.move(to: CGPoint(x: x, y: y))
-                    fineDetails.addQuadCurve(to: CGPoint(x: x + 12, y: y + 3), control: CGPoint(x: x + 6, y: y + 8))
+                    fineDetails.addQuadCurve(to: CGPoint(x: x + 10, y: y + 3), control: CGPoint(x: x + 5, y: y + 7))
                 }
             }
             for index in 0..<6 {
