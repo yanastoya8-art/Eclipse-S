@@ -587,7 +587,7 @@ struct ContentView: View {
 
 
 #if !os(tvOS)
-private enum ExperimentalMediaTab: Hashable {
+private enum ExperimentalMediaTab: String, Hashable {
     case home
     case schedule
     case downloads
@@ -695,11 +695,7 @@ struct ExperimentalContentView: View {
         .onChange(of: selectedTab) { _ in
             updatePerformanceSurface()
         }
-        .onReceive(tabConfiguration.$visibleSections) { visible in
-            if !visible.contains(where: { ExperimentalMediaTab(rawValue: $0.rawValue) == selectedTab }) {
-                selectedTab = visible.first.flatMap { ExperimentalMediaTab(rawValue: $0.rawValue) } ?? .home
-            }
-        }
+        .onReceive(tabConfiguration.$visibleSections, perform: synchronizeSelectedTab)
         .onReceive(glassAppearance.$bottomBarColor.dropFirst()) { _ in
             configureTabBarAppearance()
         }
@@ -758,6 +754,13 @@ struct ExperimentalContentView: View {
         } message: {
             Text("AniList is currently unavailable. Eclipse will use MyAnimeList for anime metadata and AnimeSchedule for episode schedules when available. Schedules may be incomplete or out of date, and season or special mappings may be less accurate until AniList recovers.")
         }
+    }
+
+
+    private func synchronizeSelectedTab(with visible: [MainAppSection]) {
+        let visibleTabs = visible.map { ExperimentalMediaTab(rawValue: $0.rawValue) }
+        guard !visibleTabs.contains(where: { $0 == selectedTab }) else { return }
+        selectedTab = visibleTabs.compactMap { $0 }.first ?? .home
     }
 
     private var experimentalTabView: some View {
