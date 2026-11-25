@@ -1102,8 +1102,23 @@ private struct HomeAnimatedCreatureMotif: View {
                 path.addCurve(to: CGPoint(x: 148, y: 145), control1: CGPoint(x: 109, y: 144), control2: CGPoint(x: 130, y: 151))
                 path.addCurve(to: CGPoint(x: 163, y: 112), control1: CGPoint(x: 153, y: 135), control2: CGPoint(x: 160, y: 126))
             case .paw:
-                for (x, y, r) in [(CGFloat(200), CGFloat(203), CGFloat(39)), (CGFloat(119), CGFloat(116), CGFloat(28)), (CGFloat(181), CGFloat(82), CGFloat(28)), (CGFloat(245), CGFloat(82), CGFloat(28)), (CGFloat(294), CGFloat(116), CGFloat(28))] {
-                    path.addEllipse(in: CGRect(x: x-r, y: y-r, width: r*2, height: r*2))
+                // Bear paw silhouette: broad heel pad, four naturally staggered toes.
+                path.move(to: CGPoint(x: 151, y: 189))
+                path.addCurve(to: CGPoint(x: 200, y: 161), control1: CGPoint(x: 153, y: 168), control2: CGPoint(x: 174, y: 157))
+                path.addCurve(to: CGPoint(x: 249, y: 189), control1: CGPoint(x: 226, y: 157), control2: CGPoint(x: 247, y: 168))
+                path.addCurve(to: CGPoint(x: 264, y: 226), control1: CGPoint(x: 271, y: 203), control2: CGPoint(x: 271, y: 216))
+                path.addCurve(to: CGPoint(x: 235, y: 255), control1: CGPoint(x: 259, y: 248), control2: CGPoint(x: 249, y: 258))
+                path.addCurve(to: CGPoint(x: 165, y: 255), control1: CGPoint(x: 216, y: 263), control2: CGPoint(x: 184, y: 263))
+                path.addCurve(to: CGPoint(x: 136, y: 226), control1: CGPoint(x: 151, y: 258), control2: CGPoint(x: 141, y: 248))
+                path.addCurve(to: CGPoint(x: 151, y: 189), control1: CGPoint(x: 129, y: 216), control2: CGPoint(x: 129, y: 203))
+                path.closeSubpath()
+                for (x, y, w, h) in [
+                    (CGFloat(92), CGFloat(91), CGFloat(55), CGFloat(66)),
+                    (CGFloat(157), CGFloat(54), CGFloat(49), CGFloat(67)),
+                    (CGFloat(214), CGFloat(54), CGFloat(49), CGFloat(67)),
+                    (CGFloat(253), CGFloat(91), CGFloat(55), CGFloat(66))
+                ] {
+                    path.addEllipse(in: CGRect(x: x, y: y, width: w, height: h))
                 }
             case .stars:
                 path.move(to: CGPoint(x: 200, y: 34))
@@ -1444,14 +1459,38 @@ private struct HomeAnimatedCreatureMotif: View {
                 fineDetails.addEllipse(in: CGRect(x: bubble.x, y: bubble.y, width: 5, height: 5))
             }
         case .paw:
-            // Pad creases and subtle toe-pad contours.
-            fineDetails.addEllipse(in: CGRect(x: 177, y: 181, width: 46, height: 34))
-            fineDetails.addEllipse(in: CGRect(x: 99, y: 104, width: 39, height: 25))
-            fineDetails.addEllipse(in: CGRect(x: 161, y: 70, width: 40, height: 25))
-            fineDetails.addEllipse(in: CGRect(x: 225, y: 70, width: 40, height: 25))
-            fineDetails.addEllipse(in: CGRect(x: 275, y: 104, width: 39, height: 25))
-            fineDetails.move(to: CGPoint(x: 184, y: 205))
-            fineDetails.addQuadCurve(to: CGPoint(x: 216, y: 205), control: CGPoint(x: 200, y: 217))
+            // Engraved bear-paw detail with a tiny woodland scene inside the heel pad.
+            fineDetails.move(to: CGPoint(x: 157, y: 210))
+            fineDetails.addQuadCurve(to: CGPoint(x: 243, y: 210), control: CGPoint(x: 200, y: 181))
+            fineDetails.move(to: CGPoint(x: 157, y: 210))
+            fineDetails.addQuadCurve(to: CGPoint(x: 169, y: 239), control: CGPoint(x: 155, y: 231))
+            fineDetails.move(to: CGPoint(x: 243, y: 210))
+            fineDetails.addQuadCurve(to: CGPoint(x: 231, y: 239), control: CGPoint(x: 245, y: 231))
+            // Ground line and three layered pine silhouettes.
+            fineDetails.move(to: CGPoint(x: 163, y: 238))
+            fineDetails.addQuadCurve(to: CGPoint(x: 237, y: 238), control: CGPoint(x: 200, y: 243))
+            for tree in [(CGFloat(178), CGFloat(226), CGFloat(13)), (CGFloat(200), CGFloat(215), CGFloat(20)), (CGFloat(222), CGFloat(226), CGFloat(13))] {
+                let (x, base, height) = tree
+                fineDetails.move(to: CGPoint(x: x, y: base))
+                fineDetails.addLine(to: CGPoint(x: x, y: base - height))
+                fineDetails.move(to: CGPoint(x: x, y: base - height * 0.88))
+                fineDetails.addLine(to: CGPoint(x: x - height * 0.42, y: base - height * 0.38))
+                fineDetails.addLine(to: CGPoint(x: x + height * 0.42, y: base - height * 0.38))
+                fineDetails.move(to: CGPoint(x: x, y: base - height * 0.62))
+                fineDetails.addLine(to: CGPoint(x: x - height * 0.34, y: base - height * 0.16))
+                fineDetails.addLine(to: CGPoint(x: x + height * 0.34, y: base - height * 0.16))
+            }
+            // Fine toe-pad rims and curved crease marks.
+            for (x, y, w, h) in [
+                (CGFloat(101), CGFloat(101), CGFloat(37), CGFloat(45)),
+                (CGFloat(163), CGFloat(67), CGFloat(36), CGFloat(45)),
+                (CGFloat(221), CGFloat(67), CGFloat(36), CGFloat(45)),
+                (CGFloat(264), CGFloat(101), CGFloat(37), CGFloat(45))
+            ] {
+                fineDetails.addEllipse(in: CGRect(x: x, y: y, width: w, height: h))
+            }
+            fineDetails.move(to: CGPoint(x: 177, y: 194))
+            fineDetails.addQuadCurve(to: CGPoint(x: 223, y: 194), control: CGPoint(x: 200, y: 184))
         case .stars:
             // A layered inner star and fine orbit-like sparkle accents.
             fineDetails.move(to: CGPoint(x: 200, y: 78))
