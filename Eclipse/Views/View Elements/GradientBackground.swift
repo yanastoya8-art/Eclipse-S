@@ -1114,9 +1114,9 @@ private struct HomeAnimatedCreatureMotif: View {
                 break
             }
             drawing.stroke(details, with: .color(detailColor), style: StrokeStyle(lineWidth: 4.2, lineCap: .round, lineJoin: .round))
-            if shape == .snake || shape == .wolf || shape == .cat || shape == .dragon {
+            if shape == .snake || shape == .wolf || shape == .cat {
                 var eye = Path()
-                eye.addEllipse(in: CGRect(x: shape == .snake ? 224 : (shape == .wolf ? 282 : (shape == .dragon ? 266 : 245)), y: shape == .snake ? 57 : (shape == .wolf ? 123 : (shape == .dragon ? 129 : 151)), width: 7, height: 7))
+                eye.addEllipse(in: CGRect(x: shape == .snake ? 224 : (shape == .wolf ? 282 : 245), y: shape == .snake ? 57 : (shape == .wolf ? 123 : 151), width: 7, height: 7))
                 drawing.fill(eye, with: .color(color.opacity(min(1, opacity * 0.95))))
             }
         }
