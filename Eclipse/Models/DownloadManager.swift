@@ -2638,6 +2638,16 @@ final class DownloadManager: NSObject, ObservableObject {
         // marker and remain paused until the user resumes them.
         resumeHLSDownloadsInterruptedByBackgroundExpiration()
         resumeOrphanedHLSDownloads()
+
+        // Reconcile the OS-owned background URLSession after every foreground
+        // transition. The app process can be suspended while URLSession keeps
+        // transferring; refreshing the task list reattaches delegate ownership
+        // and resumes any still-active task that was left suspended. Do not
+        // start a second restore while the launch-time reconciliation is running.
+        if !restoringBackgroundTasks {
+            restoringBackgroundTasks = true
+            resumeInterruptedDownloads()
+        }
         processQueue()
 #if os(iOS) && !targetEnvironment(macCatalyst)
         attachLiveActivitiesToActiveHLSDownloads()
@@ -2707,14 +2717,20 @@ final class DownloadManager: NSObject, ObservableObject {
     }
 
     func applicationDidEnterBackground() {
-        // Do not tear down active provider transports when the user merely
-        // switches apps. Direct transfers are owned by the OS background
-        // URLSession; HLS workers retain their checkpointed foreground task and,
-        // where available, their iOS continued-processing grant. Suspending
-        // protected attempts here converted valid downloads into "Waiting for
-        // app to reopen" as soon as the app entered the background.
-        //
-        // The termination handler still performs the secure suspension path.
+        // Do not tear down provider transports when the user switches apps or
+        // locks the screen. A user-paused item is never resumed here; only
+        // persisted rows still marked as downloading are eligible.
+        for (id, task) in activeTasks {
+            guard downloads.first(where: { $0.id == id })?.status == .downloading else { continue }
+            if task.state == .suspended {
+                task.resume()
+            }
+        }
+
+        // A newly-started HLS transfer may not have written its first segment
+        // checkpoint yet. Its continued-processing request is now created at
+        // worker admission, rather than waiting for this lifecycle callback.
+        // Keep this callback deliberately non-destructive.
     }
 
 #if os(iOS) && !targetEnvironment(macCatalyst)
@@ -2949,7 +2965,9 @@ final class DownloadManager: NSObject, ObservableObject {
     private func beginHLSBackgroundAttempt(id: String, attemptID: UUID, intent: HLSForegroundIntent, protectedAttemptID: UUID?, downloader: HLSDownloader) {
         guard hlsBackgroundDownloadsEnabled, hlsApplicationIsActive,
               hlsIntentIsCurrent(intent), hlsBackgroundAttempts[id] == nil,
-              let item = downloads.first(where: { $0.id == id }), item.hasVerifiedHLSCheckpoint || item.hlsResumeManifestSHA256 != nil,
+              let item = downloads.first(where: { $0.id == id }),
+              item.status == .downloading,
+              item.hasVerifiedHLSCheckpoint || item.hlsResumeManifestSHA256 != nil,
               let scheduler = hlsBackgroundScheduler else { return }
         let attempt = HLSBackgroundAttempt(attemptID: attemptID, intent: intent, protectedAttemptID: protectedAttemptID, downloader: downloader, dateAdded: item.dateAdded)
         hlsBackgroundAttempts[id] = attempt

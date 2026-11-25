@@ -28,24 +28,23 @@ private func copyProviderDownloadURL(_ rawURL: String, headers: [String: String]
 
     let sanitizedHeaders = AVPlayerResourceLoader.sanitizedHTTPHeaders(headers ?? [:])
 
-    // Prefer the provider's original signed URL when no request headers are
-    // required. A LAN-proxy URL embeds a temporary local port/session token;
-    // Safari can lose access to that listener as Eclipse is backgrounded.
-    // Header-protected streams still need the local response proxy.
-    guard !sanitizedHeaders.isEmpty else {
-        ProviderExternalApplication.copy(sourceURL.absoluteString)
-        return
-    }
-
-    if let downloadURL = MPVHeaderProxy.shared.makeLANProxyURL(
+    // Always route through the download-mode response proxy, including streams
+    // that need no custom headers. The proxy adds Content-Disposition:
+    // attachment; copying the provider URL directly lets Safari play inline.
+    // Header-protected streams also retain their sanitized request headers.
+    guard let downloadURL = MPVHeaderProxy.shared.makeLANProxyURL(
         for: sourceURL,
         headers: sanitizedHeaders,
         asDownload: true
-    ) {
-        ProviderExternalApplication.copy(downloadURL.absoluteString)
-    } else {
-        ProviderExternalApplication.copy(sourceURL.absoluteString)
+    ) else {
+        Logger.shared.log(
+            "Could not create a Safari-compatible download URL for host \(sourceURL.host ?? "unknown")",
+            type: "Download"
+        )
+        return
     }
+
+    ProviderExternalApplication.copy(downloadURL.absoluteString)
 }
 
 extension Notification.Name {

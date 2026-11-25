@@ -549,6 +549,24 @@ class TMDBContentFilter: ObservableObject {
     @Published private(set) var maturityRatingRevision = 0
 
     private let animeEligibilityLock = NSLock()
+    func isResolvingSelectedAudio(for results: [TMDBSearchResult]) -> Bool {
+        let animeIDs = Set(results.compactMap { result -> Int? in
+            guard Self.isAnimeResult(result),
+                  let id = result.animeIdentitySeed?.anilistId,
+                  id > 0 else { return nil }
+            return id
+        })
+        let catalogKeys = Set(results.compactMap { result -> String? in
+            guard !Self.isAnimeResult(result),
+                  result.isMovie || result.isTVShow else { return nil }
+            return catalogAudioAvailabilityKey(for: result)
+        })
+        animeEligibilityLock.lock()
+        defer { animeEligibilityLock.unlock() }
+        return !animeIDs.isDisjoint(with: animeAudioLoadingIDs)
+            || !catalogKeys.isDisjoint(with: catalogAudioLoadingKeys)
+    }
+
     private var animeAgeRatingsByID: [Int: MaturityRating] = [:]
     // MAL-only schedule rows use a negative sourceMediaId, not an AniList ID.
     // Keep their resolved rating by stable schedule-entry ID so they still
@@ -1221,6 +1239,15 @@ class TMDBContentFilter: ObservableObject {
                         animeAudioRetryAfterByID[id] = Date().addingTimeInterval(10 * 60)
                     }
                     animeEligibilityLock.unlock()
+                    // Finish the transient verification state even when a
+                    // provider lookup fails, so Search can render a final
+                    // empty state rather than a permanent spinner.
+                    await MainActor.run {
+                        NotificationCenter.default.post(
+                            name: TMDBContentFilter.catalogFiltersDidChangeNotification,
+                            object: nil
+                        )
+                    }
                 }
 
                 if let result = iterator.next(),
@@ -1279,16 +1306,23 @@ class TMDBContentFilter: ObservableObject {
 
     func filterSearchResults(
         _ results: [TMDBSearchResult],
-        allowUpcomingContent: Bool = false
+        allowUpcomingContent: Bool = false,
+        resolveMetadataInBackground: Bool = true
     ) -> [TMDBSearchResult] {
-        if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
-            Task(priority: .utility) { await self.resolveRuntimeMetadata(for: results) }
+        // Browse explicitly awaits resolveBrowseFilterMetadata before applying
+        // its predicate. Scheduling the same runtime, production and audio
+        // lookups again here created duplicate per-page work and amplified
+        // latency while users paged or changed filters.
+        if resolveMetadataInBackground {
+            if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
+                Task(priority: .utility) { await self.resolveRuntimeMetadata(for: results) }
+            }
+            if UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent") {
+                Task(priority: .utility) { await self.resolveProductionMetadata(for: results) }
+            }
+            scheduleAnimeAudioMetadataResolutionIfNeeded(for: results)
+            scheduleCatalogAudioAvailabilityResolutionIfNeeded(for: results)
         }
-        if UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent") {
-            Task(priority: .utility) { await self.resolveProductionMetadata(for: results) }
-        }
-        scheduleAnimeAudioMetadataResolutionIfNeeded(for: results)
-        scheduleCatalogAudioAvailabilityResolutionIfNeeded(for: results)
         return results.filter { result in
             shouldIncludeCatalogResult(result, allowUpcomingContent: allowUpcomingContent)
         }
@@ -1309,10 +1343,14 @@ class TMDBContentFilter: ObservableObject {
     }
 
     private func scheduleAnimeAudioMetadataResolutionIfNeeded(for results: [TMDBSearchResult]) {
-        guard UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") else { return }
+        let selectedLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
+        guard !selectedLanguages.isEmpty else { return }
         let animeResults = results.filter { Self.isAnimeResult($0) }
         guard !animeResults.isEmpty else { return }
-        let selectedLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
+        // Selected-language filtering is also used outside the global
+        // English/Spanish requirement toggle. Always run the verified Taizen /
+        // Anidub fallback for those explicit selections, rather than relying
+        // only on titles already present in the MyDubList index.
         prepareAnimeAudioEligibilitySelection(selectedLanguages)
         Task(priority: .utility) {
             await self.resolveAnimeAudioMetadata(for: animeResults, selectedLanguages: selectedLanguages)
@@ -1704,8 +1742,8 @@ class TMDBContentFilter: ObservableObject {
                     guard let result = iterator.next() else { continue }
                     let key = self.catalogAudioAvailabilityKey(for: result)
                     group.addTask {
-                        let available = ScheduleAudioLanguagePolicy.hasNativeLanguageMatch(
-                            originalLanguage: result.originalLanguage,
+                        let available = await self.catalogAudioMatch(
+                            for: result,
                             selectedLanguages: selectedLanguages
                         )
                         return (key, available)
@@ -1725,14 +1763,17 @@ class TMDBContentFilter: ObservableObject {
                             catalogAudioEligibleKeys.remove(key)
                         }
                         didResolveAny = true
+                    } else {
+                        catalogAudioRetryAfterByKey[key] = Date().addingTimeInterval(10 * 60)
+                        didResolveAny = true
                     }
                     animeEligibilityLock.unlock()
 
                     if let result = iterator.next() {
                         let nextKey = self.catalogAudioAvailabilityKey(for: result)
                         group.addTask {
-                            let available = ScheduleAudioLanguagePolicy.hasNativeLanguageMatch(
-                                originalLanguage: result.originalLanguage,
+                            let available = await self.catalogAudioMatch(
+                                for: result,
                                 selectedLanguages: selectedLanguages
                             )
                             return (nextKey, available)
@@ -1751,6 +1792,35 @@ class TMDBContentFilter: ObservableObject {
                 }
             }
         }
+    }
+
+    private func catalogAudioMatch(
+        for result: TMDBSearchResult,
+        selectedLanguages: Set<String>
+    ) async -> Bool? {
+        let originalLanguage: String?
+        if let language = result.originalLanguage, !language.isEmpty {
+            originalLanguage = language
+        } else {
+            // Search/discover summaries occasionally omit original_language.
+            // Fetch the canonical detail once rather than treating an unknown
+            // language as proof that no selected-language audio exists.
+            do {
+                if result.isMovie {
+                    let details = try await TMDBService.shared.getMovieDetails(id: result.id)
+                    originalLanguage = details.originalLanguage
+                } else {
+                    let details = try await TMDBService.shared.getTVShowDetails(id: result.id)
+                    originalLanguage = details.originalLanguage
+                }
+            } catch {
+                return nil
+            }
+        }
+        return ScheduleAudioLanguagePolicy.hasNativeLanguageMatch(
+            originalLanguage: originalLanguage,
+            selectedLanguages: selectedLanguages
+        )
     }
 
     private func storeAnimeAudioEligibility(
@@ -2055,12 +2125,17 @@ class TMDBContentFilter: ObservableObject {
         ) { return false }
 
         if defaults.bool(forKey: "catalogRequireEnglishSpanishAudio") {
-            guard let originalLanguage = result.originalLanguage?.lowercased() else { return false }
             let selectedLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
-            let hasSelectedNativeAudio = ScheduleAudioLanguagePolicy.matches(
-                originalLanguage: originalLanguage,
-                selectedLanguages: selectedLanguages
-            )
+            // Search/discover payloads can omit original_language even when the
+            // title has a verified English or Spanish dub. Treat missing native
+            // language as "not confirmed native audio" and continue through the
+            // provider-audio verification below instead of rejecting the title.
+            let hasSelectedNativeAudio = result.originalLanguage.map {
+                ScheduleAudioLanguagePolicy.matches(
+                    originalLanguage: $0.lowercased(),
+                    selectedLanguages: selectedLanguages
+                )
+            } ?? false
             if !hasSelectedNativeAudio {
                 if isAnime {
                     guard let anilistID = result.animeIdentitySeed?.anilistId,

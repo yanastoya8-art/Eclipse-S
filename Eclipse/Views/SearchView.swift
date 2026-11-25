@@ -309,22 +309,30 @@ struct SearchView: View {
                     }
                 }
             } else if filteredResults.isEmpty && !searchResults.isEmpty {
-                VStack {
-                    Image(systemName: "tv.and.hifispeaker.fill")
-                        .imageScale(.large)
-                        .font(.system(size: 60))
-                        .foregroundColor(.secondary)
+                VStack(spacing: 12) {
+                    if contentFilter.isResolvingSelectedAudio(for: searchResults) {
+                        EclipseLoadingIndicator()
+                            .scaleEffect(1.15)
+                        Text("Checking selected audio languages…")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    } else {
+                        Image(systemName: "tv.and.hifispeaker.fill")
+                            .imageScale(.large)
+                            .font(.system(size: 60))
+                            .foregroundColor(.secondary)
 
-                    Text("No \(searchFilter.rawValue.lowercased()) found")
-                        .font(.title2)
-                        .foregroundColor(.secondary)
-                        .padding()
+                        Text("No \(searchFilter.rawValue.lowercased()) found")
+                            .font(.title2)
+                            .foregroundColor(.secondary)
+                            .padding()
 
-                    Text("Try adjusting your filter or search for something else")
-                        .font(.body)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
+                        Text("Try adjusting your filter or search for something else")
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                    }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if searchResults.isEmpty {
@@ -873,13 +881,30 @@ struct SearchView: View {
                 // endpoint; only the Movies filter can safely skip it.
                 let shouldSearchTVEndpoint = searchFilter != .movies
                 if shouldSearchTVEndpoint {
+                    var seen = Set(results.map(\.stableIdentity))
                     if let tvResults = try? await tmdbService.searchTVShows(query: query, maxPages: 2) {
                         try Task.checkCancellation()
-                        var seen = Set(results.map(\.stableIdentity))
-                        let supplemental = tvResults
+                        results.append(contentsOf: tvResults
                             .map(\.asSearchResult)
-                            .filter { seen.insert($0.stableIdentity).inserted }
-                        results.append(contentsOf: supplemental)
+                            .filter { seen.insert($0.stableIdentity).inserted })
+                    }
+
+                    // TMDB applies the selected display language to search
+                    // ranking. A localized search can omit an English-original
+                    // series even though the dedicated TV index finds it in
+                    // English. Merge an English index pass instead of allowing
+                    // "All" or "TV Shows" to report a false empty result.
+                    if selectedLanguage.caseInsensitiveCompare("en-US") != .orderedSame {
+                        if let englishTVResults = try? await tmdbService.searchTVShows(
+                            query: query,
+                            languageOverride: "en-US",
+                            maxPages: 2
+                        ) {
+                            try Task.checkCancellation()
+                            results.append(contentsOf: englishTVResults
+                                .map(\.asSearchResult)
+                                .filter { seen.insert($0.stableIdentity).inserted })
+                        }
                     }
                 }
 
@@ -1437,7 +1462,7 @@ private struct BrowseMediaView: View {
     // Filter-heavy anime and TV queries can reject most results on each TMDB page.
     // Automatically fill a usable grid before handing pagination to the scroll sentinel.
     // The cap prevents an unbounded request chain when filters legitimately match very few titles.
-    private static let maximumAutomaticFilteredPages = 30
+    private static let maximumAutomaticFilteredPages = 6
 
     @AppStorage("mediaColumnsPortrait") private var mediaColumnsPortrait: Int = 3
     @AppStorage("mediaColumnsLandscape") private var mediaColumnsLandscape: Int = 5
@@ -2106,6 +2131,12 @@ private struct BrowseMediaView: View {
             if hasMorePages && currentPage < Self.maximumAutomaticFilteredPages {
                 ProgressView("Searching for titles that match your filters…")
                     .font(.caption)
+            } else if hasMorePages {
+                Button("Load More Results") {
+                    loadNextPage()
+                }
+                .font(.subheadline.weight(.semibold))
+                .padding(.top, 4)
             }
         }
         .frame(maxWidth: .infinity)
@@ -2148,6 +2179,15 @@ private struct BrowseMediaView: View {
                     .frame(height: 1)
                     .id("browse-search-pagination-\(currentPage)-\(results.count)")
                     .onAppear { loadNextPage() }
+            } else if hasMorePages,
+                      results.count < 12,
+                      currentPage >= Self.maximumAutomaticFilteredPages {
+                Button("Load More Results") {
+                    loadNextPage()
+                }
+                .font(.subheadline.weight(.semibold))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
             }
 
             if let errorMessage {
@@ -2335,7 +2375,8 @@ private struct BrowseMediaView: View {
                     excludedGenreIds: excludedGenreIDs,
                     excludedYears: yearsToExclude
                 ),
-                allowUpcomingContent: allowsUpcomingContent
+                allowUpcomingContent: allowsUpcomingContent,
+                resolveMetadataInBackground: false
             )
             guard !Task.isCancelled else { return }
             let filtered = regionGuardedResults(contentFiltered, countries: countries)
@@ -2448,7 +2489,8 @@ private struct BrowseMediaView: View {
                         excludedGenreIds: excludedGenres.compactMap(\.tmdbGenreID),
                         excludedYears: excludedYears
                     ),
-                    allowUpcomingContent: upcomingOnly
+                    allowUpcomingContent: upcomingOnly,
+                    resolveMetadataInBackground: false
                 )
                 try Task.checkCancellation()
                 let filtered = regionGuardedResults(

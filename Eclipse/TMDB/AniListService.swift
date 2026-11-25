@@ -10109,7 +10109,12 @@ final class AniListService {
                     results.append(match)
                 }
             }
-            return results.filter { MyDubListDubFilter.shared.shouldInclude($0) }
+            // Do not apply the MyDubList-only predicate before the search
+            // result reaches TMDBContentFilter. That later stage can also verify
+            // Taizen/Anidub audio metadata for titles absent from the cached
+            // MyDubList index; filtering here discarded those valid anime before
+            // the fallback verifier ever saw them.
+            return results
         }
     }
 
