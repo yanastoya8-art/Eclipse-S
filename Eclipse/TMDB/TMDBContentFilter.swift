@@ -1343,10 +1343,14 @@ class TMDBContentFilter: ObservableObject {
     }
 
     private func scheduleAnimeAudioMetadataResolutionIfNeeded(for results: [TMDBSearchResult]) {
-        guard UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") else { return }
+        let selectedLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
+        guard !selectedLanguages.isEmpty else { return }
         let animeResults = results.filter { Self.isAnimeResult($0) }
         guard !animeResults.isEmpty else { return }
-        let selectedLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
+        // Selected-language filtering is also used outside the global
+        // English/Spanish requirement toggle. Always run the verified Taizen /
+        // Anidub fallback for those explicit selections, rather than relying
+        // only on titles already present in the MyDubList index.
         prepareAnimeAudioEligibilitySelection(selectedLanguages)
         Task(priority: .utility) {
             await self.resolveAnimeAudioMetadata(for: animeResults, selectedLanguages: selectedLanguages)
