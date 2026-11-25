@@ -623,8 +623,7 @@ struct AlternativeUIView: View {
                 description: "Scale the floating motif independently of the rest of the animated background.",
                 value: $homeAnimatedBackgroundShapeSize,
                 range: 0.5...1.8,
-                step: 0.05,
-                format: "%.2fx"
+                step: 0.05
             )
             .id(AppearanceSettingsSearchTarget.animationShapeSize.anchorID)
 
