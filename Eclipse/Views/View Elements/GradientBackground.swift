@@ -1191,6 +1191,214 @@ private struct HomeAnimatedCreatureMotif: View {
                 endPoint: CGPoint(x: 252, y: 282)
             )
         )
+        // Volume pass: use closed, anatomy-shaped planes instead of relying
+        // on decorative contour strokes alone. Every plane stays in the selected
+        // animation hue, so the motifs remain fully recolourable.
+        var volumePlanes = Path()
+        switch shape {
+        case .dragon:
+            // Folded wing membrane, shoulder muscle, jaw plane and rear fin.
+            volumePlanes.move(to: CGPoint(x: 218, y: 112))
+            volumePlanes.addQuadCurve(to: CGPoint(x: 286, y: 101), control: CGPoint(x: 252, y: 82))
+            volumePlanes.addQuadCurve(to: CGPoint(x: 266, y: 151), control: CGPoint(x: 294, y: 132))
+            volumePlanes.addQuadCurve(to: CGPoint(x: 225, y: 157), control: CGPoint(x: 249, y: 143))
+            volumePlanes.closeSubpath()
+            volumePlanes.move(to: CGPoint(x: 147, y: 178))
+            volumePlanes.addQuadCurve(to: CGPoint(x: 193, y: 151), control: CGPoint(x: 178, y: 166))
+            volumePlanes.addQuadCurve(to: CGPoint(x: 178, y: 217), control: CGPoint(x: 166, y: 213))
+            volumePlanes.closeSubpath()
+            volumePlanes.move(to: CGPoint(x: 302, y: 195))
+            volumePlanes.addQuadCurve(to: CGPoint(x: 351, y: 228), control: CGPoint(x: 338, y: 188))
+            volumePlanes.addQuadCurve(to: CGPoint(x: 304, y: 244), control: CGPoint(x: 328, y: 248))
+            volumePlanes.addQuadCurve(to: CGPoint(x: 317, y: 218), control: CGPoint(x: 304, y: 225))
+            volumePlanes.closeSubpath()
+        case .snake:
+            // Hood lobes and a tapered belly highlight follow the cobra's S-curve.
+            volumePlanes.move(to: CGPoint(x: 145, y: 53))
+            volumePlanes.addQuadCurve(to: CGPoint(x: 184, y: 103), control: CGPoint(x: 151, y: 78))
+            volumePlanes.addQuadCurve(to: CGPoint(x: 160, y: 92), control: CGPoint(x: 163, y: 104))
+            volumePlanes.closeSubpath()
+            volumePlanes.move(to: CGPoint(x: 255, y: 53))
+            volumePlanes.addQuadCurve(to: CGPoint(x: 216, y: 103), control: CGPoint(x: 249, y: 78))
+            volumePlanes.addQuadCurve(to: CGPoint(x: 240, y: 92), control: CGPoint(x: 237, y: 104))
+            volumePlanes.closeSubpath()
+            volumePlanes.move(to: CGPoint(x: 184, y: 171))
+            volumePlanes.addQuadCurve(to: CGPoint(x: 196, y: 254), control: CGPoint(x: 176, y: 217))
+            volumePlanes.addQuadCurve(to: CGPoint(x: 216, y: 171), control: CGPoint(x: 222, y: 216))
+            volumePlanes.addQuadCurve(to: CGPoint(x: 207, y: 251), control: CGPoint(x: 205, y: 220))
+            volumePlanes.closeSubpath()
+        case .bird:
+            // Layered primary and secondary flight-feather panels.
+            for index in 0..<4 {
+                let t = CGFloat(index)
+                volumePlanes.move(to: CGPoint(x: 194, y: 157 + t * 7))
+                volumePlanes.addQuadCurve(
+                    to: CGPoint(x: 42 + t * 25, y: 83 + t * 20),
+                    control: CGPoint(x: 105 + t * 16, y: 130 + t * 10)
+                )
+                volumePlanes.addQuadCurve(
+                    to: CGPoint(x: 166 + t * 5, y: 190 + t * 2),
+                    control: CGPoint(x: 116 + t * 15, y: 164 + t * 7)
+                )
+                volumePlanes.closeSubpath()
+                volumePlanes.move(to: CGPoint(x: 206, y: 157 + t * 7))
+                volumePlanes.addQuadCurve(
+                    to: CGPoint(x: 358 - t * 25, y: 83 + t * 20),
+                    control: CGPoint(x: 295 - t * 16, y: 130 + t * 10)
+                )
+                volumePlanes.addQuadCurve(
+                    to: CGPoint(x: 234 - t * 5, y: 190 + t * 2),
+                    control: CGPoint(x: 284 - t * 15, y: 164 + t * 7)
+                )
+                volumePlanes.closeSubpath()
+            }
+        case .fox:
+            // Cheek mask, forehead blaze and separated tail-fan volumes.
+            volumePlanes.move(to: CGPoint(x: 154, y: 105))
+            volumePlanes.addQuadCurve(to: CGPoint(x: 199, y: 153), control: CGPoint(x: 157, y: 151))
+            volumePlanes.addQuadCurve(to: CGPoint(x: 180, y: 126), control: CGPoint(x: 175, y: 141))
+            volumePlanes.closeSubpath()
+            volumePlanes.move(to: CGPoint(x: 246, y: 105))
+            volumePlanes.addQuadCurve(to: CGPoint(x: 201, y: 153), control: CGPoint(x: 243, y: 151))
+            volumePlanes.addQuadCurve(to: CGPoint(x: 220, y: 126), control: CGPoint(x: 225, y: 141))
+            volumePlanes.closeSubpath()
+            for index in 0..<5 {
+                let t = CGFloat(index) - 2
+                volumePlanes.move(to: CGPoint(x: 200 + t * 7, y: 219))
+                volumePlanes.addQuadCurve(to: CGPoint(x: 200 + t * 38, y: 90 + abs(t) * 18), control: CGPoint(x: 200 + t * 30, y: 160))
+                volumePlanes.addQuadCurve(to: CGPoint(x: 200 + t * 24, y: 205), control: CGPoint(x: 200 + t * 34, y: 160))
+                volumePlanes.closeSubpath()
+            }
+        case .phoenix:
+            // Individually layered wing feathers and flame-shaped tail panels.
+            for index in 0..<6 {
+                let t = CGFloat(index)
+                volumePlanes.move(to: CGPoint(x: 196, y: 143 + t * 4))
+                volumePlanes.addQuadCurve(to: CGPoint(x: 62 + t * 18, y: 44 + t * 17), control: CGPoint(x: 111 + t * 13, y: 101 + t * 9))
+                volumePlanes.addQuadCurve(to: CGPoint(x: 167 + t * 4, y: 178 + t * 2), control: CGPoint(x: 113 + t * 15, y: 151 + t * 7))
+                volumePlanes.closeSubpath()
+                volumePlanes.move(to: CGPoint(x: 204, y: 143 + t * 4))
+                volumePlanes.addQuadCurve(to: CGPoint(x: 338 - t * 18, y: 44 + t * 17), control: CGPoint(x: 289 - t * 13, y: 101 + t * 9))
+                volumePlanes.addQuadCurve(to: CGPoint(x: 233 - t * 4, y: 178 + t * 2), control: CGPoint(x: 287 - t * 15, y: 151 + t * 7))
+                volumePlanes.closeSubpath()
+            }
+        case .wolf:
+            // Muzzle bridge, cheek planes and layered neck ruff.
+            volumePlanes.move(to: CGPoint(x: 248, y: 91))
+            volumePlanes.addQuadCurve(to: CGPoint(x: 324, y: 144), control: CGPoint(x: 304, y: 99))
+            volumePlanes.addQuadCurve(to: CGPoint(x: 276, y: 155), control: CGPoint(x: 311, y: 162))
+            volumePlanes.addQuadCurve(to: CGPoint(x: 258, y: 126), control: CGPoint(x: 261, y: 143))
+            volumePlanes.closeSubpath()
+            for index in 0..<4 {
+                let t = CGFloat(index)
+                volumePlanes.move(to: CGPoint(x: 153 + t * 13, y: 177 + t * 8))
+                volumePlanes.addQuadCurve(to: CGPoint(x: 217 + t * 5, y: 249), control: CGPoint(x: 172 + t * 12, y: 224))
+                volumePlanes.addQuadCurve(to: CGPoint(x: 180 + t * 7, y: 207), control: CGPoint(x: 196 + t * 8, y: 221))
+                volumePlanes.closeSubpath()
+            }
+        case .cat:
+            // Facial mask, shoulder/chest planes and the curled tail's inner volume.
+            volumePlanes.move(to: CGPoint(x: 151, y: 132))
+            volumePlanes.addQuadCurve(to: CGPoint(x: 198, y: 177), control: CGPoint(x: 153, y: 171))
+            volumePlanes.addQuadCurve(to: CGPoint(x: 181, y: 150), control: CGPoint(x: 170, y: 165))
+            volumePlanes.closeSubpath()
+            volumePlanes.move(to: CGPoint(x: 249, y: 132))
+            volumePlanes.addQuadCurve(to: CGPoint(x: 202, y: 177), control: CGPoint(x: 247, y: 171))
+            volumePlanes.addQuadCurve(to: CGPoint(x: 219, y: 150), control: CGPoint(x: 230, y: 165))
+            volumePlanes.closeSubpath()
+            volumePlanes.move(to: CGPoint(x: 175, y: 181))
+            volumePlanes.addQuadCurve(to: CGPoint(x: 225, y: 181), control: CGPoint(x: 200, y: 207))
+            volumePlanes.addQuadCurve(to: CGPoint(x: 215, y: 246), control: CGPoint(x: 222, y: 224))
+            volumePlanes.addQuadCurve(to: CGPoint(x: 185, y: 246), control: CGPoint(x: 178, y: 224))
+            volumePlanes.closeSubpath()
+        case .mermaid:
+            // Flowing hair mass, shoulder highlights and layered tail-fin lobes.
+            volumePlanes.move(to: CGPoint(x: 171, y: 48))
+            volumePlanes.addCurve(to: CGPoint(x: 123, y: 157), control1: CGPoint(x: 138, y: 74), control2: CGPoint(x: 108, y: 119))
+            volumePlanes.addQuadCurve(to: CGPoint(x: 153, y: 137), control: CGPoint(x: 142, y: 110))
+            volumePlanes.addCurve(to: CGPoint(x: 171, y: 48), control1: CGPoint(x: 163, y: 93), control2: CGPoint(x: 175, y: 69))
+            volumePlanes.closeSubpath()
+            volumePlanes.move(to: CGPoint(x: 230, y: 48))
+            volumePlanes.addCurve(to: CGPoint(x: 277, y: 157), control1: CGPoint(x: 262, y: 74), control2: CGPoint(x: 292, y: 119))
+            volumePlanes.addQuadCurve(to: CGPoint(x: 247, y: 137), control: CGPoint(x: 258, y: 110))
+            volumePlanes.addCurve(to: CGPoint(x: 230, y: 48), control1: CGPoint(x: 238, y: 93), control2: CGPoint(x: 225, y: 69))
+            volumePlanes.closeSubpath()
+            for index in 0..<4 {
+                let t = CGFloat(index)
+                volumePlanes.move(to: CGPoint(x: 200, y: 245 + t * 5))
+                volumePlanes.addQuadCurve(to: CGPoint(x: 130 + t * 12, y: 279 - t * 4), control: CGPoint(x: 158 + t * 10, y: 253 + t * 6))
+                volumePlanes.addQuadCurve(to: CGPoint(x: 200, y: 261 + t * 2), control: CGPoint(x: 164 + t * 8, y: 281))
+                volumePlanes.closeSubpath()
+                volumePlanes.move(to: CGPoint(x: 200, y: 245 + t * 5))
+                volumePlanes.addQuadCurve(to: CGPoint(x: 270 - t * 12, y: 279 - t * 4), control: CGPoint(x: 242 - t * 10, y: 253 + t * 6))
+                volumePlanes.addQuadCurve(to: CGPoint(x: 200, y: 261 + t * 2), control: CGPoint(x: 236 - t * 8, y: 281))
+                volumePlanes.closeSubpath()
+            }
+        case .paw:
+            // Raised central pad and four toe cushions; the central negative
+            // space carries the forest motif rather than leaving a flat stamp.
+            volumePlanes.addEllipse(in: CGRect(x: 164, y: 178, width: 72, height: 65))
+            for (x, y, w, h) in [
+                (CGFloat(94), CGFloat(77), CGFloat(54), CGFloat(64)),
+                (CGFloat(157), CGFloat(48), CGFloat(48), CGFloat(66)),
+                (CGFloat(195), CGFloat(48), CGFloat(48), CGFloat(66)),
+                (CGFloat(252), CGFloat(77), CGFloat(54), CGFloat(64))
+            ] {
+                volumePlanes.addEllipse(in: CGRect(x: x, y: y, width: w, height: h))
+            }
+        case .stars:
+            // Nested star facets create a crystalline, dimensional centre.
+            volumePlanes.move(to: CGPoint(x: 200, y: 49))
+            volumePlanes.addLine(to: CGPoint(x: 217, y: 153))
+            volumePlanes.addLine(to: CGPoint(x: 306, y: 172))
+            volumePlanes.addLine(to: CGPoint(x: 217, y: 189))
+            volumePlanes.addLine(to: CGPoint(x: 200, y: 245))
+            volumePlanes.addLine(to: CGPoint(x: 183, y: 189))
+            volumePlanes.addLine(to: CGPoint(x: 94, y: 172))
+            volumePlanes.addLine(to: CGPoint(x: 183, y: 153))
+            volumePlanes.closeSubpath()
+        case .crescentMoon:
+            // Curved inner lunar plane and crater basins.
+            volumePlanes.move(to: CGPoint(x: 250, y: 67))
+            volumePlanes.addCurve(to: CGPoint(x: 178, y: 231), control1: CGPoint(x: 278, y: 140), control2: CGPoint(x: 226, y: 223))
+            volumePlanes.addCurve(to: CGPoint(x: 206, y: 192), control1: CGPoint(x: 191, y: 226), control2: CGPoint(x: 195, y: 209))
+            volumePlanes.addCurve(to: CGPoint(x: 250, y: 67), control1: CGPoint(x: 271, y: 170), control2: CGPoint(x: 267, y: 104))
+            volumePlanes.closeSubpath()
+            for (x, y, d) in [(CGFloat(215), CGFloat(91), CGFloat(22)), (CGFloat(185), CGFloat(151), CGFloat(16)), (CGFloat(198), CGFloat(195), CGFloat(12))] {
+                volumePlanes.addEllipse(in: CGRect(x: x, y: y, width: d, height: d * 0.72))
+            }
+        case .spiral:
+            // Broad spiral bands and a stepped ray corona.
+            for index in 0..<3 {
+                let t = CGFloat(index)
+                volumePlanes.move(to: CGPoint(x: 200 + t * 5, y: 150 + t * 5))
+                volumePlanes.addCurve(to: CGPoint(x: 231 - t * 8, y: 135 + t * 7), control1: CGPoint(x: 252 - t * 5, y: 173 + t * 4), control2: CGPoint(x: 244 - t * 8, y: 119 + t * 7))
+                volumePlanes.addQuadCurve(to: CGPoint(x: 220 - t * 5, y: 160 + t * 6), control: CGPoint(x: 233 - t * 6, y: 154 + t * 5))
+                volumePlanes.closeSubpath()
+            }
+        case .sun:
+            // Solar disc, inner corona and alternating broad rays.
+            volumePlanes.addEllipse(in: CGRect(x: 158, y: 108, width: 84, height: 84))
+            for index in 0..<8 {
+                let angle = CGFloat(index) * .pi / 4
+                let inner = CGPoint(x: 200 + cos(angle) * 84, y: 150 + sin(angle) * 84)
+                let outer = CGPoint(x: 200 + cos(angle) * 111, y: 150 + sin(angle) * 111)
+                let side = CGPoint(x: 200 + cos(angle + 0.12) * 98, y: 150 + sin(angle + 0.12) * 98)
+                volumePlanes.move(to: inner)
+                volumePlanes.addQuadCurve(to: outer, control: side)
+                volumePlanes.addQuadCurve(to: inner, control: CGPoint(x: 200 + cos(angle - 0.12) * 98, y: 150 + sin(angle - 0.12) * 98))
+                volumePlanes.closeSubpath()
+            }
+        }
+        drawing.fill(
+            volumePlanes,
+            with: .color(motifTint.opacity(min(1, motifAlpha * 0.22)))
+        )
+        drawing.stroke(
+            volumePlanes,
+            with: .color(motifTint.opacity(min(1, motifAlpha * 0.56))),
+            style: StrokeStyle(lineWidth: 1.15, lineCap: .round, lineJoin: .round)
+        )
         drawing.stroke(
             fill,
             with: .color(motifTint.opacity(min(1, motifAlpha * 0.9))),
