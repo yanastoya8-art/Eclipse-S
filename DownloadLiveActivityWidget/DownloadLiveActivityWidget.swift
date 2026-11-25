@@ -93,10 +93,12 @@ struct DownloadLiveActivityWidget: Widget {
                         Text(context.attributes.title)
                             .font(.subheadline.weight(.semibold))
                             .lineLimit(1)
-                        if context.state.totalBytes > 0 || context.state.progress > 0 {
-                            ProgressView(value: context.state.progress)
-                        } else {
-                            ProgressView()
+                        Group {
+                            if context.state.totalBytes > 0 || context.state.progress > 0 {
+                                ProgressView(value: context.state.progress)
+                            } else {
+                                ProgressView()
+                            }
                         }
                         .tint(statusTint(for: context.state.status))
                         HStack {
