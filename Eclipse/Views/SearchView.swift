@@ -3308,14 +3308,7 @@ struct SearchBarEclipse: View {
                 .onSubmit(onSearchButtonClicked)
                 .padding(7)
                 .padding(.horizontal, 25)
-#if !os(tvOS)
-                .applyLiquidGlassBackground(
-                    cornerRadius: 12,
-                    fallbackFill: glassAppearance.lightBarColor.opacity(0.34),
-                    glassTint: glassAppearance.lightBarColor.opacity(0.30)
-                )
-#endif
-                .cornerRadius(12)
+                .background(Color.clear)
                 .contentShape(Rectangle())
                 .overlay(
                     HStack {
@@ -3336,5 +3329,16 @@ struct SearchBarEclipse: View {
                     }
                 )
         }
+#if !os(tvOS)
+        // Tint only the actual pill surface. Applying glass to the TextField
+        // itself let its expanding layout/background bleed into adjacent
+        // search controls and the surrounding screen.
+        .applyLiquidGlassBackground(
+            cornerRadius: 12,
+            fallbackFill: glassAppearance.lightBarColor.opacity(0.34),
+            glassTint: glassAppearance.lightBarColor.opacity(0.30)
+        )
+#endif
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
