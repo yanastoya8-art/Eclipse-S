@@ -27,7 +27,7 @@ struct SplashScreenView: View {
     @State private var backgroundShift: CGFloat = -36
     @State private var loadingPulse = false
 
-    private let minimumDuration: Double = 1.6
+    @AppStorage("splashScreenDuration", store: ProfileSettingsStore.device) private var splashScreenDuration = 1.6
 
     var body: some View {
         ZStack {
@@ -306,7 +306,7 @@ struct SplashScreenView: View {
             startAmbientMotion()
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + minimumDuration) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + max(0.5, min(splashScreenDuration, 10.0))) {
             minimumTimeElapsed = true
         }
     }
