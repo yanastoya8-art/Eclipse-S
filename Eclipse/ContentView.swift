@@ -446,7 +446,7 @@ struct ContentView: View {
 #endif
         .tint(accentColorManager.currentAccentColor)
 #if os(iOS)
-        .toolbarBackground(LiquidGlassAppearanceSettings.shared.bottomBarTint, for: .tabBar)
+        .toolbarBackground(glassAppearance.bottomBarTint, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
 #endif
     }
@@ -598,6 +598,7 @@ private enum ExperimentalMediaTab: Hashable {
 struct ExperimentalContentView: View {
     @ObservedObject private var downloadManager = DownloadManager.shared
     @StateObject private var accentColorManager = AccentColorManager.shared
+    @StateObject private var glassAppearance = LiquidGlassAppearanceSettings.shared
     @AppStorage("githubReleaseShowAlertPending", store: .standard) private var githubReleaseShowAlertPending = false
     @AppStorage("githubReleaseLatestVersion", store: .standard) private var githubReleaseLatestVersion = ""
     @AppStorage("githubReleaseURL", store: .standard) private var githubReleaseURL = ""
@@ -626,8 +627,9 @@ struct ExperimentalContentView: View {
 
     private func configureTabBarAppearance() {
         let appearance = UITabBarAppearance()
-        appearance.configureWithOpaqueBackground()
-        appearance.backgroundColor = UIColor(red: 0.06, green: 0.06, blue: 0.06, alpha: 0.92)
+        appearance.configureWithDefaultBackground()
+        appearance.backgroundColor = UIColor(glassAppearance.bottomBarColor).withAlphaComponent(0.46)
+        appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial)
         appearance.shadowColor = .clear
 
         let itemAppearance = UITabBarItemAppearance()
@@ -697,6 +699,9 @@ struct ExperimentalContentView: View {
             if !visible.contains(where: { ExperimentalMediaTab(rawValue: $0.rawValue) == selectedTab }) {
                 selectedTab = visible.first.flatMap { ExperimentalMediaTab(rawValue: $0.rawValue) } ?? .home
             }
+        }
+        .onReceive(glassAppearance.$bottomBarColor.dropFirst()) { _ in
+            configureTabBarAppearance()
         }
         .onChange(of: showingSettings) { _ in
             updatePerformanceSurface()
