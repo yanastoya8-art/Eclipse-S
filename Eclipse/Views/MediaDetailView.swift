@@ -1910,19 +1910,32 @@ struct MediaDetailContentView: View {
         )
 #else
         if ExperimentalFeatureState.isEnabledAtLaunch {
-            AtmosphereBackdrop(
-                input: theme.atmosphereInput(
-                    // Keep the page surface independent from artwork colour.
-                    // The landscape hero owns its own clipped gradient; allowing
-                    // AtmosphereBackdrop to consume the extracted colour here
-                    // tints the entire scrolling page, including episode rows.
-                    dominant: usesLandscapeDetailComposition ? nil : ambientColor,
-                    hasHeroBleed: false,
-                    heroHeight: usesLandscapeDetailComposition ? 0 : headerHeight,
-                    fadeDistance: usesLandscapeDetailComposition ? 0 : headerHeight * 0.62
-                ),
-                scrollOffset: backgroundScrollOffset
-            )
+            ZStack {
+                AtmosphereBackdrop(
+                    input: theme.atmosphereInput(
+                        // Keep the page surface independent from artwork colour.
+                        // The landscape hero owns its own clipped gradient; allowing
+                        // AtmosphereBackdrop to consume the extracted colour here
+                        // tints the entire scrolling page, including episode rows.
+                        dominant: usesLandscapeDetailComposition ? nil : ambientColor,
+                        hasHeroBleed: false,
+                        heroHeight: usesLandscapeDetailComposition ? 0 : headerHeight,
+                        fadeDistance: usesLandscapeDetailComposition ? 0 : headerHeight * 0.62
+                    ),
+                    scrollOffset: backgroundScrollOffset
+                )
+                if ProfileSettingsStore.active.object(forKey: HomeAnimatedBackgroundSettings.detailBackgroundKey) == nil
+                    ? true : ProfileSettingsStore.active.bool(forKey: HomeAnimatedBackgroundSettings.detailBackgroundKey) {
+                    EclipseIsolatedAmbientMotionBackground(
+                        topClearance: 0,
+                        ambientColor: nil,
+                        accentColor: theme.scopedGradientColor(),
+                        motionEnabled: true,
+                        allowsAnimatedShape: ProfileSettingsStore.active.object(forKey: HomeAnimatedBackgroundSettings.detailShapeKey) == nil
+                            ? true : ProfileSettingsStore.active.bool(forKey: HomeAnimatedBackgroundSettings.detailShapeKey)
+                    )
+                }
+            }
         } else if theme.atmosphereStyle == .solid {
             atmosphereColor
         } else {
