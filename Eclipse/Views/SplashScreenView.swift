@@ -28,8 +28,11 @@ struct SplashScreenView: View {
     @State private var loadingPulse = false
 
     @AppStorage("splashScreenMinimumDuration", store: ProfileSettingsStore.device) private var configuredMinimumDuration = 1.6
+    @AppStorage("splashScreenMaximumDuration", store: ProfileSettingsStore.device) private var configuredMaximumDuration = 12.0
+    @State private var maximumTimeElapsed = false
 
     private var minimumDuration: Double { min(max(configuredMinimumDuration, 1.3), 10.0) }
+    private var maximumDuration: Double { min(max(configuredMaximumDuration, minimumDuration), 30.0) }
 
     var body: some View {
         ZStack {
@@ -311,6 +314,10 @@ struct SplashScreenView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + minimumDuration) {
             minimumTimeElapsed = true
         }
+        DispatchQueue.main.asyncAfter(deadline: .now() + maximumDuration) {
+            maximumTimeElapsed = true
+            tryDismiss()
+        }
     }
 
     private func startAmbientMotion() {
@@ -340,7 +347,7 @@ struct SplashScreenView: View {
     }
 
     private func tryDismiss() {
-        guard minimumTimeElapsed, isFinished, !dismissing else { return }
+        guard minimumTimeElapsed, (isFinished || maximumTimeElapsed), !dismissing else { return }
         withAnimation(.easeIn(duration: 0.35)) {
             dismissing = true
         }
