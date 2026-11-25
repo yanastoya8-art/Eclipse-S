@@ -2173,7 +2173,7 @@ class TMDBContentFilter: ObservableObject {
             "fan work", "fan works", "fan production", "fan productions", "fan project", "fan projects",
             "fan animation", "fan animations", "fan made anime", "fanmade anime", "fan made series",
             "fan made movie", "fan made film", "unofficial production", "unofficial creator",
-            "unofficial series", "unofficial film", "unofficial movie", "youtube original",
+            "unofficial series", "unofficial film", "unofficial movie", "youtube", "youtube premium", "youtube red", "youtube original",
             "youtube series", "youtuber", "youtubers", "made for youtube", "creator made",
             "creator made series", "independent web series", "independent web animation",
             "independent animation", "independent anime", "youtube channel", "youtube studio",
