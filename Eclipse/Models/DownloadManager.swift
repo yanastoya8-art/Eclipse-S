@@ -7084,13 +7084,26 @@ final class DownloadManager: NSObject, ObservableObject {
                             self.handleCancelledHLSDownload(id: item.id)
                             Logger.shared.log("HLS download cancelled: \(item.displayTitle)", type: "Download")
                         case .backgroundProcessingExpired:
-                            // Do not turn an OS time-limit interruption into a
-                            // user-paused download. The durable HLS checkpoint is
-                            // retained and the queue retries from that segment.
+#if os(iOS) && !targetEnvironment(macCatalyst)
+                            if self.hlsApplicationIsActive {
+                                // A foreground app can safely retry immediately.
+                                self.requeueInterruptedHLSDownload(
+                                    id: item.id,
+                                    message: "Background time expired. Continuing from the last saved segment."
+                                )
+                            } else {
+                                // Do not restart a segmented HLS worker while iOS
+                                // has revoked background execution. Keep the durable
+                                // checkpoint paused until applicationDidBecomeActive
+                                // can issue a fresh foreground intent and grant.
+                                self.pauseInterruptedHLSDownloadUntilForeground(id: item.id)
+                            }
+#else
                             self.requeueInterruptedHLSDownload(
                                 id: item.id,
                                 message: "Background time expired. Continuing from the last saved segment."
                             )
+#endif
                             Logger.shared.log("HLS continued-processing time expired; preserving checkpoint for \(item.displayTitle)", type: "Download")
                         case .backgroundTimeExpired:
                             self.requeueInterruptedHLSDownload(id: item.id, message: "Waiting for app to reopen")
@@ -8409,6 +8422,27 @@ final class DownloadManager: NSObject, ObservableObject {
 
         saveDownloads()
         processQueue()
+    }
+
+    /// Keep a system-interrupted HLS item paused while the app is backgrounded.
+    /// The foreground activation path recognizes this durable message, captures a
+    /// new foreground intent, and resumes from the last verified segment.
+    private func pauseInterruptedHLSDownloadUntilForeground(id: String) {
+        guard let index = downloads.firstIndex(where: { $0.id == id }),
+              downloads[index].isHLS,
+              downloads[index].status == .downloading
+                || downloads[index].status == .queued
+                || downloads[index].status == .paused else {
+            return
+        }
+        downloads[index].status = .paused
+        downloads[index].error = "Background time expired. Resume when app is active."
+        downloads[index].retryNotBefore = nil
+        saveDownloads()
+        Logger.shared.log(
+            "Paused interrupted HLS download until foreground activation: \(id)",
+            type: "Download"
+        )
     }
 
     private func requeueInterruptedHLSDownload(id: String, message: String) {
