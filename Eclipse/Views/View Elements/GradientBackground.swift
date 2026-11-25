@@ -586,8 +586,8 @@ enum HomeAnimatedBackgroundShape: String, CaseIterable, Identifiable {
     var glyph: String {
         switch self {
         case .wolf: return "\u{1F43A}\u{FE0E}"
-        case .fox: return String(rawValue)
-        case .phoenix: return "🔥"
+        case .fox: return "\u{1F98A}\u{FE0E}"
+        case .phoenix: return "\u{1F525}\u{FE0E}"
         case .paw: return "\u{1F43E}\u{FE0E}"
         case .stars: return "✦"
         case .crescentMoon: return "☾"
