@@ -2268,17 +2268,16 @@ struct HomeView: View {
         let boundedPage = max(page, 1)
 
         do {
-            let limit = boundedPage * pageSize
-            let offset = (boundedPage - 1) * pageSize
-            let fetchedResults = try await tmdbService.getFastAnimeCatalog(
-                kind: fastAnimeCatalogKind(for: kind),
-                limit: limit
-            )
-            let rawResults = fetchedResults.map { $0.withAnimeHint(true) }
-            // Return the unfiltered page slice. The destination owns metadata
-            // resolution and filtering so unresolved dub/age data cannot make
-            // an entire provider page disappear before it can be re-evaluated.
-            return Array(rawResults.dropFirst(offset))
+            // Use the AniList catalog mapper instead of the TMDB-only discover
+            // feed. The mapped rows carry stable AniList/MAL identity seeds,
+            // which the selected-language dub filter requires. TMDB-only rows
+            // had only an anime hint and were rejected before dub verification.
+            return try await AniListService.shared.fetchAnimeCatalog(
+                kind,
+                page: boundedPage,
+                limit: pageSize,
+                tmdbService: tmdbService
+            ).map { $0.withAnimeHint(true) }
         } catch {
             Logger.shared.log("HomeView: anime section \(catalogId) page \(page) failed: \(error.localizedDescription)", type: "AniList")
             throw error

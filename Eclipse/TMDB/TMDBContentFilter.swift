@@ -1871,6 +1871,7 @@ class TMDBContentFilter: ObservableObject {
                             let detail = try await TMDBService.shared.getTVShowDetails(id: result.id)
                             names = (detail.productionCompanies ?? []).map(\.name)
                                 + (detail.networks ?? []).map(\.name)
+                                + (detail.createdBy ?? []).map(\.name)
                         }
                         return (key, names, true)
                     } catch {
@@ -1905,6 +1906,7 @@ class TMDBContentFilter: ObservableObject {
                                 let detail = try await TMDBService.shared.getTVShowDetails(id: result.id)
                                 names = (detail.productionCompanies ?? []).map(\.name)
                                     + (detail.networks ?? []).map(\.name)
+                                    + (detail.createdBy ?? []).map(\.name)
                             }
                             return (nextKey, names, true)
                         } catch {
@@ -2185,22 +2187,31 @@ class TMDBContentFilter: ObservableObject {
             "youtuber studio", "youtuber studios", "youtuber production",
             "web creator", "video creator", "creator production",
             "dhar mann", "mrbeast", "smosh", "the try guys", "watcher entertainment",
+            "markiplier", "jacksepticeye", "logan paul", "jake paul", "sidemen",
+            "sssniperwolf", "the stokes twins", "ben azelart", "brent rivera",
+            "prestonplayz", "unspeakable", "the royalty family", "zach king",
+            "ryan trahan", "airrack", "lexi rivera", "vlad and niki",
+            "like nastya", "kids diana show",
             "rooster teeth", "jubilee media", "dude perfect", "the soul publishing",
             "alan chikin chow", "studio71", "jellysmack", "mythical entertainment"
         ]
-        let hasTextIndicator = indicators.contains { indicator in
-            text.range(of: " " + normalizedCatalogText(indicator) + " ") != nil
-                || text.hasPrefix(normalizedCatalogText(indicator) + " ")
-                || text.hasSuffix(" " + normalizedCatalogText(indicator))
-                || text == normalizedCatalogText(indicator)
+        func containsIndicator(_ indicator: String, in normalizedText: String) -> Bool {
+            let token = normalizedCatalogText(indicator)
+            return normalizedText.range(of: " " + token + " ") != nil
+                || normalizedText.hasPrefix(token + " ")
+                || normalizedText.hasSuffix(" " + token)
+                || normalizedText == token
         }
-        let hasProducerPlatform = producerPlatformIndicators.contains { indicator in
-            producerText.range(of: " " + normalizedCatalogText(indicator) + " ") != nil
-                || producerText.hasPrefix(normalizedCatalogText(indicator) + " ")
-                || producerText.hasSuffix(" " + normalizedCatalogText(indicator))
-                || producerText == normalizedCatalogText(indicator)
+        let hasTextIndicator = indicators.contains { containsIndicator($0, in: text) }
+        // Production-company metadata must be checked against the complete
+        // unofficial/creator vocabulary too, not only the YouTube platform
+        // subset. Otherwise "Fan Made Studio", "Creator Studio" and
+        // "Independent Web Animation" incorrectly pass the enabled filter.
+        let hasUnofficialProducer = indicators.contains { containsIndicator($0, in: producerText) }
+        let hasProducerPlatform = producerPlatformIndicators.contains {
+            containsIndicator($0, in: producerText)
         }
-        return hasTextIndicator || hasProducerPlatform
+        return hasTextIndicator || hasUnofficialProducer || hasProducerPlatform
     }
 
     private func shouldIncludeCatalogTitle(_ title: String) -> Bool {

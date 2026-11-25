@@ -219,11 +219,14 @@ struct SettingsView: View {
             .init(id: "appearance-app-performance-overlay", title: "App Performance Overlay", location: "Appearance > Animation", icon: "gauge.with.dots.needle.67percent", color: .cyan, keywords: ["CPU", "RAM", "memory", "thermal", "stats", "logs", "spikes", "app performance", "home performance"], action: .destination(.appearanceTarget(.appPerformanceOverlay))),
             .init(id: "appearance-hide-splash", title: "Hide Splash Screen", location: "Appearance > Startup", icon: "rectangle.slash", color: .purple, keywords: ["launch screen", "startup", "splash"], action: .destination(.appearanceTarget(.hideSplashScreen))),
             .init(id: "appearance-splash-duration", title: "Splash Screen Duration", location: "Appearance > Startup", icon: "timer", color: .purple, keywords: ["launch duration", "startup delay", "splash time"], action: .destination(.appearanceTarget(.splashScreenDuration))),
+            .init(id: "appearance-splash-maximum-duration", title: "Maximum Splash Screen Duration", location: "Appearance > Startup", icon: "timer", color: .purple, keywords: ["maximum startup duration", "splash timeout", "maximum splash time"], action: .destination(.appearanceTarget(.splashScreenMaximumDuration))),
             .init(id: "appearance-open-in-library", title: "Open in Library", location: "Appearance > Startup", icon: "books.vertical", color: .purple, keywords: ["launch library", "startup tab", "default section"], action: .destination(.appearanceTarget(.openInLibrary))),
             .init(id: "appearance-season-menu", title: "Alternative Season Menu", location: "Appearance > Detail Pages", icon: "list.bullet", color: .purple, keywords: ["season dropdown", "specials", "OVAs"], action: .destination(.appearanceTarget(.alternativeSeasonMenu))),
             .init(id: "appearance-horizontal-episodes", title: "Horizontal Episode List", location: "Appearance > Detail Pages", icon: "rectangle.split.3x1", color: .purple, keywords: ["episode layout", "vertical episodes"], action: .destination(.appearanceTarget(.horizontalEpisodeList))),
             .init(id: "appearance-episode-card-color", title: "Episode Card Color", location: "Appearance > Detail Pages", icon: "rectangle.fill", color: .purple, keywords: ["episode card background", "episode list color", "episode tint", "show episode tiles"], action: .destination(.appearanceTarget(.episodeCardColor))),
             .init(id: "appearance-schedule-card-color", title: "Schedule Card Color", location: "Appearance > Schedule", icon: "calendar", color: .purple, keywords: ["schedule background", "calendar card color", "release card tint", "schedule appearance"], action: .destination(.appearanceTarget(.scheduleCardColor))),
+            .init(id: "appearance-schedule-controls-roundness", title: "Schedule Corner Roundness", location: "Appearance > Schedule", icon: "square.on.circle", color: .purple, keywords: ["schedule control corners", "date chips", "timezone selector"], action: .destination(.appearanceTarget(.scheduleControlsCornerRadius))),
+            .init(id: "appearance-schedule-time-roundness", title: "Schedule Time Roundness", location: "Appearance > Schedule", icon: "clock", color: .purple, keywords: ["release time badge", "time pill corners"], action: .destination(.appearanceTarget(.scheduleTimeCornerRadius))),
             .init(id: "appearance-unaired-episodes", title: "Show Unaired Episodes", location: "Appearance > Detail Pages", icon: "calendar.badge.clock", color: .purple, keywords: ["hide future episodes", "upcoming episodes", "aired episodes", "episode visibility"], action: .destination(.appearanceTarget(.showUnairedEpisodes))),
             .init(id: "appearance-title-logo-position", title: "Title Logo Vertical Position", location: "Appearance > Detail Pages", icon: "arrow.up.and.down", color: .purple, keywords: ["poster title", "logo height", "move title logo", "logo position"], action: .destination(.appearanceTarget(.titleLogoPosition))),
             .init(id: "appearance-title-logo-size", title: "Title Logo Size", location: "Appearance > Detail Pages", icon: "arrow.up.left.and.arrow.down.right", color: .purple, keywords: ["logo scale", "bigger title logo", "smaller title logo"], action: .destination(.appearanceTarget(.titleLogoSize))),
@@ -3835,7 +3838,6 @@ private struct SupportPurchaseStatusRow: View {
 #endif
 
 struct ScheduleSettingsView: View {
-    @AppStorage("scheduleControlsCornerRadius") private var scheduleControlsCornerRadiusValue = 14.0
     @AppStorage("defaultScheduleMode") private var defaultScheduleModeRaw = ScheduleMode.anime.rawValue
     @AppStorage(ScheduleWindow.storageKey) private var scheduleWindowDays = ScheduleWindow.defaultValue.rawValue
     @StateObject private var accentColorManager = AccentColorManager.shared
@@ -3871,33 +3873,6 @@ struct ScheduleSettingsView: View {
                 }
 
                 GlassSectionFooter("Choose which schedule opens first when you select the Schedule tab. You can still switch modes inside the tab.")
-
-                GlassSection(header: "Schedule Control Roundness") {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Text("Corner radius")
-                            Spacer()
-                            Text("\(Int(scheduleControlsCornerRadiusValue.rounded())) pt")
-                                .foregroundColor(.secondary)
-                                .monospacedDigit()
-                        }
-                        Slider(value: $scheduleControlsCornerRadiusValue, in: 0...32, step: 1)
-                            .tint(accentColorManager.currentAccentColor)
-                        HStack {
-                            Text("Square")
-                            Spacer()
-                            Text("Rounded")
-                            Spacer()
-                            Text("Pill")
-                        }
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                }
-
-                GlassSectionFooter("Adjusts the roundness of the Schedule mode selector, timezone selector, and date controls. This setting does not change episode cards or controls elsewhere.")
 
                 GlassSection(header: "Schedule Range") {
                     VStack(spacing: 0) {

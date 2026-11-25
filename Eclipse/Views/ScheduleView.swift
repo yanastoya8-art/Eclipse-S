@@ -27,9 +27,14 @@ struct ScheduleView: View {
     @StateObject private var accentColorManager = AccentColorManager.shared
     @AppStorage(ScheduleCardAppearanceSettings.colorDataKey) private var scheduleCardColorData = Data()
     @AppStorage("scheduleControlsCornerRadius") private var scheduleControlsCornerRadiusValue = 14.0
+    @AppStorage("scheduleTimeCornerRadius") private var scheduleTimeCornerRadiusValue = 10.0
 
     private var scheduleControlsCornerRadius: CGFloat {
         CGFloat(min(max(scheduleControlsCornerRadiusValue, 0), 32))
+    }
+
+    private var scheduleTimeCornerRadius: CGFloat {
+        CGFloat(min(max(scheduleTimeCornerRadiusValue, 0), 24))
     }
     @StateObject private var glassAppearance = LiquidGlassAppearanceSettings.shared
 
@@ -1322,8 +1327,8 @@ struct ScheduleView: View {
                 .foregroundColor(.white)
                 .padding(.horizontal, 9)
                 .padding(.vertical, 5)
-                .background(Capsule().fill(accentColorManager.currentAccentColor.opacity(0.22)))
-                .overlay(Capsule().strokeBorder(accentColorManager.currentAccentColor.opacity(0.38), lineWidth: 0.8))
+                .background(RoundedRectangle(cornerRadius: scheduleTimeCornerRadius, style: .continuous).fill(accentColorManager.currentAccentColor.opacity(0.22)))
+                .overlay(RoundedRectangle(cornerRadius: scheduleTimeCornerRadius, style: .continuous).strokeBorder(accentColorManager.currentAccentColor.opacity(0.38), lineWidth: 0.8))
                 .fixedSize(horizontal: true, vertical: false)
 
                 if let countdown = countdownLabel(for: item) {

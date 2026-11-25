@@ -965,6 +965,17 @@ struct TMDBProductionCompany: Codable, Identifiable {
     }
 }
 
+struct TMDBCreator: Codable, Identifiable {
+    let id: Int
+    let name: String
+    let creditID: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name
+        case creditID = "credit_id"
+    }
+}
+
 struct TMDBMovieDetail: Codable, Identifiable {
     let id: Int
     let title: String
@@ -1080,6 +1091,7 @@ struct TMDBTVShowDetail: Codable, Identifiable {
     let nextEpisodeToAir: TMDBEpisode?
     let productionCompanies: [TMDBProductionCompany]?
     let networks: [TMDBProductionCompany]?
+    let createdBy: [TMDBCreator]?
 
     enum CodingKeys: String, CodingKey {
         case id, name, overview, popularity, genres, tagline, status, adult, languages, type
@@ -1101,6 +1113,7 @@ struct TMDBTVShowDetail: Codable, Identifiable {
         case nextEpisodeToAir = "next_episode_to_air"
         case productionCompanies = "production_companies"
         case networks
+        case createdBy = "created_by"
     }
 
     var fullPosterURL: String? {

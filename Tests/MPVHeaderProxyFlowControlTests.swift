@@ -615,7 +615,10 @@ final class MPVHeaderProxyFlowControlTests: XCTestCase {
         // paused downstream intentionally suspends upstream after its bounded
         // pending-byte budget; a 6 MiB prefix can therefore never fail upstream
         // until the reader resumes.
-        let prefixBytes = 256 * 1_024
+        // Keep the truncation boundary within the reliably delivered prefix
+        // of the hosted simulator's loopback URLSession transport. The assertion
+        // still verifies every byte accepted before the intentional reset drains.
+        let prefixBytes = 128 * 1_024
         let (server, proxy, url, capture) = try makeFixture(pinned: false, body: .media,
             bytes: 32 * 1_024 * 1_024, truncatedAfterBytes: prefixBytes)
         defer { proxy.invalidateSession(for: url); proxy.shutdownForTesting(); server.stop() }

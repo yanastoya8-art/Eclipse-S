@@ -1138,6 +1138,122 @@ private struct HomeAnimatedCreatureMotif: View {
             break
         }
         drawing.stroke(details, with: .color(detailColor), style: StrokeStyle(lineWidth: 4.2, lineCap: .round, lineJoin: .round))
+
+        // Fine anime-illustration linework adds recognizable anatomy and surface
+        // texture while retaining a single palette hue. These strokes deliberately
+        // use the selected animation tint (not neutral grey), so changing the
+        // animation colour recolours the entire creature consistently.
+        var fineDetails = Path()
+        switch shape {
+        case .cat:
+            // Inner ears, paired eyes, nose, whiskers and chest/fur contours.
+            fineDetails.move(to: CGPoint(x: 132, y: 121))
+            fineDetails.addLine(to: CGPoint(x: 151, y: 143))
+            fineDetails.move(to: CGPoint(x: 265, y: 142))
+            fineDetails.addLine(to: CGPoint(x: 278, y: 121))
+            fineDetails.addEllipse(in: CGRect(x: 184, y: 151, width: 10, height: 7))
+            fineDetails.addEllipse(in: CGRect(x: 222, y: 151, width: 10, height: 7))
+            fineDetails.move(to: CGPoint(x: 203, y: 165))
+            fineDetails.addLine(to: CGPoint(x: 211, y: 165))
+            for offset in [CGFloat(-1), CGFloat(0), CGFloat(1)] {
+                fineDetails.move(to: CGPoint(x: 192, y: 171 + offset * 4))
+                fineDetails.addLine(to: CGPoint(x: 145, y: 163 + offset * 7))
+                fineDetails.move(to: CGPoint(x: 224, y: 171 + offset * 4))
+                fineDetails.addLine(to: CGPoint(x: 270, y: 163 + offset * 7))
+            }
+            fineDetails.move(to: CGPoint(x: 178, y: 190))
+            fineDetails.addQuadCurve(to: CGPoint(x: 225, y: 190), control: CGPoint(x: 201, y: 211))
+        case .wolf:
+            // Layered cheek fur, neck ruff, muzzle, nose and shoulder fur.
+            for index in 0..<5 {
+                let x = CGFloat(169 + index * 10)
+                fineDetails.move(to: CGPoint(x: x, y: 164 + CGFloat(index % 2) * 5))
+                fineDetails.addQuadCurve(to: CGPoint(x: x + 17, y: 196 + CGFloat(index % 2) * 4), control: CGPoint(x: x - 2, y: 185))
+            }
+            fineDetails.move(to: CGPoint(x: 284, y: 143))
+            fineDetails.addQuadCurve(to: CGPoint(x: 318, y: 145), control: CGPoint(x: 301, y: 157))
+            fineDetails.addEllipse(in: CGRect(x: 316, y: 139, width: 8, height: 5))
+            fineDetails.move(to: CGPoint(x: 191, y: 213))
+            fineDetails.addLine(to: CGPoint(x: 181, y: 240))
+            fineDetails.move(to: CGPoint(x: 207, y: 216))
+            fineDetails.addLine(to: CGPoint(x: 207, y: 245))
+        case .bird:
+            // Individual flight feathers, layered covert feathers and tail quills.
+            for index in 0..<6 {
+                let offset = CGFloat(index) * 13
+                fineDetails.move(to: CGPoint(x: 190, y: 161))
+                fineDetails.addQuadCurve(to: CGPoint(x: 35 + offset, y: 79 + offset * 0.18), control: CGPoint(x: 104 + offset * 0.45, y: 117 + offset * 0.12))
+                fineDetails.move(to: CGPoint(x: 210, y: 161))
+                fineDetails.addQuadCurve(to: CGPoint(x: 365 - offset, y: 79 + offset * 0.18), control: CGPoint(x: 296 - offset * 0.45, y: 117 + offset * 0.12))
+            }
+            fineDetails.move(to: CGPoint(x: 194, y: 165))
+            fineDetails.addLine(to: CGPoint(x: 200, y: 205))
+            fineDetails.addLine(to: CGPoint(x: 206, y: 165))
+            fineDetails.move(to: CGPoint(x: 205, y: 157))
+            fineDetails.addLine(to: CGPoint(x: 226, y: 163))
+        case .snake:
+            // Hood eye-spots, scale rows following the S-shaped body and jaw line.
+            for y in stride(from: CGFloat(58), through: CGFloat(91), by: CGFloat(11)) {
+                fineDetails.addEllipse(in: CGRect(x: 143, y: y, width: 15, height: 8))
+                fineDetails.addEllipse(in: CGRect(x: 242, y: y, width: 15, height: 8))
+            }
+            for index in 0..<7 {
+                let y = CGFloat(157 + index * 13)
+                let x = CGFloat(177 + (index % 2) * 8)
+                fineDetails.move(to: CGPoint(x: x, y: y))
+                fineDetails.addQuadCurve(to: CGPoint(x: x + 36, y: y + 3), control: CGPoint(x: x + 18, y: y + 10))
+            }
+            fineDetails.move(to: CGPoint(x: 178, y: 105))
+            fineDetails.addQuadCurve(to: CGPoint(x: 222, y: 105), control: CGPoint(x: 200, y: 119))
+        case .dragon:
+            // Extra wing struts, neck plates, cheek ridges, tail-fin seams and claws.
+            for index in 0..<4 {
+                let offset = CGFloat(index) * 17
+                fineDetails.move(to: CGPoint(x: 190, y: 157))
+                fineDetails.addQuadCurve(to: CGPoint(x: 67 + offset, y: 105 + offset * 0.12), control: CGPoint(x: 123 + offset * 0.3, y: 121 + offset * 0.08))
+                fineDetails.move(to: CGPoint(x: 218, y: 157))
+                fineDetails.addQuadCurve(to: CGPoint(x: 333 - offset, y: 105 + offset * 0.12), control: CGPoint(x: 277 - offset * 0.3, y: 121 + offset * 0.08))
+            }
+            for index in 0..<4 {
+                let y = CGFloat(178 + index * 8)
+                fineDetails.move(to: CGPoint(x: 183, y: y))
+                fineDetails.addQuadCurve(to: CGPoint(x: 225, y: y + 1), control: CGPoint(x: 204, y: y + 9))
+            }
+            fineDetails.move(to: CGPoint(x: 252, y: 105))
+            fineDetails.addQuadCurve(to: CGPoint(x: 323, y: 105), control: CGPoint(x: 288, y: 91))
+            fineDetails.move(to: CGPoint(x: 270, y: 147))
+            fineDetails.addQuadCurve(to: CGPoint(x: 310, y: 151), control: CGPoint(x: 291, y: 158))
+            fineDetails.move(to: CGPoint(x: 57, y: 226))
+            fineDetails.addLine(to: CGPoint(x: 82, y: 214))
+            fineDetails.move(to: CGPoint(x: 69, y: 235))
+            fineDetails.addLine(to: CGPoint(x: 91, y: 246))
+        case .mermaid:
+            // Flowing hair strands, face, collarbone, fin rays and tail scales.
+            for index in 0..<5 {
+                let offset = CGFloat(index) * 8
+                fineDetails.move(to: CGPoint(x: 177 + offset, y: 57))
+                fineDetails.addCurve(to: CGPoint(x: 119 + offset * 0.55, y: 132), control1: CGPoint(x: 144 + offset, y: 76), control2: CGPoint(x: 127 + offset, y: 111))
+            }
+            fineDetails.addEllipse(in: CGRect(x: 194, y: 73, width: 5, height: 5))
+            fineDetails.addEllipse(in: CGRect(x: 216, y: 73, width: 5, height: 5))
+            fineDetails.move(to: CGPoint(x: 197, y: 91))
+            fineDetails.addQuadCurve(to: CGPoint(x: 215, y: 91), control: CGPoint(x: 206, y: 98))
+            for index in 0..<5 {
+                let offset = CGFloat(index) * 11
+                fineDetails.move(to: CGPoint(x: 219 + offset, y: 254 - offset * 0.12))
+                fineDetails.addQuadCurve(to: CGPoint(x: 280 + offset * 0.25, y: 270 - offset * 0.1), control: CGPoint(x: 248 + offset * 0.45, y: 278))
+            }
+            for index in 0..<4 {
+                let y = CGFloat(220 + index * 8)
+                fineDetails.move(to: CGPoint(x: 183, y: y))
+                fineDetails.addQuadCurve(to: CGPoint(x: 230, y: y + 2), control: CGPoint(x: 206, y: y + 8))
+            }
+        default:
+            break
+        }
+        let fineDetailColor = motifTint.opacity(min(1, opacity * brightness * 0.78))
+        drawing.stroke(fineDetails, with: .color(fineDetailColor), style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round))
+
         if shape == .snake || shape == .wolf || shape == .cat || shape == .bird {
             var eye = Path()
             let eyeRect: CGRect
