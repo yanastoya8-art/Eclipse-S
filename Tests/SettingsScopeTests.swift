@@ -15,6 +15,36 @@ final class SettingsScopeTests: XCTestCase {
         XCTAssertEqual(AppearancePalettes.base(for: .ember).displayName, "Ember")
     }
 
+    func testBlockedStreamURLsAreCanonicalizedInIsolatedSettings() throws {
+        let suiteName = "StreamURLBlocklistTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        defaults.set(
+            "HTTPS://EXAMPLE.COM/series/episode?token=abc#player\nhttps://cdn.example/video.mkv",
+            forKey: StreamURLBlocklistSettings.storageKey
+        )
+
+        XCTAssertTrue(
+            StreamURLBlocklistSettings.contains(
+                "https://example.com/series/episode?token=abc",
+                defaults: defaults
+            )
+        )
+        XCTAssertTrue(
+            StreamURLBlocklistSettings.contains(
+                "https://cdn.example/video.mkv",
+                defaults: defaults
+            )
+        )
+        XCTAssertFalse(
+            StreamURLBlocklistSettings.contains(
+                "https://example.com/series/episode?token=other",
+                defaults: defaults
+            )
+        )
+    }
+
     func testBackgroundStylePickerContainsOnlyThreeRenderingModes() {
         XCTAssertEqual(AtmosphereStyle.selectableCases, [.gradient, .multiGradient, .solid])
         XCTAssertEqual(AtmosphereStyle.allCases, [.gradient, .multiGradient, .solid])
