@@ -185,7 +185,10 @@ struct DownloadsView: View {
             }
         }
         .navigationTitle("Downloads")
-        .background(SettingsGradientBackground().ignoresSafeArea())
+        .background(SettingsGradientBackground(
+            allowsAnimatedBackground: UserDefaults.standard.object(forKey: HomeAnimatedBackgroundSettings.downloadsBackgroundKey) == nil ? true : UserDefaults.standard.bool(forKey: HomeAnimatedBackgroundSettings.downloadsBackgroundKey),
+            allowsAnimatedShape: UserDefaults.standard.object(forKey: HomeAnimatedBackgroundSettings.downloadsShapeKey) == nil ? true : UserDefaults.standard.bool(forKey: HomeAnimatedBackgroundSettings.downloadsShapeKey)
+        ).ignoresSafeArea())
 #if os(iOS)
         .navigationBarTitleDisplayMode(.large)
 #endif
