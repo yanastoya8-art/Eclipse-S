@@ -329,38 +329,18 @@ struct SearchResultCard: View {
         isTvOS ? 640 : (isIPad ? 480 : 320)
     }
 
-    @State private var titleLogoURL: String?
-    @State private var loadedPosterURL: String?
-
     private var posterImage: some View {
-        let cleanPosterURLs = PosterArtworkURLResolver.candidates(for: result)
-        return ZStack {
-            ResilientArtworkImage(
-                urls: PosterArtworkURLResolver.libraryCandidates(for: result),
-                decodeSize: CGSize(width: posterDecodeWidth, height: posterDecodeWidth * 1.5),
-                contentMode: .fill,
-                onImageURLLoaded: { loadedPosterURL = $0 }
-            ) {
-                FallbackImageView(
-                    isMovie: result.isMovie,
-                    size: CGSize(width: posterDecodeWidth, height: posterDecodeWidth * 1.5),
-                    expandsToFillContainer: true
-                )
-            }
-
-            CenteredPosterTitleOverlay(
-                title: result.displayTitle,
-                logoURL: loadedPosterURL.flatMap { cleanPosterURLs.contains($0) ? titleLogoURL : nil }
+        ResilientArtworkImage(
+            urls: PosterArtworkURLResolver.libraryCandidates(for: result),
+            decodeSize: CGSize(width: posterDecodeWidth, height: posterDecodeWidth * 1.5),
+            contentMode: .fill
+        ) {
+            FallbackImageView(
+                isMovie: result.isMovie,
+                size: CGSize(width: posterDecodeWidth, height: posterDecodeWidth * 1.5),
+                expandsToFillContainer: true
             )
         }
         .aspectRatio(2/3, contentMode: .fill)
-        .task(id: result.stableIdentity) {
-            titleLogoURL = nil
-            loadedPosterURL = nil
-            titleLogoURL = await SearchResultTitleLogoCache.shared.logoURL(
-                mediaType: result.isMovie ? "movie" : "tv",
-                id: result.id
-            )
-        }
     }
 }
