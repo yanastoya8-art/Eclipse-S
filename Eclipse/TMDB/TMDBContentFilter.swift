@@ -549,6 +549,12 @@ class TMDBContentFilter: ObservableObject {
     @Published private(set) var maturityRatingRevision = 0
 
     private let animeEligibilityLock = NSLock()
+    var isResolvingSelectedAudio: Bool {
+        animeEligibilityLock.lock()
+        defer { animeEligibilityLock.unlock() }
+        return !animeAudioLoadingIDs.isEmpty || !catalogAudioLoadingKeys.isEmpty
+    }
+
     private var animeAgeRatingsByID: [Int: MaturityRating] = [:]
     // MAL-only schedule rows use a negative sourceMediaId, not an AniList ID.
     // Keep their resolved rating by stable schedule-entry ID so they still
@@ -1221,6 +1227,15 @@ class TMDBContentFilter: ObservableObject {
                         animeAudioRetryAfterByID[id] = Date().addingTimeInterval(10 * 60)
                     }
                     animeEligibilityLock.unlock()
+                    // Finish the transient verification state even when a
+                    // provider lookup fails, so Search can render a final
+                    // empty state rather than a permanent spinner.
+                    await MainActor.run {
+                        NotificationCenter.default.post(
+                            name: TMDBContentFilter.catalogFiltersDidChangeNotification,
+                            object: nil
+                        )
+                    }
                 }
 
                 if let result = iterator.next(),
@@ -1724,6 +1739,9 @@ class TMDBContentFilter: ObservableObject {
                         } else {
                             catalogAudioEligibleKeys.remove(key)
                         }
+                        didResolveAny = true
+                    } else {
+                        catalogAudioRetryAfterByKey[key] = Date().addingTimeInterval(10 * 60)
                         didResolveAny = true
                     }
                     animeEligibilityLock.unlock()
