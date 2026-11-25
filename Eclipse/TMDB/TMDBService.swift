@@ -1425,35 +1425,41 @@ class TMDBService: ObservableObject {
         adultKeywordIDs: [Int],
         extraQueryItems: [URLQueryItem] = []
     ) async throws -> [TMDBSearchResult] {
-        let countryResults = try await withThrowingTaskGroup(
+        // Treat each origin-country request independently. A transient TMDB
+        // failure for CN/KR/TW must not cancel successful JP results (or make
+        // the entire Anime Browse catalog appear empty).
+        let countryResults = await withTaskGroup(
             of: (Int, [TMDBTVShow]).self,
             returning: [(Int, [TMDBTVShow])].self
         ) { group in
             for (index, country) in Self.fastAnimeOriginCountries.enumerated() {
                 group.addTask {
-                    let shows = try await self.discoverFastAnimeShows(
-                        originCountry: country,
-                        originalLanguage: Self.fastAnimeOriginalLanguageByCountry[country],
-                        sortBy: sortBy,
-                        page: 1,
-                        adultKeywordIDs: adultKeywordIDs,
-                        extraQueryItems: extraQueryItems
-                    )
-                    return (index, shows)
+                    do {
+                        let shows = try await self.discoverFastAnimeShows(
+                            originCountry: country,
+                            originalLanguage: Self.fastAnimeOriginalLanguageByCountry[country],
+                            sortBy: sortBy,
+                            page: 1,
+                            adultKeywordIDs: adultKeywordIDs,
+                            extraQueryItems: extraQueryItems
+                        )
+                        return (index, shows)
+                    } catch {
+                        Logger.shared.log(
+                            "TMDB anime catalog country \(country) failed: \(error.localizedDescription)",
+                            type: "AniList"
+                        )
+                        return (index, [])
+                    }
                 }
             }
 
             var loaded: [(Int, [TMDBTVShow])] = []
             loaded.reserveCapacity(Self.fastAnimeOriginCountries.count)
-            do {
-                for try await result in group {
-                    loaded.append(result)
-                }
-                return loaded
-            } catch {
-                group.cancelAll()
-                throw error
+            for await result in group {
+                loaded.append(result)
             }
+            return loaded
         }
 
         let combined = countryResults
