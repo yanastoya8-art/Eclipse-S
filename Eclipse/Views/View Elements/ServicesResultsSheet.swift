@@ -3658,7 +3658,10 @@ struct ModulesSearchResultsSheet: View {
         let configuration = StreamLanguageFilter.configuration(sourceId: sourceId)
         return Array(
             streams.lazy
-                .filter { !StreamURLBlocklistSettings.contains($0.url) }
+                .filter { stream in
+                    guard let url = stream.url else { return true }
+                    return !StreamURLBlocklistSettings.contains(url)
+                }
                 .filter {
                     guard let configuration else { return true }
                     return !StreamLanguageFilter.shouldHide(
