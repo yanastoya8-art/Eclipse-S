@@ -1306,16 +1306,23 @@ class TMDBContentFilter: ObservableObject {
 
     func filterSearchResults(
         _ results: [TMDBSearchResult],
-        allowUpcomingContent: Bool = false
+        allowUpcomingContent: Bool = false,
+        resolveMetadataInBackground: Bool = true
     ) -> [TMDBSearchResult] {
-        if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
-            Task(priority: .utility) { await self.resolveRuntimeMetadata(for: results) }
+        // Browse explicitly awaits resolveBrowseFilterMetadata before applying
+        // its predicate. Scheduling the same runtime, production and audio
+        // lookups again here created duplicate per-page work and amplified
+        // latency while users paged or changed filters.
+        if resolveMetadataInBackground {
+            if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
+                Task(priority: .utility) { await self.resolveRuntimeMetadata(for: results) }
+            }
+            if UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent") {
+                Task(priority: .utility) { await self.resolveProductionMetadata(for: results) }
+            }
+            scheduleAnimeAudioMetadataResolutionIfNeeded(for: results)
+            scheduleCatalogAudioAvailabilityResolutionIfNeeded(for: results)
         }
-        if UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent") {
-            Task(priority: .utility) { await self.resolveProductionMetadata(for: results) }
-        }
-        scheduleAnimeAudioMetadataResolutionIfNeeded(for: results)
-        scheduleCatalogAudioAvailabilityResolutionIfNeeded(for: results)
         return results.filter { result in
             shouldIncludeCatalogResult(result, allowUpcomingContent: allowUpcomingContent)
         }
