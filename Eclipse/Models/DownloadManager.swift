@@ -2892,7 +2892,7 @@ final class DownloadManager: NSObject, ObservableObject {
             Task { @MainActor in
                 await DownloadLiveActivityController.update(
                     downloadID: id, title: item.displayTitle,
-                    progress: total > 0 ? Double(completed) / Double(total) : 0,
+                    progress: total > 0 ? Double(completed) / Double(total) : min(max(progress ?? item.progress, 0), 1),
                     completedBytes: completed, totalBytes: total, status: subtitle
                 )
             }
