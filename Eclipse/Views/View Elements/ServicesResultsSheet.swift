@@ -32,19 +32,28 @@ private func copyProviderDownloadURL(_ rawURL: String, headers: [String: String]
     // that need no custom headers. The proxy adds Content-Disposition:
     // attachment; copying the provider URL directly lets Safari play inline.
     // Header-protected streams also retain their sanitized request headers.
-    guard let downloadURL = MPVHeaderProxy.shared.makeLANProxyURL(
+    let downloadURL = MPVHeaderProxy.shared.makeLANProxyURL(
         for: sourceURL,
         headers: sanitizedHeaders,
         asDownload: true
-    ) else {
+    )
+    if let downloadURL {
+        ProviderExternalApplication.copy(downloadURL.absoluteString)
+        return
+    }
+
+    // A direct URL is still useful for header-free streams when the local
+    // proxy cannot bind (for example, while the app is offline from Wi-Fi).
+    // Never fall back for authenticated streams because that would produce a
+    // copied link that cannot reproduce the provider request.
+    guard sanitizedHeaders.isEmpty else {
         Logger.shared.log(
-            "Could not create a Safari-compatible download URL for host \(sourceURL.host ?? "unknown")",
+            "Could not create an authenticated download URL for host \(sourceURL.host ?? "unknown")",
             type: "Download"
         )
         return
     }
-
-    ProviderExternalApplication.copy(downloadURL.absoluteString)
+    ProviderExternalApplication.copy(sourceURL.absoluteString)
 }
 
 extension Notification.Name {
