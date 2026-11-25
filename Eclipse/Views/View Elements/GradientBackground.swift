@@ -1034,8 +1034,8 @@ private struct HomeAnimatedCreatureMotif: View {
             let motifTint = color
             drawing.fill(fill, with: .color(motifTint.opacity(opacity)))
             if shape == .dragon {
-                // Toothless's unmistakable large, bright almond-shaped eyes. Their
-                // hue follows the user's selected animation colour.
+                // Toothless's almond-shaped irises use the independent eye-colour setting;
+                // the dark pupils remain separate for contrast.
                 var eyes = Path()
                 eyes.move(to: CGPoint(x: 266, y: 125))
                 eyes.addQuadCurve(to: CGPoint(x: 291, y: 132), control: CGPoint(x: 277, y: 117))
