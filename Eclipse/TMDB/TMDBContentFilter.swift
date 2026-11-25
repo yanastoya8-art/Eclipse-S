@@ -1869,7 +1869,8 @@ class TMDBContentFilter: ObservableObject {
                             names = detail.productionCompanies?.map(\.name) ?? []
                         } else {
                             let detail = try await TMDBService.shared.getTVShowDetails(id: result.id)
-                            names = detail.productionCompanies?.map(\.name) ?? []
+                            names = (detail.productionCompanies ?? []).map(\.name)
+                                + (detail.networks ?? []).map(\.name)
                         }
                         return (key, names, true)
                     } catch {
@@ -1902,7 +1903,8 @@ class TMDBContentFilter: ObservableObject {
                                 names = detail.productionCompanies?.map(\.name) ?? []
                             } else {
                                 let detail = try await TMDBService.shared.getTVShowDetails(id: result.id)
-                                names = detail.productionCompanies?.map(\.name) ?? []
+                                names = (detail.productionCompanies ?? []).map(\.name)
+                                    + (detail.networks ?? []).map(\.name)
                             }
                             return (nextKey, names, true)
                         } catch {
