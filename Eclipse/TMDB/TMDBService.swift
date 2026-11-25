@@ -909,8 +909,8 @@ class TMDBService: ObservableObject {
             guard let url = searchEndpointURL(
                 "tv",
                 query: normalizedQuery,
-                language: languageOverride,
-                page: page
+                page: page,
+                language: languageOverride
             ) else {
                 throw TMDBError.invalidURL
             }
