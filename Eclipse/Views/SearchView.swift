@@ -1454,7 +1454,7 @@ private struct BrowseMediaView: View {
     // Filter-heavy anime and TV queries can reject most results on each TMDB page.
     // Automatically fill a usable grid before handing pagination to the scroll sentinel.
     // The cap prevents an unbounded request chain when filters legitimately match very few titles.
-    private static let maximumAutomaticFilteredPages = 30
+    private static let maximumAutomaticFilteredPages = 6
 
     @AppStorage("mediaColumnsPortrait") private var mediaColumnsPortrait: Int = 3
     @AppStorage("mediaColumnsLandscape") private var mediaColumnsLandscape: Int = 5
@@ -2123,6 +2123,12 @@ private struct BrowseMediaView: View {
             if hasMorePages && currentPage < Self.maximumAutomaticFilteredPages {
                 ProgressView("Searching for titles that match your filters…")
                     .font(.caption)
+            } else if hasMorePages {
+                Button("Load More Results") {
+                    loadNextPage()
+                }
+                .font(.subheadline.weight(.semibold))
+                .padding(.top, 4)
             }
         }
         .frame(maxWidth: .infinity)
@@ -2165,6 +2171,15 @@ private struct BrowseMediaView: View {
                     .frame(height: 1)
                     .id("browse-search-pagination-\(currentPage)-\(results.count)")
                     .onAppear { loadNextPage() }
+            } else if hasMorePages,
+                      results.count < 12,
+                      currentPage >= Self.maximumAutomaticFilteredPages {
+                Button("Load More Results") {
+                    loadNextPage()
+                }
+                .font(.subheadline.weight(.semibold))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
             }
 
             if let errorMessage {
