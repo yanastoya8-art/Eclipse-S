@@ -3839,6 +3839,7 @@ private struct SupportPurchaseStatusRow: View {
 
 struct ScheduleSettingsView: View {
     @AppStorage("defaultScheduleMode") private var defaultScheduleModeRaw = ScheduleMode.anime.rawValue
+    @AppStorage("showLocalScheduleTime") private var showLocalScheduleTime = true
     @AppStorage(ScheduleWindow.storageKey) private var scheduleWindowDays = ScheduleWindow.defaultValue.rawValue
     @StateObject private var accentColorManager = AccentColorManager.shared
 
@@ -3853,7 +3854,7 @@ struct ScheduleSettingsView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 22) {
-                GlassSection(header: "Schedule Tab") {
+                GlassSection(header: "Schedule Content") {
                     VStack(spacing: 0) {
                         ForEach(Array(ScheduleMode.allCases.enumerated()), id: \.element.id) { index, mode in
                             GlassSelectionRow(
@@ -3872,7 +3873,40 @@ struct ScheduleSettingsView: View {
                     }
                 }
 
-                GlassSectionFooter("Choose which schedule opens first when you select the Schedule tab. You can still switch modes inside the tab.")
+                GlassSectionFooter("Choose which content appears in the Schedule tab: anime, movies, or the combined schedule.")
+
+                GlassSection(header: "Time Zone") {
+                    HStack(spacing: 12) {
+                        Image(systemName: "clock")
+                            .font(.headline)
+                            .foregroundColor(accentColorManager.currentAccentColor)
+                            .frame(width: 28, height: 28)
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Display times in")
+                                .font(.body.weight(.medium))
+                                .foregroundColor(.white)
+                            Text(showLocalScheduleTime ? "Your local time zone" : "Coordinated Universal Time")
+                                .font(.caption)
+                                .foregroundColor(.white.opacity(0.55))
+                        }
+
+                        Spacer()
+
+                        Picker("Time Zone", selection: $showLocalScheduleTime) {
+                            Text("Local").tag(true)
+                            Text("UTC").tag(false)
+                        }
+                        .pickerStyle(.segmented)
+                        .tint(accentColorManager.currentAccentColor)
+                        .frame(width: 150)
+                        .accessibilityIdentifier("settings.schedule.timeZone")
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                }
+
+                GlassSectionFooter("Local uses your device's current time zone. UTC displays schedule times in Coordinated Universal Time.")
 
                 GlassSection(header: "Schedule Range") {
                     VStack(spacing: 0) {
