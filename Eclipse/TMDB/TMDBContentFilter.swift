@@ -549,10 +549,22 @@ class TMDBContentFilter: ObservableObject {
     @Published private(set) var maturityRatingRevision = 0
 
     private let animeEligibilityLock = NSLock()
-    var isResolvingSelectedAudio: Bool {
+    func isResolvingSelectedAudio(for results: [TMDBSearchResult]) -> Bool {
+        let animeIDs = Set(results.compactMap { result -> Int? in
+            guard Self.isAnimeResult(result),
+                  let id = result.animeIdentitySeed?.anilistId,
+                  id > 0 else { return nil }
+            return id
+        })
+        let catalogKeys = Set(results.compactMap { result -> String? in
+            guard !Self.isAnimeResult(result),
+                  result.isMovie || result.isTVShow else { return nil }
+            return catalogAudioAvailabilityKey(for: result)
+        })
         animeEligibilityLock.lock()
         defer { animeEligibilityLock.unlock() }
-        return !animeAudioLoadingIDs.isEmpty || !catalogAudioLoadingKeys.isEmpty
+        return !animeIDs.isDisjoint(with: animeAudioLoadingIDs)
+            || !catalogKeys.isDisjoint(with: catalogAudioLoadingKeys)
     }
 
     private var animeAgeRatingsByID: [Int: MaturityRating] = [:]
