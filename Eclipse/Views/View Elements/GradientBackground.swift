@@ -1027,7 +1027,11 @@ private struct HomeAnimatedCreatureMotif: View {
                     }
                 }
             }
-            drawing.fill(fill, with: .color(color.opacity(opacity)))
+            // Keep every part of the selected creature tied to the animation
+            // palette. Toothless must not retain a fixed black body or red tail:
+            // the body, wings, tail fin, eyes, details and glow all use this tint.
+            let motifTint = color
+            drawing.fill(fill, with: .color(motifTint.opacity(opacity)))
             if shape == .dragon {
                 // Toothless's unmistakable large, bright almond-shaped eyes. Their
                 // hue follows the user's selected animation colour.
@@ -1040,14 +1044,14 @@ private struct HomeAnimatedCreatureMotif: View {
                 eyes.addQuadCurve(to: CGPoint(x: 329, y: 119), control: CGPoint(x: 316, y: 115))
                 eyes.addQuadCurve(to: CGPoint(x: 326, y: 135), control: CGPoint(x: 333, y: 130))
                 eyes.addQuadCurve(to: CGPoint(x: 305, y: 126), control: CGPoint(x: 313, y: 139))
-                drawing.fill(eyes, with: .color(color.opacity(min(1, opacity * 1.25))))
+                drawing.fill(eyes, with: .color(motifTint.opacity(min(1, opacity * 1.25))))
                 var pupils = Path()
                 pupils.addEllipse(in: CGRect(x: 276, y: 126, width: 5, height: 10))
                 pupils.addEllipse(in: CGRect(x: 315, y: 123, width: 5, height: 10))
-                drawing.fill(pupils, with: .color(color.opacity(min(1, opacity * 0.48))))
+                drawing.fill(pupils, with: .color(motifTint.opacity(min(1, opacity * 0.48))))
             }
             var details = Path()
-            let detailColor = color.opacity(min(1, opacity * 0.62))
+            let detailColor = motifTint.opacity(min(1, opacity * 0.62))
             switch shape {
             case .wolf:
                 details.move(to: CGPoint(x: 274, y: 111))
@@ -1117,7 +1121,7 @@ private struct HomeAnimatedCreatureMotif: View {
             if shape == .snake || shape == .wolf || shape == .cat {
                 var eye = Path()
                 eye.addEllipse(in: CGRect(x: shape == .snake ? 224 : (shape == .wolf ? 282 : 245), y: shape == .snake ? 57 : (shape == .wolf ? 123 : 151), width: 7, height: 7))
-                drawing.fill(eye, with: .color(color.opacity(min(1, opacity * 0.95))))
+                drawing.fill(eye, with: .color(motifTint.opacity(min(1, opacity * 0.95))))
             }
         }
         .frame(width: size.width, height: size.height)
