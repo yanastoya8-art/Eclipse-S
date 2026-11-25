@@ -53,7 +53,10 @@ struct DownloadedShowDetailView: View {
 #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
 #endif
-        .background(SettingsGradientBackground(allowsAnimatedBackground: false).ignoresSafeArea())
+        .background(SettingsGradientBackground(
+            allowsAnimatedBackground: UserDefaults.standard.object(forKey: HomeAnimatedBackgroundSettings.downloadsBackgroundKey) == nil ? true : UserDefaults.standard.bool(forKey: HomeAnimatedBackgroundSettings.downloadsBackgroundKey),
+            allowsAnimatedShape: UserDefaults.standard.object(forKey: HomeAnimatedBackgroundSettings.downloadsShapeKey) == nil ? true : UserDefaults.standard.bool(forKey: HomeAnimatedBackgroundSettings.downloadsShapeKey)
+        ).ignoresSafeArea())
         .onAppear { refreshKidsAccess() }
         .onDisappear {
             kidsFilterTask?.cancel()
