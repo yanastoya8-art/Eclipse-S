@@ -2994,7 +2994,11 @@ final class DownloadManager: NSObject, ObservableObject {
         })
     }
 
-    private func updateHLSBackgroundProgress(id: String, stage: String) {
+    private func updateHLSBackgroundProgress(
+        id: String,
+        stage: String,
+        progressOverride: Double? = nil
+    ) {
         guard let item = downloads.first(where: { $0.id == id }),
               item.status == .downloading else { return }
         let attempt = hlsBackgroundAttempts[id].flatMap { $0.granted && !$0.revoked ? $0 : nil }
@@ -3003,9 +3007,10 @@ final class DownloadManager: NSObject, ObservableObject {
         let hasByteTotal = item.totalBytes > 0
         let completedBytes = max(item.downloadedBytes, 0)
         let totalBytes = hasByteTotal ? item.totalBytes : 0
+        let measuredSegmentProgress = Double(completedSegments) / Double(max(segmentTotal, 1))
         let progress = hasByteTotal
             ? min(Double(completedBytes) / Double(totalBytes), 1)
-            : Double(completedSegments) / Double(max(segmentTotal, 1))
+            : min(max(progressOverride ?? measuredSegmentProgress, 0), 1)
         let subtitle = hasByteTotal
             ? "\(DownloadByteCountFormatter.string(fromByteCount: completedBytes)) of \(DownloadByteCountFormatter.string(fromByteCount: totalBytes))"
             : (completedBytes > 0
@@ -7025,6 +7030,17 @@ final class DownloadManager: NSObject, ObservableObject {
             if let index = self.downloads.firstIndex(where: { $0.id == item.id }),
                self.downloads[index].status == .downloading {
                 self.updateObservedDownloadProgress(id: item.id, progress: progress)
+#if os(iOS) && !targetEnvironment(macCatalyst)
+                // Publish the downloader's measured segment fraction directly.
+                // Byte checkpoints are intentionally durable and throttled, so
+                // using only their persisted counters made the Live Activity lag
+                // behind the progress visible in the Downloads screen.
+                self.updateHLSBackgroundProgress(
+                    id: item.id,
+                    stage: "Downloading video",
+                    progressOverride: progress
+                )
+#endif
             }
         }
 
