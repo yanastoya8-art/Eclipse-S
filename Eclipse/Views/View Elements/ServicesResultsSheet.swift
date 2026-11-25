@@ -11541,14 +11541,15 @@ struct CompactMediaResultRow: View {
 
 private extension View {
     func stremioStyleStreamCard() -> some View {
-        self
+        let cornerRadius = CGFloat(ServicesStreamAppearanceSettings.streamCardCornerRadius())
+        return self
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(ServicesStreamAppearanceSettings.streamCardColor())
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .overlay {
                 if ServicesStreamAppearanceSettings.showsStreamFrame() {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                         .strokeBorder(
                             ServicesStreamAppearanceSettings.streamFrameColor(),
                             lineWidth: ServicesStreamAppearanceSettings.streamFrameWidth()
