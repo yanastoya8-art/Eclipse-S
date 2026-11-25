@@ -1030,7 +1030,8 @@ private struct HomeAnimatedCreatureMotif: View {
             }
             // Keep every part of the selected creature tied to the animation
             // palette. Toothless must not retain a fixed black body or red tail:
-            // the body, wings, tail fin, eyes, details and glow all use this tint.
+            // the body, wings, tail fin, details and glow use this tint; eye irises
+            // use the creature-specific custom eye colour.
             let motifTint = color
             drawing.fill(fill, with: .color(motifTint.opacity(opacity)))
             if shape == .dragon {
