@@ -891,7 +891,10 @@ struct SearchView: View {
                 // those filters are applied to anime candidates already found
                 // in TMDB results, while the dedicated Anime filter performs
                 // the broader AniList lookup.
-                if searchFilter == .anime || results.isEmpty {
+                if searchFilter == .anime || searchFilter == .all || results.isEmpty {
+                    // TMDB multi-search can return unrelated movie matches for
+                    // an anime title, so a non-empty TMDB response must not
+                    // suppress AniList lookup in the default All search.
                     let animeResults = await AniListService.shared.searchAnimeResults(
                         query: query,
                         tmdbService: tmdbService
