@@ -1263,6 +1263,47 @@ private struct HomeAnimatedCreatureMotif: View {
                 fineDetails.move(to: CGPoint(x: 183, y: y))
                 fineDetails.addQuadCurve(to: CGPoint(x: 230, y: y + 2), control: CGPoint(x: 206, y: y + 8))
             }
+        case .paw:
+            // Pad creases and subtle toe-pad contours.
+            fineDetails.addEllipse(in: CGRect(x: 177, y: 181, width: 46, height: 34))
+            fineDetails.addEllipse(in: CGRect(x: 99, y: 104, width: 39, height: 25))
+            fineDetails.addEllipse(in: CGRect(x: 161, y: 70, width: 40, height: 25))
+            fineDetails.addEllipse(in: CGRect(x: 225, y: 70, width: 40, height: 25))
+            fineDetails.addEllipse(in: CGRect(x: 275, y: 104, width: 39, height: 25))
+            fineDetails.move(to: CGPoint(x: 184, y: 205))
+            fineDetails.addQuadCurve(to: CGPoint(x: 216, y: 205), control: CGPoint(x: 200, y: 217))
+        case .stars:
+            // A layered inner star and fine orbit-like sparkle accents.
+            fineDetails.move(to: CGPoint(x: 200, y: 78))
+            fineDetails.addLine(to: CGPoint(x: 211, y: 157))
+            fineDetails.addLine(to: CGPoint(x: 292, y: 172))
+            fineDetails.addLine(to: CGPoint(x: 211, y: 187))
+            fineDetails.addLine(to: CGPoint(x: 200, y: 246))
+            fineDetails.addLine(to: CGPoint(x: 189, y: 187))
+            fineDetails.addLine(to: CGPoint(x: 108, y: 172))
+            fineDetails.addLine(to: CGPoint(x: 189, y: 157))
+            fineDetails.closeSubpath()
+            fineDetails.addEllipse(in: CGRect(x: 194, y: 166, width: 12, height: 12))
+        case .crescentMoon:
+            // Lunar maria and crater rims follow the crescent's inner arc.
+            fineDetails.addEllipse(in: CGRect(x: 224, y: 83, width: 22, height: 15))
+            fineDetails.addEllipse(in: CGRect(x: 185, y: 135, width: 30, height: 21))
+            fineDetails.addEllipse(in: CGRect(x: 169, y: 194, width: 18, height: 13))
+            fineDetails.move(to: CGPoint(x: 246, y: 103))
+            fineDetails.addQuadCurve(to: CGPoint(x: 190, y: 225), control: CGPoint(x: 250, y: 186))
+            fineDetails.move(to: CGPoint(x: 260, y: 126))
+            fineDetails.addQuadCurve(to: CGPoint(x: 213, y: 239), control: CGPoint(x: 256, y: 205))
+        case .sun:
+            // Concentric corona rings and engraved ray divisions.
+            fineDetails.addEllipse(in: CGRect(x: 154, y: 104, width: 92, height: 92))
+            fineDetails.addEllipse(in: CGRect(x: 164, y: 114, width: 72, height: 72))
+            for angle in stride(from: CGFloat(0), to: CGFloat(360), by: CGFloat(45)) {
+                let radians = angle * .pi / 180
+                let inner = CGPoint(x: 200 + cos(radians) * 91, y: 150 + sin(radians) * 91)
+                let outer = CGPoint(x: 200 + cos(radians) * 104, y: 150 + sin(radians) * 104)
+                fineDetails.move(to: inner)
+                fineDetails.addLine(to: outer)
+            }
         default:
             break
         }
