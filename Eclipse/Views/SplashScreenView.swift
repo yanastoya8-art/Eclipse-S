@@ -27,7 +27,9 @@ struct SplashScreenView: View {
     @State private var backgroundShift: CGFloat = -36
     @State private var loadingPulse = false
 
-    private let minimumDuration: Double = 1.6
+    @AppStorage("splashScreenMinimumDuration", store: ProfileSettingsStore.device) private var configuredMinimumDuration = 1.6
+
+    private var minimumDuration: Double { min(max(configuredMinimumDuration, 0.5), 10.0) }
 
     var body: some View {
         ZStack {
