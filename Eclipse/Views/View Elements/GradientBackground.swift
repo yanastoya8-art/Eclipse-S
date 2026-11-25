@@ -808,6 +808,7 @@ private struct EclipseAmbientMotionHostingBoundary: UIViewControllerRepresentabl
 private struct HomeAnimatedCreatureMotif: View {
     let shape: HomeAnimatedBackgroundShape
     let color: Color
+    let eyeColor: Color
     let opacity: Double
     let size: CGSize
     let phase: Double
@@ -1044,11 +1045,11 @@ private struct HomeAnimatedCreatureMotif: View {
                 eyes.addQuadCurve(to: CGPoint(x: 329, y: 119), control: CGPoint(x: 316, y: 115))
                 eyes.addQuadCurve(to: CGPoint(x: 326, y: 135), control: CGPoint(x: 333, y: 130))
                 eyes.addQuadCurve(to: CGPoint(x: 305, y: 126), control: CGPoint(x: 313, y: 139))
-                drawing.fill(eyes, with: .color(motifTint.opacity(min(1, opacity * 1.25))))
+                drawing.fill(eyes, with: .color(eyeColor.opacity(min(1, opacity * 1.25))))
                 var pupils = Path()
                 pupils.addEllipse(in: CGRect(x: 276, y: 126, width: 5, height: 10))
                 pupils.addEllipse(in: CGRect(x: 315, y: 123, width: 5, height: 10))
-                drawing.fill(pupils, with: .color(motifTint.opacity(min(1, opacity * 0.48))))
+                drawing.fill(pupils, with: .color(Color.black.opacity(min(1, opacity * 0.72))))
             }
             var details = Path()
             let detailColor = motifTint.opacity(min(1, opacity * 0.62))
@@ -1118,10 +1119,18 @@ private struct HomeAnimatedCreatureMotif: View {
                 break
             }
             drawing.stroke(details, with: .color(detailColor), style: StrokeStyle(lineWidth: 4.2, lineCap: .round, lineJoin: .round))
-            if shape == .snake || shape == .wolf || shape == .cat {
+            if shape == .snake || shape == .wolf || shape == .cat || shape == .bird {
                 var eye = Path()
-                eye.addEllipse(in: CGRect(x: shape == .snake ? 224 : (shape == .wolf ? 282 : 245), y: shape == .snake ? 57 : (shape == .wolf ? 123 : 151), width: 7, height: 7))
-                drawing.fill(eye, with: .color(motifTint.opacity(min(1, opacity * 0.95))))
+                let eyeRect: CGRect
+                switch shape {
+                case .snake: eyeRect = CGRect(x: 224, y: 57, width: 8, height: 6)
+                case .wolf: eyeRect = CGRect(x: 282, y: 123, width: 7, height: 7)
+                case .cat: eyeRect = CGRect(x: 245, y: 151, width: 7, height: 7)
+                case .bird: eyeRect = CGRect(x: 207, y: 145, width: 9, height: 7)
+                default: eyeRect = .zero
+                }
+                eye.addEllipse(in: eyeRect)
+                drawing.fill(eye, with: .color(shape == .snake || shape == .bird ? eyeColor.opacity(min(1, opacity * 1.15)) : motifTint.opacity(min(1, opacity * 0.95))))
             }
         }
         .frame(width: size.width, height: size.height)
@@ -1181,6 +1190,28 @@ struct EclipseAmbientMotionBackground: View {
 
     private var selectedShape: HomeAnimatedBackgroundShape {
         HomeAnimatedBackgroundShape.resolved(shapeRawValue)
+    }
+
+    @AppStorage("homeAnimatedBackgroundToothlessEyeColorData") private var toothlessEyeColorData = Data()
+    @AppStorage("homeAnimatedBackgroundCobraEyeColorData") private var cobraEyeColorData = Data()
+    @AppStorage("homeAnimatedBackgroundHawkEyeColorData") private var hawkEyeColorData = Data()
+
+    private func archivedEyeColor(_ data: Data, fallback: Color) -> Color {
+        guard !data.isEmpty, let archived = try? PortableColorArchive.color(from: data) else { return fallback }
+#if os(macOS)
+        return Color(nsColor: archived)
+#else
+        return Color(uiColor: archived)
+#endif
+    }
+
+    private var selectedCreatureEyeColor: Color {
+        switch selectedShape {
+        case .dragon: return archivedEyeColor(toothlessEyeColorData, fallback: Color(red: 1.0, green: 0.78, blue: 0.20))
+        case .snake: return archivedEyeColor(cobraEyeColorData, fallback: Color(red: 1.0, green: 0.72, blue: 0.20))
+        case .bird: return archivedEyeColor(hawkEyeColorData, fallback: Color(red: 1.0, green: 0.82, blue: 0.34))
+        default: return primaryColor
+        }
     }
 
     var body: some View {
@@ -1392,6 +1423,7 @@ struct EclipseAmbientMotionBackground: View {
             let motif = HomeAnimatedCreatureMotif(
                 shape: selectedShape,
                 color: primaryColor,
+                eyeColor: selectedCreatureEyeColor,
                 opacity: shapeOpacity,
                 size: CGSize(width: motifSize * 4 / 3, height: motifSize),
                 phase: seconds
