@@ -1405,8 +1405,21 @@ class TMDBService: ObservableObject {
     }
 
     private func getFastTrendingAnime(limit: Int, adultKeywordIDs: [Int]) async throws -> [TMDBSearchResult] {
-        let trending = try await getTrending(mediaType: "tv", timeWindow: "week")
-            .filter { self.isFastAnimeSearchResult($0) }
+        let trending: [TMDBSearchResult]
+        do {
+            trending = try await getTrending(mediaType: "tv", timeWindow: "week")
+                .filter { self.isFastAnimeSearchResult($0) }
+        } catch {
+            // The trending endpoint is an optional seed, not the only Anime
+            // provider. Fall back to the regional TV discover catalogs when
+            // trending is unavailable so Anime Browse still has results.
+            Logger.shared.log(
+                "TMDB trending anime seed failed; using regional discover fallback: \(error.localizedDescription)",
+                type: "AniList"
+            )
+            trending = []
+        }
+
         guard trending.count < min(limit, 10) else {
             return deduplicatedFastAnimeResults(trending)
         }
