@@ -580,18 +580,17 @@ enum HomeAnimatedBackgroundShape: String, CaseIterable, Identifiable {
 
     var glyph: String {
         switch self {
-        case .wolf: return "🐺"
-        case .paw: return "🐾"
+        case .wolf: return "\u{1F43A}\u{FE0E}"
+        case .paw: return "\u{1F43E}\u{FE0E}"
         case .stars: return "✦"
         case .crescentMoon: return "☾"
         case .sun: return "☀"
-        // Prefer full-body/pose-specific glyphs where Unicode provides them.
-        // Detailed character artwork is supplied by the dedicated shape renderer.
-        case .cat: return "🐈‍⬛"
-        case .mermaid: return "🧜‍♀️"
-        case .bird: return "🦅"
-        case .snake: return "🐍"
-        case .dragon: return "🐉"
+        // Text-presentation glyphs honour foregroundColor, unlike multicolour emoji.
+        case .cat: return "\u{1F408}\u{FE0E}"       // seated cat
+        case .mermaid: return "\u{1F9DC}\u{FE0E}"
+        case .bird: return "\u{1F985}\u{FE0E}"      // hawk/eagle
+        case .snake: return "\u{1F40D}\u{FE0E}"     // cobra-like snake
+        case .dragon: return "\u{1F409}\u{FE0E}"    // full dragon glyph
         }
     }
 
