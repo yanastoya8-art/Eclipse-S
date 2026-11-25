@@ -610,19 +610,21 @@ struct DownloadsView: View {
                     // cookies and provider tokens), so it fails outside Eclipse.
                     // Expose the authenticated stream through the app's LAN proxy
                     // when headers are required; header-free URLs remain direct.
-                    let shareURL: URL
-                    if !item.headers.isEmpty,
-                       let authenticatedURL = MPVHeaderProxy.shared.makeLANProxyURL(
-                            for: sourceURL,
-                            headers: item.headers,
-                            logType: "Download",
-                            asDownload: true
-                       ) {
-                        shareURL = authenticatedURL
+                    if item.headers.isEmpty {
+                        UIPasteboard.general.url = sourceURL
+                    } else if let authenticatedURL = MPVHeaderProxy.shared.makeLANProxyURL(
+                        for: sourceURL,
+                        headers: item.headers,
+                        logType: "Download",
+                        asDownload: true
+                    ) {
+                        UIPasteboard.general.url = authenticatedURL
                     } else {
-                        shareURL = sourceURL
+                        // Never put a header-dependent URL on the clipboard
+                        // without its authentication transport: that link
+                        // would appear valid but fail when opened elsewhere.
+                        Logger.shared.log("Could not create an authenticated download link for \(item.displayTitle)", type: "Download")
                     }
-                    UIPasteboard.general.url = shareURL
                 } label: {
                     Label("Copy Download Link", systemImage: "link")
                 }
