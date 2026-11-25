@@ -1461,7 +1461,7 @@ class TMDBService: ObservableObject {
                             return (countryIndex, page, shows)
                         } catch {
                             Logger.shared.log(
-                                "TMDB anime catalog country \\(country) page \\(page) failed: \\(error.localizedDescription)",
+                                "TMDB anime catalog country \(country) page \(page) failed: \(error.localizedDescription)",
                                 type: "AniList"
                             )
                             return (countryIndex, page, [])
