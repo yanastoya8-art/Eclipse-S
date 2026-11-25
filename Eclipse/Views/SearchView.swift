@@ -861,7 +861,7 @@ struct SearchView: View {
                 // One TMDB page is enough for interactive search. Fetching
                 // a second page for every keystroke added latency without
                 // improving exact-title lookup in the common case.
-                var results = try await tmdbService.searchMulti(query: query, maxPages: 1)
+                var results = try await tmdbService.searchMulti(query: query, maxPages: 2)
                 try Task.checkCancellation()
                 let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
                 let requiresGlobalAnimeAgeRating = UserDefaults.standard.bool(forKey: "catalogHideBelowPG13Anime")
