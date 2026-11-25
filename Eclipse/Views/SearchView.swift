@@ -873,13 +873,30 @@ struct SearchView: View {
                 // endpoint; only the Movies filter can safely skip it.
                 let shouldSearchTVEndpoint = searchFilter != .movies
                 if shouldSearchTVEndpoint {
+                    var seen = Set(results.map(\.stableIdentity))
                     if let tvResults = try? await tmdbService.searchTVShows(query: query, maxPages: 2) {
                         try Task.checkCancellation()
-                        var seen = Set(results.map(\.stableIdentity))
-                        let supplemental = tvResults
+                        results.append(contentsOf: tvResults
                             .map(\.asSearchResult)
-                            .filter { seen.insert($0.stableIdentity).inserted }
-                        results.append(contentsOf: supplemental)
+                            .filter { seen.insert($0.stableIdentity).inserted })
+                    }
+
+                    // TMDB applies the selected display language to search
+                    // ranking. A localized search can omit an English-original
+                    // series even though the dedicated TV index finds it in
+                    // English. Merge an English index pass instead of allowing
+                    // "All" or "TV Shows" to report a false empty result.
+                    if selectedLanguage.caseInsensitiveCompare("en-US") != .orderedSame {
+                        if let englishTVResults = try? await tmdbService.searchTVShows(
+                            query: query,
+                            languageOverride: "en-US",
+                            maxPages: 2
+                        ) {
+                            try Task.checkCancellation()
+                            results.append(contentsOf: englishTVResults
+                                .map(\.asSearchResult)
+                                .filter { seen.insert($0.stableIdentity).inserted })
+                        }
                     }
                 }
 
