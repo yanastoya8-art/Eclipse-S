@@ -2583,6 +2583,7 @@ private struct ExtraServiceSettingsView: View {
     @State private var streamCardColor = ServicesStreamAppearanceSettings.streamCardColor()
     @State private var streamIconColor = ServicesStreamAppearanceSettings.streamIconColor()
     @AppStorage(ServicesStreamAppearanceSettings.hideAddonMessagesKey, store: ProfileSettingsStore.services) private var hideAddonMessages = ServicesStreamAppearanceSettings.defaultHideAddonMessages
+    @AppStorage(StreamURLBlocklistSettings.storageKey, store: ProfileSettingsStore.services) private var blockedStreamURLsText = ""
     @AppStorage(ServicesStreamAppearanceSettings.showStreamFrameKey, store: ProfileSettingsStore.services) private var showStreamFrame = ServicesStreamAppearanceSettings.defaultShowStreamFrame
     @State private var streamFrameColor = ServicesStreamAppearanceSettings.streamFrameColor()
     @State private var streamFrameWidth = ServicesStreamAppearanceSettings.streamFrameWidth()
@@ -2772,6 +2773,18 @@ private struct ExtraServiceSettingsView: View {
                 .onChangeComp(of: streamCardCornerRadius) { _, radius in
                     ServicesStreamAppearanceSettings.setStreamCardCornerRadius(radius)
                 }
+
+                Section {
+                    TextEditor(text: $blockedStreamURLsText)
+                        .frame(minHeight: 110)
+                        .accessibilityLabel("Blocked stream URLs")
+                        .id(ServicesSettingsSearchTarget.blockedStreamURLs.anchorID)
+                } header: {
+                    Text("Blocked Stream URLs")
+                } footer: {
+                    Text("Paste one complete HTTP or HTTPS stream URL per line. Matching streams are hidden across services, Stremio add-ons, SkyStream and Nuvio. Remove a line to allow that stream again.")
+                }
+                .disabled(!isAdministrable)
 
                 Section {
                     Toggle(isOn: $blockAddonSubtitles) {
