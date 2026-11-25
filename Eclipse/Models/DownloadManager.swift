@@ -7169,6 +7169,22 @@ final class DownloadManager: NSObject, ObservableObject {
         activeHLSDownloaders[item.id] = downloader
         activeHLSAttemptIDs[item.id] = attemptID
 
+#if os(iOS) && !targetEnvironment(macCatalyst)
+        // Acquire the continued-processing grant before starting playlist and
+        // segment work. Waiting for onResumeManifestResolved left a window in
+        // which iOS could suspend a brand-new download before its first
+        // checkpoint/manifest callback, so it never received a background grant.
+        if let backgroundIntent {
+            beginHLSBackgroundAttempt(
+                id: item.id,
+                attemptID: attemptID,
+                intent: backgroundIntent,
+                protectedAttemptID: protectedNuvioAttemptID,
+                downloader: downloader
+            )
+        }
+#endif
+
         if let index = downloads.firstIndex(where: { $0.id == item.id }) {
             downloads[index].status = .downloading
 
