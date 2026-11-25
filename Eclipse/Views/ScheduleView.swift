@@ -26,6 +26,11 @@ struct ScheduleView: View {
     @StateObject private var viewModel: ScheduleViewModel
     @StateObject private var accentColorManager = AccentColorManager.shared
     @AppStorage(ScheduleCardAppearanceSettings.colorDataKey) private var scheduleCardColorData = Data()
+    @AppStorage("scheduleControlsCornerRadius") private var scheduleControlsCornerRadiusValue = 14.0
+
+    private var scheduleControlsCornerRadius: CGFloat {
+        CGFloat(min(max(scheduleControlsCornerRadiusValue, 0), 32))
+    }
     @StateObject private var glassAppearance = LiquidGlassAppearanceSettings.shared
 
     @ObservedObject private var contentFilter = TMDBContentFilter.shared
@@ -1042,7 +1047,7 @@ struct ScheduleView: View {
                             .frame(maxWidth: .infinity)
                             .frame(height: 56)
                             .background(
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                RoundedRectangle(cornerRadius: scheduleControlsCornerRadius, style: .continuous)
                                     .fill(
                                         selectedScheduleMode == mode
                                             ? accentColorManager.currentAccentColor.opacity(0.8)
@@ -1060,13 +1065,14 @@ struct ScheduleView: View {
                 }
             }
             .pickerStyle(.segmented)
+            .clipShape(RoundedRectangle(cornerRadius: scheduleControlsCornerRadius, style: .continuous))
             .tint(accentColorManager.currentAccentColor)
 #endif
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .applyLiquidGlassBackground(
-            cornerRadius: 10,
+            cornerRadius: scheduleControlsCornerRadius,
             fallbackFill: glassAppearance.darkBarColor.opacity(0.42),
             glassTint: glassAppearance.darkBarColor.opacity(0.30)
         )
@@ -1160,11 +1166,11 @@ struct ScheduleView: View {
             .frame(width: 64, height: 80)
 #endif
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: scheduleControlsCornerRadius, style: .continuous)
                     .fill(selected ? accentColorManager.currentAccentColor : Color.white.opacity(0.07))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: scheduleControlsCornerRadius, style: .continuous)
                     .strokeBorder(
                         isToday && !selected ? accentColorManager.currentAccentColor.opacity(0.6) : Color.white.opacity(0.08),
                         lineWidth: 1
