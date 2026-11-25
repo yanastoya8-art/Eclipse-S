@@ -1390,11 +1390,13 @@ private struct HomeAnimatedCreatureMotif: View {
                 volumePlanes.closeSubpath()
             }
         }
-        drawing.fill(
+        var volumeDrawing = drawing
+        volumeDrawing.clip(to: fill)
+        volumeDrawing.fill(
             volumePlanes,
             with: .color(motifTint.opacity(min(1, motifAlpha * 0.22)))
         )
-        drawing.stroke(
+        volumeDrawing.stroke(
             volumePlanes,
             with: .color(motifTint.opacity(min(1, motifAlpha * 0.56))),
             style: StrokeStyle(lineWidth: 1.15, lineCap: .round, lineJoin: .round)
