@@ -7169,6 +7169,17 @@ final class DownloadManager: NSObject, ObservableObject {
         activeHLSDownloaders[item.id] = downloader
         activeHLSAttemptIDs[item.id] = attemptID
 
+        if let index = downloads.firstIndex(where: { $0.id == item.id }) {
+            downloads[index].status = .downloading
+
+            if resumeSegment == 0 {
+                downloads[index].progress = 0
+                downloads[index].downloadedBytes = 0
+                downloads[index].totalBytes = 0
+            }
+            saveDownloads()
+        }
+
 #if os(iOS) && !targetEnvironment(macCatalyst)
         // Acquire the continued-processing grant before starting playlist and
         // segment work. Waiting for onResumeManifestResolved left a window in
@@ -7184,17 +7195,6 @@ final class DownloadManager: NSObject, ObservableObject {
             )
         }
 #endif
-
-        if let index = downloads.firstIndex(where: { $0.id == item.id }) {
-            downloads[index].status = .downloading
-
-            if resumeSegment == 0 {
-                downloads[index].progress = 0
-                downloads[index].downloadedBytes = 0
-                downloads[index].totalBytes = 0
-            }
-            saveDownloads()
-        }
 
         downloader.start()
 
