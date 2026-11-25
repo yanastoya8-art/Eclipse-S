@@ -34,6 +34,9 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
     case customAnimationColor
     case animationFrameRate
     case animationShape
+    case animationShapeEnabled
+    case animationShapeOpacity
+    case animationShapeSize
     case appPerformanceOverlay
     case hideSplashScreen
     case alternativeSeasonMenu
@@ -73,7 +76,7 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
             return "theme"
         case .interface, .globalAppearance, .accentColor, .liquidGlassDarkBarColor, .liquidGlassLightBarColor, .liquidGlassBottomBarColor, .browseFilterChipColor, .browseFilterButtonColor, .browseFilterOptionsColor:
             return "interface"
-        case .animatedBackground, .animationQuality, .animationColor, .customAnimationColor, .animationFrameRate, .animationShape, .appPerformanceOverlay:
+        case .animatedBackground, .animationQuality, .animationColor, .customAnimationColor, .animationFrameRate, .animationShape, .animationShapeEnabled, .animationShapeOpacity, .animationShapeSize, .appPerformanceOverlay:
             return "animation"
         case .hideSplashScreen:
             return "startup"
@@ -131,6 +134,9 @@ struct AlternativeUIView: View {
     @AppStorage(HomeAnimatedBackgroundFrameRate.storageKey) private var homeAnimatedBackgroundFrameRate = HomeAnimatedBackgroundFrameRate.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundParticleColor.storageKey) private var homeAnimatedBackgroundParticleColor = HomeAnimatedBackgroundParticleColor.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundShape.storageKey) private var homeAnimatedBackgroundShape = HomeAnimatedBackgroundShape.defaultValue.rawValue
+    @AppStorage(HomeAnimatedBackgroundSettings.shapeEnabledKey) private var homeAnimatedBackgroundShapeEnabled = HomeAnimatedBackgroundSettings.defaultShapeEnabled
+    @AppStorage(HomeAnimatedBackgroundSettings.shapeOpacityKey) private var homeAnimatedBackgroundShapeOpacity = HomeAnimatedBackgroundSettings.defaultShapeOpacity
+    @AppStorage(HomeAnimatedBackgroundSettings.shapeSizeKey) private var homeAnimatedBackgroundShapeSize = HomeAnimatedBackgroundSettings.defaultShapeSize
     @AppStorage(HomeAnimatedBackgroundParticleColor.customColorDataKey) private var customAnimationParticleColorData = Data()
     @AppStorage(AppPerformanceOverlaySettings.enabledKey) private var appPerformanceOverlayEnabled = AppPerformanceOverlaySettings.defaultEnabled
 #if !os(tvOS)
@@ -595,6 +601,32 @@ struct AlternativeUIView: View {
                 .accessibilityValue(HomeAnimatedBackgroundShape.resolved(homeAnimatedBackgroundShape).displayName)
                 .id(AppearanceSettingsSearchTarget.animationShape.anchorID)
             }
+
+            toggleRow(
+                title: "Show Animation Shape",
+                description: "Hide the floating motif while keeping the ambient rings and particles animated.",
+                isOn: $homeAnimatedBackgroundShapeEnabled
+            )
+            .id(AppearanceSettingsSearchTarget.animationShapeEnabled.anchorID)
+
+            sliderRow(
+                title: "Animation Shape Opacity",
+                description: "Adjust how transparent the floating motif appears.",
+                value: $homeAnimatedBackgroundShapeOpacity,
+                range: 0...1,
+                step: 0.05
+            )
+            .id(AppearanceSettingsSearchTarget.animationShapeOpacity.anchorID)
+
+            sliderRow(
+                title: "Animation Shape Size",
+                description: "Scale the floating motif independently of the rest of the animated background.",
+                value: $homeAnimatedBackgroundShapeSize,
+                range: 0.5...1.8,
+                step: 0.05,
+                format: "%.2fx"
+            )
+            .id(AppearanceSettingsSearchTarget.animationShapeSize.anchorID)
 
             settingRow(
                 title: "Animation Quality",
