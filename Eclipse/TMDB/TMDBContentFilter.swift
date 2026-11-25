@@ -1871,6 +1871,7 @@ class TMDBContentFilter: ObservableObject {
                             let detail = try await TMDBService.shared.getTVShowDetails(id: result.id)
                             names = (detail.productionCompanies ?? []).map(\.name)
                                 + (detail.networks ?? []).map(\.name)
+                                + (detail.createdBy ?? []).map(\.name)
                         }
                         return (key, names, true)
                     } catch {
@@ -2185,6 +2186,11 @@ class TMDBContentFilter: ObservableObject {
             "youtuber studio", "youtuber studios", "youtuber production",
             "web creator", "video creator", "creator production",
             "dhar mann", "mrbeast", "smosh", "the try guys", "watcher entertainment",
+            "markiplier", "jacksepticeye", "logan paul", "jake paul", "sidemen",
+            "sssniperwolf", "the stokes twins", "ben azelart", "brent rivera",
+            "prestonplayz", "unspeakable", "the royalty family", "zach king",
+            "ryan trahan", "airrack", "lexi rivera", "vlad and niki",
+            "like nastya", "kids diana show",
             "rooster teeth", "jubilee media", "dude perfect", "the soul publishing",
             "alan chikin chow", "studio71", "jellysmack", "mythical entertainment"
         ]
