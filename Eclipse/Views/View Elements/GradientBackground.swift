@@ -445,6 +445,7 @@ struct SettingsGradientBackground: View {
     @ObservedObject private var theme = EclipseTheme.shared
     @AppStorage(HomeAnimatedBackgroundSettings.enabledKey) private var animatedBackgroundEnabled = HomeAnimatedBackgroundSettings.defaultEnabled
     var allowsAnimatedBackground: Bool = true
+    var allowsAnimatedShape: Bool = true
 
     @ViewBuilder
     var body: some View {
@@ -458,7 +459,8 @@ struct SettingsGradientBackground: View {
                         topClearance: 0,
                         ambientColor: nil,
                         accentColor: theme.scopedGradientColor(),
-                        motionEnabled: !reduceMotion && scenePhase == .active
+                        motionEnabled: !reduceMotion && scenePhase == .active,
+                        allowsAnimatedShape: allowsAnimatedShape
                     )
                 }
             }
@@ -607,6 +609,10 @@ enum HomeAnimatedBackgroundSettings {
     static let shapeSizeKey = "homeAnimatedBackgroundShapeSize"
     static let shapeGlowKey = "homeAnimatedBackgroundShapeGlow"
     static let shapeBrightnessKey = "homeAnimatedBackgroundShapeBrightness"
+    static let detailBackgroundKey = "detailAnimatedBackgroundEnabled"
+    static let detailShapeKey = "detailAnimatedShapeEnabled"
+    static let downloadsBackgroundKey = "downloadsAnimatedBackgroundEnabled"
+    static let downloadsShapeKey = "downloadsAnimatedShapeEnabled"
     static let defaultEnabled = true
     static let defaultShapeEnabled = true
     static let defaultShapeOpacity = 0.82
@@ -705,6 +711,7 @@ struct EclipseIsolatedAmbientMotionBackground: View {
     let ambientColor: Color?
     let accentColor: Color
     let motionEnabled: Bool
+    var allowsAnimatedShape: Bool = true
 
     var body: some View {
 #if os(iOS)
@@ -712,14 +719,16 @@ struct EclipseIsolatedAmbientMotionBackground: View {
             topClearance: topClearance,
             ambientColor: ambientColor,
             accentColor: accentColor,
-            motionEnabled: motionEnabled
+            motionEnabled: motionEnabled,
+            allowsAnimatedShape: allowsAnimatedShape
         )
 #else
         EclipseAmbientMotionBackground(
             topClearance: topClearance,
             ambientColor: ambientColor,
             accentColor: accentColor,
-            motionEnabled: motionEnabled
+            motionEnabled: motionEnabled,
+            allowsAnimatedShape: allowsAnimatedShape
         )
 #endif
     }
@@ -731,13 +740,15 @@ private struct EclipseAmbientMotionHostedRoot: View {
     let ambientColor: Color?
     let accentColor: Color
     let motionEnabled: Bool
+    var allowsAnimatedShape: Bool = true
 
     var body: some View {
         EclipseAmbientMotionBackground(
             topClearance: topClearance,
             ambientColor: ambientColor,
             accentColor: accentColor,
-            motionEnabled: motionEnabled
+            motionEnabled: motionEnabled,
+            allowsAnimatedShape: allowsAnimatedShape
         )
         .ignoresSafeArea(.all)
     }
@@ -748,6 +759,7 @@ private struct EclipseAmbientConfig: Equatable {
     let ambientColor: Color?
     let accentColor: Color
     let motionEnabled: Bool
+    let allowsAnimatedShape: Bool
 }
 
 private struct EclipseAmbientMotionHostingBoundary: UIViewControllerRepresentable {
@@ -755,13 +767,15 @@ private struct EclipseAmbientMotionHostingBoundary: UIViewControllerRepresentabl
     let ambientColor: Color?
     let accentColor: Color
     let motionEnabled: Bool
+    let allowsAnimatedShape: Bool
 
     private var hostedRoot: EclipseAmbientMotionHostedRoot {
         EclipseAmbientMotionHostedRoot(
             topClearance: topClearance,
             ambientColor: ambientColor,
             accentColor: accentColor,
-            motionEnabled: motionEnabled
+            motionEnabled: motionEnabled,
+            allowsAnimatedShape: allowsAnimatedShape
         )
     }
 
@@ -770,7 +784,8 @@ private struct EclipseAmbientMotionHostingBoundary: UIViewControllerRepresentabl
             topClearance: topClearance,
             ambientColor: ambientColor,
             accentColor: accentColor,
-            motionEnabled: motionEnabled
+            motionEnabled: motionEnabled,
+            allowsAnimatedShape: allowsAnimatedShape
         )
     }
 
@@ -1275,6 +1290,7 @@ struct EclipseAmbientMotionBackground: View {
     let ambientColor: Color?
     let accentColor: Color
     let motionEnabled: Bool
+    var allowsAnimatedShape: Bool = true
     @AppStorage(HomeAnimatedBackgroundQuality.storageKey) private var qualityRawValue = HomeAnimatedBackgroundQuality.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundFrameRate.storageKey) private var frameRateRawValue = HomeAnimatedBackgroundFrameRate.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundParticleColor.storageKey) private var particleColorRawValue = HomeAnimatedBackgroundParticleColor.defaultValue.rawValue
@@ -1545,7 +1561,7 @@ struct EclipseAmbientMotionBackground: View {
             )
         }
 
-        if shapeEnabled && shapeOpacity > 0 {
+        if shapeEnabled && allowsAnimatedShape && shapeOpacity > 0 {
             let shapePulse = lerp(0.94, 1.06, pulse)
             let shapeCenter = CGPoint(
                 x: center.x + driftX * 0.55,

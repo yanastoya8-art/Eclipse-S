@@ -151,6 +151,10 @@ struct AlternativeUIView: View {
     @AppStorage(HomeAnimatedBackgroundSettings.shapeSizeKey) private var homeAnimatedBackgroundShapeSize = HomeAnimatedBackgroundSettings.defaultShapeSize
     @AppStorage(HomeAnimatedBackgroundSettings.shapeGlowKey) private var homeAnimatedBackgroundShapeGlow = HomeAnimatedBackgroundSettings.defaultShapeGlow
     @AppStorage(HomeAnimatedBackgroundSettings.shapeBrightnessKey) private var homeAnimatedBackgroundShapeBrightness = HomeAnimatedBackgroundSettings.defaultShapeBrightness
+    @AppStorage(HomeAnimatedBackgroundSettings.detailBackgroundKey) private var detailAnimatedBackgroundEnabled = true
+    @AppStorage(HomeAnimatedBackgroundSettings.detailShapeKey) private var detailAnimatedShapeEnabled = true
+    @AppStorage(HomeAnimatedBackgroundSettings.downloadsBackgroundKey) private var downloadsAnimatedBackgroundEnabled = true
+    @AppStorage(HomeAnimatedBackgroundSettings.downloadsShapeKey) private var downloadsAnimatedShapeEnabled = true
     @AppStorage(HomeAnimatedBackgroundParticleColor.customColorDataKey) private var customAnimationParticleColorData = Data()
     @AppStorage("homeAnimatedBackgroundToothlessEyeColorData") private var toothlessEyeColorData = Data()
     @AppStorage("homeAnimatedBackgroundCobraEyeColorData") private var cobraEyeColorData = Data()
@@ -605,6 +609,16 @@ struct AlternativeUIView: View {
                 isOn: $homeAnimatedBackgroundEnabled
             )
             .id(AppearanceSettingsSearchTarget.animatedBackground.anchorID)
+
+
+            Section {
+                toggleRow(title: "Detail Page Animated Background", description: "Show ambient motion on media detail pages.", isOn: $detailAnimatedBackgroundEnabled)
+                toggleRow(title: "Detail Page Animation Shape", description: "Show the selected floating shape on media detail pages.", isOn: $detailAnimatedShapeEnabled)
+                toggleRow(title: "Downloads Animated Background", description: "Show ambient motion on Downloads and downloaded-show pages.", isOn: $downloadsAnimatedBackgroundEnabled)
+                toggleRow(title: "Downloads Animation Shape", description: "Show the selected floating shape on Downloads and downloaded-show pages.", isOn: $downloadsAnimatedShapeEnabled)
+            } header: {
+                Text("Page Appearance")
+            }
 
             settingRow(
                 title: "Animation Shape",
