@@ -2638,6 +2638,16 @@ final class DownloadManager: NSObject, ObservableObject {
         // marker and remain paused until the user resumes them.
         resumeHLSDownloadsInterruptedByBackgroundExpiration()
         resumeOrphanedHLSDownloads()
+
+        // Reconcile the OS-owned background URLSession after every foreground
+        // transition. The app process can be suspended while URLSession keeps
+        // transferring; refreshing the task list reattaches delegate ownership
+        // and resumes any still-active task that was left suspended. Do not
+        // start a second restore while the launch-time reconciliation is running.
+        if !restoringBackgroundTasks {
+            restoringBackgroundTasks = true
+            resumeInterruptedDownloads()
+        }
         processQueue()
 #if os(iOS) && !targetEnvironment(macCatalyst)
         attachLiveActivitiesToActiveHLSDownloads()
