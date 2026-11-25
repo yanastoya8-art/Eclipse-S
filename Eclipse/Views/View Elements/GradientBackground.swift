@@ -857,6 +857,10 @@ private struct HomeAnimatedCreatureMotif: View {
         drawing.translateBy(x: canvasSize.width / 2, y: canvasSize.height / 2)
         drawing.rotate(by: .degrees(sin(phase * 0.55) * 1.4))
         drawing.translateBy(x: -canvasSize.width / 2, y: -canvasSize.height / 2)
+        let breathingScale = 1.0 + sin(phase * 1.15) * 0.012
+        drawing.translateBy(x: canvasSize.width / 2, y: canvasSize.height / 2)
+        drawing.scaleBy(x: breathingScale, y: breathingScale)
+        drawing.translateBy(x: -canvasSize.width / 2, y: -canvasSize.height / 2)
         drawing.scaleBy(x: sx, y: sy)
         let fill = Path { path in
             switch shape {
@@ -1015,73 +1019,54 @@ private struct HomeAnimatedCreatureMotif: View {
                 path.addCurve(to: CGPoint(x: 216, y: 239), control1: CGPoint(x: 292, y: 222), control2: CGPoint(x: 256, y: 222))
                 path.closeSubpath()
             case .dragon:
-                // Toothless-inspired Night Fury: broad catlike head, short ear-fins,
-                // compact torso, four expressive bat wings, sturdy little legs and
-                // the split prosthetic tail fin. All surfaces inherit the chosen tint.
-                // Rear wings, with scalloped membranes and long finger bones.
-                path.move(to: CGPoint(x: 190, y: 151))
-                path.addCurve(to: CGPoint(x: 34, y: 43), control1: CGPoint(x: 116, y: 86), control2: CGPoint(x: 68, y: 19))
-                path.addCurve(to: CGPoint(x: 65, y: 123), control1: CGPoint(x: 29, y: 82), control2: CGPoint(x: 45, y: 107))
-                path.addLine(to: CGPoint(x: 91, y: 151))
-                path.addCurve(to: CGPoint(x: 112, y: 130), control1: CGPoint(x: 99, y: 145), control2: CGPoint(x: 107, y: 136))
-                path.addCurve(to: CGPoint(x: 143, y: 177), control1: CGPoint(x: 124, y: 142), control2: CGPoint(x: 135, y: 159))
-                path.addLine(to: CGPoint(x: 190, y: 185))
+                // Front-facing chibi Night Fury, matching the Pinterest reference:
+                // oversized rounded head, bright forward eyes, compact paws, broad
+                // scalloped wings and a curled split tail fin behind the body.
+                // Left rear wing.
+                path.move(to: CGPoint(x: 166, y: 151))
+                path.addCurve(to: CGPoint(x: 34, y: 61), control1: CGPoint(x: 111, y: 105), control2: CGPoint(x: 70, y: 39))
+                path.addCurve(to: CGPoint(x: 67, y: 156), control1: CGPoint(x: 25, y: 102), control2: CGPoint(x: 44, y: 139))
+                path.addCurve(to: CGPoint(x: 139, y: 185), control1: CGPoint(x: 83, y: 166), control2: CGPoint(x: 112, y: 184))
                 path.closeSubpath()
-
-                path.move(to: CGPoint(x: 218, y: 151))
-                path.addCurve(to: CGPoint(x: 366, y: 43), control1: CGPoint(x: 292, y: 86), control2: CGPoint(x: 332, y: 19))
-                path.addCurve(to: CGPoint(x: 337, y: 123), control1: CGPoint(x: 371, y: 82), control2: CGPoint(x: 354, y: 107))
-                path.addLine(to: CGPoint(x: 311, y: 151))
-                path.addCurve(to: CGPoint(x: 290, y: 130), control1: CGPoint(x: 303, y: 145), control2: CGPoint(x: 295, y: 136))
-                path.addCurve(to: CGPoint(x: 259, y: 177), control1: CGPoint(x: 278, y: 142), control2: CGPoint(x: 267, y: 159))
-                path.addLine(to: CGPoint(x: 218, y: 185))
+                // Right rear wing.
+                path.move(to: CGPoint(x: 234, y: 151))
+                path.addCurve(to: CGPoint(x: 366, y: 61), control1: CGPoint(x: 289, y: 105), control2: CGPoint(x: 330, y: 39))
+                path.addCurve(to: CGPoint(x: 333, y: 156), control1: CGPoint(x: 375, y: 102), control2: CGPoint(x: 356, y: 139))
+                path.addCurve(to: CGPoint(x: 261, y: 185), control1: CGPoint(x: 317, y: 166), control2: CGPoint(x: 288, y: 184))
                 path.closeSubpath()
-
-                // Rear legs and rounded, low-slung body.
-                path.move(to: CGPoint(x: 167, y: 166))
-                path.addCurve(to: CGPoint(x: 253, y: 168), control1: CGPoint(x: 187, y: 136), control2: CGPoint(x: 232, y: 137))
-                path.addCurve(to: CGPoint(x: 275, y: 196), control1: CGPoint(x: 274, y: 176), control2: CGPoint(x: 284, y: 187))
-                path.addCurve(to: CGPoint(x: 246, y: 216), control1: CGPoint(x: 268, y: 213), control2: CGPoint(x: 258, y: 220))
-                path.addLine(to: CGPoint(x: 226, y: 207))
-                path.addLine(to: CGPoint(x: 216, y: 239))
-                path.addCurve(to: CGPoint(x: 184, y: 239), control1: CGPoint(x: 209, y: 248), control2: CGPoint(x: 190, y: 248))
-                path.addLine(to: CGPoint(x: 183, y: 207))
-                path.addLine(to: CGPoint(x: 157, y: 214))
-                path.addCurve(to: CGPoint(x: 137, y: 197), control1: CGPoint(x: 142, y: 216), control2: CGPoint(x: 132, y: 207))
-                path.addCurve(to: CGPoint(x: 167, y: 166), control1: CGPoint(x: 139, y: 180), control2: CGPoint(x: 151, y: 168))
+                // Rounded torso and stout hindquarters.
+                path.addEllipse(in: CGRect(x: 145, y: 150, width: 110, height: 119))
+                // Curled tail and asymmetrical prosthetic fin.
+                path.move(to: CGPoint(x: 154, y: 216))
+                path.addCurve(to: CGPoint(x: 91, y: 254), control1: CGPoint(x: 137, y: 247), control2: CGPoint(x: 111, y: 260))
+                path.addCurve(to: CGPoint(x: 61, y: 225), control1: CGPoint(x: 65, y: 252), control2: CGPoint(x: 55, y: 238))
+                path.addLine(to: CGPoint(x: 91, y: 211))
+                path.addLine(to: CGPoint(x: 77, y: 186))
+                path.addCurve(to: CGPoint(x: 132, y: 211), control1: CGPoint(x: 87, y: 199), control2: CGPoint(x: 112, y: 211))
+                path.addCurve(to: CGPoint(x: 154, y: 216), control1: CGPoint(x: 143, y: 214), control2: CGPoint(x: 150, y: 215))
                 path.closeSubpath()
-
-                // Forelegs with rounded paws and small toes.
-                path.move(to: CGPoint(x: 239, y: 184))
-                path.addCurve(to: CGPoint(x: 263, y: 220), control1: CGPoint(x: 257, y: 191), control2: CGPoint(x: 266, y: 208))
-                path.addLine(to: CGPoint(x: 255, y: 237))
-                path.addCurve(to: CGPoint(x: 230, y: 235), control1: CGPoint(x: 250, y: 246), control2: CGPoint(x: 235, y: 246))
-                path.addLine(to: CGPoint(x: 226, y: 211))
+                // Short forelegs and oversized rounded paws in front.
+                path.move(to: CGPoint(x: 157, y: 194))
+                path.addCurve(to: CGPoint(x: 143, y: 246), control1: CGPoint(x: 144, y: 208), control2: CGPoint(x: 133, y: 235))
+                path.addCurve(to: CGPoint(x: 190, y: 250), control1: CGPoint(x: 151, y: 264), control2: CGPoint(x: 177, y: 263))
+                path.addLine(to: CGPoint(x: 196, y: 222))
                 path.closeSubpath()
-
-                // Tail curls back to the signature two-piece fin; one lobe is visibly
-                // shorter to suggest the repaired/prosthetic side.
-                path.move(to: CGPoint(x: 158, y: 198))
-                path.addCurve(to: CGPoint(x: 91, y: 246), control1: CGPoint(x: 139, y: 232), control2: CGPoint(x: 111, y: 250))
-                path.addCurve(to: CGPoint(x: 54, y: 226), control1: CGPoint(x: 67, y: 248), control2: CGPoint(x: 51, y: 238))
-                path.addLine(to: CGPoint(x: 82, y: 214))
-                path.addLine(to: CGPoint(x: 67, y: 190))
-                path.addCurve(to: CGPoint(x: 117, y: 213), control1: CGPoint(x: 79, y: 202), control2: CGPoint(x: 98, y: 213))
-                path.addCurve(to: CGPoint(x: 158, y: 198), control1: CGPoint(x: 137, y: 208), control2: CGPoint(x: 149, y: 198))
+                path.move(to: CGPoint(x: 243, y: 194))
+                path.addCurve(to: CGPoint(x: 257, y: 246), control1: CGPoint(x: 256, y: 208), control2: CGPoint(x: 267, y: 235))
+                path.addCurve(to: CGPoint(x: 210, y: 250), control1: CGPoint(x: 249, y: 264), control2: CGPoint(x: 223, y: 263))
+                path.addLine(to: CGPoint(x: 204, y: 222))
                 path.closeSubpath()
-
-                // Oversized rounded head, blunt muzzle and two short leaf-shaped ears.
-                path.move(to: CGPoint(x: 239, y: 128))
-                path.addCurve(to: CGPoint(x: 230, y: 91), control1: CGPoint(x: 232, y: 112), control2: CGPoint(x: 221, y: 102))
-                path.addLine(to: CGPoint(x: 240, y: 69))
-                path.addCurve(to: CGPoint(x: 267, y: 91), control1: CGPoint(x: 255, y: 75), control2: CGPoint(x: 261, y: 83))
-                path.addCurve(to: CGPoint(x: 313, y: 91), control1: CGPoint(x: 282, y: 80), control2: CGPoint(x: 298, y: 80))
-                path.addLine(to: CGPoint(x: 337, y: 70))
-                path.addLine(to: CGPoint(x: 341, y: 106))
-                path.addCurve(to: CGPoint(x: 325, y: 155), control1: CGPoint(x: 348, y: 125), control2: CGPoint(x: 342, y: 145))
-                path.addCurve(to: CGPoint(x: 280, y: 171), control1: CGPoint(x: 312, y: 169), control2: CGPoint(x: 296, y: 177))
-                path.addCurve(to: CGPoint(x: 239, y: 151), control1: CGPoint(x: 263, y: 169), control2: CGPoint(x: 248, y: 160))
-                path.addCurve(to: CGPoint(x: 239, y: 128), control1: CGPoint(x: 230, y: 144), control2: CGPoint(x: 232, y: 134))
+                // Large head with two short leaf-shaped ear fins.
+                path.move(to: CGPoint(x: 146, y: 104))
+                path.addCurve(to: CGPoint(x: 128, y: 62), control1: CGPoint(x: 135, y: 91), control2: CGPoint(x: 119, y: 72))
+                path.addCurve(to: CGPoint(x: 174, y: 86), control1: CGPoint(x: 143, y: 59), control2: CGPoint(x: 161, y: 71))
+                path.addCurve(to: CGPoint(x: 226, y: 86), control1: CGPoint(x: 188, y: 76), control2: CGPoint(x: 212, y: 76))
+                path.addCurve(to: CGPoint(x: 272, y: 62), control1: CGPoint(x: 239, y: 71), control2: CGPoint(x: 257, y: 59))
+                path.addCurve(to: CGPoint(x: 254, y: 104), control1: CGPoint(x: 281, y: 72), control2: CGPoint(x: 265, y: 91))
+                path.addCurve(to: CGPoint(x: 270, y: 140), control1: CGPoint(x: 268, y: 116), control2: CGPoint(x: 278, y: 130))
+                path.addCurve(to: CGPoint(x: 200, y: 176), control1: CGPoint(x: 260, y: 169), control2: CGPoint(x: 231, y: 181))
+                path.addCurve(to: CGPoint(x: 130, y: 140), control1: CGPoint(x: 169, y: 181), control2: CGPoint(x: 140, y: 169))
+                path.addCurve(to: CGPoint(x: 146, y: 104), control1: CGPoint(x: 122, y: 130), control2: CGPoint(x: 132, y: 116))
                 path.closeSubpath()
             case .mermaid:
                 // Flowing-haired mermaid with torso, arms, scaled tail and split fin.
@@ -1175,18 +1160,20 @@ private struct HomeAnimatedCreatureMotif: View {
             // Toothless's almond-shaped irises use the independent eye-colour setting;
             // the dark pupils remain separate for contrast.
             var eyes = Path()
-            eyes.move(to: CGPoint(x: 266, y: 125))
-            eyes.addQuadCurve(to: CGPoint(x: 291, y: 132), control: CGPoint(x: 277, y: 117))
-            eyes.addQuadCurve(to: CGPoint(x: 266, y: 139), control: CGPoint(x: 285, y: 143))
-            eyes.addQuadCurve(to: CGPoint(x: 266, y: 125), control: CGPoint(x: 259, y: 132))
-            eyes.move(to: CGPoint(x: 305, y: 126))
-            eyes.addQuadCurve(to: CGPoint(x: 329, y: 119), control: CGPoint(x: 316, y: 115))
-            eyes.addQuadCurve(to: CGPoint(x: 326, y: 135), control: CGPoint(x: 333, y: 130))
-            eyes.addQuadCurve(to: CGPoint(x: 305, y: 126), control: CGPoint(x: 313, y: 139))
+            eyes.move(to: CGPoint(x: 157, y: 119))
+            eyes.addQuadCurve(to: CGPoint(x: 190, y: 119), control: CGPoint(x: 174, y: 103))
+            eyes.addQuadCurve(to: CGPoint(x: 190, y: 139), control: CGPoint(x: 190, y: 135))
+            eyes.addQuadCurve(to: CGPoint(x: 157, y: 139), control: CGPoint(x: 173, y: 151))
+            eyes.addQuadCurve(to: CGPoint(x: 157, y: 119), control: CGPoint(x: 151, y: 130))
+            eyes.move(to: CGPoint(x: 210, y: 119))
+            eyes.addQuadCurve(to: CGPoint(x: 243, y: 119), control: CGPoint(x: 227, y: 103))
+            eyes.addQuadCurve(to: CGPoint(x: 243, y: 139), control: CGPoint(x: 249, y: 130))
+            eyes.addQuadCurve(to: CGPoint(x: 210, y: 139), control: CGPoint(x: 227, y: 151))
+            eyes.addQuadCurve(to: CGPoint(x: 210, y: 119), control: CGPoint(x: 210, y: 135))
             drawing.fill(eyes, with: .color(eyeColor.opacity(min(1, opacity * 1.25))))
             var pupils = Path()
-            pupils.addEllipse(in: CGRect(x: 276, y: 126, width: 5, height: 10))
-            pupils.addEllipse(in: CGRect(x: 315, y: 123, width: 5, height: 10))
+            pupils.addEllipse(in: CGRect(x: 171, y: 119, width: 6, height: 13))
+            pupils.addEllipse(in: CGRect(x: 223, y: 119, width: 6, height: 13))
             drawing.fill(pupils, with: .color(Color.black.opacity(min(1, opacity * 0.72))))
         }
         var details = Path()
@@ -1259,37 +1246,26 @@ private struct HomeAnimatedCreatureMotif: View {
             details.move(to: CGPoint(x: 185, y: 183))
             details.addCurve(to: CGPoint(x: 214, y: 237), control1: CGPoint(x: 167, y: 215), control2: CGPoint(x: 235, y: 211))
         case .dragon:
-            // Wing spars and membrane folds make the silhouette read as a real
-            // Night Fury rather than a generic flying dragon.
-            details.move(to: CGPoint(x: 190, y: 157))
-            details.addLine(to: CGPoint(x: 34, y: 43))
-            details.move(to: CGPoint(x: 190, y: 157))
-            details.addLine(to: CGPoint(x: 65, y: 123))
-            details.move(to: CGPoint(x: 190, y: 157))
-            details.addLine(to: CGPoint(x: 112, y: 130))
-            details.move(to: CGPoint(x: 218, y: 157))
-            details.addLine(to: CGPoint(x: 366, y: 43))
-            details.move(to: CGPoint(x: 218, y: 157))
-            details.addLine(to: CGPoint(x: 337, y: 123))
-            details.move(to: CGPoint(x: 218, y: 157))
-            details.addLine(to: CGPoint(x: 290, y: 130))
-            // Soft cheek and muzzle contours.
-            details.move(to: CGPoint(x: 248, y: 151))
-            details.addQuadCurve(to: CGPoint(x: 319, y: 151), control: CGPoint(x: 284, y: 178))
-            details.move(to: CGPoint(x: 302, y: 160))
-            details.addQuadCurve(to: CGPoint(x: 328, y: 151), control: CGPoint(x: 319, y: 164))
-            // Small nostrils and mouth.
-            details.addEllipse(in: CGRect(x: 319, y: 143, width: 4, height: 3))
-            details.addEllipse(in: CGRect(x: 331, y: 139, width: 4, height: 3))
-            details.move(to: CGPoint(x: 291, y: 165))
-            details.addQuadCurve(to: CGPoint(x: 322, y: 159), control: CGPoint(x: 309, y: 170))
-            // Tail-fin hinge and paw/toe accents.
-            details.move(to: CGPoint(x: 83, y: 215))
-            details.addLine(to: CGPoint(x: 94, y: 235))
-            details.move(to: CGPoint(x: 232, y: 234))
-            details.addLine(to: CGPoint(x: 238, y: 241))
-            details.move(to: CGPoint(x: 246, y: 234))
-            details.addLine(to: CGPoint(x: 251, y: 241))
+            // Scalloped wing ribs, cheek plates, muzzle, paws and tail-fin seam.
+            for index in 0..<4 {
+                let offset = CGFloat(index) * 17
+                details.move(to: CGPoint(x: 166, y: 155))
+                details.addQuadCurve(to: CGPoint(x: 43 + offset * 5, y: 69 + offset * 2), control: CGPoint(x: 107 + offset * 2, y: 110 + offset))
+                details.move(to: CGPoint(x: 234, y: 155))
+                details.addQuadCurve(to: CGPoint(x: 357 - offset * 5, y: 69 + offset * 2), control: CGPoint(x: 293 - offset * 2, y: 110 + offset))
+            }
+            details.move(to: CGPoint(x: 150, y: 149))
+            details.addQuadCurve(to: CGPoint(x: 250, y: 149), control: CGPoint(x: 200, y: 174))
+            details.move(to: CGPoint(x: 176, y: 160))
+            details.addQuadCurve(to: CGPoint(x: 224, y: 160), control: CGPoint(x: 200, y: 174))
+            details.move(to: CGPoint(x: 190, y: 171))
+            details.addQuadCurve(to: CGPoint(x: 210, y: 171), control: CGPoint(x: 200, y: 178))
+            details.move(to: CGPoint(x: 82, y: 218))
+            details.addLine(to: CGPoint(x: 94, y: 237))
+            details.move(to: CGPoint(x: 151, y: 245))
+            details.addLine(to: CGPoint(x: 160, y: 250))
+            details.move(to: CGPoint(x: 240, y: 245))
+            details.addLine(to: CGPoint(x: 249, y: 250))
         case .mermaid:
             for y in stride(from: CGFloat(220), through: CGFloat(252), by: CGFloat(10)) {
                 details.move(to: CGPoint(x: 175, y: y))
@@ -1407,27 +1383,34 @@ private struct HomeAnimatedCreatureMotif: View {
             fineDetails.move(to: CGPoint(x: 178, y: 105))
             fineDetails.addQuadCurve(to: CGPoint(x: 222, y: 105), control: CGPoint(x: 200, y: 119))
         case .dragon:
-            // Extra wing struts, neck plates, cheek ridges, tail-fin seams and claws.
-            for index in 0..<4 {
-                let offset = CGFloat(index) * 17
-                fineDetails.move(to: CGPoint(x: 190, y: 157))
-                fineDetails.addQuadCurve(to: CGPoint(x: 67 + offset, y: 105 + offset * 0.12), control: CGPoint(x: 123 + offset * 0.3, y: 121 + offset * 0.08))
-                fineDetails.move(to: CGPoint(x: 218, y: 157))
-                fineDetails.addQuadCurve(to: CGPoint(x: 333 - offset, y: 105 + offset * 0.12), control: CGPoint(x: 277 - offset * 0.3, y: 121 + offset * 0.08))
+            // Dense scale plates, wing membrane hatching and tiny paw/claw marks.
+            for row in 0..<5 {
+                let y = CGFloat(91 + row * 12)
+                for col in 0..<6 {
+                    let x = CGFloat(157 + col * 17)
+                    fineDetails.move(to: CGPoint(x: x, y: y))
+                    fineDetails.addQuadCurve(to: CGPoint(x: x + 12, y: y + 3), control: CGPoint(x: x + 6, y: y + 8))
+                }
+            }
+            for index in 0..<6 {
+                let offset = CGFloat(index) * 13
+                fineDetails.move(to: CGPoint(x: 157, y: 157))
+                fineDetails.addQuadCurve(to: CGPoint(x: 49 + offset * 4, y: 84 + offset), control: CGPoint(x: 103 + offset * 2, y: 120))
+                fineDetails.move(to: CGPoint(x: 243, y: 157))
+                fineDetails.addQuadCurve(to: CGPoint(x: 351 - offset * 4, y: 84 + offset), control: CGPoint(x: 297 - offset * 2, y: 120))
             }
             for index in 0..<4 {
-                let y = CGFloat(178 + index * 8)
-                fineDetails.move(to: CGPoint(x: 183, y: y))
-                fineDetails.addQuadCurve(to: CGPoint(x: 225, y: y + 1), control: CGPoint(x: 204, y: y + 9))
+                let y = CGFloat(185 + index * 8)
+                fineDetails.move(to: CGPoint(x: 177, y: y))
+                fineDetails.addQuadCurve(to: CGPoint(x: 223, y: y), control: CGPoint(x: 200, y: y + 8))
             }
-            fineDetails.move(to: CGPoint(x: 252, y: 105))
-            fineDetails.addQuadCurve(to: CGPoint(x: 323, y: 105), control: CGPoint(x: 288, y: 91))
-            fineDetails.move(to: CGPoint(x: 270, y: 147))
-            fineDetails.addQuadCurve(to: CGPoint(x: 310, y: 151), control: CGPoint(x: 291, y: 158))
-            fineDetails.move(to: CGPoint(x: 57, y: 226))
-            fineDetails.addLine(to: CGPoint(x: 82, y: 214))
-            fineDetails.move(to: CGPoint(x: 69, y: 235))
-            fineDetails.addLine(to: CGPoint(x: 91, y: 246))
+            fineDetails.move(to: CGPoint(x: 143, y: 245))
+            fineDetails.addLine(to: CGPoint(x: 137, y: 252))
+            fineDetails.move(to: CGPoint(x: 257, y: 245))
+            fineDetails.addLine(to: CGPoint(x: 263, y: 252))
+            fineDetails.move(to: CGPoint(x: 174, y: 146))
+            fineDetails.addEllipse(in: CGRect(x: 174, y: 145, width: 3, height: 3))
+            fineDetails.addEllipse(in: CGRect(x: 226, y: 145, width: 3, height: 3))
         case .mermaid:
             // Flowing hair strands, face, collarbone, fin rays and tail scales.
             for index in 0..<5 {
