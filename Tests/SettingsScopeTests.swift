@@ -15,6 +15,23 @@ final class SettingsScopeTests: XCTestCase {
         XCTAssertEqual(AppearancePalettes.base(for: .ember).displayName, "Ember")
     }
 
+    func testUnofficialYouTubeFilteringUsesProducerMetadataNotSynopsisMentions() {
+        XCTAssertTrue(
+            TMDBContentFilter.isUnofficialCreatorContent(
+                title: "Creator Web Series",
+                overview: "An independent comedy",
+                productionCompanies: ["YouTube"]
+            )
+        )
+        XCTAssertFalse(
+            TMDBContentFilter.isUnofficialCreatorContent(
+                title: "Official Drama",
+                overview: "A story about a video that went viral on YouTube",
+                productionCompanies: ["HBO"]
+            )
+        )
+    }
+
     func testBlockedStreamURLsAreCanonicalizedInIsolatedSettings() throws {
         let suiteName = "StreamURLBlocklistTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
