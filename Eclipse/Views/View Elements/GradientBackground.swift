@@ -971,7 +971,7 @@ private struct HomeAnimatedCreatureMotif: View {
                     path.addCurve(to: CGPoint(x: 148, y: 145), control1: CGPoint(x: 109, y: 144), control2: CGPoint(x: 130, y: 151))
                     path.addCurve(to: CGPoint(x: 163, y: 112), control1: CGPoint(x: 153, y: 135), control2: CGPoint(x: 160, y: 126))
                 case .paw:
-                    for (x, y, r) in [(200.0, 203.0, 39.0), (119.0, 116.0, 28.0), (181.0, 82.0, 28.0), (245.0, 82.0, 28.0), (294.0, 116.0, 28.0)] {
+                    for (x, y, r) in [(CGFloat(200), CGFloat(203), CGFloat(39)), (CGFloat(119), CGFloat(116), CGFloat(28)), (CGFloat(181), CGFloat(82), CGFloat(28)), (CGFloat(245), CGFloat(82), CGFloat(28)), (CGFloat(294), CGFloat(116), CGFloat(28))] {
                         path.addEllipse(in: CGRect(x: x-r, y: y-r, width: r*2, height: r*2))
                     }
                 case .stars:
@@ -991,7 +991,7 @@ private struct HomeAnimatedCreatureMotif: View {
                     path.closeSubpath()
                 case .sun:
                     path.addEllipse(in: CGRect(x: 142, y: 92, width: 116, height: 116))
-                    for angle in stride(from: 0.0, to: 360.0, by: 45.0) {
+                    for angle in stride(from: CGFloat(0), to: CGFloat(360), by: CGFloat(45)) {
                         let radians = angle * .pi / 180
                         let inner = CGPoint(x: 200 + cos(radians) * 78, y: 150 + sin(radians) * 78)
                         let outer = CGPoint(x: 200 + cos(radians) * 112, y: 150 + sin(radians) * 112)
@@ -1036,7 +1036,7 @@ private struct HomeAnimatedCreatureMotif: View {
                 details.move(to: CGPoint(x: 191, y: 217))
                 details.addLine(to: CGPoint(x: 174, y: 241))
             case .mermaid:
-                for y in stride(from: 220.0, through: 252.0, by: 10.0) {
+                for y in stride(from: CGFloat(220), through: CGFloat(252), by: CGFloat(10)) {
                     details.move(to: CGPoint(x: 175, y: y))
                     details.addQuadCurve(to: CGPoint(x: 238, y: y), control: CGPoint(x: 206, y: y + 12))
                 }
@@ -1053,6 +1053,7 @@ private struct HomeAnimatedCreatureMotif: View {
             }
         }
         .frame(width: size.width, height: size.height)
+        .rotationEffect(.degrees(sin(phase * 0.55) * 1.4))
         .accessibilityHidden(true)
     }
 }
