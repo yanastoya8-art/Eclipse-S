@@ -2483,10 +2483,17 @@ private struct BrowseMediaView: View {
                     by: sort
                 )
                 try Task.checkCancellation()
-                // Browse filter metadata is resolved independently in the
-                // background. Do not serialize the first visible page behind
-                // rating/audio lookups; the retained raw page is re-filtered when
-                // those lookups publish their completion notification.
+                // Resolve metadata required by active global age, audio,
+                // runtime and production filters before applying their strict
+                // predicates. Calling filterSearchResults with background
+                // resolution disabled without this step caused unknown ratings
+                // and unverified audio to be treated as exclusions, leaving
+                // Movies, TV and Anime Browse empty on cold loads.
+                await contentFilter.resolveBrowseFilterMetadata(
+                    for: browseTypeFiltered,
+                    requiresAnimeAgeRating: ageRating != .all
+                )
+                try Task.checkCancellation()
                 let contentFiltered = contentFilter.filterSearchResults(
                     filterExcludedResults(
                         browseTypeFiltered,
