@@ -3833,6 +3833,7 @@ private struct SupportPurchaseStatusRow: View {
 #endif
 
 struct ScheduleSettingsView: View {
+    @AppStorage("scheduleControlsCornerRadius") private var scheduleControlsCornerRadiusValue = 14.0
     @AppStorage("defaultScheduleMode") private var defaultScheduleModeRaw = ScheduleMode.anime.rawValue
     @AppStorage(ScheduleWindow.storageKey) private var scheduleWindowDays = ScheduleWindow.defaultValue.rawValue
     @StateObject private var accentColorManager = AccentColorManager.shared
@@ -3868,6 +3869,33 @@ struct ScheduleSettingsView: View {
                 }
 
                 GlassSectionFooter("Choose which schedule opens first when you select the Schedule tab. You can still switch modes inside the tab.")
+
+                GlassSection(header: "Schedule Control Roundness") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Text("Corner radius")
+                            Spacer()
+                            Text("\(Int(scheduleControlsCornerRadiusValue.rounded())) pt")
+                                .foregroundColor(.secondary)
+                                .monospacedDigit()
+                        }
+                        Slider(value: $scheduleControlsCornerRadiusValue, in: 0...32, step: 1)
+                            .tint(accentColorManager.currentAccentColor)
+                        HStack {
+                            Text("Square")
+                            Spacer()
+                            Text("Rounded")
+                            Spacer()
+                            Text("Pill")
+                        }
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                }
+
+                GlassSectionFooter("Adjusts the roundness of the Schedule mode selector, timezone selector, and date controls. This setting does not change episode cards or controls elsewhere.")
 
                 GlassSection(header: "Schedule Range") {
                     VStack(spacing: 0) {
