@@ -727,7 +727,8 @@ struct EclipseIsolatedAmbientMotionBackground: View {
             topClearance: topClearance,
             ambientColor: ambientColor,
             accentColor: accentColor,
-            motionEnabled: motionEnabled
+            motionEnabled: motionEnabled,
+            allowsAnimatedShape: allowsAnimatedShape
         )
 #endif
     }
@@ -739,13 +740,15 @@ private struct EclipseAmbientMotionHostedRoot: View {
     let ambientColor: Color?
     let accentColor: Color
     let motionEnabled: Bool
+    var allowsAnimatedShape: Bool = true
 
     var body: some View {
         EclipseAmbientMotionBackground(
             topClearance: topClearance,
             ambientColor: ambientColor,
             accentColor: accentColor,
-            motionEnabled: motionEnabled
+            motionEnabled: motionEnabled,
+            allowsAnimatedShape: allowsAnimatedShape
         )
         .ignoresSafeArea(.all)
     }
@@ -756,6 +759,7 @@ private struct EclipseAmbientConfig: Equatable {
     let ambientColor: Color?
     let accentColor: Color
     let motionEnabled: Bool
+    let allowsAnimatedShape: Bool
 }
 
 private struct EclipseAmbientMotionHostingBoundary: UIViewControllerRepresentable {
@@ -763,13 +767,15 @@ private struct EclipseAmbientMotionHostingBoundary: UIViewControllerRepresentabl
     let ambientColor: Color?
     let accentColor: Color
     let motionEnabled: Bool
+    let allowsAnimatedShape: Bool
 
     private var hostedRoot: EclipseAmbientMotionHostedRoot {
         EclipseAmbientMotionHostedRoot(
             topClearance: topClearance,
             ambientColor: ambientColor,
             accentColor: accentColor,
-            motionEnabled: motionEnabled
+            motionEnabled: motionEnabled,
+            allowsAnimatedShape: allowsAnimatedShape
         )
     }
 
@@ -778,7 +784,8 @@ private struct EclipseAmbientMotionHostingBoundary: UIViewControllerRepresentabl
             topClearance: topClearance,
             ambientColor: ambientColor,
             accentColor: accentColor,
-            motionEnabled: motionEnabled
+            motionEnabled: motionEnabled,
+            allowsAnimatedShape: allowsAnimatedShape
         )
     }
 
