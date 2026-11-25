@@ -1464,6 +1464,24 @@ private struct HomeAnimatedCreatureMotif: View {
             fineDetails.addLine(to: CGPoint(x: 189, y: 157))
             fineDetails.closeSubpath()
             fineDetails.addEllipse(in: CGRect(x: 194, y: 166, width: 12, height: 12))
+            // A delicate dotted constellation path links three differently sized stars.
+            for index in 0..<18 {
+                let t = CGFloat(index) / 17
+                let x = 106 + t * 190
+                let y = 224 - sin(t * .pi * 1.5) * 108
+                fineDetails.addEllipse(in: CGRect(x: x, y: y, width: 2.8, height: 2.8))
+            }
+            for center in [CGPoint(x: 95, y: 229), CGPoint(x: 302, y: 105), CGPoint(x: 316, y: 237)] {
+                fineDetails.move(to: CGPoint(x: center.x, y: center.y - 13))
+                fineDetails.addLine(to: CGPoint(x: center.x + 3, y: center.y - 3))
+                fineDetails.addLine(to: CGPoint(x: center.x + 13, y: center.y))
+                fineDetails.addLine(to: CGPoint(x: center.x + 3, y: center.y + 3))
+                fineDetails.addLine(to: CGPoint(x: center.x, y: center.y + 13))
+                fineDetails.addLine(to: CGPoint(x: center.x - 3, y: center.y + 3))
+                fineDetails.addLine(to: CGPoint(x: center.x - 13, y: center.y))
+                fineDetails.addLine(to: CGPoint(x: center.x - 3, y: center.y - 3))
+                fineDetails.closeSubpath()
+            }
         case .crescentMoon:
             // Lunar maria, delicate hanging bead chains, stars and a tiny heart.
             fineDetails.addEllipse(in: CGRect(x: 224, y: 83, width: 22, height: 15))
@@ -1492,25 +1510,6 @@ private struct HomeAnimatedCreatureMotif: View {
                 fineDetails.addLine(to: CGPoint(x: center.x, y: center.y + 9))
                 fineDetails.addLine(to: CGPoint(x: center.x - 3, y: center.y + 3))
                 fineDetails.addLine(to: CGPoint(x: center.x - 9, y: center.y))
-                fineDetails.addLine(to: CGPoint(x: center.x - 3, y: center.y - 3))
-                fineDetails.closeSubpath()
-            }
-        case .stars:
-            // A delicate dotted constellation path links three differently sized stars.
-            for index in 0..<18 {
-                let t = CGFloat(index) / 17
-                let x = 106 + t * 190
-                let y = 224 - sin(t * .pi * 1.5) * 108
-                fineDetails.addEllipse(in: CGRect(x: x, y: y, width: 2.8, height: 2.8))
-            }
-            for center in [CGPoint(x: 95, y: 229), CGPoint(x: 302, y: 105), CGPoint(x: 316, y: 237)] {
-                fineDetails.move(to: CGPoint(x: center.x, y: center.y - 13))
-                fineDetails.addLine(to: CGPoint(x: center.x + 3, y: center.y - 3))
-                fineDetails.addLine(to: CGPoint(x: center.x + 13, y: center.y))
-                fineDetails.addLine(to: CGPoint(x: center.x + 3, y: center.y + 3))
-                fineDetails.addLine(to: CGPoint(x: center.x, y: center.y + 13))
-                fineDetails.addLine(to: CGPoint(x: center.x - 3, y: center.y + 3))
-                fineDetails.addLine(to: CGPoint(x: center.x - 13, y: center.y))
                 fineDetails.addLine(to: CGPoint(x: center.x - 3, y: center.y - 3))
                 fineDetails.closeSubpath()
             }
