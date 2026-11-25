@@ -164,6 +164,9 @@ struct ContentView: View {
     @AppStorage("githubReleaseShowAlertPending", store: .standard) private var githubReleaseShowAlertPending = false
     @AppStorage("githubReleaseLatestVersion", store: .standard) private var githubReleaseLatestVersion = ""
     @AppStorage("githubReleaseURL", store: .standard) private var githubReleaseURL = ""
+#if !os(tvOS)
+    @AppStorage("startupSelectedSection", store: ProfileSettingsStore.device) private var startupSelectedSection = "home"
+#endif
 
     @State private var selectedTab: AppTab = .home
     @State private var showingSettings = false
@@ -286,6 +289,12 @@ struct ContentView: View {
             }
         }
         .onAppear {
+#if !os(tvOS)
+            if let startupTab = AppTab(rawValue: startupSelectedSection),
+               tabConfiguration.visibleSections.contains(where: { $0.rawValue == startupTab.rawValue }) {
+                selectedTab = startupTab
+            }
+#endif
             updatePerformanceSurface()
             publishScenePhase(scenePhase)
             presentUpdateAlertIfNeeded()
