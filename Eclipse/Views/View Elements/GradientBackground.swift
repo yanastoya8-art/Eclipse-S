@@ -974,8 +974,30 @@ private struct HomeAnimatedCreatureMotif: View {
                     for (x, y, r) in [(200.0, 203.0, 39.0), (119.0, 116.0, 28.0), (181.0, 82.0, 28.0), (245.0, 82.0, 28.0), (294.0, 116.0, 28.0)] {
                         path.addEllipse(in: CGRect(x: x-r, y: y-r, width: r*2, height: r*2))
                     }
-                case .stars, .crescentMoon, .sun:
-                    path.addEllipse(in: CGRect(x: 178, y: 128, width: 44, height: 44))
+                case .stars:
+                    path.move(to: CGPoint(x: 200, y: 34))
+                    path.addLine(to: CGPoint(x: 221, y: 151))
+                    path.addLine(to: CGPoint(x: 338, y: 172))
+                    path.addLine(to: CGPoint(x: 221, y: 193))
+                    path.addLine(to: CGPoint(x: 200, y: 266))
+                    path.addLine(to: CGPoint(x: 179, y: 193))
+                    path.addLine(to: CGPoint(x: 62, y: 172))
+                    path.addLine(to: CGPoint(x: 179, y: 151))
+                    path.closeSubpath()
+                case .crescentMoon:
+                    path.move(to: CGPoint(x: 260, y: 48))
+                    path.addCurve(to: CGPoint(x: 158, y: 256), control1: CGPoint(x: 330, y: 174), control2: CGPoint(x: 252, y: 284))
+                    path.addCurve(to: CGPoint(x: 260, y: 48), control1: CGPoint(x: 86, y: 233), control2: CGPoint(x: 104, y: 82))
+                    path.closeSubpath()
+                case .sun:
+                    path.addEllipse(in: CGRect(x: 142, y: 92, width: 116, height: 116))
+                    for angle in stride(from: 0.0, to: 360.0, by: 45.0) {
+                        let radians = angle * .pi / 180
+                        let inner = CGPoint(x: 200 + cos(radians) * 78, y: 150 + sin(radians) * 78)
+                        let outer = CGPoint(x: 200 + cos(radians) * 112, y: 150 + sin(radians) * 112)
+                        path.move(to: inner)
+                        path.addLine(to: outer)
+                    }
                 }
             }
             drawing.fill(fill, with: .color(color.opacity(opacity)))
