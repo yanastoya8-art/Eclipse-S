@@ -713,7 +713,7 @@ struct AlternativeUIView: View {
                 title: "Splash Screen Duration",
                 description: "Set the minimum time the animated splash remains visible before the app continues.",
                 value: $splashScreenMinimumDuration,
-                range: 0.5...10.0,
+                range: 1.5...10.0,
                 step: 0.5
             )
             .id(AppearanceSettingsSearchTarget.splashScreenDuration.anchorID)
