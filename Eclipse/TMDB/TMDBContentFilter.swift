@@ -2055,12 +2055,17 @@ class TMDBContentFilter: ObservableObject {
         ) { return false }
 
         if defaults.bool(forKey: "catalogRequireEnglishSpanishAudio") {
-            guard let originalLanguage = result.originalLanguage?.lowercased() else { return false }
             let selectedLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
-            let hasSelectedNativeAudio = ScheduleAudioLanguagePolicy.matches(
-                originalLanguage: originalLanguage,
-                selectedLanguages: selectedLanguages
-            )
+            // Search/discover payloads can omit original_language even when the
+            // title has a verified English or Spanish dub. Treat missing native
+            // language as "not confirmed native audio" and continue through the
+            // provider-audio verification below instead of rejecting the title.
+            let hasSelectedNativeAudio = result.originalLanguage.map {
+                ScheduleAudioLanguagePolicy.matches(
+                    originalLanguage: $0.lowercased(),
+                    selectedLanguages: selectedLanguages
+                )
+            } ?? false
             if !hasSelectedNativeAudio {
                 if isAnime {
                     guard let anilistID = result.animeIdentitySeed?.anilistId,
