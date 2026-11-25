@@ -559,7 +559,7 @@ enum HomeAnimatedBackgroundParticleColor: String, CaseIterable, Identifiable {
 }
 
 enum HomeAnimatedBackgroundShape: String, CaseIterable, Identifiable {
-    case wolf, paw, stars, crescentMoon, sun, cat, mermaid, bird, snake, dragon
+    case wolf, fox, phoenix, paw, stars, crescentMoon, sun, spiral, cat, mermaid, bird, snake, dragon
 
     static let storageKey = "homeAnimatedBackgroundShape"
     static let defaultValue: HomeAnimatedBackgroundShape = .stars
@@ -568,10 +568,13 @@ enum HomeAnimatedBackgroundShape: String, CaseIterable, Identifiable {
     var displayName: String {
         switch self {
         case .wolf: return "Wolf"
+        case .fox: return "Nine-Tailed Fox"
+        case .phoenix: return "Phoenix"
         case .paw: return "Paw"
         case .stars: return "Stars"
         case .crescentMoon: return "Crescent Moon"
         case .sun: return "Sun"
+        case .spiral: return "Golden Spiral"
         case .cat: return "Cat"
         case .mermaid: return "Mermaid"
         case .bird: return "Bird"
@@ -583,10 +586,13 @@ enum HomeAnimatedBackgroundShape: String, CaseIterable, Identifiable {
     var glyph: String {
         switch self {
         case .wolf: return "\u{1F43A}\u{FE0E}"
+        case .fox: return String(rawValue)
+        case .phoenix: return "🔥"
         case .paw: return "\u{1F43E}\u{FE0E}"
         case .stars: return "✦"
         case .crescentMoon: return "☾"
         case .sun: return "☀"
+        case .spiral: return "✺"
         // Text-presentation glyphs honour foregroundColor, unlike multicolour emoji.
         case .cat: return "\u{1F408}\u{FE0E}"       // seated cat
         case .mermaid: return "\u{1F9DC}\u{FE0E}"
@@ -898,6 +904,78 @@ private struct HomeAnimatedCreatureMotif: View {
                 path.addCurve(to: CGPoint(x: 77, y: 190), control1: CGPoint(x: 105, y: 201), control2: CGPoint(x: 87, y: 202))
                 path.addCurve(to: CGPoint(x: 56, y: 225), control1: CGPoint(x: 54, y: 195), control2: CGPoint(x: 47, y: 215))
                 path.addCurve(to: CGPoint(x: 126, y: 257), control1: CGPoint(x: 75, y: 254), control2: CGPoint(x: 102, y: 261))
+            case .fox:
+                // Nine-tailed fox: upright seated silhouette, pointed ears and
+                // nine flowing tail ribbons in a balanced tattoo-emblem layout.
+                path.move(to: CGPoint(x: 151, y: 112))
+                path.addLine(to: CGPoint(x: 139, y: 36))
+                path.addQuadCurve(to: CGPoint(x: 190, y: 78), control: CGPoint(x: 159, y: 54))
+                path.addQuadCurve(to: CGPoint(x: 210, y: 78), control: CGPoint(x: 200, y: 72))
+                path.addLine(to: CGPoint(x: 261, y: 36))
+                path.addLine(to: CGPoint(x: 249, y: 112))
+                path.addQuadCurve(to: CGPoint(x: 200, y: 156), control: CGPoint(x: 252, y: 151))
+                path.addQuadCurve(to: CGPoint(x: 151, y: 112), control: CGPoint(x: 148, y: 151))
+                path.closeSubpath()
+                path.move(to: CGPoint(x: 160, y: 147))
+                path.addCurve(to: CGPoint(x: 139, y: 251), control1: CGPoint(x: 142, y: 174), control2: CGPoint(x: 112, y: 223))
+                path.addCurve(to: CGPoint(x: 200, y: 269), control1: CGPoint(x: 151, y: 278), control2: CGPoint(x: 180, y: 280))
+                path.addCurve(to: CGPoint(x: 261, y: 251), control1: CGPoint(x: 220, y: 280), control2: CGPoint(x: 249, y: 278))
+                path.addCurve(to: CGPoint(x: 240, y: 147), control1: CGPoint(x: 288, y: 223), control2: CGPoint(x: 258, y: 174))
+                path.closeSubpath()
+                for index in 0..<9 {
+                    let t = CGFloat(index) - 4
+                    let startX = CGFloat(200) + t * 9
+                    let endX = CGFloat(200) + t * 37
+                    let endY = CGFloat(80) + abs(t) * 15
+                    path.move(to: CGPoint(x: startX, y: 219))
+                    path.addCurve(to: CGPoint(x: endX, y: endY),
+                                  control1: CGPoint(x: startX + t * 15, y: 169),
+                                  control2: CGPoint(x: endX - t * 16, y: endY + 68))
+                    path.addQuadCurve(to: CGPoint(x: endX + (t >= 0 ? -8 : 8), y: endY + 34),
+                                      control: CGPoint(x: endX + t * 10, y: endY + 18))
+                    path.addCurve(to: CGPoint(x: startX + 5, y: 224),
+                                  control1: CGPoint(x: endX + t * 3, y: endY + 104),
+                                  control2: CGPoint(x: startX + t * 4, y: 185))
+                    path.closeSubpath()
+                }
+            case .phoenix:
+                // Rising phoenix emblem with mirrored flame-feathers and tail plumes.
+                path.move(to: CGPoint(x: 196, y: 117))
+                path.addCurve(to: CGPoint(x: 63, y: 35), control1: CGPoint(x: 125, y: 92), control2: CGPoint(x: 85, y: 45))
+                path.addCurve(to: CGPoint(x: 118, y: 119), control1: CGPoint(x: 72, y: 71), control2: CGPoint(x: 91, y: 104))
+                path.addCurve(to: CGPoint(x: 38, y: 91), control1: CGPoint(x: 86, y: 108), control2: CGPoint(x: 55, y: 93))
+                path.addCurve(to: CGPoint(x: 165, y: 173), control1: CGPoint(x: 82, y: 119), control2: CGPoint(x: 121, y: 161))
+                path.addLine(to: CGPoint(x: 200, y: 151))
+                path.addLine(to: CGPoint(x: 235, y: 173))
+                path.addCurve(to: CGPoint(x: 362, y: 91), control1: CGPoint(x: 279, y: 161), control2: CGPoint(x: 318, y: 119))
+                path.addCurve(to: CGPoint(x: 282, y: 119), control1: CGPoint(x: 345, y: 93), control2: CGPoint(x: 314, y: 108))
+                path.addCurve(to: CGPoint(x: 337, y: 35), control1: CGPoint(x: 309, y: 104), control2: CGPoint(x: 328, y: 71))
+                path.addCurve(to: CGPoint(x: 204, y: 117), control1: CGPoint(x: 315, y: 45), control2: CGPoint(x: 275, y: 92))
+                path.closeSubpath()
+                path.move(to: CGPoint(x: 184, y: 100))
+                path.addCurve(to: CGPoint(x: 200, y: 57), control1: CGPoint(x: 179, y: 73), control2: CGPoint(x: 189, y: 58))
+                path.addCurve(to: CGPoint(x: 216, y: 100), control1: CGPoint(x: 211, y: 58), control2: CGPoint(x: 221, y: 73))
+                path.addLine(to: CGPoint(x: 200, y: 91))
+                path.closeSubpath()
+                path.move(to: CGPoint(x: 179, y: 139))
+                path.addCurve(to: CGPoint(x: 200, y: 223), control1: CGPoint(x: 179, y: 177), control2: CGPoint(x: 185, y: 201))
+                path.addCurve(to: CGPoint(x: 221, y: 139), control1: CGPoint(x: 215, y: 201), control2: CGPoint(x: 221, y: 177))
+                path.closeSubpath()
+                for index in 0..<5 {
+                    let offset = CGFloat(index) * 15
+                    path.move(to: CGPoint(x: 195 - offset * 0.45, y: 209))
+                    path.addCurve(to: CGPoint(x: 119 - offset * 7, y: 282 - offset * 1.2),
+                                  control1: CGPoint(x: 178 - offset * 2, y: 247),
+                                  control2: CGPoint(x: 142 - offset * 5, y: 272))
+                    path.addQuadCurve(to: CGPoint(x: 200, y: 235), control: CGPoint(x: 162 - offset * 2, y: 270))
+                    path.closeSubpath()
+                    path.move(to: CGPoint(x: 205 + offset * 0.45, y: 209))
+                    path.addCurve(to: CGPoint(x: 281 + offset * 7, y: 282 - offset * 1.2),
+                                  control1: CGPoint(x: 222 + offset * 2, y: 247),
+                                  control2: CGPoint(x: 258 + offset * 5, y: 272))
+                    path.addQuadCurve(to: CGPoint(x: 200, y: 235), control: CGPoint(x: 238 + offset * 2, y: 270))
+                    path.closeSubpath()
+                }
             case .bird:
                 // Broad-winged hawk in a shallow banking glide.
                 path.move(to: CGPoint(x: 194, y: 157))
@@ -1050,6 +1128,24 @@ private struct HomeAnimatedCreatureMotif: View {
                 path.addCurve(to: CGPoint(x: 158, y: 256), control1: CGPoint(x: 330, y: 174), control2: CGPoint(x: 252, y: 284))
                 path.addCurve(to: CGPoint(x: 260, y: 48), control1: CGPoint(x: 86, y: 233), control2: CGPoint(x: 104, y: 82))
                 path.closeSubpath()
+            case .spiral:
+                // Calligraphic golden-spiral sun with eight tapered flame rays.
+                for index in 0..<8 {
+                    let angle = CGFloat(index) * .pi / 4
+                    let cx = 200 + cos(angle) * 92
+                    let cy = 150 + sin(angle) * 92
+                    let tx = 200 + cos(angle + 0.34) * 145
+                    let ty = 150 + sin(angle + 0.34) * 145
+                    path.move(to: CGPoint(x: 200 + cos(angle - 0.16) * 34, y: 150 + sin(angle - 0.16) * 34))
+                    path.addQuadCurve(to: CGPoint(x: tx, y: ty), control: CGPoint(x: cx + cos(angle + 0.8) * 30, y: cy + sin(angle + 0.8) * 30))
+                    path.addQuadCurve(to: CGPoint(x: 200 + cos(angle + 0.16) * 34, y: 150 + sin(angle + 0.16) * 34), control: CGPoint(x: cx - cos(angle + 0.8) * 30, y: cy - sin(angle + 0.8) * 30))
+                    path.closeSubpath()
+                }
+                path.move(to: CGPoint(x: 200, y: 150))
+                path.addCurve(to: CGPoint(x: 218, y: 133), control1: CGPoint(x: 242, y: 160), control2: CGPoint(x: 232, y: 126))
+                path.addCurve(to: CGPoint(x: 180, y: 137), control1: CGPoint(x: 201, y: 119), control2: CGPoint(x: 179, y: 122))
+                path.addCurve(to: CGPoint(x: 203, y: 176), control1: CGPoint(x: 171, y: 158), control2: CGPoint(x: 190, y: 181))
+                path.addCurve(to: CGPoint(x: 235, y: 153), control1: CGPoint(x: 225, y: 176), control2: CGPoint(x: 240, y: 165))
             case .sun:
                 path.addEllipse(in: CGRect(x: 142, y: 92, width: 116, height: 116))
                 for angle in stride(from: CGFloat(0), to: CGFloat(360), by: CGFloat(45)) {
@@ -1067,6 +1163,7 @@ private struct HomeAnimatedCreatureMotif: View {
         // use the creature-specific custom eye colour.
         let motifTint = color
         drawing.fill(fill, with: .color(motifTint.opacity(min(1, opacity * brightness))))
+        drawing.stroke(fill, with: .color(motifTint.opacity(min(1, opacity * brightness * 0.98))), style: StrokeStyle(lineWidth: 3.1, lineCap: .round, lineJoin: .round))
         if shape == .dragon {
             // Toothless's almond-shaped irises use the independent eye-colour setting;
             // the dark pupils remain separate for contrast.
@@ -1088,6 +1185,34 @@ private struct HomeAnimatedCreatureMotif: View {
         var details = Path()
         let detailColor = motifTint.opacity(min(1, opacity * 0.85 * brightness))
         switch shape {
+        case .fox:
+            for index in 0..<9 {
+                let t = CGFloat(index) - 4
+                let startX = CGFloat(200) + t * 8
+                let endX = CGFloat(200) + t * 35
+                details.move(to: CGPoint(x: startX, y: 224))
+                details.addQuadCurve(to: CGPoint(x: endX, y: 91 + abs(t) * 15), control: CGPoint(x: startX + t * 13, y: 161))
+            }
+            details.move(to: CGPoint(x: 164, y: 141))
+            details.addQuadCurve(to: CGPoint(x: 236, y: 141), control: CGPoint(x: 200, y: 169))
+        case .phoenix:
+            for index in 0..<6 {
+                let offset = CGFloat(index) * 14
+                details.move(to: CGPoint(x: 192, y: 137))
+                details.addQuadCurve(to: CGPoint(x: 63 + offset, y: 43 + offset * 1.5), control: CGPoint(x: 114 + offset * 0.35, y: 84 + offset))
+                details.move(to: CGPoint(x: 208, y: 137))
+                details.addQuadCurve(to: CGPoint(x: 337 - offset, y: 43 + offset * 1.5), control: CGPoint(x: 286 - offset * 0.35, y: 84 + offset))
+            }
+            details.move(to: CGPoint(x: 200, y: 157))
+            details.addQuadCurve(to: CGPoint(x: 200, y: 222), control: CGPoint(x: 220, y: 190))
+        case .spiral:
+            for index in 0..<8 {
+                let angle = CGFloat(index) * .pi / 4
+                details.move(to: CGPoint(x: 200 + cos(angle) * 48, y: 150 + sin(angle) * 48))
+                details.addLine(to: CGPoint(x: 200 + cos(angle) * 116, y: 150 + sin(angle) * 116))
+            }
+            details.move(to: CGPoint(x: 200, y: 150))
+            details.addCurve(to: CGPoint(x: 220, y: 138), control1: CGPoint(x: 241, y: 162), control2: CGPoint(x: 228, y: 127))
         case .wolf:
             details.move(to: CGPoint(x: 274, y: 111))
             details.addQuadCurve(to: CGPoint(x: 306, y: 143), control: CGPoint(x: 299, y: 111))
@@ -1160,6 +1285,44 @@ private struct HomeAnimatedCreatureMotif: View {
         // animation colour recolours the entire creature consistently.
         var fineDetails = Path()
         switch shape {
+        case .fox:
+            // Tribal negative-space tufts, ear insets and nine flowing tail cuts.
+            fineDetails.move(to: CGPoint(x: 151, y: 63))
+            fineDetails.addQuadCurve(to: CGPoint(x: 183, y: 102), control: CGPoint(x: 157, y: 92))
+            fineDetails.move(to: CGPoint(x: 249, y: 63))
+            fineDetails.addQuadCurve(to: CGPoint(x: 217, y: 102), control: CGPoint(x: 243, y: 92))
+            fineDetails.move(to: CGPoint(x: 177, y: 127))
+            fineDetails.addQuadCurve(to: CGPoint(x: 223, y: 127), control: CGPoint(x: 200, y: 147))
+            for index in 0..<9 {
+                let t = CGFloat(index) - 4
+                fineDetails.move(to: CGPoint(x: 200 + t * 9, y: 232))
+                fineDetails.addQuadCurve(to: CGPoint(x: 200 + t * 30, y: 111 + abs(t) * 14), control: CGPoint(x: 200 + t * 18, y: 179))
+            }
+        case .phoenix:
+            // Flame-cut feather shafts and engraved tail barbs.
+            for index in 0..<7 {
+                let offset = CGFloat(index) * 13
+                fineDetails.move(to: CGPoint(x: 190, y: 143))
+                fineDetails.addQuadCurve(to: CGPoint(x: 56 + offset * 1.8, y: 55 + offset), control: CGPoint(x: 114 + offset, y: 98))
+                fineDetails.move(to: CGPoint(x: 210, y: 143))
+                fineDetails.addQuadCurve(to: CGPoint(x: 344 - offset * 1.8, y: 55 + offset), control: CGPoint(x: 286 - offset, y: 98))
+            }
+            for index in 0..<5 {
+                let y = CGFloat(229 + index * 8)
+                fineDetails.move(to: CGPoint(x: 200, y: y))
+                fineDetails.addLine(to: CGPoint(x: 200 - CGFloat(12 + index * 4), y: y + 22))
+                fineDetails.move(to: CGPoint(x: 200, y: y))
+                fineDetails.addLine(to: CGPoint(x: 200 + CGFloat(12 + index * 4), y: y + 22))
+            }
+        case .spiral:
+            for radius in [CGFloat(24), 31, 38] {
+                fineDetails.addEllipse(in: CGRect(x: 200 - radius, y: 150 - radius, width: radius * 2, height: radius * 2))
+            }
+            for index in 0..<24 {
+                let angle = CGFloat(index) * .pi / 12
+                fineDetails.move(to: CGPoint(x: 200 + cos(angle) * 120, y: 150 + sin(angle) * 120))
+                fineDetails.addLine(to: CGPoint(x: 200 + cos(angle) * 130, y: 150 + sin(angle) * 130))
+            }
         case .cat:
             // Inner ears, paired eyes, nose, whiskers and chest/fur contours.
             fineDetails.move(to: CGPoint(x: 132, y: 121))
@@ -1310,11 +1473,12 @@ private struct HomeAnimatedCreatureMotif: View {
         let fineDetailColor = motifTint.opacity(min(1, opacity * brightness * 0.78))
         drawing.stroke(fineDetails, with: .color(fineDetailColor), style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round))
 
-        if shape == .snake || shape == .wolf || shape == .cat || shape == .bird {
+        if shape == .snake || shape == .wolf || shape == .cat || shape == .bird || shape == .fox {
             var eye = Path()
             let eyeRect: CGRect
             switch shape {
             case .snake: eyeRect = CGRect(x: 224, y: 57, width: 8, height: 6)
+            case .fox: eyeRect = CGRect(x: 184, y: 126, width: 8, height: 6)
             case .wolf: eyeRect = CGRect(x: 282, y: 123, width: 7, height: 7)
             case .cat: eyeRect = CGRect(x: 245, y: 151, width: 7, height: 7)
             case .bird: eyeRect = CGRect(x: 207, y: 145, width: 9, height: 7)
