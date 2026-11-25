@@ -141,6 +141,8 @@ struct AlternativeUIView: View {
     @AppStorage(AppPerformanceOverlaySettings.enabledKey) private var appPerformanceOverlayEnabled = AppPerformanceOverlaySettings.defaultEnabled
 #if !os(tvOS)
     @AppStorage("hideSplashScreen", store: ProfileSettingsStore.device) private var hideSplashScreen = false
+    @AppStorage("splashScreenDuration", store: ProfileSettingsStore.device) private var splashScreenDuration = 1.6
+    @AppStorage("startupSelectedSection", store: ProfileSettingsStore.device) private var startupSelectedSection = "home"
 #endif
 
     @AppStorage(ExperimentalFeatureState.enabledKey, store: ProfileSettingsStore.device)
@@ -704,6 +706,26 @@ struct AlternativeUIView: View {
                 isOn: $hideSplashScreen
             )
             .id(AppearanceSettingsSearchTarget.hideSplashScreen.anchorID)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Splash Screen Duration")
+                    Spacer()
+                    Text("\(splashScreenDuration, specifier: "%.1f") s")
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
+                Slider(value: $splashScreenDuration, in: 0.5...10.0, step: 0.5)
+                Text("Choose how long the launch splash remains visible before the app is ready.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Picker("Open App In", selection: $startupSelectedSection) {
+                Text("Home").tag("home")
+                Text("Schedule").tag("schedule")
+                Text("Downloads").tag("downloads")
+                Text("Library").tag("library")
+                Text("Search").tag("search")
+            }
 #endif
         } header: {
             Text("Startup")
