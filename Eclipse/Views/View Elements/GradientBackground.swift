@@ -993,7 +993,7 @@ private struct HomeAnimatedCreatureMotif: View {
                 path.addCurve(to: CGPoint(x: 194, y: 157), control1: CGPoint(x: 195, y: 143), control2: CGPoint(x: 193, y: 148))
                 path.closeSubpath()
             case .snake:
-                // Hooded cobra, flared hood and raised S-curve body.
+                // Hooded cobra, flared hood, striking head and raised S-curve body.
                 path.move(to: CGPoint(x: 183, y: 266))
                 path.addCurve(to: CGPoint(x: 164, y: 215), control1: CGPoint(x: 174, y: 249), control2: CGPoint(x: 158, y: 239))
                 path.addCurve(to: CGPoint(x: 194, y: 163), control1: CGPoint(x: 169, y: 188), control2: CGPoint(x: 194, y: 181))
@@ -1006,6 +1006,13 @@ private struct HomeAnimatedCreatureMotif: View {
                 path.addCurve(to: CGPoint(x: 206, y: 163), control1: CGPoint(x: 230, y: 130), control2: CGPoint(x: 206, y: 141))
                 path.addCurve(to: CGPoint(x: 236, y: 215), control1: CGPoint(x: 206, y: 181), control2: CGPoint(x: 231, y: 188))
                 path.addCurve(to: CGPoint(x: 217, y: 266), control1: CGPoint(x: 242, y: 239), control2: CGPoint(x: 226, y: 249))
+                path.closeSubpath()
+                // Heavy lower coil gives the cobra a stable, tattoo-stencil base.
+                path.move(to: CGPoint(x: 184, y: 239))
+                path.addCurve(to: CGPoint(x: 112, y: 249), control1: CGPoint(x: 144, y: 222), control2: CGPoint(x: 108, y: 222))
+                path.addCurve(to: CGPoint(x: 200, y: 281), control1: CGPoint(x: 116, y: 286), control2: CGPoint(x: 165, y: 290))
+                path.addCurve(to: CGPoint(x: 288, y: 249), control1: CGPoint(x: 235, y: 290), control2: CGPoint(x: 284, y: 286))
+                path.addCurve(to: CGPoint(x: 216, y: 239), control1: CGPoint(x: 292, y: 222), control2: CGPoint(x: 256, y: 222))
                 path.closeSubpath()
             case .dragon:
                 // Toothless-inspired Night Fury: broad catlike head, short ear-fins,
@@ -1231,8 +1238,24 @@ private struct HomeAnimatedCreatureMotif: View {
             details.move(to: CGPoint(x: 201, y: 159))
             details.addQuadCurve(to: CGPoint(x: 315, y: 91), control: CGPoint(x: 273, y: 108))
         case .snake:
-            details.move(to: CGPoint(x: 148, y: 80))
-            details.addQuadCurve(to: CGPoint(x: 252, y: 80), control: CGPoint(x: 200, y: 111))
+            // Hood ribs, jaw split, fangs and forked striking tongue.
+            for index in 0..<7 {
+                let x = CGFloat(145 + index * 18)
+                details.move(to: CGPoint(x: x, y: 52))
+                details.addQuadCurve(to: CGPoint(x: 200 + (x - 200) * 0.62, y: 105), control: CGPoint(x: 200, y: 61))
+            }
+            details.move(to: CGPoint(x: 174, y: 91))
+            details.addQuadCurve(to: CGPoint(x: 226, y: 91), control: CGPoint(x: 200, y: 108))
+            details.move(to: CGPoint(x: 181, y: 100))
+            details.addLine(to: CGPoint(x: 187, y: 119))
+            details.move(to: CGPoint(x: 219, y: 100))
+            details.addLine(to: CGPoint(x: 213, y: 119))
+            details.move(to: CGPoint(x: 200, y: 105))
+            details.addLine(to: CGPoint(x: 200, y: 132))
+            details.move(to: CGPoint(x: 200, y: 132))
+            details.addLine(to: CGPoint(x: 190, y: 145))
+            details.move(to: CGPoint(x: 200, y: 132))
+            details.addLine(to: CGPoint(x: 210, y: 145))
             details.move(to: CGPoint(x: 185, y: 183))
             details.addCurve(to: CGPoint(x: 214, y: 237), control1: CGPoint(x: 167, y: 215), control2: CGPoint(x: 235, y: 211))
         case .dragon:
@@ -1426,6 +1449,17 @@ private struct HomeAnimatedCreatureMotif: View {
                 fineDetails.move(to: CGPoint(x: 183, y: y))
                 fineDetails.addQuadCurve(to: CGPoint(x: 230, y: y + 2), control: CGPoint(x: 206, y: y + 8))
             }
+            // Seaweed-like fronds, drifting bubbles and finer scale cross-lines.
+            for index in 0..<4 {
+                let x = CGFloat(120 + index * 15)
+                fineDetails.move(to: CGPoint(x: x, y: 190))
+                fineDetails.addCurve(to: CGPoint(x: x - 20, y: 252), control1: CGPoint(x: x - 28, y: 210), control2: CGPoint(x: x - 6, y: 237))
+                fineDetails.move(to: CGPoint(x: x + 5, y: 198))
+                fineDetails.addCurve(to: CGPoint(x: x + 28, y: 248), control1: CGPoint(x: x + 30, y: 217), control2: CGPoint(x: x + 12, y: 237))
+            }
+            for bubble in [CGPoint(x: 92, y: 118), CGPoint(x: 108, y: 92), CGPoint(x: 294, y: 181), CGPoint(x: 314, y: 158)] {
+                fineDetails.addEllipse(in: CGRect(x: bubble.x, y: bubble.y, width: 5, height: 5))
+            }
         case .paw:
             // Pad creases and subtle toe-pad contours.
             fineDetails.addEllipse(in: CGRect(x: 177, y: 181, width: 46, height: 34))
@@ -1448,7 +1482,7 @@ private struct HomeAnimatedCreatureMotif: View {
             fineDetails.closeSubpath()
             fineDetails.addEllipse(in: CGRect(x: 194, y: 166, width: 12, height: 12))
         case .crescentMoon:
-            // Lunar maria and crater rims follow the crescent's inner arc.
+            // Lunar maria, delicate hanging bead chains, stars and a tiny heart.
             fineDetails.addEllipse(in: CGRect(x: 224, y: 83, width: 22, height: 15))
             fineDetails.addEllipse(in: CGRect(x: 185, y: 135, width: 30, height: 21))
             fineDetails.addEllipse(in: CGRect(x: 169, y: 194, width: 18, height: 13))
@@ -1456,6 +1490,47 @@ private struct HomeAnimatedCreatureMotif: View {
             fineDetails.addQuadCurve(to: CGPoint(x: 190, y: 225), control: CGPoint(x: 250, y: 186))
             fineDetails.move(to: CGPoint(x: 260, y: 126))
             fineDetails.addQuadCurve(to: CGPoint(x: 213, y: 239), control: CGPoint(x: 256, y: 205))
+            for chain in 0..<4 {
+                let x = CGFloat(157 + chain * 29)
+                let endY = CGFloat(252 + (chain % 2) * 18)
+                fineDetails.move(to: CGPoint(x: x, y: 194))
+                fineDetails.addLine(to: CGPoint(x: x + CGFloat(chain - 2) * 4, y: endY))
+                for bead in 0..<5 {
+                    let y = CGFloat(204 + bead * 9)
+                    fineDetails.addEllipse(in: CGRect(x: x - 2, y: y, width: 4, height: 4))
+                }
+            }
+            // Hanging four-point stars and a small heart ornament.
+            for center in [CGPoint(x: 145, y: 258), CGPoint(x: 255, y: 270), CGPoint(x: 202, y: 286)] {
+                fineDetails.move(to: CGPoint(x: center.x, y: center.y - 9))
+                fineDetails.addLine(to: CGPoint(x: center.x + 3, y: center.y - 3))
+                fineDetails.addLine(to: CGPoint(x: center.x + 9, y: center.y))
+                fineDetails.addLine(to: CGPoint(x: center.x + 3, y: center.y + 3))
+                fineDetails.addLine(to: CGPoint(x: center.x, y: center.y + 9))
+                fineDetails.addLine(to: CGPoint(x: center.x - 3, y: center.y + 3))
+                fineDetails.addLine(to: CGPoint(x: center.x - 9, y: center.y))
+                fineDetails.addLine(to: CGPoint(x: center.x - 3, y: center.y - 3))
+                fineDetails.closeSubpath()
+            }
+        case .stars:
+            // A delicate dotted constellation path links three differently sized stars.
+            for index in 0..<18 {
+                let t = CGFloat(index) / 17
+                let x = 106 + t * 190
+                let y = 224 - sin(t * .pi * 1.5) * 108
+                fineDetails.addEllipse(in: CGRect(x: x, y: y, width: 2.8, height: 2.8))
+            }
+            for center in [CGPoint(x: 95, y: 229), CGPoint(x: 302, y: 105), CGPoint(x: 316, y: 237)] {
+                fineDetails.move(to: CGPoint(x: center.x, y: center.y - 13))
+                fineDetails.addLine(to: CGPoint(x: center.x + 3, y: center.y - 3))
+                fineDetails.addLine(to: CGPoint(x: center.x + 13, y: center.y))
+                fineDetails.addLine(to: CGPoint(x: center.x + 3, y: center.y + 3))
+                fineDetails.addLine(to: CGPoint(x: center.x, y: center.y + 13))
+                fineDetails.addLine(to: CGPoint(x: center.x - 3, y: center.y + 3))
+                fineDetails.addLine(to: CGPoint(x: center.x - 13, y: center.y))
+                fineDetails.addLine(to: CGPoint(x: center.x - 3, y: center.y - 3))
+                fineDetails.closeSubpath()
+            }
         case .sun:
             // Concentric corona rings and engraved ray divisions.
             fineDetails.addEllipse(in: CGRect(x: 154, y: 104, width: 92, height: 92))
