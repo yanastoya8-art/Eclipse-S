@@ -112,6 +112,7 @@ enum ServicesSettingsSearchTarget: Hashable {
              .stremioStyleSheet,
              .streamCardColor,
              .streamIconColor,
+.streamCardRoundness,
              .hideAddonMessages,
              .streamFrame,
              .rankingSimilarity,
