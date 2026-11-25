@@ -45,11 +45,14 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
     case appPerformanceOverlay
     case hideSplashScreen
     case splashScreenDuration
+    case splashScreenMaximumDuration
     case openInLibrary
     case alternativeSeasonMenu
     case horizontalEpisodeList
     case episodeCardColor
     case scheduleCardColor
+    case scheduleControlsCornerRadius
+    case scheduleTimeCornerRadius
     case showUnairedEpisodes
     case titleLogoPosition
     case titleLogoSize
@@ -85,11 +88,11 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
             return "interface"
         case .animatedBackground, .animationQuality, .animationColor, .customAnimationColor, .animationFrameRate, .animationShape, .animationShapeEnabled, .animationShapeOpacity, .animationShapeGlow, .animationShapeBrightness, .animationShapeSize, .toothlessEyeColor, .cobraEyeColor, .hawkEyeColor, .appPerformanceOverlay:
             return "animation"
-        case .hideSplashScreen, .splashScreenDuration, .openInLibrary:
+        case .hideSplashScreen, .splashScreenDuration, .splashScreenMaximumDuration, .openInLibrary:
             return "startup"
         case .alternativeSeasonMenu, .horizontalEpisodeList, .episodeCardColor, .showUnairedEpisodes, .titleLogoPosition, .titleLogoSize, .titleLogoWeight, .heroActionPosition, .heroSynopsisPosition, .portraitHeroBleedIntensity, .landscapeHeroBleedIntensity, .landscapeTitleLogoPosition, .landscapeTitleLogoHorizontalPosition, .landscapeTitleLogoSize, .landscapeTitleLogoWeight, .landscapeHeroActionPosition, .landscapeHeroSynopsisPosition, .landscapeHeroHorizontalStretch, .landscapeHeroVerticalStretch, .landscapeContentHorizontalPosition, .dataSaver, .ageRating, .similarTitles:
             return "details"
-        case .scheduleCardColor:
+        case .scheduleCardColor, .scheduleControlsCornerRadius, .scheduleTimeCornerRadius:
             return "schedule"
         case .libraryBookmarks, .libraryCollectionLayout:
             return "library"
@@ -104,6 +107,8 @@ struct AlternativeUIView: View {
     @AppStorage(MediaDetailPlatformDefaults.horizontalEpisodeListKey) private var horizontalEpisodeList = MediaDetailPlatformDefaults.prefersHorizontalEpisodes
     @AppStorage(MediaDetailEpisodeCardAppearanceSettings.colorDataKey) private var episodeCardColorData = Data()
     @AppStorage(ScheduleCardAppearanceSettings.colorDataKey) private var scheduleCardColorData = Data()
+    @AppStorage("scheduleControlsCornerRadius") private var scheduleControlsCornerRadiusValue = 14.0
+    @AppStorage("scheduleTimeCornerRadius") private var scheduleTimeCornerRadiusValue = 10.0
     @AppStorage(MediaDetailEpisodeVisibilitySettings.showUnairedEpisodesKey) private var showUnairedEpisodes = MediaDetailEpisodeVisibilitySettings.defaultShowUnairedEpisodes
     @AppStorage(MediaDetailTitleLogoPositionSettings.verticalPositionKey) private var titleLogoVerticalPosition = MediaDetailTitleLogoPositionSettings.defaultVerticalPosition
     @AppStorage(MediaDetailTitleLogoAppearanceSettings.sizeKey) private var titleLogoSize = MediaDetailTitleLogoAppearanceSettings.defaultSize
@@ -154,6 +159,7 @@ struct AlternativeUIView: View {
 #if !os(tvOS)
     @AppStorage("hideSplashScreen", store: ProfileSettingsStore.device) private var hideSplashScreen = false
     @AppStorage("splashScreenMinimumDuration", store: ProfileSettingsStore.device) private var splashScreenMinimumDuration = 1.6
+    @AppStorage("splashScreenMaximumDuration", store: ProfileSettingsStore.device) private var splashScreenMaximumDuration = 12.0
     @AppStorage("openAppInLibrary", store: ProfileSettingsStore.device) private var openAppInLibrary = false
 #endif
 
@@ -777,6 +783,15 @@ struct AlternativeUIView: View {
             )
             .id(AppearanceSettingsSearchTarget.splashScreenDuration.anchorID)
 
+            sliderRow(
+                title: "Maximum Splash Screen Duration",
+                description: "Set the longest time the splash screen can remain visible while startup finishes. The app will continue automatically when this limit is reached.",
+                value: $splashScreenMaximumDuration,
+                range: 3...30,
+                step: 1
+            )
+            .id(AppearanceSettingsSearchTarget.splashScreenMaximumDuration.anchorID)
+
             toggleRow(
                 title: "Open in Library",
                 description: "Open Eclipse directly to your Library when the app launches.",
@@ -1035,9 +1050,27 @@ struct AlternativeUIView: View {
         Section {
             ColorPicker("Schedule Card Color", selection: scheduleCardColorBinding, supportsOpacity: true)
                 .id(AppearanceSettingsSearchTarget.scheduleCardColor.anchorID)
-            Text("Choose the background tint for scheduled movies, series and anime. The release-time Liquid Glass badge follows the selected app accent color.")
+            Text("Choose the background tint for scheduled movies, series and anime. The release-time badge follows the selected app accent color.")
                 .font(.caption)
                 .foregroundColor(.secondary)
+
+            sliderRow(
+                title: "Schedule Corner Roundness",
+                description: "Adjust the corners of the Schedule mode selector, timezone selector and date chips.",
+                value: $scheduleControlsCornerRadiusValue,
+                range: 0...32,
+                step: 1
+            )
+            .id(AppearanceSettingsSearchTarget.scheduleControlsCornerRadius.anchorID)
+
+            sliderRow(
+                title: "Schedule Time Roundness",
+                description: "Adjust the corner radius of the release-time badge on schedule cards.",
+                value: $scheduleTimeCornerRadiusValue,
+                range: 0...24,
+                step: 1
+            )
+            .id(AppearanceSettingsSearchTarget.scheduleTimeCornerRadius.anchorID)
         } header: {
             Text("Schedule Appearance")
         }
