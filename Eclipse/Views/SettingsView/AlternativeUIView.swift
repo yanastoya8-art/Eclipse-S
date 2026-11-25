@@ -40,6 +40,7 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
     case appPerformanceOverlay
     case hideSplashScreen
     case splashScreenDuration
+    case openInLibrary
     case alternativeSeasonMenu
     case horizontalEpisodeList
     case episodeCardColor
@@ -79,7 +80,7 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
             return "interface"
         case .animatedBackground, .animationQuality, .animationColor, .customAnimationColor, .animationFrameRate, .animationShape, .animationShapeEnabled, .animationShapeOpacity, .animationShapeSize, .appPerformanceOverlay:
             return "animation"
-        case .hideSplashScreen, .splashScreenDuration:
+        case .hideSplashScreen, .splashScreenDuration, .openInLibrary:
             return "startup"
         case .alternativeSeasonMenu, .horizontalEpisodeList, .episodeCardColor, .showUnairedEpisodes, .titleLogoPosition, .titleLogoSize, .titleLogoWeight, .heroActionPosition, .heroSynopsisPosition, .portraitHeroBleedIntensity, .landscapeHeroBleedIntensity, .landscapeTitleLogoPosition, .landscapeTitleLogoHorizontalPosition, .landscapeTitleLogoSize, .landscapeTitleLogoWeight, .landscapeHeroActionPosition, .landscapeHeroSynopsisPosition, .landscapeHeroHorizontalStretch, .landscapeHeroVerticalStretch, .landscapeContentHorizontalPosition, .dataSaver, .ageRating, .similarTitles:
             return "details"
@@ -143,6 +144,7 @@ struct AlternativeUIView: View {
 #if !os(tvOS)
     @AppStorage("hideSplashScreen", store: ProfileSettingsStore.device) private var hideSplashScreen = false
     @AppStorage("splashScreenMinimumDuration", store: ProfileSettingsStore.device) private var splashScreenMinimumDuration = 1.6
+    @AppStorage("openAppInLibrary", store: ProfileSettingsStore.device) private var openAppInLibrary = false
 #endif
 
     @AppStorage(ExperimentalFeatureState.enabledKey, store: ProfileSettingsStore.device)
@@ -715,6 +717,13 @@ struct AlternativeUIView: View {
                 step: 0.5
             )
             .id(AppearanceSettingsSearchTarget.splashScreenDuration.anchorID)
+
+            toggleRow(
+                title: "Open in Library",
+                description: "Open Eclipse directly to your Library when the app launches.",
+                isOn: $openAppInLibrary
+            )
+            .id(AppearanceSettingsSearchTarget.openInLibrary.anchorID)
 #endif
         } header: {
             Text("Startup")
