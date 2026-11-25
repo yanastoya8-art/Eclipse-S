@@ -29,7 +29,7 @@ struct SplashScreenView: View {
 
     @AppStorage("splashScreenMinimumDuration", store: ProfileSettingsStore.device) private var configuredMinimumDuration = 1.6
 
-    private var minimumDuration: Double { min(max(configuredMinimumDuration, 0.5), 10.0) }
+    private var minimumDuration: Double { min(max(configuredMinimumDuration, 1.3), 10.0) }
 
     var body: some View {
         ZStack {
