@@ -212,11 +212,10 @@ struct EpisodeCell: View {
                     }
                 }
                 .padding(.horizontal, 2)
-                .padding(12)
-                .background(episodeCardTint, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
-            .padding(0)
+            .padding(12)
+            .background(episodeCardTint, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .contentShape(Rectangle())
         }
         .modifier(EpisodePlayButtonModifier())
@@ -375,11 +374,10 @@ struct EpisodeCell: View {
                     }
                 }
                 .frame(width: horizontalCellWidth, height: horizontalDetailsHeight, alignment: .topLeading)
-                .padding(8)
-                .background(episodeCardTint, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
             .frame(width: horizontalCellWidth, height: horizontalCellHeight, alignment: .topLeading)
-            .padding(0)
+            .padding(10)
+            .background(episodeCardTint, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .contentShape(Rectangle())
         }
         .modifier(EpisodePlayButtonModifier())
@@ -535,18 +533,18 @@ struct EpisodeCell: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                .padding(isTvOS ? 20 : 12)
-                .applyLiquidGlassBackground(
-                    cornerRadius: 16,
-                    fallbackFill: episodeCardTint,
-                    fallbackMaterial: .thinMaterial,
-                    glassTint: episodeCardTint
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
-                )
             }
+            .padding(isTvOS ? 20 : 12)
+            .applyLiquidGlassBackground(
+                cornerRadius: 16,
+                fallbackFill: episodeCardTint,
+                fallbackMaterial: .thinMaterial,
+                glassTint: episodeCardTint
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+            )
         }
         .modifier(EpisodePlayButtonModifier())
 #if os(tvOS)
