@@ -1175,8 +1175,27 @@ private struct HomeAnimatedCreatureMotif: View {
         // the body, wings, tail fin, details and glow use this tint; eye irises
         // use the creature-specific custom eye colour.
         let motifTint = color
-        drawing.fill(fill, with: .color(motifTint.opacity(min(1, opacity * brightness))))
-        drawing.stroke(fill, with: .color(motifTint.opacity(min(1, opacity * brightness * 0.98))), style: StrokeStyle(lineWidth: 3.1, lineCap: .round, lineJoin: .round))
+        let motifAlpha = min(1, opacity * brightness)
+        // Use tonal depth from the selected animation hue rather than a flat,
+        // heavy silhouette. The highlight and shadow stay in the same hue so
+        // every motif continues to follow the user's animation-colour setting.
+        drawing.fill(
+            fill,
+            with: .linearGradient(
+                Gradient(colors: [
+                    motifTint.opacity(motifAlpha * 0.62),
+                    motifTint.opacity(motifAlpha),
+                    motifTint.opacity(motifAlpha * 0.76)
+                ]),
+                startPoint: CGPoint(x: 150, y: 48),
+                endPoint: CGPoint(x: 252, y: 282)
+            )
+        )
+        drawing.stroke(
+            fill,
+            with: .color(motifTint.opacity(min(1, motifAlpha * 0.9))),
+            style: StrokeStyle(lineWidth: 2.15, lineCap: .round, lineJoin: .round)
+        )
         if shape == .dragon {
             // Toothless's almond-shaped irises use the independent eye-colour setting;
             // the dark pupils remain separate for contrast.
@@ -1297,7 +1316,7 @@ private struct HomeAnimatedCreatureMotif: View {
         default:
             break
         }
-        drawing.stroke(details, with: .color(detailColor), style: StrokeStyle(lineWidth: 4.2, lineCap: .round, lineJoin: .round))
+        drawing.stroke(details, with: .color(detailColor), style: StrokeStyle(lineWidth: 2.15, lineCap: .round, lineJoin: .round))
 
         // Fine anime-illustration linework adds recognizable anatomy and surface
         // texture while retaining a single palette hue. These strokes deliberately
