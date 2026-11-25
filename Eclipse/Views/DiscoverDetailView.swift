@@ -47,6 +47,7 @@ struct DiscoverDetailView: View {
     @State private var paginationError: String?
     @State private var isLoadingMore = false
     @State private var paginationSentinelVisible = false
+    @State private var activePaginationSentinelID: String?
     @State private var loadGeneration = UUID()
     @StateObject private var contentFilter = TMDBContentFilter.shared
     @Environment(\.heroNamespace) private var heroNamespace
@@ -121,16 +122,24 @@ struct DiscoverDetailView: View {
                 // A dedicated sentinel keeps pagination moving when the last
                 // card's onAppear is not re-fired after a page append.
                 if loadMore != nil && paginationCursor.hasMorePages && paginationError == nil {
+                    let sentinelID = "browse-pagination-\(items.count)-\(paginationCursor.currentPage)"
                     Color.clear
                         .frame(maxWidth: .infinity)
                         .frame(height: 1)
-                        .id("browse-pagination-\(items.count)-\(paginationCursor.currentPage)")
+                        .id(sentinelID)
                         .onAppear {
+                            activePaginationSentinelID = sentinelID
                             paginationSentinelVisible = true
                             loadNextPage()
                         }
                         .onDisappear {
-                            paginationSentinelVisible = false
+                            // The old sentinel can disappear after its replacement
+                            // appears. Never let that stale callback clear the new
+                            // sentinel's visibility and strand pagination.
+                            if activePaginationSentinelID == sentinelID {
+                                paginationSentinelVisible = false
+                                activePaginationSentinelID = nil
+                            }
                         }
                 }
 
