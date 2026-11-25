@@ -1848,12 +1848,17 @@ class TMDBService: ObservableObject {
         ]
 
         if !genreIds.isEmpty {
-            let genreValue = genreIds.map(String.init).joined(separator: ",")
+            // Browse selections are alternatives: a title should match at
+            // least one selected genre, not every selected genre at once.
+            // TMDB uses "|" for OR and "," for AND in discover filters.
+            let genreValue = genreIds.map(String.init).joined(separator: "|")
             queryItems.append(URLQueryItem(name: "with_genres", value: genreValue))
         }
 
         if !excludedGenreIds.isEmpty {
-            let genreValue = excludedGenreIds.map(String.init).joined(separator: ",")
+            // Excluding several genres means excluding a title with any one
+            // of them, so use the same OR semantics for the exclusion query.
+            let genreValue = excludedGenreIds.map(String.init).joined(separator: "|")
             queryItems.append(URLQueryItem(name: "without_genres", value: genreValue))
         }
 
