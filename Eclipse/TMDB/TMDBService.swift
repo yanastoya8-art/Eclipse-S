@@ -1438,37 +1438,40 @@ class TMDBService: ObservableObject {
         adultKeywordIDs: [Int],
         extraQueryItems: [URLQueryItem] = []
     ) async throws -> [TMDBSearchResult] {
-        // Treat each origin-country request independently. A transient TMDB
-        // failure for CN/KR/TW must not cancel successful JP results (or make
-        // the entire Anime Browse catalog appear empty).
+        // TMDB returns at most 20 results per page. Fetch every page needed
+        // for the requested Browse window for each supported origin country;
+        // always requesting page 1 made every later Browse page empty.
+        let pageCount = max(1, Int(ceil(Double(limit) / 20.0)))
         let countryResults = await withTaskGroup(
-            of: (Int, [TMDBTVShow]).self,
-            returning: [(Int, [TMDBTVShow])].self
+            of: (Int, Int, [TMDBTVShow]).self,
+            returning: [(Int, Int, [TMDBTVShow])].self
         ) { group in
-            for (index, country) in Self.fastAnimeOriginCountries.enumerated() {
-                group.addTask {
-                    do {
-                        let shows = try await self.discoverFastAnimeShows(
-                            originCountry: country,
-                            originalLanguage: Self.fastAnimeOriginalLanguageByCountry[country],
-                            sortBy: sortBy,
-                            page: 1,
-                            adultKeywordIDs: adultKeywordIDs,
-                            extraQueryItems: extraQueryItems
-                        )
-                        return (index, shows)
-                    } catch {
-                        Logger.shared.log(
-                            "TMDB anime catalog country \(country) failed: \(error.localizedDescription)",
-                            type: "AniList"
-                        )
-                        return (index, [])
+            for (countryIndex, country) in Self.fastAnimeOriginCountries.enumerated() {
+                for page in 1...pageCount {
+                    group.addTask {
+                        do {
+                            let shows = try await self.discoverFastAnimeShows(
+                                originCountry: country,
+                                originalLanguage: Self.fastAnimeOriginalLanguageByCountry[country],
+                                sortBy: sortBy,
+                                page: page,
+                                adultKeywordIDs: adultKeywordIDs,
+                                extraQueryItems: extraQueryItems
+                            )
+                            return (countryIndex, page, shows)
+                        } catch {
+                            Logger.shared.log(
+                                "TMDB anime catalog country \\(country) page \\(page) failed: \\(error.localizedDescription)",
+                                type: "AniList"
+                            )
+                            return (countryIndex, page, [])
+                        }
                     }
                 }
             }
 
-            var loaded: [(Int, [TMDBTVShow])] = []
-            loaded.reserveCapacity(Self.fastAnimeOriginCountries.count)
+            var loaded: [(Int, Int, [TMDBTVShow])] = []
+            loaded.reserveCapacity(Self.fastAnimeOriginCountries.count * pageCount)
             for await result in group {
                 loaded.append(result)
             }
@@ -1476,9 +1479,12 @@ class TMDBService: ObservableObject {
         }
 
         let combined = countryResults
-            .sorted { $0.0 < $1.0 }
-            .flatMap { _, shows in
-                shows.filter { self.isFastAnimeTVShow($0) }.map(\.asSearchResult)
+            .sorted {
+                if $0.0 != $1.0 { return $0.0 < $1.0 }
+                return $0.1 < $1.1
+            }
+            .flatMap { _, _, shows in
+                shows.filter { self.isFastAnimeTVShow($0) }.map(\\.asSearchResult)
             }
         return deduplicatedFastAnimeResults(combined)
     }
