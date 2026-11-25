@@ -1046,7 +1046,7 @@ private struct HomeAnimatedCreatureMotif: View {
         // the body, wings, tail fin, details and glow use this tint; eye irises
         // use the creature-specific custom eye colour.
         let motifTint = color
-        drawing.fill(fill, with: .color(motifTint.opacity(opacity)))
+        drawing.fill(fill, with: .color(motifTint.opacity(min(1, opacity * 1.2))))
         if shape == .dragon {
             // Toothless's almond-shaped irises use the independent eye-colour setting;
             // the dark pupils remain separate for contrast.
@@ -1066,7 +1066,7 @@ private struct HomeAnimatedCreatureMotif: View {
             drawing.fill(pupils, with: .color(Color.black.opacity(min(1, opacity * 0.72))))
         }
         var details = Path()
-        let detailColor = motifTint.opacity(min(1, opacity * 0.62))
+        let detailColor = motifTint.opacity(min(1, opacity * 0.85))
         switch shape {
         case .wolf:
             details.move(to: CGPoint(x: 274, y: 111))
@@ -1444,7 +1444,7 @@ struct EclipseAmbientMotionBackground: View {
             )
             var motifGlow = context
             motifGlow.addFilter(.blur(radius: 13))
-            motifGlow.opacity = 0.50
+            motifGlow.opacity = 0.72
             motifGlow.translateBy(x: motifOrigin.x, y: motifOrigin.y)
             motif.draw(in: &motifGlow, canvasSize: motif.size)
 
