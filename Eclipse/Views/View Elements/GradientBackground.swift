@@ -585,9 +585,11 @@ enum HomeAnimatedBackgroundShape: String, CaseIterable, Identifiable {
         case .stars: return "✦"
         case .crescentMoon: return "☾"
         case .sun: return "☀"
-        case .cat: return "🐈"
-        case .mermaid: return "🧜"
-        case .bird: return "🕊"
+        // Prefer full-body/pose-specific glyphs where Unicode provides them.
+        // Detailed character artwork is supplied by the dedicated shape renderer.
+        case .cat: return "🐈‍⬛"
+        case .mermaid: return "🧜‍♀️"
+        case .bird: return "🦅"
         case .snake: return "🐍"
         case .dragon: return "🐉"
         }
