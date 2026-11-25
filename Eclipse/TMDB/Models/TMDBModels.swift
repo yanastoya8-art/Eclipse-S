@@ -1000,7 +1000,6 @@ struct TMDBMovieDetail: Codable, Identifiable {
         case voteCount = "vote_count"
         case releaseDates = "release_dates"
         case productionCompanies = "production_companies"
-        case networks
     }
 
     var fullPosterURL: String? {
@@ -1101,6 +1100,7 @@ struct TMDBTVShowDetail: Codable, Identifiable {
         case externalIds = "external_ids"
         case nextEpisodeToAir = "next_episode_to_air"
         case productionCompanies = "production_companies"
+        case networks
     }
 
     var fullPosterURL: String? {
