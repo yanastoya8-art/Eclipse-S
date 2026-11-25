@@ -1000,6 +1000,7 @@ struct TMDBMovieDetail: Codable, Identifiable {
         case voteCount = "vote_count"
         case releaseDates = "release_dates"
         case productionCompanies = "production_companies"
+        case networks
     }
 
     var fullPosterURL: String? {
@@ -1079,6 +1080,7 @@ struct TMDBTVShowDetail: Codable, Identifiable {
     let externalIds: TMDBExternalIds?
     let nextEpisodeToAir: TMDBEpisode?
     let productionCompanies: [TMDBProductionCompany]?
+    let networks: [TMDBProductionCompany]?
 
     enum CodingKeys: String, CodingKey {
         case id, name, overview, popularity, genres, tagline, status, adult, languages, type
