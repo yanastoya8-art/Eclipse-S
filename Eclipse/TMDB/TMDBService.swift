@@ -1484,7 +1484,7 @@ class TMDBService: ObservableObject {
                 return $0.1 < $1.1
             }
             .flatMap { _, _, shows in
-                shows.filter { self.isFastAnimeTVShow($0) }.map(\\.asSearchResult)
+                shows.filter { self.isFastAnimeTVShow($0) }.map(\.asSearchResult)
             }
         return deduplicatedFastAnimeResults(combined)
     }
