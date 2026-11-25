@@ -1704,8 +1704,8 @@ class TMDBContentFilter: ObservableObject {
                     guard let result = iterator.next() else { continue }
                     let key = self.catalogAudioAvailabilityKey(for: result)
                     group.addTask {
-                        let available = ScheduleAudioLanguagePolicy.hasNativeLanguageMatch(
-                            originalLanguage: result.originalLanguage,
+                        let available = await self.catalogAudioMatch(
+                            for: result,
                             selectedLanguages: selectedLanguages
                         )
                         return (key, available)
@@ -1731,8 +1731,8 @@ class TMDBContentFilter: ObservableObject {
                     if let result = iterator.next() {
                         let nextKey = self.catalogAudioAvailabilityKey(for: result)
                         group.addTask {
-                            let available = ScheduleAudioLanguagePolicy.hasNativeLanguageMatch(
-                                originalLanguage: result.originalLanguage,
+                            let available = await self.catalogAudioMatch(
+                                for: result,
                                 selectedLanguages: selectedLanguages
                             )
                             return (nextKey, available)
@@ -1751,6 +1751,35 @@ class TMDBContentFilter: ObservableObject {
                 }
             }
         }
+    }
+
+    private func catalogAudioMatch(
+        for result: TMDBSearchResult,
+        selectedLanguages: Set<String>
+    ) async -> Bool? {
+        let originalLanguage: String?
+        if let language = result.originalLanguage, !language.isEmpty {
+            originalLanguage = language
+        } else {
+            // Search/discover summaries occasionally omit original_language.
+            // Fetch the canonical detail once rather than treating an unknown
+            // language as proof that no selected-language audio exists.
+            do {
+                if result.isMovie {
+                    originalLanguage = try await TMDBService.shared
+                        .getMovieDetails(id: result.id).originalLanguage
+                } else {
+                    originalLanguage = try await TMDBService.shared
+                        .getTVShowDetails(id: result.id).originalLanguage
+                }
+            } catch {
+                return nil
+            }
+        }
+        return ScheduleAudioLanguagePolicy.hasNativeLanguageMatch(
+            originalLanguage: originalLanguage,
+            selectedLanguages: selectedLanguages
+        )
     }
 
     private func storeAnimeAudioEligibility(
