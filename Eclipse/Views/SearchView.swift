@@ -309,22 +309,30 @@ struct SearchView: View {
                     }
                 }
             } else if filteredResults.isEmpty && !searchResults.isEmpty {
-                VStack {
-                    Image(systemName: "tv.and.hifispeaker.fill")
-                        .imageScale(.large)
-                        .font(.system(size: 60))
-                        .foregroundColor(.secondary)
+                VStack(spacing: 12) {
+                    if contentFilter.isResolvingSelectedAudio {
+                        EclipseLoadingIndicator()
+                            .scaleEffect(1.15)
+                        Text("Checking selected audio languages…")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    } else {
+                        Image(systemName: "tv.and.hifispeaker.fill")
+                            .imageScale(.large)
+                            .font(.system(size: 60))
+                            .foregroundColor(.secondary)
 
-                    Text("No \(searchFilter.rawValue.lowercased()) found")
-                        .font(.title2)
-                        .foregroundColor(.secondary)
-                        .padding()
+                        Text("No \(searchFilter.rawValue.lowercased()) found")
+                            .font(.title2)
+                            .foregroundColor(.secondary)
+                            .padding()
 
-                    Text("Try adjusting your filter or search for something else")
-                        .font(.body)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
+                        Text("Try adjusting your filter or search for something else")
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                    }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if searchResults.isEmpty {
