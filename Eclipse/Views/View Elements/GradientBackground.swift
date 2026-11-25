@@ -1066,6 +1066,7 @@ struct EclipseAmbientMotionBackground: View {
             let motif = Text(selectedShape.glyph)
                 .font(shapeFont)
                 .foregroundColor(primaryColor.opacity(shapeOpacity))
+                .colorMultiply(primaryColor)
             var motifGlow = context
             motifGlow.addFilter(.blur(radius: 13))
             motifGlow.opacity = 0.58 * shapeOpacity
