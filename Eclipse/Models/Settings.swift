@@ -574,6 +574,30 @@ enum ServicesResultRankingSettings {
     }
 }
 
+enum StreamURLBlocklistSettings {
+    static let storageKey = "servicesBlockedStreamURLs"
+
+    static func canonicalURL(_ rawValue: String) -> String? {
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard var components = URLComponents(string: trimmed),
+              let scheme = components.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              let host = components.host?.lowercased(),
+              !host.isEmpty else { return nil }
+        components.scheme = scheme
+        components.host = host
+        components.fragment = nil
+        return components.string
+    }
+
+    static func contains(_ rawURL: String, defaults: UserDefaults = ProfileSettingsStore.services) -> Bool {
+        guard let candidate = canonicalURL(rawURL) else { return false }
+        let entries = defaults.string(forKey: storageKey)?
+            .components(separatedBy: .newlines) ?? []
+        return entries.compactMap(canonicalURL).contains(candidate)
+    }
+}
+
 enum ServicesStreamAppearanceSettings {
     static let streamCardColorKey = "servicesStreamCardColor"
     static let streamIconColorKey = "servicesStreamIconColor"
