@@ -2951,7 +2951,10 @@ private final class MPVHeaderProxyCore {
         let encoded = encodeTargetURL(targetURL)
         var components = URLComponents()
         components.scheme = "http"
-        components.host = listenOnLocalNetwork ? Self.localIPv4Address() : "127.0.0.1"
+        // Prefer a reachable LAN address for other devices. If the device has
+        // no active IPv4 LAN interface (for example, cellular-only use), keep
+        // same-device download links usable through the loopback listener.
+        components.host = listenOnLocalNetwork ? (Self.localIPv4Address() ?? "127.0.0.1") : "127.0.0.1"
         components.port = Int(port)
         components.path = "/proxy/\(sessionId)"
         components.queryItems = [
