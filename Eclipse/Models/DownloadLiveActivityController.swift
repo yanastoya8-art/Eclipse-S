@@ -65,7 +65,21 @@ enum DownloadLiveActivityController {
     }
 
     private static func drainPendingUpdates(for downloadID: String) async {
-        defer { drainTasks.removeValue(forKey: downloadID) }
+        defer {
+            drainTasks.removeValue(forKey: downloadID)
+            // An update can arrive after the loop observes an empty queue but
+            // before this task releases its slot. In that window update() sees
+            // an existing drain task and does not start another one. Re-arm the
+            // drain after releasing the slot so the newest progress is never
+            // stranded until the next network callback.
+            if pendingUpdates[downloadID] != nil,
+               !endedDownloadIDs.contains(downloadID) {
+                let nextTask = Task { @MainActor in
+                    await drainPendingUpdates(for: downloadID)
+                }
+                drainTasks[downloadID] = nextTask
+            }
+        }
 
         while let pending = pendingUpdates.removeValue(forKey: downloadID) {
             guard pending.generation == generation(for: downloadID),

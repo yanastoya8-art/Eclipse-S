@@ -2869,16 +2869,14 @@ final class DownloadManager: NSObject, ObservableObject {
             completed = min(max(item.downloadedBytes, 0), total)
             subtitle = item.formattedSize
         } else {
-            // Unknown Content-Length: use a monotonic byte-based progress
-            // estimate and show the exact transferred byte count in the subtitle.
-            let downloaded = max(item.downloadedBytes, 0)
-            let (estimatedTotal, overflow) = downloaded.addingReportingOverflow(1_000_000_000)
-            total = overflow ? Int64.max : max(estimatedTotal, 1_000_000_000)
-            completed = downloaded > 0
-                ? downloaded
-                : Int64(Double(total) * min(max(progress ?? item.progress, 0), 1))
-            subtitle = downloaded > 0
-                ? "\(DownloadByteCountFormatter.string(fromByteCount: downloaded)) downloaded"
+            // Do not invent a 1 GB denominator when the server omits its
+            // Content-Length. Keep the byte counter truthful and let the
+            // Live Activity show an indeterminate/estimated percentage only
+            // when the transport itself supplies one.
+            total = 0
+            completed = max(item.downloadedBytes, 0)
+            subtitle = completed > 0
+                ? "\(DownloadByteCountFormatter.string(fromByteCount: completed)) downloaded"
                 : stage
         }
         if let attempt {
@@ -2894,7 +2892,7 @@ final class DownloadManager: NSObject, ObservableObject {
             Task { @MainActor in
                 await DownloadLiveActivityController.update(
                     downloadID: id, title: item.displayTitle,
-                    progress: total > 0 ? Double(completed) / Double(total) : 0,
+                    progress: total > 0 ? Double(completed) / Double(total) : min(max(progress ?? item.progress, 0), 1),
                     completedBytes: completed, totalBytes: total, status: subtitle
                 )
             }
@@ -3000,18 +2998,36 @@ final class DownloadManager: NSObject, ObservableObject {
         guard let item = downloads.first(where: { $0.id == id }),
               item.status == .downloading else { return }
         let attempt = hlsBackgroundAttempts[id].flatMap { $0.granted && !$0.revoked ? $0 : nil }
-        let total = Int64(max(item.hlsTotalSegments ?? 1, 1)) + 1
-        let completed = min(Int64(max(item.hlsResumeSegmentIndex ?? 0, 0)), total - 1)
+        let segmentTotal = Int64(max(item.hlsTotalSegments ?? 1, 1)) + 1
+        let completedSegments = min(Int64(max(item.hlsResumeSegmentIndex ?? 0, 0)), segmentTotal - 1)
+        let hasByteTotal = item.totalBytes > 0
+        let completedBytes = max(item.downloadedBytes, 0)
+        let totalBytes = hasByteTotal ? item.totalBytes : 0
+        let progress = hasByteTotal
+            ? min(Double(completedBytes) / Double(totalBytes), 1)
+            : Double(completedSegments) / Double(max(segmentTotal, 1))
+        let subtitle = hasByteTotal
+            ? "\(DownloadByteCountFormatter.string(fromByteCount: completedBytes)) of \(DownloadByteCountFormatter.string(fromByteCount: totalBytes))"
+            : (completedBytes > 0
+                ? "\(DownloadByteCountFormatter.string(fromByteCount: completedBytes)) downloaded"
+                : stage)
         if let attempt {
-            hlsBackgroundScheduler?.updateProgress(attemptID: attempt.attemptID, completed: completed, total: total, subtitle: stage)
+            hlsBackgroundScheduler?.updateProgress(
+                attemptID: attempt.attemptID,
+                completed: hasByteTotal ? completedBytes : completedSegments,
+                total: hasByteTotal ? totalBytes : segmentTotal,
+                subtitle: subtitle
+            )
         }
 #if os(iOS)
         if #available(iOS 16.2, *) {
             Task { @MainActor in
                 await DownloadLiveActivityController.update(
                     downloadID: id, title: item.displayTitle,
-                    progress: Double(completed) / Double(max(total, 1)),
-                    completedBytes: completed, totalBytes: total, status: stage
+                    progress: progress,
+                    completedBytes: completedBytes,
+                    totalBytes: totalBytes,
+                    status: subtitle
                 )
             }
         }

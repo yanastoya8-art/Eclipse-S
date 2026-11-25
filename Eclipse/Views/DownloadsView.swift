@@ -605,8 +605,25 @@ struct DownloadsView: View {
 #if os(iOS)
             if DownloadSourceLinkPolicy.copyableURL(item.streamURL) != nil {
                 Button {
-                    if let url = DownloadSourceLinkPolicy.copyableURL(item.streamURL) {
-                        UIPasteboard.general.url = url
+                    guard let sourceURL = DownloadSourceLinkPolicy.copyableURL(item.streamURL) else { return }
+                    // A plain copied provider URL drops request headers (Referer,
+                    // cookies and provider tokens), so it fails outside Eclipse.
+                    // Expose the authenticated stream through the app's LAN proxy
+                    // when headers are required; header-free URLs remain direct.
+                    if item.headers.isEmpty {
+                        UIPasteboard.general.url = sourceURL
+                    } else if let authenticatedURL = MPVHeaderProxy.shared.makeLANProxyURL(
+                        for: sourceURL,
+                        headers: item.headers,
+                        logType: "Download",
+                        asDownload: true
+                    ) {
+                        UIPasteboard.general.url = authenticatedURL
+                    } else {
+                        // Never put a header-dependent URL on the clipboard
+                        // without its authentication transport: that link
+                        // would appear valid but fail when opened elsewhere.
+                        Logger.shared.log("Could not create an authenticated download link for \(item.displayTitle)", type: "Download")
                     }
                 } label: {
                     Label("Copy Download Link", systemImage: "link")

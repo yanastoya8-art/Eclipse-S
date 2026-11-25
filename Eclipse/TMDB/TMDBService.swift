@@ -1828,6 +1828,7 @@ class TMDBService: ObservableObject {
     func discoverMedia(
         mediaType: String,
         genreIds: [Int] = [],
+        requiredGenreIds: [Int] = [],
         excludedGenreIds: [Int] = [],
         keywordIds: [Int] = [],
         excludedKeywordIds: [Int] = [],
@@ -1847,13 +1848,22 @@ class TMDBService: ObservableObject {
             URLQueryItem(name: "include_adult", value: "false")
         ]
 
-        if !genreIds.isEmpty {
-            let genreValue = genreIds.map(String.init).joined(separator: ",")
+        if !genreIds.isEmpty || !requiredGenreIds.isEmpty {
+            // Selected Browse genres are alternatives, while structural
+            // constraints (such as Animation for Anime Browse) remain required.
+            // TMDB uses "|" for OR and "," for AND, so compose both groups.
+            let selectedGenreGroup = genreIds.map(String.init).joined(separator: "|")
+            let requiredGenreGroup = requiredGenreIds.map(String.init).joined(separator: ",")
+            let genreValue = [requiredGenreGroup, selectedGenreGroup]
+                .filter { !$0.isEmpty }
+                .joined(separator: ",")
             queryItems.append(URLQueryItem(name: "with_genres", value: genreValue))
         }
 
         if !excludedGenreIds.isEmpty {
-            let genreValue = excludedGenreIds.map(String.init).joined(separator: ",")
+            // Excluding several genres means excluding a title with any one
+            // of them, so use the same OR semantics for the exclusion query.
+            let genreValue = excludedGenreIds.map(String.init).joined(separator: "|")
             queryItems.append(URLQueryItem(name: "without_genres", value: genreValue))
         }
 

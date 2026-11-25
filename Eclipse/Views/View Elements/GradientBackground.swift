@@ -1175,8 +1175,27 @@ private struct HomeAnimatedCreatureMotif: View {
         // the body, wings, tail fin, details and glow use this tint; eye irises
         // use the creature-specific custom eye colour.
         let motifTint = color
-        drawing.fill(fill, with: .color(motifTint.opacity(min(1, opacity * brightness))))
-        drawing.stroke(fill, with: .color(motifTint.opacity(min(1, opacity * brightness * 0.98))), style: StrokeStyle(lineWidth: 3.1, lineCap: .round, lineJoin: .round))
+        let motifAlpha = min(1, opacity * brightness)
+        // Use tonal depth from the selected animation hue rather than a flat,
+        // heavy silhouette. The highlight and shadow stay in the same hue so
+        // every motif continues to follow the user's animation-colour setting.
+        drawing.fill(
+            fill,
+            with: .linearGradient(
+                Gradient(colors: [
+                    motifTint.opacity(motifAlpha * 0.62),
+                    motifTint.opacity(motifAlpha),
+                    motifTint.opacity(motifAlpha * 0.76)
+                ]),
+                startPoint: CGPoint(x: 150, y: 48),
+                endPoint: CGPoint(x: 252, y: 282)
+            )
+        )
+        drawing.stroke(
+            fill,
+            with: .color(motifTint.opacity(min(1, motifAlpha * 0.9))),
+            style: StrokeStyle(lineWidth: 2.15, lineCap: .round, lineJoin: .round)
+        )
         if shape == .dragon {
             // Toothless's almond-shaped irises use the independent eye-colour setting;
             // the dark pupils remain separate for contrast.
@@ -1297,7 +1316,7 @@ private struct HomeAnimatedCreatureMotif: View {
         default:
             break
         }
-        drawing.stroke(details, with: .color(detailColor), style: StrokeStyle(lineWidth: 4.2, lineCap: .round, lineJoin: .round))
+        drawing.stroke(details, with: .color(detailColor), style: StrokeStyle(lineWidth: 2.15, lineCap: .round, lineJoin: .round))
 
         // Fine anime-illustration linework adds recognizable anatomy and surface
         // texture while retaining a single palette hue. These strokes deliberately
@@ -1572,7 +1591,369 @@ private struct HomeAnimatedCreatureMotif: View {
             break
         }
         let fineDetailColor = motifTint.opacity(min(1, opacity * brightness * 0.78))
-        drawing.stroke(fineDetails, with: .color(fineDetailColor), style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round))
+        drawing.stroke(fineDetails, with: .color(fineDetailColor), style: StrokeStyle(lineWidth: 1.55, lineCap: .round, lineJoin: .round))
+
+        // Micro-anatomy pass: small contour marks make the creatures read as
+        // illustrated animals rather than flat cut-out symbols. All marks use
+        // the selected animation tint and inherit the user's opacity/brightness.
+        var microDetails = Path()
+        switch shape {
+        case .dragon:
+            // Night-Fury facial planes, nostrils, jaw, neck folds and wing structure.
+            microDetails.move(to: CGPoint(x: 242, y: 95))
+            microDetails.addQuadCurve(to: CGPoint(x: 281, y: 101), control: CGPoint(x: 260, y: 88))
+            microDetails.move(to: CGPoint(x: 282, y: 116))
+            microDetails.addQuadCurve(to: CGPoint(x: 306, y: 116), control: CGPoint(x: 296, y: 122))
+            microDetails.addEllipse(in: CGRect(x: 292, y: 106, width: 3.2, height: 2.2))
+            microDetails.addEllipse(in: CGRect(x: 302, y: 108, width: 3.2, height: 2.2))
+            microDetails.move(to: CGPoint(x: 281, y: 126))
+            microDetails.addQuadCurve(to: CGPoint(x: 303, y: 123), control: CGPoint(x: 294, y: 132))
+            microDetails.move(to: CGPoint(x: 254, y: 136))
+            microDetails.addQuadCurve(to: CGPoint(x: 286, y: 137), control: CGPoint(x: 269, y: 145))
+            microDetails.move(to: CGPoint(x: 223, y: 111))
+            microDetails.addQuadCurve(to: CGPoint(x: 241, y: 125), control: CGPoint(x: 225, y: 123))
+            microDetails.move(to: CGPoint(x: 211, y: 132))
+            microDetails.addQuadCurve(to: CGPoint(x: 229, y: 145), control: CGPoint(x: 216, y: 143))
+            microDetails.move(to: CGPoint(x: 188, y: 166))
+            microDetails.addQuadCurve(to: CGPoint(x: 166, y: 204), control: CGPoint(x: 172, y: 176))
+            microDetails.move(to: CGPoint(x: 169, y: 211))
+            microDetails.addQuadCurve(to: CGPoint(x: 137, y: 199), control: CGPoint(x: 149, y: 219))
+            // Fine wing spars and membrane tension lines.
+            for index in 0..<5 {
+                let t = CGFloat(index)
+                microDetails.move(to: CGPoint(x: 198 + t * 5, y: 157 + t * 2))
+                microDetails.addQuadCurve(
+                    to: CGPoint(x: 252 - t * 7, y: 207 - t * 3),
+                    control: CGPoint(x: 231 + t * 2, y: 174 + t * 5)
+                )
+            }
+            // Small toe separations and hooked claws.
+            microDetails.move(to: CGPoint(x: 239, y: 188))
+            microDetails.addLine(to: CGPoint(x: 247, y: 195))
+            microDetails.addLine(to: CGPoint(x: 243, y: 199))
+            microDetails.move(to: CGPoint(x: 230, y: 193))
+            microDetails.addLine(to: CGPoint(x: 236, y: 200))
+            microDetails.addLine(to: CGPoint(x: 232, y: 203))
+            // Tail-fin ribbing and its characteristic split.
+            microDetails.move(to: CGPoint(x: 42, y: 82))
+            microDetails.addQuadCurve(to: CGPoint(x: 79, y: 103), control: CGPoint(x: 57, y: 91))
+            microDetails.move(to: CGPoint(x: 73, y: 91))
+            microDetails.addQuadCurve(to: CGPoint(x: 95, y: 105), control: CGPoint(x: 84, y: 95))
+            microDetails.move(to: CGPoint(x: 79, y: 113))
+            microDetails.addQuadCurve(to: CGPoint(x: 97, y: 113), control: CGPoint(x: 88, y: 119))
+        case .bird:
+            // Beak, eye ring, layered flight-feather shafts and separated talons.
+            microDetails.addEllipse(in: CGRect(x: 207, y: 143, width: 7, height: 7))
+            microDetails.move(to: CGPoint(x: 214, y: 151))
+            microDetails.addLine(to: CGPoint(x: 233, y: 157))
+            microDetails.addLine(to: CGPoint(x: 214, y: 161))
+            microDetails.move(to: CGPoint(x: 194, y: 174))
+            microDetails.addQuadCurve(to: CGPoint(x: 200, y: 211), control: CGPoint(x: 190, y: 194))
+            microDetails.addQuadCurve(to: CGPoint(x: 206, y: 174), control: CGPoint(x: 210, y: 194))
+            for index in 0..<7 {
+                let t = CGFloat(index)
+                microDetails.move(to: CGPoint(x: 184 - t * 3, y: 158 + t * 2))
+                microDetails.addQuadCurve(to: CGPoint(x: 39 + t * 13, y: 83 + t * 8), control: CGPoint(x: 106 + t * 8, y: 127 + t * 4))
+                microDetails.move(to: CGPoint(x: 216 + t * 3, y: 158 + t * 2))
+                microDetails.addQuadCurve(to: CGPoint(x: 361 - t * 13, y: 83 + t * 8), control: CGPoint(x: 294 - t * 8, y: 127 + t * 4))
+            }
+            microDetails.move(to: CGPoint(x: 187, y: 218))
+            microDetails.addLine(to: CGPoint(x: 177, y: 239))
+            microDetails.addLine(to: CGPoint(x: 191, y: 233))
+            microDetails.move(to: CGPoint(x: 213, y: 218))
+            microDetails.addLine(to: CGPoint(x: 223, y: 239))
+            microDetails.addLine(to: CGPoint(x: 209, y: 233))
+        case .snake:
+            // Paired hood markings, vertical pupils, belly scutes and forked tongue.
+            for y in stride(from: CGFloat(54), through: CGFloat(86), by: CGFloat(10)) {
+                microDetails.addEllipse(in: CGRect(x: 132, y: y, width: 12, height: 7))
+                microDetails.addEllipse(in: CGRect(x: 256, y: y, width: 12, height: 7))
+            }
+            microDetails.move(to: CGPoint(x: 166, y: 66))
+            microDetails.addLine(to: CGPoint(x: 166, y: 76))
+            microDetails.move(to: CGPoint(x: 234, y: 66))
+            microDetails.addLine(to: CGPoint(x: 234, y: 76))
+            for index in 0..<8 {
+                let y = CGFloat(166 + index * 12)
+                let inset = CGFloat(index) * 1.7
+                microDetails.move(to: CGPoint(x: 181 + inset, y: y))
+                microDetails.addQuadCurve(to: CGPoint(x: 219 - inset, y: y), control: CGPoint(x: 200, y: y + 6))
+            }
+            microDetails.move(to: CGPoint(x: 200, y: 103))
+            microDetails.addLine(to: CGPoint(x: 200, y: 128))
+            microDetails.addLine(to: CGPoint(x: 193, y: 139))
+            microDetails.move(to: CGPoint(x: 200, y: 128))
+            microDetails.addLine(to: CGPoint(x: 207, y: 139))
+        case .wolf:
+            // Brow, eye socket, nose bridge, muzzle split and cheek-fur notches.
+            microDetails.move(to: CGPoint(x: 274, y: 118))
+            microDetails.addQuadCurve(to: CGPoint(x: 298, y: 126), control: CGPoint(x: 288, y: 112))
+            microDetails.addEllipse(in: CGRect(x: 282, y: 125, width: 7, height: 5))
+            microDetails.move(to: CGPoint(x: 290, y: 139))
+            microDetails.addQuadCurve(to: CGPoint(x: 322, y: 145), control: CGPoint(x: 308, y: 134))
+            microDetails.addEllipse(in: CGRect(x: 316, y: 139, width: 7, height: 5))
+            microDetails.move(to: CGPoint(x: 303, y: 148))
+            microDetails.addQuadCurve(to: CGPoint(x: 292, y: 160), control: CGPoint(x: 302, y: 158))
+            for index in 0..<6 {
+                let x = CGFloat(160 + index * 9)
+                microDetails.move(to: CGPoint(x: x, y: 169 + CGFloat(index % 2) * 4))
+                microDetails.addLine(to: CGPoint(x: x - 9, y: 185 + CGFloat(index % 2) * 4))
+            }
+        case .fox:
+            // Facial mask, pointed muzzle, inner ear edges and tail-tip banding.
+            microDetails.move(to: CGPoint(x: 166, y: 111))
+            microDetails.addQuadCurve(to: CGPoint(x: 199, y: 145), control: CGPoint(x: 174, y: 139))
+            microDetails.move(to: CGPoint(x: 234, y: 111))
+            microDetails.addQuadCurve(to: CGPoint(x: 201, y: 145), control: CGPoint(x: 226, y: 139))
+            microDetails.addEllipse(in: CGRect(x: 194, y: 147, width: 8, height: 6))
+            microDetails.move(to: CGPoint(x: 198, y: 153))
+            microDetails.addLine(to: CGPoint(x: 190, y: 164))
+            microDetails.addLine(to: CGPoint(x: 202, y: 160))
+            microDetails.move(to: CGPoint(x: 155, y: 72))
+            microDetails.addQuadCurve(to: CGPoint(x: 180, y: 111), control: CGPoint(x: 158, y: 98))
+            microDetails.move(to: CGPoint(x: 245, y: 72))
+            microDetails.addQuadCurve(to: CGPoint(x: 220, y: 111), control: CGPoint(x: 242, y: 98))
+            for index in 0..<4 {
+                let y = CGFloat(231 + index * 7)
+                microDetails.move(to: CGPoint(x: 166, y: y))
+                microDetails.addQuadCurve(to: CGPoint(x: 234, y: y), control: CGPoint(x: 200, y: y + 8))
+            }
+        case .phoenix:
+            // Feather barbs branching from the main flight feathers.
+            for index in 0..<8 {
+                let t = CGFloat(index)
+                let x = 70 + t * 11
+                let y = 67 + t * 7
+                microDetails.move(to: CGPoint(x: 119 + t * 4, y: 104 + t * 3))
+                microDetails.addLine(to: CGPoint(x: x, y: y))
+                microDetails.move(to: CGPoint(x: 281 - t * 4, y: 104 + t * 3))
+                microDetails.addLine(to: CGPoint(x: 330 - t * 11, y: y))
+            }
+            for index in 0..<6 {
+                let y = CGFloat(230 + index * 7)
+                microDetails.move(to: CGPoint(x: 200, y: y))
+                microDetails.addQuadCurve(to: CGPoint(x: 178, y: y + 15), control: CGPoint(x: 184, y: y + 5))
+                microDetails.move(to: CGPoint(x: 200, y: y))
+                microDetails.addQuadCurve(to: CGPoint(x: 222, y: y + 15), control: CGPoint(x: 216, y: y + 5))
+            }
+        case .cat:
+            // Fine brow arcs and layered cheek whisker follicles.
+            microDetails.move(to: CGPoint(x: 181, y: 145))
+            microDetails.addQuadCurve(to: CGPoint(x: 198, y: 149), control: CGPoint(x: 189, y: 140))
+            microDetails.move(to: CGPoint(x: 219, y: 149))
+            microDetails.addQuadCurve(to: CGPoint(x: 236, y: 145), control: CGPoint(x: 228, y: 140))
+            for index in 0..<4 {
+                let y = CGFloat(171 + index * 5)
+                microDetails.addEllipse(in: CGRect(x: 181, y: y, width: 2, height: 2))
+                microDetails.addEllipse(in: CGRect(x: 232, y: y, width: 2, height: 2))
+            }
+        case .mermaid:
+            // Finger separations, shoulder contours and individual fin rays.
+            microDetails.move(to: CGPoint(x: 250, y: 177))
+            microDetails.addLine(to: CGPoint(x: 265, y: 183))
+            microDetails.addLine(to: CGPoint(x: 260, y: 189))
+            microDetails.move(to: CGPoint(x: 139, y: 177))
+            microDetails.addLine(to: CGPoint(x: 126, y: 184))
+            for index in 0..<7 {
+                let t = CGFloat(index)
+                microDetails.move(to: CGPoint(x: 222 + t * 7, y: 252 - t * 2))
+                microDetails.addQuadCurve(to: CGPoint(x: 302 + t * 3, y: 269 - t * 2), control: CGPoint(x: 260 + t * 4, y: 282 - t * 2))
+            }
+        case .paw:
+            // Fine toe creases and individual claw arcs around each pad.
+            for (x, y) in [(CGFloat(118), CGFloat(108)), (CGFloat(180), CGFloat(72)), (CGFloat(235), CGFloat(72)), (CGFloat(291), CGFloat(108))] {
+                microDetails.move(to: CGPoint(x: x, y: y))
+                microDetails.addQuadCurve(to: CGPoint(x: x + 17, y: y + 24), control: CGPoint(x: x + 22, y: y + 7))
+            }
+            microDetails.move(to: CGPoint(x: 163, y: 246))
+            microDetails.addQuadCurve(to: CGPoint(x: 237, y: 246), control: CGPoint(x: 200, y: 258))
+        default:
+            break
+        }
+        let microDetailColor = motifTint.opacity(min(1, opacity * brightness * 0.62))
+        drawing.stroke(microDetails, with: .color(microDetailColor), style: StrokeStyle(lineWidth: 1.05, lineCap: .round, lineJoin: .round))
+
+        // A second, illustration-led engraving pass translates the approved concept
+        // sheet into the in-app vectors. Keep every mark in the selected motif hue.
+        var conceptDetails = Path()
+        switch shape {
+        case .dragon:
+            // Night-Fury facial planes, ribbed folded wing, shoulder scales and fin webbing.
+            conceptDetails.move(to: CGPoint(x: 251, y: 91))
+            conceptDetails.addQuadCurve(to: CGPoint(x: 282, y: 103), control: CGPoint(x: 267, y: 85))
+            conceptDetails.move(to: CGPoint(x: 257, y: 119))
+            conceptDetails.addQuadCurve(to: CGPoint(x: 281, y: 126), control: CGPoint(x: 270, y: 132))
+            for index in 0..<4 {
+                let t = CGFloat(index)
+                conceptDetails.move(to: CGPoint(x: 195 + t * 7, y: 160 + t * 3))
+                conceptDetails.addQuadCurve(to: CGPoint(x: 244 + t * 3, y: 203 - t * 2), control: CGPoint(x: 226 + t * 5, y: 168 + t * 5))
+            }
+            for index in 0..<3 {
+                let t = CGFloat(index)
+                conceptDetails.move(to: CGPoint(x: 48 + t * 8, y: 86 + t * 7))
+                conceptDetails.addQuadCurve(to: CGPoint(x: 83 + t * 5, y: 105 + t * 5), control: CGPoint(x: 61 + t * 7, y: 94 + t * 6))
+            }
+        case .bird:
+            // Hawk flight feathers, layered covert rows and hooked beak accents.
+            for index in 0..<5 {
+                let t = CGFloat(index)
+                conceptDetails.move(to: CGPoint(x: 188 - t * 5, y: 160 + t * 4))
+                conceptDetails.addQuadCurve(to: CGPoint(x: 45 + t * 19, y: 86 + t * 12), control: CGPoint(x: 111 + t * 8, y: 128 + t * 5))
+                conceptDetails.move(to: CGPoint(x: 212 + t * 5, y: 160 + t * 4))
+                conceptDetails.addQuadCurve(to: CGPoint(x: 355 - t * 19, y: 86 + t * 12), control: CGPoint(x: 289 - t * 8, y: 128 + t * 5))
+            }
+            conceptDetails.move(to: CGPoint(x: 203, y: 147))
+            conceptDetails.addQuadCurve(to: CGPoint(x: 224, y: 157), control: CGPoint(x: 220, y: 144))
+        case .snake:
+            // Cobra hood ribbing and belly plate segmentation.
+            for index in 0..<5 {
+                let t = CGFloat(index)
+                conceptDetails.move(to: CGPoint(x: 133 + t * 3, y: 65 + t * 8))
+                conceptDetails.addQuadCurve(to: CGPoint(x: 166 + t * 2, y: 103 + t * 3), control: CGPoint(x: 140 + t * 4, y: 93 + t * 5))
+                conceptDetails.move(to: CGPoint(x: 267 - t * 3, y: 65 + t * 8))
+                conceptDetails.addQuadCurve(to: CGPoint(x: 234 - t * 2, y: 103 + t * 3), control: CGPoint(x: 260 - t * 4, y: 93 + t * 5))
+            }
+            for index in 0..<6 {
+                let y = CGFloat(176 + index * 10)
+                conceptDetails.move(to: CGPoint(x: 181, y: y))
+                conceptDetails.addQuadCurve(to: CGPoint(x: 219, y: y), control: CGPoint(x: 200, y: y + 5))
+            }
+        case .fox:
+            // Nine-tail fur flow and cheek-mask engraving.
+            for index in 0..<4 {
+                let t = CGFloat(index)
+                conceptDetails.move(to: CGPoint(x: 164 + t * 5, y: 173 + t * 8))
+                conceptDetails.addQuadCurve(to: CGPoint(x: 118 + t * 10, y: 244 - t * 3), control: CGPoint(x: 128 + t * 8, y: 191 + t * 9))
+                conceptDetails.move(to: CGPoint(x: 236 - t * 5, y: 173 + t * 8))
+                conceptDetails.addQuadCurve(to: CGPoint(x: 282 - t * 10, y: 244 - t * 3), control: CGPoint(x: 272 - t * 8, y: 191 + t * 9))
+            }
+            conceptDetails.move(to: CGPoint(x: 175, y: 117))
+            conceptDetails.addQuadCurve(to: CGPoint(x: 198, y: 146), control: CGPoint(x: 181, y: 141))
+            conceptDetails.move(to: CGPoint(x: 225, y: 117))
+            conceptDetails.addQuadCurve(to: CGPoint(x: 202, y: 146), control: CGPoint(x: 219, y: 141))
+        case .phoenix:
+            // Layered flight-feather barbs and flame-like tail vanes.
+            for index in 0..<6 {
+                let t = CGFloat(index)
+                conceptDetails.move(to: CGPoint(x: 192 - t * 4, y: 129 + t * 5))
+                conceptDetails.addQuadCurve(to: CGPoint(x: 78 + t * 17, y: 52 + t * 12), control: CGPoint(x: 125 + t * 12, y: 92 + t * 7))
+                conceptDetails.move(to: CGPoint(x: 208 + t * 4, y: 129 + t * 5))
+                conceptDetails.addQuadCurve(to: CGPoint(x: 322 - t * 17, y: 52 + t * 12), control: CGPoint(x: 275 - t * 12, y: 92 + t * 7))
+            }
+            for index in 0..<4 {
+                let y = CGFloat(232 + index * 8)
+                conceptDetails.move(to: CGPoint(x: 198, y: y))
+                conceptDetails.addQuadCurve(to: CGPoint(x: 151, y: y + 35), control: CGPoint(x: 172, y: y + 15))
+                conceptDetails.move(to: CGPoint(x: 202, y: y))
+                conceptDetails.addQuadCurve(to: CGPoint(x: 249, y: y + 35), control: CGPoint(x: 228, y: y + 15))
+            }
+        case .wolf:
+            // Layered cheek fur, neck ruff and shoulder direction lines.
+            for index in 0..<5 {
+                let t = CGFloat(index)
+                conceptDetails.move(to: CGPoint(x: 270 + t * 5, y: 151 + t * 4))
+                conceptDetails.addLine(to: CGPoint(x: 291 + t * 4, y: 166 + t * 5))
+                conceptDetails.move(to: CGPoint(x: 256 - t * 4, y: 172 + t * 7))
+                conceptDetails.addQuadCurve(to: CGPoint(x: 220 - t * 3, y: 225 + t * 2), control: CGPoint(x: 235 - t * 3, y: 190 + t * 5))
+            }
+            conceptDetails.move(to: CGPoint(x: 288, y: 132))
+            conceptDetails.addQuadCurve(to: CGPoint(x: 316, y: 143), control: CGPoint(x: 305, y: 129))
+        case .cat:
+            // Fine whiskers, forehead stripes, chest fur and curled-tail texture.
+            for index in 0..<3 {
+                let t = CGFloat(index)
+                conceptDetails.move(to: CGPoint(x: 178 + t * 8, y: 137))
+                conceptDetails.addQuadCurve(to: CGPoint(x: 169 + t * 7, y: 154), control: CGPoint(x: 173 + t * 8, y: 145))
+                conceptDetails.move(to: CGPoint(x: 222 - t * 8, y: 137))
+                conceptDetails.addQuadCurve(to: CGPoint(x: 231 - t * 7, y: 154), control: CGPoint(x: 227 - t * 8, y: 145))
+            }
+            for index in 0..<3 {
+                let y = CGFloat(202 + index * 8)
+                conceptDetails.move(to: CGPoint(x: 176, y: y))
+                conceptDetails.addQuadCurve(to: CGPoint(x: 190, y: y + 9), control: CGPoint(x: 182, y: y + 7))
+                conceptDetails.move(to: CGPoint(x: 224, y: y))
+                conceptDetails.addQuadCurve(to: CGPoint(x: 210, y: y + 9), control: CGPoint(x: 218, y: y + 7))
+            }
+        case .mermaid:
+            // Flowing hair strands, scale rows and fin-ray structure.
+            for index in 0..<5 {
+                let t = CGFloat(index)
+                conceptDetails.move(to: CGPoint(x: 174 - t * 5, y: 61 + t * 4))
+                conceptDetails.addCurve(to: CGPoint(x: 121 + t * 4, y: 139 + t * 2), control1: CGPoint(x: 132 - t * 2, y: 80 + t * 6), control2: CGPoint(x: 112 + t * 4, y: 112 + t * 4))
+                conceptDetails.move(to: CGPoint(x: 189, y: 194 + t * 8))
+                conceptDetails.addQuadCurve(to: CGPoint(x: 211, y: 194 + t * 8), control: CGPoint(x: 200, y: 201 + t * 8))
+            }
+            for index in 0..<5 {
+                let t = CGFloat(index)
+                conceptDetails.move(to: CGPoint(x: 215 + t * 5, y: 250 - t * 2))
+                conceptDetails.addQuadCurve(to: CGPoint(x: 315 - t * 7, y: 258 - t * 3), control: CGPoint(x: 270 + t * 2, y: 276 - t * 2))
+            }
+        case .paw:
+            // Anatomical toe creases and a softly segmented central pad.
+            for index in 0..<4 {
+                let t = CGFloat(index)
+                conceptDetails.move(to: CGPoint(x: 112 + t * 57, y: 104))
+                conceptDetails.addQuadCurve(to: CGPoint(x: 130 + t * 47, y: 136), control: CGPoint(x: 128 + t * 44, y: 119))
+            }
+            conceptDetails.move(to: CGPoint(x: 169, y: 207))
+            conceptDetails.addQuadCurve(to: CGPoint(x: 231, y: 207), control: CGPoint(x: 200, y: 221))
+            conceptDetails.move(to: CGPoint(x: 159, y: 228))
+            conceptDetails.addQuadCurve(to: CGPoint(x: 241, y: 228), control: CGPoint(x: 200, y: 242))
+        case .stars:
+            // Faceted star core, inner glint and delicate orbiting sparkles.
+            conceptDetails.move(to: CGPoint(x: 200, y: 56))
+            conceptDetails.addLine(to: CGPoint(x: 207, y: 151))
+            conceptDetails.addLine(to: CGPoint(x: 316, y: 172))
+            conceptDetails.move(to: CGPoint(x: 200, y: 56))
+            conceptDetails.addLine(to: CGPoint(x: 193, y: 151))
+            conceptDetails.addLine(to: CGPoint(x: 84, y: 172))
+            conceptDetails.move(to: CGPoint(x: 200, y: 185))
+            conceptDetails.addLine(to: CGPoint(x: 200, y: 244))
+            conceptDetails.addEllipse(in: CGRect(x: 190, y: 162, width: 20, height: 20))
+            for (x, y, r) in [(CGFloat(70), CGFloat(74), CGFloat(3)), (CGFloat(327), CGFloat(86), CGFloat(4)), (CGFloat(92), CGFloat(253), CGFloat(3)), (CGFloat(315), CGFloat(244), CGFloat(3))] {
+                conceptDetails.addEllipse(in: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2))
+            }
+        case .crescentMoon:
+            // Lunar surface: crater rings and a fine inner crescent contour.
+            conceptDetails.addEllipse(in: CGRect(x: 211, y: 83, width: 24, height: 18))
+            conceptDetails.addEllipse(in: CGRect(x: 235, y: 139, width: 15, height: 12))
+            conceptDetails.addEllipse(in: CGRect(x: 190, y: 195, width: 19, height: 14))
+            conceptDetails.addEllipse(in: CGRect(x: 160, y: 148, width: 9, height: 7))
+            conceptDetails.move(to: CGPoint(x: 258, y: 63))
+            conceptDetails.addCurve(to: CGPoint(x: 177, y: 235), control1: CGPoint(x: 292, y: 153), control2: CGPoint(x: 239, y: 232))
+        case .spiral:
+            // Fine spiral etching and alternating ray facets.
+            for index in 0..<4 {
+                let t = CGFloat(index)
+                conceptDetails.move(to: CGPoint(x: 200 + t * 3, y: 150 + t * 3))
+                conceptDetails.addCurve(to: CGPoint(x: 222 - t * 5, y: 137 + t * 7), control1: CGPoint(x: 244 - t * 5, y: 171 + t * 3), control2: CGPoint(x: 234 - t * 6, y: 125 + t * 8))
+            }
+            for index in 0..<8 {
+                let angle = CGFloat(index) * .pi / 4
+                let inner = CGPoint(x: 200 + cos(angle) * 111, y: 150 + sin(angle) * 111)
+                let outer = CGPoint(x: 200 + cos(angle) * 137, y: 150 + sin(angle) * 137)
+                conceptDetails.move(to: inner)
+                conceptDetails.addLine(to: outer)
+            }
+        case .sun:
+            // Sun-disc face and segmented, engraved rays.
+            conceptDetails.addEllipse(in: CGRect(x: 169, y: 119, width: 62, height: 62))
+            conceptDetails.move(to: CGPoint(x: 185, y: 151))
+            conceptDetails.addQuadCurve(to: CGPoint(x: 215, y: 151), control: CGPoint(x: 200, y: 163))
+            conceptDetails.move(to: CGPoint(x: 184, y: 139))
+            conceptDetails.addQuadCurve(to: CGPoint(x: 193, y: 139), control: CGPoint(x: 188, y: 135))
+            conceptDetails.move(to: CGPoint(x: 207, y: 139))
+            conceptDetails.addQuadCurve(to: CGPoint(x: 216, y: 139), control: CGPoint(x: 212, y: 135))
+            for angle in stride(from: CGFloat(0), to: CGFloat(360), by: CGFloat(45)) {
+                let radians = angle * .pi / 180
+                let inner = CGPoint(x: 200 + cos(radians) * 91, y: 150 + sin(radians) * 91)
+                let outer = CGPoint(x: 200 + cos(radians) * 105, y: 150 + sin(radians) * 105)
+                conceptDetails.move(to: inner)
+                conceptDetails.addLine(to: outer)
+            }
+        }
+        let conceptDetailColor = motifTint.opacity(min(1, opacity * brightness * 0.78))
+        drawing.stroke(conceptDetails, with: .color(conceptDetailColor), style: StrokeStyle(lineWidth: 1.25, lineCap: .round, lineJoin: .round))
 
         if shape == .snake || shape == .wolf || shape == .cat || shape == .bird || shape == .fox {
             var eye = Path()

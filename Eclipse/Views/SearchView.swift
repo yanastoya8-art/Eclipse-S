@@ -2483,10 +2483,6 @@ private struct BrowseMediaView: View {
                     by: sort
                 )
                 try Task.checkCancellation()
-                // Browse filter metadata is resolved independently in the
-                // background. Do not serialize the first visible page behind
-                // rating/audio lookups; the retained raw page is re-filtered when
-                // those lookups publish their completion notification.
                 let contentFiltered = contentFilter.filterSearchResults(
                     filterExcludedResults(
                         browseTypeFiltered,
@@ -2706,7 +2702,8 @@ private struct BrowseMediaView: View {
         let selectedKeywordIDs = selectedKeywordNames.compactMap { keywordIDsByName[$0] }
         let excludedKeywordIDs = Array(Set(excludedKeywordNames + unofficialKeywordNames))
             .compactMap { keywordIDsByName[$0] }
-        let effectiveGenreIds = Array(Set(genres.compactMap(\.tmdbGenreID) + (isAnime ? [16] : []))).sorted()
+        let effectiveGenreIds = Array(Set(genres.compactMap(\.tmdbGenreID))).sorted()
+        let requiredGenreIds = isAnime ? [16] : []
         let excludedGenreIds = Array(Set(excludedGenres.compactMap(\.tmdbGenreID))).sorted()
         let effectiveCountries = Array(Set(originCountries)).sorted()
         let effectiveLanguage = isAnime ? animeLanguage(for: effectiveCountries) : nil
@@ -2727,6 +2724,7 @@ private struct BrowseMediaView: View {
             let fetched = try await tmdbService.discoverMedia(
                 mediaType: mediaType,
                 genreIds: effectiveGenreIds,
+                requiredGenreIds: requiredGenreIds,
                 excludedGenreIds: excludedGenreIds,
                 keywordIds: selectedKeywordIDs,
                 excludedKeywordIds: excludedKeywordIDs,
@@ -2750,6 +2748,7 @@ private struct BrowseMediaView: View {
                     let fetched = try await tmdbService.discoverMedia(
                         mediaType: mediaType,
                         genreIds: effectiveGenreIds,
+                        requiredGenreIds: requiredGenreIds,
                         excludedGenreIds: excludedGenreIds,
                         keywordIds: selectedKeywordIDs,
                         excludedKeywordIds: excludedKeywordIDs,
