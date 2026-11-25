@@ -36,6 +36,8 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
     case animationShape
     case animationShapeEnabled
     case animationShapeOpacity
+    case animationShapeGlow
+    case animationShapeBrightness
     case animationShapeSize
     case toothlessEyeColor
     case cobraEyeColor
@@ -81,7 +83,7 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
             return "theme"
         case .interface, .globalAppearance, .accentColor, .liquidGlassDarkBarColor, .liquidGlassLightBarColor, .liquidGlassBottomBarColor, .browseFilterChipColor, .browseFilterButtonColor, .browseFilterOptionsColor:
             return "interface"
-        case .animatedBackground, .animationQuality, .animationColor, .customAnimationColor, .animationFrameRate, .animationShape, .animationShapeEnabled, .animationShapeOpacity, .animationShapeSize, .toothlessEyeColor, .cobraEyeColor, .hawkEyeColor, .appPerformanceOverlay:
+        case .animatedBackground, .animationQuality, .animationColor, .customAnimationColor, .animationFrameRate, .animationShape, .animationShapeEnabled, .animationShapeOpacity, .animationShapeGlow, .animationShapeBrightness, .animationShapeSize, .toothlessEyeColor, .cobraEyeColor, .hawkEyeColor, .appPerformanceOverlay:
             return "animation"
         case .hideSplashScreen, .splashScreenDuration, .openInLibrary:
             return "startup"
@@ -142,6 +144,8 @@ struct AlternativeUIView: View {
     @AppStorage(HomeAnimatedBackgroundSettings.shapeEnabledKey) private var homeAnimatedBackgroundShapeEnabled = HomeAnimatedBackgroundSettings.defaultShapeEnabled
     @AppStorage(HomeAnimatedBackgroundSettings.shapeOpacityKey) private var homeAnimatedBackgroundShapeOpacity = HomeAnimatedBackgroundSettings.defaultShapeOpacity
     @AppStorage(HomeAnimatedBackgroundSettings.shapeSizeKey) private var homeAnimatedBackgroundShapeSize = HomeAnimatedBackgroundSettings.defaultShapeSize
+    @AppStorage(HomeAnimatedBackgroundSettings.shapeGlowKey) private var homeAnimatedBackgroundShapeGlow = HomeAnimatedBackgroundSettings.defaultShapeGlow
+    @AppStorage(HomeAnimatedBackgroundSettings.shapeBrightnessKey) private var homeAnimatedBackgroundShapeBrightness = HomeAnimatedBackgroundSettings.defaultShapeBrightness
     @AppStorage(HomeAnimatedBackgroundParticleColor.customColorDataKey) private var customAnimationParticleColorData = Data()
     @AppStorage("homeAnimatedBackgroundToothlessEyeColorData") private var toothlessEyeColorData = Data()
     @AppStorage("homeAnimatedBackgroundCobraEyeColorData") private var cobraEyeColorData = Data()
@@ -627,6 +631,24 @@ struct AlternativeUIView: View {
                 step: 0.05
             )
             .id(AppearanceSettingsSearchTarget.animationShapeOpacity.anchorID)
+
+            sliderRow(
+                title: "Animation Shape Glow",
+                description: "Adjust the strength of the soft halo surrounding the floating motif, independently of its opacity.",
+                value: $homeAnimatedBackgroundShapeGlow,
+                range: 0...1,
+                step: 0.05
+            )
+            .id(AppearanceSettingsSearchTarget.animationShapeGlow.anchorID)
+
+            sliderRow(
+                title: "Animation Shape Brightness",
+                description: "Make the floating motif's fill and details brighter or more subtle without changing the background circles.",
+                value: $homeAnimatedBackgroundShapeBrightness,
+                range: 0.5...2.0,
+                step: 0.05
+            )
+            .id(AppearanceSettingsSearchTarget.animationShapeBrightness.anchorID)
 
             sliderRow(
                 title: "Animation Shape Size",
