@@ -605,10 +605,14 @@ enum HomeAnimatedBackgroundSettings {
     static let shapeEnabledKey = "homeAnimatedBackgroundShapeEnabled"
     static let shapeOpacityKey = "homeAnimatedBackgroundShapeOpacity"
     static let shapeSizeKey = "homeAnimatedBackgroundShapeSize"
+    static let shapeGlowKey = "homeAnimatedBackgroundShapeGlow"
+    static let shapeBrightnessKey = "homeAnimatedBackgroundShapeBrightness"
     static let defaultEnabled = true
     static let defaultShapeEnabled = true
     static let defaultShapeOpacity = 0.82
     static let defaultShapeSize = 1.0
+    static let defaultShapeGlow = 0.72
+    static let defaultShapeBrightness = 1.2
 
     static func isEnabled(defaults: UserDefaults = ProfileSettingsStore.active) -> Bool {
         defaults.object(forKey: enabledKey) == nil ? defaultEnabled : defaults.bool(forKey: enabledKey)
@@ -810,6 +814,7 @@ private struct HomeAnimatedCreatureMotif: View {
     let color: Color
     let eyeColor: Color
     let opacity: Double
+    let brightness: Double
     let size: CGSize
     let phase: Double
 
@@ -1046,7 +1051,7 @@ private struct HomeAnimatedCreatureMotif: View {
         // the body, wings, tail fin, details and glow use this tint; eye irises
         // use the creature-specific custom eye colour.
         let motifTint = color
-        drawing.fill(fill, with: .color(motifTint.opacity(min(1, opacity * 1.2))))
+        drawing.fill(fill, with: .color(motifTint.opacity(min(1, opacity * brightness))))
         if shape == .dragon {
             // Toothless's almond-shaped irises use the independent eye-colour setting;
             // the dark pupils remain separate for contrast.
@@ -1066,7 +1071,7 @@ private struct HomeAnimatedCreatureMotif: View {
             drawing.fill(pupils, with: .color(Color.black.opacity(min(1, opacity * 0.72))))
         }
         var details = Path()
-        let detailColor = motifTint.opacity(min(1, opacity * 0.85))
+        let detailColor = motifTint.opacity(min(1, opacity * 0.85 * brightness))
         switch shape {
         case .wolf:
             details.move(to: CGPoint(x: 274, y: 111))
@@ -1161,6 +1166,8 @@ struct EclipseAmbientMotionBackground: View {
     @AppStorage(HomeAnimatedBackgroundSettings.shapeEnabledKey) private var shapeEnabled = HomeAnimatedBackgroundSettings.defaultShapeEnabled
     @AppStorage(HomeAnimatedBackgroundSettings.shapeOpacityKey) private var shapeOpacity = HomeAnimatedBackgroundSettings.defaultShapeOpacity
     @AppStorage(HomeAnimatedBackgroundSettings.shapeSizeKey) private var shapeSize = HomeAnimatedBackgroundSettings.defaultShapeSize
+    @AppStorage(HomeAnimatedBackgroundSettings.shapeGlowKey) private var shapeGlow = HomeAnimatedBackgroundSettings.defaultShapeGlow
+    @AppStorage(HomeAnimatedBackgroundSettings.shapeBrightnessKey) private var shapeBrightness = HomeAnimatedBackgroundSettings.defaultShapeBrightness
     @AppStorage(HomeAnimatedBackgroundParticleColor.customColorDataKey) private var customParticleColorData = Data()
 
     private let particles: [(x: CGFloat, y: CGFloat, size: CGFloat, drift: CGFloat, opacity: Double)] = [
@@ -1435,6 +1442,7 @@ struct EclipseAmbientMotionBackground: View {
                 color: primaryColor,
                 eyeColor: selectedCreatureEyeColor,
                 opacity: shapeOpacity,
+                brightness: shapeBrightness,
                 size: CGSize(width: motifSize * 4 / 3, height: motifSize),
                 phase: seconds
             )
@@ -1444,7 +1452,7 @@ struct EclipseAmbientMotionBackground: View {
             )
             var motifGlow = context
             motifGlow.addFilter(.blur(radius: 13))
-            motifGlow.opacity = 0.72
+            motifGlow.opacity = shapeGlow
             motifGlow.translateBy(x: motifOrigin.x, y: motifOrigin.y)
             motif.draw(in: &motifGlow, canvasSize: motif.size)
 
