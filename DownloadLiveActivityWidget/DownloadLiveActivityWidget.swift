@@ -26,13 +26,24 @@ struct DownloadLiveActivityWidget: Widget {
 
                     Spacer(minLength: 8)
 
-                    Text(context.state.progress, format: .percent.precision(.fractionLength(0)))
-                        .font(.title3.monospacedDigit().weight(.semibold))
+                    if context.state.totalBytes > 0 || context.state.progress > 0 {
+                        Text(context.state.progress, format: .percent.precision(.fractionLength(0)))
+                            .font(.title3.monospacedDigit().weight(.semibold))
+                    } else {
+                        Text("…")
+                            .font(.title3.monospacedDigit().weight(.semibold))
+                    }
                 }
 
-                ProgressView(value: context.state.progress)
-                    .tint(statusTint(for: context.state.status))
-                    .scaleEffect(x: 1, y: 1.35, anchor: .center)
+                Group {
+                    if context.state.totalBytes > 0 || context.state.progress > 0 {
+                        ProgressView(value: context.state.progress)
+                    } else {
+                        ProgressView()
+                    }
+                }
+                .tint(statusTint(for: context.state.status))
+                .scaleEffect(x: 1, y: 1.35, anchor: .center)
 
                 HStack(alignment: .firstTextBaseline) {
                     Label(
@@ -64,8 +75,13 @@ struct DownloadLiveActivityWidget: Widget {
                         .foregroundStyle(statusTint(for: context.state.status))
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    Text(context.state.progress, format: .percent.precision(.fractionLength(0)))
-                        .font(.title3.monospacedDigit().weight(.semibold))
+                    if context.state.totalBytes > 0 || context.state.progress > 0 {
+                        Text(context.state.progress, format: .percent.precision(.fractionLength(0)))
+                            .font(.title3.monospacedDigit().weight(.semibold))
+                    } else {
+                        Text("…")
+                            .font(.title3.monospacedDigit().weight(.semibold))
+                    }
                 }
                 DynamicIslandExpandedRegion(.center) {
                     Text(context.state.status)
@@ -77,8 +93,12 @@ struct DownloadLiveActivityWidget: Widget {
                         Text(context.attributes.title)
                             .font(.subheadline.weight(.semibold))
                             .lineLimit(1)
-                        ProgressView(value: context.state.progress)
-                            .tint(statusTint(for: context.state.status))
+                        if context.state.totalBytes > 0 || context.state.progress > 0 {
+                            ProgressView(value: context.state.progress)
+                        } else {
+                            ProgressView()
+                        }
+                        .tint(statusTint(for: context.state.status))
                         HStack {
                             Text(ByteCountFormatter.string(fromByteCount: context.state.completedBytes, countStyle: .file))
                             Spacer()
@@ -96,8 +116,13 @@ struct DownloadLiveActivityWidget: Widget {
                 Image(systemName: statusSymbol(for: context.state.status))
                     .foregroundStyle(statusTint(for: context.state.status))
             } compactTrailing: {
-                Text(context.state.progress, format: .percent.precision(.fractionLength(0)))
-                    .font(.caption2.monospacedDigit())
+                if context.state.totalBytes > 0 || context.state.progress > 0 {
+                    Text(context.state.progress, format: .percent.precision(.fractionLength(0)))
+                        .font(.caption2.monospacedDigit())
+                } else {
+                    Text("…")
+                        .font(.caption2.monospacedDigit())
+                }
             } minimal: {
                 Image(systemName: statusSymbol(for: context.state.status))
                     .foregroundStyle(statusTint(for: context.state.status))
