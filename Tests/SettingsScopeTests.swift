@@ -96,10 +96,21 @@ final class SettingsScopeTests: XCTestCase {
         XCTAssertNil(admittedValue("0.25", forKey: delayKey))
         XCTAssertEqual(EclipseSettingsRegistry.explicitScope(for: "rememberedPlaybackSelectionsV1"), .profile)
         XCTAssertFalse(MediaStateSettingRegistry.allKeys.contains("rememberedPlaybackSelectionsV1"))
-        for key in ["imageDataSaverEnabled", "maximumConcurrentVideoDownloads", "maximumConcurrentHLSDownloads"] {
+        for key in [
+            "imageDataSaverEnabled",
+            "maximumConcurrentVideoDownloads",
+            "maximumConcurrentHLSDownloads",
+            "splashScreenMinimumDuration",
+            "openAppInLibrary"
+        ] {
             XCTAssertEqual(EclipseSettingsRegistry.explicitScope(for: key), .device)
             XCTAssertFalse(MediaStateSettingRegistry.allKeys.contains(key))
         }
+        XCTAssertEqual(
+            EclipseSettingsRegistry.explicitScope(for: StreamURLBlocklistSettings.storageKey),
+            .services
+        )
+        XCTAssertFalse(MediaStateSettingRegistry.allKeys.contains(StreamURLBlocklistSettings.storageKey))
     }
 
     func testFixedAnimeBehaviorAndRemovedWatchTogetherPreferencesAreNotSynced() {
