@@ -1766,11 +1766,11 @@ class TMDBContentFilter: ObservableObject {
             // language as proof that no selected-language audio exists.
             do {
                 if result.isMovie {
-                    originalLanguage = try await TMDBService.shared
-                        .getMovieDetails(id: result.id).originalLanguage
+                    let details = try await TMDBService.shared.getMovieDetails(id: result.id)
+                    originalLanguage = details.originalLanguage
                 } else {
-                    originalLanguage = try await TMDBService.shared
-                        .getTVShowDetails(id: result.id).originalLanguage
+                    let details = try await TMDBService.shared.getTVShowDetails(id: result.id)
+                    originalLanguage = details.originalLanguage
                 }
             } catch {
                 return nil
