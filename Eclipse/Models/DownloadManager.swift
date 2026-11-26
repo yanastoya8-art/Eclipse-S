@@ -8153,7 +8153,7 @@ final class DownloadManager: NSObject, ObservableObject {
               descriptor.mediaKind == .hls,
               descriptor.proxyOptions == nil,
               descriptor.routes.allSatisfy({ $0.headers.values == descriptor.headers.values }),
-              let url = Optional(descriptor.underlyingRemoteURL.url),
+              let url = descriptor.underlyingRemoteURL.url,
               url.scheme?.lowercased() == "https" else {
             return nil
         }
