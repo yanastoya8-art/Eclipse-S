@@ -3351,8 +3351,8 @@ struct SearchBarEclipse: View {
         // search controls and the surrounding screen.
         .applyLiquidGlassBackground(
             cornerRadius: 12,
-            fallbackFill: glassAppearance.lightBarColor.opacity(0.34),
-            glassTint: glassAppearance.lightBarColor.opacity(0.30)
+            fallbackFill: glassAppearance.lightBarColor.opacity(LiquidGlassAppearanceSettings.defaultLightBarOpacity),
+            glassTint: glassAppearance.lightBarColor.opacity(LiquidGlassAppearanceSettings.defaultLightBarOpacity)
         )
 #endif
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
