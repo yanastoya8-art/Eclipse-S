@@ -1181,9 +1181,30 @@ private struct HomeAnimatedCreatureMotif: View {
                     path.addEllipse(in: CGRect(x: x, y: y, width: 4, height: 4))
                 }
             case .crescentMoon:
+                // A slim crescent with three hanging celestial ornaments.
                 path.move(to: CGPoint(x: 260, y: 48))
                 path.addCurve(to: CGPoint(x: 158, y: 256), control1: CGPoint(x: 330, y: 174), control2: CGPoint(x: 252, y: 284))
                 path.addCurve(to: CGPoint(x: 260, y: 48), control1: CGPoint(x: 86, y: 233), control2: CGPoint(x: 104, y: 82))
+                path.closeSubpath()
+                for (cx, cy, radius) in [
+                    (CGFloat(300), CGFloat(79), CGFloat(15)),
+                    (CGFloat(323), CGFloat(172), CGFloat(9)),
+                    (CGFloat(105), CGFloat(222), CGFloat(8))
+                ] {
+                    for pointIndex in 0..<10 {
+                        let angle = -CGFloat.pi / 2 + CGFloat(pointIndex) * CGFloat.pi / 5
+                        let r = pointIndex.isMultiple(of: 2) ? radius : radius * 0.42
+                        let point = CGPoint(x: cx + cos(angle) * r, y: cy + sin(angle) * r)
+                        if pointIndex == 0 { path.move(to: point) } else { path.addLine(to: point) }
+                    }
+                    path.closeSubpath()
+                }
+                // Small heart-shaped charm beneath the lower tip.
+                path.move(to: CGPoint(x: 163, y: 249))
+                path.addCurve(to: CGPoint(x: 183, y: 249), control1: CGPoint(x: 162, y: 232), control2: CGPoint(x: 175, y: 237))
+                path.addCurve(to: CGPoint(x: 203, y: 249), control1: CGPoint(x: 191, y: 237), control2: CGPoint(x: 204, y: 232))
+                path.addCurve(to: CGPoint(x: 183, y: 274), control1: CGPoint(x: 203, y: 263), control2: CGPoint(x: 192, y: 272))
+                path.addCurve(to: CGPoint(x: 163, y: 249), control1: CGPoint(x: 174, y: 272), control2: CGPoint(x: 163, y: 263))
                 path.closeSubpath()
             case .spiral:
                 // Calligraphic golden-spiral sun with eight tapered flame rays.
@@ -1389,16 +1410,10 @@ private struct HomeAnimatedCreatureMotif: View {
                 volumePlanes.addEllipse(in: CGRect(x: x, y: y, width: w, height: h))
             }
         case .stars:
-            // Nested star facets create a crystalline, dimensional centre.
-            volumePlanes.move(to: CGPoint(x: 200, y: 49))
-            volumePlanes.addLine(to: CGPoint(x: 217, y: 153))
-            volumePlanes.addLine(to: CGPoint(x: 306, y: 172))
-            volumePlanes.addLine(to: CGPoint(x: 217, y: 189))
-            volumePlanes.addLine(to: CGPoint(x: 200, y: 245))
-            volumePlanes.addLine(to: CGPoint(x: 183, y: 189))
-            volumePlanes.addLine(to: CGPoint(x: 94, y: 172))
-            volumePlanes.addLine(to: CGPoint(x: 183, y: 153))
-            volumePlanes.closeSubpath()
+            // Small inner facets belong to each star in the three-star cluster.
+            volumePlanes.addEllipse(in: CGRect(x: 92, y: 89, width: 28, height: 28))
+            volumePlanes.addEllipse(in: CGRect(x: 199, y: 54, width: 24, height: 24))
+            volumePlanes.addEllipse(in: CGRect(x: 265, y: 183, width: 32, height: 32))
         case .crescentMoon:
             // Curved inner lunar plane and crater basins.
             volumePlanes.move(to: CGPoint(x: 250, y: 67))
@@ -2273,17 +2288,18 @@ private struct HomeAnimatedCreatureMotif: View {
             conceptDetails.move(to: CGPoint(x: 159, y: 228))
             conceptDetails.addQuadCurve(to: CGPoint(x: 241, y: 228), control: CGPoint(x: 200, y: 242))
         case .stars:
-            // Faceted star core, inner glint and delicate orbiting sparkles.
-            conceptDetails.move(to: CGPoint(x: 200, y: 56))
-            conceptDetails.addLine(to: CGPoint(x: 207, y: 151))
-            conceptDetails.addLine(to: CGPoint(x: 316, y: 172))
-            conceptDetails.move(to: CGPoint(x: 200, y: 56))
-            conceptDetails.addLine(to: CGPoint(x: 193, y: 151))
-            conceptDetails.addLine(to: CGPoint(x: 84, y: 172))
-            conceptDetails.move(to: CGPoint(x: 200, y: 185))
-            conceptDetails.addLine(to: CGPoint(x: 200, y: 244))
-            conceptDetails.addEllipse(in: CGRect(x: 190, y: 162, width: 20, height: 20))
-            for (x, y, r) in [(CGFloat(70), CGFloat(74), CGFloat(3)), (CGFloat(327), CGFloat(86), CGFloat(4)), (CGFloat(92), CGFloat(253), CGFloat(3)), (CGFloat(315), CGFloat(244), CGFloat(3))] {
+            // Tiny central glints and a dotted constellation line between stars.
+            conceptDetails.addEllipse(in: CGRect(x: 99, y: 98, width: 14, height: 14))
+            conceptDetails.addEllipse(in: CGRect(x: 205, y: 60, width: 12, height: 12))
+            conceptDetails.addEllipse(in: CGRect(x: 274, y: 193, width: 16, height: 16))
+            for (x, y, r) in [
+                (CGFloat(160), CGFloat(117), CGFloat(2.2)),
+                (CGFloat(175), CGFloat(128), CGFloat(2.2)),
+                (CGFloat(190), CGFloat(139), CGFloat(2.2)),
+                (CGFloat(205), CGFloat(150), CGFloat(2.2)),
+                (CGFloat(332), CGFloat(88), CGFloat(3.5)),
+                (CGFloat(83), CGFloat(250), CGFloat(3.0))
+            ] {
                 conceptDetails.addEllipse(in: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2))
             }
         case .crescentMoon:
