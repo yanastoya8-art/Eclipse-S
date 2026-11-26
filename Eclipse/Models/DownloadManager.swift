@@ -7028,11 +7028,12 @@ final class DownloadManager: NSObject, ObservableObject {
             // iOS suspends as soon as the app leaves the foreground.
             useBackgroundURLSession: ["http", "https"].contains(url.scheme?.lowercased() ?? "")
                 && !["127.0.0.1", "localhost", "::1"].contains(url.host?.lowercased() ?? "")
-                && item.providerTransportKind != .skyStreamHLS
                 && (protectedNuvioAttemptID == nil
                     || protectedProviderAttempts[item.id]?.mainProxyURL == nil),
-            requiresPublicNetworkValidationForBackgroundURLSession: protectedNuvioAttemptID != nil
-                && protectedProviderAttempts[item.id]?.mainProxyURL == nil
+            requiresPublicNetworkValidationForBackgroundURLSession:
+                item.providerTransportKind == .skyStreamHLS
+                || (protectedNuvioAttemptID != nil
+                    && protectedProviderAttempts[item.id]?.mainProxyURL == nil)
         )
 
 #if os(iOS) && !targetEnvironment(macCatalyst)
@@ -7411,13 +7412,37 @@ final class DownloadManager: NSObject, ObservableObject {
 
         guard let proxyURL,
               let currentItem = downloads.first(where: { $0.id == item.id }) else { return }
-        startHLSDownload(
-            currentItem,
-            streamURLOverride: proxyURL,
-            headersOverride: [:],
-            pinnedVariantOverride: skyStreamHLSPinnedVariantURLs[item.id],
-            persistResolvedVariant: false
-        )
+        // A loopback MPV proxy cannot be reached by an OS-owned background
+        // URLSession after Eclipse is suspended. For ordinary validated HLS
+        // descriptors with a single consistent header policy, let the
+        // background downloader fetch the validated remote manifest and
+        // segments directly. Complex proxy-option routes keep the MPV proxy.
+        let routeHeadersAreUniform = descriptor.routes.allSatisfy {
+            $0.headers.values == descriptor.headers.values
+        }
+        let canUseDirectBackgroundTransport =
+            descriptor.mediaKind == .hls
+            && descriptor.proxyOptions == nil
+            && routeHeadersAreUniform
+            && descriptor.underlyingRemoteURL.url.scheme?.lowercased() == "https"
+
+        if canUseDirectBackgroundTransport {
+            startHLSDownload(
+                currentItem,
+                streamURLOverride: descriptor.underlyingRemoteURL.url,
+                headersOverride: descriptor.headers.values,
+                pinnedVariantOverride: nil,
+                persistResolvedVariant: false
+            )
+        } else {
+            startHLSDownload(
+                currentItem,
+                streamURLOverride: proxyURL,
+                headersOverride: [:],
+                pinnedVariantOverride: skyStreamHLSPinnedVariantURLs[item.id],
+                persistResolvedVariant: false
+            )
+        }
     }
 
     private func restoreValidatedSkyStreamDownload(_ item: DownloadItem) {
