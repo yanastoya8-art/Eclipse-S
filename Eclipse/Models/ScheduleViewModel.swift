@@ -117,7 +117,7 @@ enum ScheduleMode: String, CaseIterable, Identifiable, Sendable {
     }
 
     static func sanitized(_ rawValue: String?) -> ScheduleMode {
-        ScheduleMode(rawValue: rawValue ?? "") ?? .anime
+        ScheduleMode(rawValue: rawValue ?? "") ?? .combined
     }
 
     static func sanitizedRawValue(_ rawValue: String?) -> String {
