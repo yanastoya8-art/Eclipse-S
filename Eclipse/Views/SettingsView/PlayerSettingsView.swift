@@ -1105,7 +1105,7 @@ struct PlayerSettingsView: View {
 #if os(tvOS)
             return .pictureInPicture
 #else
-            let masterEnabled = ProfileSettingsStore.active.object(forKey: "mpvPictureInPictureEnabled") as? Bool ?? true
+            let masterEnabled = ProfileSettingsStore.active.object(forKey: "mpvPictureInPictureEnabled") as? Bool ?? false
             return masterEnabled ? target : .pictureInPicture
 #endif
         case .appearanceThreshold, .useEpisodePoster, .skipFillerEpisodes:
