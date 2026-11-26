@@ -571,15 +571,15 @@ enum HomeAnimatedBackgroundShape: String, CaseIterable, Identifiable {
         case .fox: return "Nine-Tailed Fox"
         case .phoenix: return "Phoenix"
         case .paw: return "Paw"
-        case .stars: return "Stars"
-        case .crescentMoon: return "Crescent Moon"
-        case .sun: return "Sun"
+        case .stars: return "Star"
+        case .crescentMoon: return "Moon"
+        case .sun: return "Spiral Sun"
         case .spiral: return "Golden Spiral"
         case .cat: return "Cat"
         case .mermaid: return "Mermaid"
-        case .bird: return "Bird"
-        case .snake: return "Snake"
-        case .dragon: return "Dragon"
+        case .bird: return "Hawk"
+        case .snake: return "Cobra"
+        case .dragon: return "Toothless"
         }
     }
 
@@ -827,9 +827,9 @@ private struct EclipseAmbientMotionHostingBoundary: UIViewControllerRepresentabl
 #endif
 
 
-/// Single-colour vector artwork for animated background motifs. The paths are
-/// authored in a 400×300 coordinate space so opacity, scale and tint are applied
-/// uniformly to every creature rather than relying on platform emoji rendering.
+/// Reference-derived animated artwork. Approved concept illustrations are
+/// converted to layered vector paths so their fine detail, tonal depth and anatomy
+/// remain crisp while following the selected animation tint.
 private struct HomeAnimatedCreatureMotif: View {
     let shape: HomeAnimatedBackgroundShape
     let color: Color
@@ -851,6 +851,19 @@ private struct HomeAnimatedCreatureMotif: View {
     /// Draw the creature directly into an existing Canvas context. This keeps
     /// the artwork reusable for both its normal pass and the blurred glow pass.
     func draw(in context: inout GraphicsContext, canvasSize: CGSize) {
+        if HomeAnimatedShapeArtwork.draw(
+            shape: shape,
+            in: &context,
+            canvasSize: canvasSize,
+            color: color,
+            eyeColor: eyeColor,
+            opacity: opacity,
+            brightness: brightness,
+            phase: phase
+        ) {
+            return
+        }
+
         let sx = canvasSize.width / 400
         let sy = canvasSize.height / 300
         var drawing = context
