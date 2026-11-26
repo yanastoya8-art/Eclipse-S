@@ -2597,8 +2597,8 @@ struct EclipseAmbientMotionBackground: View {
         }
         .onAppear {
             isVisible = true
-            // Migrate any saved legacy geometric symbol to an approved vector
-            // creature so the old square/star motifs cannot reappear.
+            // Preserve every approved illustration, including the celestial
+            // motifs that older builds previously migrated to Toothless.
             let resolved = HomeAnimatedBackgroundShape.resolved(shapeRawValue)
             if shapeRawValue != resolved.rawValue {
                 shapeRawValue = resolved.rawValue
