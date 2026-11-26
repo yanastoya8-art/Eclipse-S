@@ -6430,6 +6430,11 @@ struct MediaDetailContentView: View {
         traktFeatureLoadTask?.cancel()
 
         let shouldLoadComments = trackerManager.trackerState.traktCommentsEnabled
+            && MediaDetailElement.isVisible(
+                .traktComments,
+                hiddenRawValue: mediaDetailHiddenElements,
+                legacyShowCastSection: legacyShowCastSection
+            )
 
         guard shouldLoadComments || traktRating == nil else {
             traktComments = []
