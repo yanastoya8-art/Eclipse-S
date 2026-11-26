@@ -10000,7 +10000,7 @@ final class AniListService {
                                 query: candidate,
                                 languageOverride: "en-US"
                             )) ?? []
-                            var seenIDs = Set(results.map(\\.id))
+                            var seenIDs = Set(results.map(\.id))
                             results.append(contentsOf: englishResults.filter {
                                 seenIDs.insert($0.id).inserted
                             })
