@@ -2644,9 +2644,16 @@ final class DownloadManager: NSObject, ObservableObject {
         // transferring; refreshing the task list reattaches delegate ownership
         // and resumes any still-active task that was left suspended. Do not
         // start a second restore while the launch-time reconciliation is running.
-        if !restoringBackgroundTasks {
-            restoringBackgroundTasks = true
-            resumeInterruptedDownloads()
+        if isolatedDownloadsDirectory == nil {
+            if !restoringBackgroundTasks {
+                restoringBackgroundTasks = true
+                resumeInterruptedDownloads()
+            }
+        } else {
+            // Isolated managers are deterministic test/preview instances. They
+            // own an ephemeral URLSession and must not wait for asynchronous OS
+            // background-task restoration before admitting their in-memory queue.
+            restoringBackgroundTasks = false
         }
         processQueue()
 #if os(iOS) && !targetEnvironment(macCatalyst)
