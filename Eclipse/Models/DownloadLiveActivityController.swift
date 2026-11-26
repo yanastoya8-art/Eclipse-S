@@ -17,6 +17,7 @@ enum DownloadLiveActivityController {
     private static var pendingUpdates: [String: PendingUpdate] = [:]
     private static var drainTasks: [String: Task<Void, Never>] = [:]
     private static var lastUpdateAtByDownloadID: [String: Date] = [:]
+    private static var highestQueuedProgressByDownloadID: [String: Double] = [:]
 
     private static func generation(for downloadID: String) -> UInt64 {
         generationByDownloadID[downloadID, default: 0]
@@ -27,6 +28,7 @@ enum DownloadLiveActivityController {
         endedDownloadIDs.remove(downloadID)
         pendingUpdates.removeValue(forKey: downloadID)
         lastUpdateAtByDownloadID.removeValue(forKey: downloadID)
+        highestQueuedProgressByDownloadID.removeValue(forKey: downloadID)
     }
 
     private static func activities(for downloadID: String) -> [Activity<DownloadActivityAttributes>] {
@@ -48,8 +50,20 @@ enum DownloadLiveActivityController {
         status: String
     ) async {
         guard !endedDownloadIDs.contains(downloadID) else { return }
+        let normalizedProgress = min(max(progress.isFinite ? progress : 0, 0), 1)
+        // Background URLSession callbacks and HLS segment callbacks can arrive
+        // on different queues. Reject a late stale snapshot instead of letting
+        // the Lock Screen / Dynamic Island visibly move backwards.
+        if let highestQueued = highestQueuedProgressByDownloadID[downloadID],
+           normalizedProgress + 0.0001 < highestQueued {
+            return
+        }
+        highestQueuedProgressByDownloadID[downloadID] = max(
+            highestQueuedProgressByDownloadID[downloadID] ?? 0,
+            normalizedProgress
+        )
         let state = DownloadActivityAttributes.ContentState(
-            progress: min(max(progress, 0), 1),
+            progress: normalizedProgress,
             completedBytes: max(0, completedBytes),
             totalBytes: max(0, totalBytes),
             status: String(status.prefix(80))
@@ -152,6 +166,7 @@ enum DownloadLiveActivityController {
             await drainTask.value
         }
         lastUpdateAtByDownloadID.removeValue(forKey: downloadID)
+        highestQueuedProgressByDownloadID.removeValue(forKey: downloadID)
 
         let matchingActivities = Activity<DownloadActivityAttributes>.activities.filter {
             $0.attributes.downloadID == downloadID

@@ -863,8 +863,23 @@ struct SearchView: View {
             do {
                 // Search multiple TMDB pages so less popular series and
                 // titles ranked below unrelated matches are not silently omitted.
-                var results = try await tmdbService.searchMulti(query: query, maxPages: 4)
+                var results = try await tmdbService.searchMulti(query: query, maxPages: 10)
                 try Task.checkCancellation()
+                // Search in English as well as the selected UI language. TMDB's
+                // localized multi-search can omit original-language titles
+                // even when the dedicated TV index finds them.
+                if selectedLanguage.caseInsensitiveCompare("en-US") != .orderedSame,
+                   let englishResults = try? await tmdbService.searchMulti(
+                       query: query,
+                       languageOverride: "en-US",
+                       maxPages: 10
+                   ) {
+                    try Task.checkCancellation()
+                    var seen = Set(results.map(\.stableIdentity))
+                    results.append(contentsOf: englishResults.filter {
+                        seen.insert($0.stableIdentity).inserted
+                    })
+                }
                 let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
                 let requiresGlobalAnimeAgeRating = UserDefaults.standard.bool(forKey: "catalogHideBelowPG13Anime")
                     || UserDefaults.standard.bool(forKey: "catalogHideAllAgesAnime")
@@ -876,7 +891,7 @@ struct SearchView: View {
                 let shouldSearchTVEndpoint = searchFilter != .movies
                 if shouldSearchTVEndpoint {
                     var seen = Set(results.map(\.stableIdentity))
-                    if let tvResults = try? await tmdbService.searchTVShows(query: query, maxPages: 4) {
+                    if let tvResults = try? await tmdbService.searchTVShows(query: query, maxPages: 10) {
                         try Task.checkCancellation()
                         results.append(contentsOf: tvResults
                             .map(\.asSearchResult)
@@ -1506,11 +1521,12 @@ private struct BrowseMediaView: View {
             selectedGenres = ["tmdb-14"] // Fantasy
             excludedGenres = ["tmdb-99", "tmdb-10402", "tmdb-37"] // Documentary, Music, Western
         case .tv:
-            selectedGenres = ["tmdb-10765"] // Sci-Fi & Fantasy
+            // Select both required genres in the filter UI. The query
+            // combines them as an AND group while both remain selected.
+            selectedGenres = ["tmdb-14", "tmdb-878"] // Fantasy + Science Fiction
             excludedGenres = [
-                "tmdb-99", "tmdb-10762", "tmdb-10763",
-                "tmdb-10764", "tmdb-10767", "tmdb-37"
-            ] // Documentary, Kids, News, Reality, Talk, Western
+                "tmdb-99", "tmdb-10762", "tmdb-10763"
+            ] // Documentary, Kids, News
         case .anime:
             selectedGenres = []
             excludedGenres = [
@@ -1522,6 +1538,12 @@ private struct BrowseMediaView: View {
             ]
         }
 
+        let defaultMinimumRating: Double
+        switch mediaType {
+        case .movie: defaultMinimumRating = 6
+        case .tv, .anime: defaultMinimumRating = 0
+        }
+
         return BrowseFilterConfiguration(
             selectedGenreKeys: selectedGenres,
             excludedGenreKeys: excludedGenres,
@@ -1529,9 +1551,27 @@ private struct BrowseMediaView: View {
             excludedYears: [],
             selectedCountryCodes: [],
             sortRawValue: BrowseSort.newest.rawValue,
-            minimumRating: 6,
+            minimumRating: defaultMinimumRating,
             ageRatingRawValue: BrowseAgeRating.all.rawValue
         )
+    }
+
+    private static func migratingPreviousDefault(
+        _ configuration: BrowseFilterConfiguration,
+        for mediaType: BrowseMediaType
+    ) -> BrowseFilterConfiguration {
+        var previousDefault = defaultConfiguration(for: mediaType)
+        previousDefault.minimumRating = 6
+        if mediaType == .tv {
+            previousDefault.selectedGenreKeys = ["tmdb-10765"]
+            previousDefault.excludedGenreKeys = [
+                "tmdb-99", "tmdb-10762", "tmdb-10763",
+                "tmdb-10764", "tmdb-10767", "tmdb-37"
+            ]
+        }
+        return configuration == previousDefault
+            ? defaultConfiguration(for: mediaType)
+            : configuration
     }
 
     private static func sanitizedConfiguration(
@@ -1555,7 +1595,8 @@ private struct BrowseMediaView: View {
         for mediaType in BrowseMediaType.allCases {
             let stored = preferences?.configurationsByMediaType[mediaType.rawValue]
                 ?? defaultConfiguration(for: mediaType)
-            configurations[mediaType] = sanitizedConfiguration(stored, for: mediaType)
+            let migrated = migratingPreviousDefault(stored, for: mediaType)
+            configurations[mediaType] = sanitizedConfiguration(migrated, for: mediaType)
         }
 
         return RestoredBrowseFilters(
@@ -2154,7 +2195,9 @@ private struct BrowseMediaView: View {
     }
 
     private var resultsGrid: some View {
-        LazyVStack(spacing: 0) {
+        // Keep the pagination sentinel eagerly laid out. A nested lazy stack
+        // could leave it unrealized after the first TV/Anime page.
+        VStack(spacing: 0) {
             LazyVGrid(columns: gridColumns, spacing: isIPad ? 24 : 16) {
                 ForEach(results, id: \.stableIdentity) { result in
                     SearchResultCard(result: result)
@@ -2186,7 +2229,8 @@ private struct BrowseMediaView: View {
             // automatic at every depth without a manual "Load More" control.
             if hasMorePages {
                 Color.clear
-                    .frame(height: 1)
+                    .frame(height: 24)
+                    .accessibilityHidden(true)
                     .id("browse-search-pagination-\(currentPage)-\(results.count)")
                     .onAppear { loadNextPage() }
             }
@@ -2701,7 +2745,14 @@ private struct BrowseMediaView: View {
         let excludedKeywordIDs = Array(Set(excludedKeywordNames + unofficialKeywordNames))
             .compactMap { keywordIDsByName[$0] }
         let effectiveGenreIds = Array(Set(genres.compactMap(\.tmdbGenreID))).sorted()
-        let requiredGenreIds = isAnime ? [16] : []
+        // Anime always requires Animation. TV's two default required genres
+        // are ANDed only while both remain selected; removing either in the
+        // filter UI removes the mandatory pair instead of trapping the user.
+        let selectedGenreIDs = Set(genres.compactMap(\.tmdbGenreID))
+        let requiresFantasyAndSciFi = mediaType == "tv"
+            && selectedGenreIDs.contains(14)
+            && selectedGenreIDs.contains(878)
+        let requiredGenreIds = isAnime ? [16] : (requiresFantasyAndSciFi ? [14, 878] : [])
         let excludedGenreIds = Array(Set(excludedGenres.compactMap(\.tmdbGenreID))).sorted()
         let effectiveCountries = Array(Set(originCountries)).sorted()
         let effectiveLanguage = isAnime ? animeLanguage(for: effectiveCountries) : nil

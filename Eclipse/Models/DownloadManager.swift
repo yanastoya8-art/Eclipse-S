@@ -2781,8 +2781,7 @@ final class DownloadManager: NSObject, ObservableObject {
         for (id, downloader) in activeHLSDownloaders {
             guard let attemptID = activeHLSAttemptIDs[id],
                   let item = downloads.first(where: { $0.id == id }),
-                  item.status == .downloading,
-                  item.hasVerifiedHLSCheckpoint || item.hlsResumeManifestSHA256 != nil else { continue }
+                  item.status == .downloading else { continue }
             beginHLSBackgroundAttempt(
                 id: id,
                 attemptID: attemptID,
@@ -3000,7 +2999,6 @@ final class DownloadManager: NSObject, ObservableObject {
               hlsIntentIsCurrent(intent), hlsBackgroundAttempts[id] == nil,
               let item = downloads.first(where: { $0.id == id }),
               item.status == .downloading,
-              item.hasVerifiedHLSCheckpoint || item.hlsResumeManifestSHA256 != nil,
               let scheduler = hlsBackgroundScheduler else { return }
         let attempt = HLSBackgroundAttempt(attemptID: attemptID, intent: intent, protectedAttemptID: protectedAttemptID, downloader: downloader, dateAdded: item.dateAdded)
         hlsBackgroundAttempts[id] = attempt
@@ -3039,13 +3037,17 @@ final class DownloadManager: NSObject, ObservableObject {
         let attempt = hlsBackgroundAttempts[id].flatMap { $0.granted && !$0.revoked ? $0 : nil }
         let segmentTotal = Int64(max(item.hlsTotalSegments ?? 1, 1))
         let completedSegments = min(Int64(max(item.hlsResumeSegmentIndex ?? 0, 0)), segmentTotal)
-        let hasByteTotal = item.totalBytes > 0
+        // HLS progress callbacks carry the live segment fraction. Persisted
+        // byte totals can describe an earlier source/attempt and must never
+        // override the worker's current measured progress.
+        let hasByteTotal = progressOverride == nil && item.totalBytes > 0
         let completedBytes = max(item.downloadedBytes, 0)
         let totalBytes = hasByteTotal ? item.totalBytes : 0
         let measuredSegmentProgress = Double(completedSegments) / Double(max(segmentTotal, 1))
-        let progress = hasByteTotal
-            ? min(Double(completedBytes) / Double(totalBytes), 1)
-            : min(max(progressOverride ?? measuredSegmentProgress, 0), 1)
+        let progress = progressOverride.map { min(max($0, 0), 1) }
+            ?? (hasByteTotal
+                ? min(Double(completedBytes) / Double(totalBytes), 1)
+                : measuredSegmentProgress)
         let progressUnitsCompleted = Int64((progress * Double(segmentTotal)).rounded(.down))
         let subtitle = hasByteTotal
             ? "\(DownloadByteCountFormatter.string(fromByteCount: completedBytes)) of \(DownloadByteCountFormatter.string(fromByteCount: totalBytes))"
@@ -7024,11 +7026,12 @@ final class DownloadManager: NSObject, ObservableObject {
             // iOS suspends as soon as the app leaves the foreground.
             useBackgroundURLSession: ["http", "https"].contains(url.scheme?.lowercased() ?? "")
                 && !["127.0.0.1", "localhost", "::1"].contains(url.host?.lowercased() ?? "")
-                && item.providerTransportKind != .skyStreamHLS
                 && (protectedNuvioAttemptID == nil
                     || protectedProviderAttempts[item.id]?.mainProxyURL == nil),
-            requiresPublicNetworkValidationForBackgroundURLSession: protectedNuvioAttemptID != nil
-                && protectedProviderAttempts[item.id]?.mainProxyURL == nil
+            requiresPublicNetworkValidationForBackgroundURLSession:
+                item.providerTransportKind == .skyStreamHLS
+                || (protectedNuvioAttemptID != nil
+                    && protectedProviderAttempts[item.id]?.mainProxyURL == nil)
         )
 
 #if os(iOS) && !targetEnvironment(macCatalyst)
@@ -7081,7 +7084,12 @@ final class DownloadManager: NSObject, ObservableObject {
                   let index = self.downloads.firstIndex(where: { $0.id == item.id }) else { return }
             self.downloads[index].hlsResumeManifestSHA256 = digest
 #if os(iOS) && !targetEnvironment(macCatalyst)
-            if digest != nil, let backgroundIntent, let downloader {
+            // A valid manifest digest is required for safe resume matching,
+            // but not for continuing the current live worker in the background.
+            // Some provider HLS playlists do not yield a stable digest; requiring
+            // one here prevented Stremio/Mangayomi streams from ever receiving
+            // the continued-processing grant.
+            if let backgroundIntent, let downloader {
                 self.beginHLSBackgroundAttempt(
                     id: item.id,
                     attemptID: attemptID,
@@ -7106,7 +7114,12 @@ final class DownloadManager: NSObject, ObservableObject {
                 hlsResumeByteCount: byteCount
             )
 #if os(iOS) && !targetEnvironment(macCatalyst)
-            self.updateHLSBackgroundProgress(id: item.id, stage: "Downloading video")
+            let totalSegments = max(self.downloads[index].hlsTotalSegments ?? segmentsWritten, 1)
+            self.updateHLSBackgroundProgress(
+                id: item.id,
+                stage: "Downloading video",
+                progressOverride: Double(min(segmentsWritten, totalSegments)) / Double(totalSegments)
+            )
 #endif
             if segmentsWritten > 0, self.downloads[index].rateLimitRetryCount != nil {
                 self.downloads[index].rateLimitRetryCount = nil
@@ -7402,13 +7415,40 @@ final class DownloadManager: NSObject, ObservableObject {
 
         guard let proxyURL,
               let currentItem = downloads.first(where: { $0.id == item.id }) else { return }
-        startHLSDownload(
-            currentItem,
-            streamURLOverride: proxyURL,
-            headersOverride: [:],
-            pinnedVariantOverride: skyStreamHLSPinnedVariantURLs[item.id],
-            persistResolvedVariant: false
-        )
+        // A loopback MPV proxy cannot be reached by an OS-owned background
+        // URLSession after Eclipse is suspended. For ordinary validated HLS
+        // descriptors with a single consistent header policy, let the
+        // background downloader fetch the validated remote manifest and
+        // segments directly. Complex proxy-option routes keep the MPV proxy.
+        let routeHeadersAreUniform = descriptor.routes.allSatisfy {
+            $0.headers.values == descriptor.headers.values
+        }
+        let canUseDirectBackgroundTransport =
+            descriptor.mediaKind == .hls
+            && descriptor.proxyOptions == nil
+            && routeHeadersAreUniform
+            && descriptor.underlyingRemoteURL.url.scheme?.lowercased() == "https"
+
+        if canUseDirectBackgroundTransport {
+            MPVHeaderProxy.shared.invalidateSession(for: proxyURL)
+            skyStreamHLSProxyURLs.removeValue(forKey: item.id)
+            skyStreamHLSPinnedVariantURLs.removeValue(forKey: item.id)
+            startHLSDownload(
+                currentItem,
+                streamURLOverride: descriptor.underlyingRemoteURL.url,
+                headersOverride: descriptor.headers.values,
+                pinnedVariantOverride: nil,
+                persistResolvedVariant: false
+            )
+        } else {
+            startHLSDownload(
+                currentItem,
+                streamURLOverride: proxyURL,
+                headersOverride: [:],
+                pinnedVariantOverride: skyStreamHLSPinnedVariantURLs[item.id],
+                persistResolvedVariant: false
+            )
+        }
     }
 
     private func restoreValidatedSkyStreamDownload(_ item: DownloadItem) {
@@ -7780,10 +7820,11 @@ final class DownloadManager: NSObject, ObservableObject {
         let plan: NuvioDownloadTransportPlan
         let attemptHeaders: [String: String]
         if directBackgroundApproved {
-            // Only public HTTPS Nuvio/service URLs that passed DNS validation
-            // use the OS-owned session. Stremio and SkyStream retain the
-            // pinned local proxy because their routing grants private-origin
-            // access that URLSession cannot safely reproduce.
+            // Only public HTTPS provider stream URLs that passed DNS
+            // validation use the OS-owned session. This includes Stremio CDN
+            // URLs when the resolved target is public; configured/private
+            // Stremio origins still retain their pinned local proxy because
+            // URLSession cannot safely reproduce that private-origin grant.
             proxyURL = nil
             attemptHeaders = safeTransportHeaders
             plan = NuvioDownloadTransportPlan.directBackgroundAttempt(

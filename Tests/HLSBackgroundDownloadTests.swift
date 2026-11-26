@@ -251,15 +251,26 @@ final class HLSBackgroundDownloadTests: XCTestCase {
         await fixture.cleanUp()
     }
 
-    func testUnverifiedLivePlaylistNeverSubmitsBackgroundRequest() async throws {
+    func testUnverifiedLivePlaylistCanContinueInBackgroundWithoutResumeDigest() async throws {
         let fixture = try HLSBackgroundFixture(mode: .grant, finitePlaylist: false)
         do {
             try fixture.start()
-            try await eventually { fixture.heldCount == 1 }
+            try await eventually {
+                fixture.heldCount == 1
+                    && fixture.scheduler.requests.count == 1
+                    && fixture.scheduler.grantResults == [true]
+            }
             XCTAssertNil(fixture.item.hlsResumeManifestSHA256)
-            XCTAssertTrue(fixture.scheduler.requests.isEmpty)
+            // A stable manifest digest is needed to validate a future resume,
+            // not to continue the already-running HLS worker while the app is
+            // backgrounded. This is the path used by live/rotating provider
+            // playlists that Stremio and Mangayomi can return.
+            XCTAssertEqual(fixture.item.status, .downloading)
+            fixture.foreground = false
+            fixture.manager.applicationDidEnterBackground()
             fixture.release()
-            try await eventually { fixture.item.status == .completed }
+            try await eventually { fixture.item.status == .completed && fixture.scheduler.finishes.count == 1 }
+            XCTAssertEqual(fixture.scheduler.finishes.map(\.success), [true])
             XCTAssertEqual(try fixture.completedData(), Data("AABBCC".utf8))
         } catch {
             await fixture.cleanUp()
