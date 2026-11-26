@@ -4649,12 +4649,18 @@ final class DownloadManager: NSObject, ObservableObject {
             }
         guard let sourceURL else { return nil }
 
+        // MKV is a stream container in Eclipse, not a browser download target.
+        // Copy its authoritative URL verbatim: do not proxy it, add attachment
+        // headers, rewrite its query, or otherwise alter the provider URL.
+        if sourceURL.pathExtension.caseInsensitiveCompare("mkv") == .orderedSame {
+            return sourceURL
+        }
+
         let headers = protectedAttempt?.authorityHeaders ?? item.headers
-        // Always route copied links through the download response path, even
-        // when the provider needs no headers. Returning the origin URL directly
-        // lets Safari treat MP4/WebM/MKV resources as inline playback instead
-        // of a file download. The LAN proxy adds Content-Disposition: attachment
-        // and preserves any required provider headers.
+        // Non-MKV formats use the authenticated download response route so
+        // Safari receives Content-Disposition: attachment and provider headers.
+        // HLS manifests still require segment-aware handling; this response
+        // header alone cannot package an HLS playlist into one video file.
         return MPVHeaderProxy.shared.makeLANProxyURL(
             for: sourceURL,
             headers: headers,
