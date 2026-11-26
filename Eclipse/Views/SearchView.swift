@@ -860,7 +860,11 @@ struct SearchView: View {
             do {
                 // Search multiple TMDB pages so less popular series and
                 // titles ranked below unrelated matches are not silently omitted.
-                var results = try await tmdbService.searchMulti(query: query, maxPages: 10)
+                // A transient failure of TMDB's multi-search endpoint must
+                // not abort the whole query. The dedicated TV endpoint below
+                // is an independent fallback for series and anime titles.
+                var results = (try? await tmdbService.searchMulti(query: query, maxPages: 10)) ?? []
+                try Task.checkCancellation()
                 try Task.checkCancellation()
                 // Search in English as well as the selected UI language. TMDB's
                 // localized multi-search can omit original-language titles
