@@ -8227,11 +8227,10 @@ final class DownloadManager: NSObject, ObservableObject {
               descriptor.mediaKind == .hls,
               descriptor.proxyOptions == nil,
               descriptor.routes.allSatisfy({ $0.headers.values == descriptor.headers.values }),
-              let url = descriptor.underlyingRemoteURL.url,
-              url.scheme?.lowercased() == "https" else {
+              descriptor.underlyingRemoteURL.url.scheme?.lowercased() == "https" else {
             return nil
         }
-        return (url, descriptor.headers.values)
+        return (descriptor.underlyingRemoteURL.url, descriptor.headers.values)
     }
 
     private func hlsStartDelayReason(for item: DownloadItem) -> String? {
