@@ -559,10 +559,17 @@ enum HomeAnimatedBackgroundParticleColor: String, CaseIterable, Identifiable {
 }
 
 enum HomeAnimatedBackgroundShape: String, CaseIterable, Identifiable {
+    // Keep the nine approved illustrated motifs as the only selectable shapes.
+    // The four original geometric symbols remain decodable below solely so old
+    // switch branches stay source-compatible; they are never selectable or
+    // resolved from persisted preferences.
     case wolf, fox, phoenix, paw, stars, crescentMoon, sun, spiral, cat, mermaid, bird, snake, dragon
 
     static let storageKey = "homeAnimatedBackgroundShape"
-    static let defaultValue: HomeAnimatedBackgroundShape = .stars
+    static let defaultValue: HomeAnimatedBackgroundShape = .dragon
+    static let allCases: [HomeAnimatedBackgroundShape] = [
+        .dragon, .bird, .snake, .wolf, .fox, .phoenix, .cat, .mermaid, .paw
+    ]
 
     var id: String { rawValue }
     var displayName: String {
@@ -604,7 +611,14 @@ enum HomeAnimatedBackgroundShape: String, CaseIterable, Identifiable {
 
     static func resolved(_ rawValue: String?) -> HomeAnimatedBackgroundShape {
         guard let rawValue, let shape = Self(rawValue: rawValue) else { return defaultValue }
-        return shape
+        switch shape {
+        case .wolf, .fox, .phoenix, .paw, .cat, .mermaid, .bird, .snake, .dragon:
+            return shape
+        case .stars, .crescentMoon, .sun, .spiral:
+            // Migrate installations that still have an old geometric motif
+            // selected to the approved illustrated Toothless design.
+            return defaultValue
+        }
     }
 }
 
