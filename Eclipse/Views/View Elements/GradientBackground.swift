@@ -568,7 +568,8 @@ enum HomeAnimatedBackgroundShape: String, CaseIterable, Identifiable {
     static let storageKey = "homeAnimatedBackgroundShape"
     static let defaultValue: HomeAnimatedBackgroundShape = .dragon
     static let allCases: [HomeAnimatedBackgroundShape] = [
-        .dragon, .bird, .snake, .wolf, .fox, .phoenix, .cat, .mermaid, .paw
+        .dragon, .bird, .snake, .wolf, .fox, .phoenix, .cat, .mermaid, .paw,
+        .stars, .crescentMoon, .spiral, .sun
     ]
 
     var id: String { rawValue }
@@ -580,8 +581,8 @@ enum HomeAnimatedBackgroundShape: String, CaseIterable, Identifiable {
         case .paw: return "Paw"
         case .stars: return "Star"
         case .crescentMoon: return "Moon"
-        case .sun: return "Spiral Sun"
-        case .spiral: return "Golden Spiral"
+        case .sun: return "Sun"
+        case .spiral: return "Spiral Sun"
         case .cat: return "Cat"
         case .mermaid: return "Mermaid"
         case .bird: return "Hawk"
@@ -611,14 +612,10 @@ enum HomeAnimatedBackgroundShape: String, CaseIterable, Identifiable {
 
     static func resolved(_ rawValue: String?) -> HomeAnimatedBackgroundShape {
         guard let rawValue, let shape = Self(rawValue: rawValue) else { return defaultValue }
-        switch shape {
-        case .wolf, .fox, .phoenix, .paw, .cat, .mermaid, .bird, .snake, .dragon:
-            return shape
-        case .stars, .crescentMoon, .sun, .spiral:
-            // Migrate installations that still have an old geometric motif
-            // selected to the approved illustrated Toothless design.
-            return defaultValue
-        }
+        // Every approved motif remains selectable. Older installations
+        // retain their saved star, moon and sun selections instead of silently
+        // replacing them with Toothless.
+        return shape
     }
 }
 
@@ -1142,15 +1139,43 @@ private struct HomeAnimatedCreatureMotif: View {
                     path.addEllipse(in: CGRect(x: x, y: y, width: w, height: h))
                 }
             case .stars:
-                path.move(to: CGPoint(x: 200, y: 34))
-                path.addLine(to: CGPoint(x: 221, y: 151))
-                path.addLine(to: CGPoint(x: 338, y: 172))
-                path.addLine(to: CGPoint(x: 221, y: 193))
-                path.addLine(to: CGPoint(x: 200, y: 266))
-                path.addLine(to: CGPoint(x: 179, y: 193))
-                path.addLine(to: CGPoint(x: 62, y: 172))
-                path.addLine(to: CGPoint(x: 179, y: 151))
+                // Three different-sized stars linked by a light dotted orbit.
+                path.move(to: CGPoint(x: 106, y: 56))
+                path.addLine(to: CGPoint(x: 118, y: 91))
+                path.addLine(to: CGPoint(x: 154, y: 93))
+                path.addLine(to: CGPoint(x: 126, y: 115))
+                path.addLine(to: CGPoint(x: 136, y: 151))
+                path.addLine(to: CGPoint(x: 106, y: 130))
+                path.addLine(to: CGPoint(x: 76, y: 151))
+                path.addLine(to: CGPoint(x: 86, y: 115))
+                path.addLine(to: CGPoint(x: 58, y: 93))
+                path.addLine(to: CGPoint(x: 94, y: 91))
                 path.closeSubpath()
+                path.move(to: CGPoint(x: 281, y: 127))
+                path.addLine(to: CGPoint(x: 300, y: 180))
+                path.addLine(to: CGPoint(x: 355, y: 183))
+                path.addLine(to: CGPoint(x: 312, y: 216))
+                path.addLine(to: CGPoint(x: 328, y: 269))
+                path.addLine(to: CGPoint(x: 281, y: 238))
+                path.addLine(to: CGPoint(x: 234, y: 269))
+                path.addLine(to: CGPoint(x: 250, y: 216))
+                path.addLine(to: CGPoint(x: 207, y: 183))
+                path.addLine(to: CGPoint(x: 262, y: 180))
+                path.closeSubpath()
+                path.move(to: CGPoint(x: 211, y: 29))
+                path.addLine(to: CGPoint(x: 222, y: 57))
+                path.addLine(to: CGPoint(x: 251, y: 59))
+                path.addLine(to: CGPoint(x: 228, y: 77))
+                path.addLine(to: CGPoint(x: 236, y: 106))
+                path.addLine(to: CGPoint(x: 211, y: 89))
+                path.addLine(to: CGPoint(x: 186, y: 106))
+                path.addLine(to: CGPoint(x: 194, y: 77))
+                path.addLine(to: CGPoint(x: 171, y: 59))
+                path.addLine(to: CGPoint(x: 200, y: 57))
+                path.closeSubpath()
+                for (x, y) in [(CGFloat(158), CGFloat(113)), (CGFloat(174), CGFloat(124)), (CGFloat(190), CGFloat(135)), (CGFloat(206), CGFloat(146))] {
+                    path.addEllipse(in: CGRect(x: x, y: y, width: 4, height: 4))
+                }
             case .crescentMoon:
                 path.move(to: CGPoint(x: 260, y: 48))
                 path.addCurve(to: CGPoint(x: 158, y: 256), control1: CGPoint(x: 330, y: 174), control2: CGPoint(x: 252, y: 284))
