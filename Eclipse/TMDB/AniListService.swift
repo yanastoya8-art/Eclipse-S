@@ -10173,6 +10173,7 @@ final class AniListService {
 
             for candidate in titleCandidates where !candidate.isEmpty {
                 try Task.checkCancellation()
+                let candidateKey = normalized(candidate)
                 var results: [TMDBTVShow] = []
                 do {
                     results = try await tmdbService.searchTVShows(query: candidate, maxPages: 2)
@@ -10181,10 +10182,11 @@ final class AniListService {
                     lookupCompleted = false
                 }
 
-                // AniList titles are often romanized or English while TMDB's
-                // selected-language index is localized. Search the English TV
-                // index as well and merge by TMDB ID before matching.
-                if langCode.caseInsensitiveCompare("en-US") != .orderedSame {
+                // Only query the English index when the localized index did not
+                // return an exact title. This preserves romanized/English
+                // fallbacks without multiplying requests for already matched aliases.
+                if langCode.caseInsensitiveCompare("en-US") != .orderedSame,
+                   !results.contains(where: { normalized($0.name) == candidateKey }) {
                     do {
                         let englishResults = try await tmdbService.searchTVShows(
                             query: candidate,
@@ -10201,7 +10203,6 @@ final class AniListService {
                     }
                 }
                 guard !results.isEmpty else { continue }
-                let candidateKey = normalized(candidate)
 
                 let exactMatches = results.filter { normalized($0.name) == candidateKey }
                 if !exactMatches.isEmpty {
