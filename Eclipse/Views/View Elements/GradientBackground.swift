@@ -568,8 +568,7 @@ enum HomeAnimatedBackgroundShape: String, CaseIterable, Identifiable {
     static let storageKey = "homeAnimatedBackgroundShape"
     static let defaultValue: HomeAnimatedBackgroundShape = .dragon
     static let allCases: [HomeAnimatedBackgroundShape] = [
-        .dragon, .bird, .snake, .wolf, .fox, .phoenix, .cat, .mermaid, .paw,
-        .stars, .crescentMoon, .spiral, .sun
+        .dragon, .bird, .snake, .wolf, .fox, .phoenix, .cat, .mermaid, .paw
     ]
 
     var id: String { rawValue }
