@@ -2981,7 +2981,7 @@ final class DownloadManager: NSObject, ObservableObject {
     }
 
     private func beginHLSBackgroundAttempt(id: String, attemptID: UUID, intent: HLSForegroundIntent, protectedAttemptID: UUID?, downloader: HLSDownloader) {
-        guard hlsBackgroundDownloadsEnabled, hlsApplicationIsActive,
+        guard hlsBackgroundDownloadsEnabled,
               hlsIntentIsCurrent(intent), hlsBackgroundAttempts[id] == nil,
               let item = downloads.first(where: { $0.id == id }),
               item.status == .downloading,
@@ -6907,7 +6907,7 @@ final class DownloadManager: NSObject, ObservableObject {
 
 #if os(iOS) && !targetEnvironment(macCatalyst)
         let backgroundIntent = hlsForegroundIntents.removeValue(forKey: item.id).flatMap {
-            hlsBackgroundDownloadsEnabled && hlsApplicationIsActive && hlsIntentIsCurrent($0) ? $0 : nil
+            hlsBackgroundDownloadsEnabled && hlsIntentIsCurrent($0) ? $0 : nil
         }
 #else
         let backgroundIntent: Bool? = nil
