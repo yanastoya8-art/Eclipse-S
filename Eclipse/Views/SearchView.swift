@@ -3162,7 +3162,17 @@ private struct BrowseMediaView: View {
             case .movie:
                 return result
             case .tv:
-                return BrowseAnimeClassifier.shouldIncludeInTV(result) ? result : nil
+                // Only remove results that carry explicit anime signals.
+                // The previous classifier could reject ordinary TV titles
+                // when provider identity metadata was incomplete.
+                let language = result.originalLanguage?.lowercased() ?? ""
+                let animeCountries: Set<String> = ["JP", "CN", "KR", "TW"]
+                let hasAnimeSignals = result.animeIdentitySeed != nil
+                    || result.isAnimeHint == true
+                    || (result.genreIds?.contains(16) == true
+                        && (["ja", "zh", "ko"].contains(language)
+                            || result.originCountry?.contains(where: { animeCountries.contains($0) }) == true))
+                return hasAnimeSignals ? nil : result
             case .anime:
                 // The Anime Browse discover query is already constrained to
                 // animation genre 16. Do not discard entries just because TMDB
