@@ -1521,8 +1521,9 @@ private struct BrowseMediaView: View {
             selectedGenres = ["tmdb-14"] // Fantasy
             excludedGenres = ["tmdb-99", "tmdb-10402", "tmdb-37"] // Documentary, Music, Western
         case .tv:
-            // TV Browse requires both Fantasy and Science Fiction.
-            selectedGenres = []
+            // Select both required genres in the filter UI. The query
+            // combines them as an AND group while both remain selected.
+            selectedGenres = ["tmdb-14", "tmdb-878"] // Fantasy + Science Fiction
             excludedGenres = [
                 "tmdb-99", "tmdb-10762", "tmdb-10763"
             ] // Documentary, Kids, News
@@ -2744,9 +2745,14 @@ private struct BrowseMediaView: View {
         let excludedKeywordIDs = Array(Set(excludedKeywordNames + unofficialKeywordNames))
             .compactMap { keywordIDsByName[$0] }
         let effectiveGenreIds = Array(Set(genres.compactMap(\.tmdbGenreID))).sorted()
-        // Anime requires Animation. TV Browse requires both Fantasy (14)
-        // and Science Fiction (878); selected optional genres remain an OR group.
-        let requiredGenreIds = isAnime ? [16] : (mediaType == "tv" ? [14, 878] : [])
+        // Anime always requires Animation. TV's two default required genres
+        // are ANDed only while both remain selected; removing either in the
+        // filter UI removes the mandatory pair instead of trapping the user.
+        let selectedGenreIDs = Set(genres.compactMap(\.tmdbGenreID))
+        let requiresFantasyAndSciFi = mediaType == "tv"
+            && selectedGenreIDs.contains(14)
+            && selectedGenreIDs.contains(878)
+        let requiredGenreIds = isAnime ? [16] : (requiresFantasyAndSciFi ? [14, 878] : [])
         let excludedGenreIds = Array(Set(excludedGenres.compactMap(\.tmdbGenreID))).sorted()
         let effectiveCountries = Array(Set(originCountries)).sorted()
         let effectiveLanguage = isAnime ? animeLanguage(for: effectiveCountries) : nil
