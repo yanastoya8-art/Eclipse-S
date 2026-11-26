@@ -1458,6 +1458,38 @@ private struct HomeAnimatedCreatureMotif: View {
             with: .color(motifTint.opacity(min(1, motifAlpha * 0.56))),
             style: StrokeStyle(lineWidth: 1.15, lineCap: .round, lineJoin: .round)
         )
+        if shape == .paw {
+            // The approved paw has a miniature forest scene inside its main
+            // pad, not a plain oval or an enclosing square frame.
+            var pawInterior = Path()
+            pawInterior.addEllipse(in: CGRect(x: 143, y: 169, width: 114, height: 91))
+            var forest = Path()
+            forest.move(to: CGPoint(x: 151, y: 226))
+            forest.addQuadCurve(to: CGPoint(x: 249, y: 226), control: CGPoint(x: 201, y: 214))
+            forest.addLine(to: CGPoint(x: 249, y: 247))
+            forest.addLine(to: CGPoint(x: 151, y: 247))
+            forest.closeSubpath()
+            for (x, base, height, halfWidth) in [
+                (CGFloat(166), CGFloat(229), CGFloat(34), CGFloat(10)),
+                (CGFloat(187), CGFloat(229), CGFloat(48), CGFloat(13)),
+                (CGFloat(211), CGFloat(229), CGFloat(40), CGFloat(11)),
+                (CGFloat(232), CGFloat(229), CGFloat(29), CGFloat(9))
+            ] {
+                forest.move(to: CGPoint(x: x, y: base - height))
+                forest.addLine(to: CGPoint(x: x - halfWidth, y: base - height * 0.43))
+                forest.addLine(to: CGPoint(x: x - halfWidth * 0.52, y: base - height * 0.43))
+                forest.addLine(to: CGPoint(x: x - halfWidth * 0.9, y: base - height * 0.12))
+                forest.addLine(to: CGPoint(x: x + halfWidth * 0.9, y: base - height * 0.12))
+                forest.addLine(to: CGPoint(x: x + halfWidth * 0.52, y: base - height * 0.43))
+                forest.addLine(to: CGPoint(x: x + halfWidth, y: base - height * 0.43))
+                forest.closeSubpath()
+                forest.move(to: CGPoint(x: x, y: base - height))
+                forest.addLine(to: CGPoint(x: x, y: base))
+            }
+            var forestDrawing = volumeDrawing
+            forestDrawing.clip(to: pawInterior)
+            forestDrawing.fill(forest, with: .color(Color.black.opacity(0.34)))
+        }
         drawing.stroke(
             fill,
             with: .color(motifTint.opacity(min(1, motifAlpha * 0.9))),
