@@ -5694,6 +5694,11 @@ private final class MPVHeaderProxyCore {
                     .replacingOccurrences(of: "\"", with: "_")
                     .replacingOccurrences(of: "\r", with: "_")
                     .replacingOccurrences(of: "\n", with: "_")
+                // Match the buffered response path: Safari can play known video MIME types inline.
+                responseHeaders = responseHeaders.filter {
+                    $0.key.caseInsensitiveCompare("Content-Type") != .orderedSame
+                }
+                responseHeaders["Content-Type"] = "application/octet-stream"
                 responseHeaders["Content-Disposition"] = "attachment; filename=\"\(filename)\""
                 responseHeaders["Cache-Control"] = "no-store"
             }
