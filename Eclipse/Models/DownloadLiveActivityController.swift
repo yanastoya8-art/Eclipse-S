@@ -11,10 +11,12 @@ enum DownloadLiveActivityController {
         let generation: UInt64
     }
 
+    private static let minimumUpdateInterval: TimeInterval = 2.5
     private static var generationByDownloadID: [String: UInt64] = [:]
     private static var endedDownloadIDs: Set<String> = []
     private static var pendingUpdates: [String: PendingUpdate] = [:]
     private static var drainTasks: [String: Task<Void, Never>] = [:]
+    private static var lastUpdateAtByDownloadID: [String: Date] = [:]
 
     private static func generation(for downloadID: String) -> UInt64 {
         generationByDownloadID[downloadID, default: 0]
@@ -24,6 +26,7 @@ enum DownloadLiveActivityController {
         generationByDownloadID[downloadID, default: 0] &+= 1
         endedDownloadIDs.remove(downloadID)
         pendingUpdates.removeValue(forKey: downloadID)
+        lastUpdateAtByDownloadID.removeValue(forKey: downloadID)
     }
 
     private static func activities(for downloadID: String) -> [Activity<DownloadActivityAttributes>] {
@@ -85,9 +88,22 @@ enum DownloadLiveActivityController {
             guard pending.generation == generation(for: downloadID),
                   !endedDownloadIDs.contains(downloadID) else { continue }
 
+            // URLSession can report progress many times per second. ActivityKit
+            // throttles rapid local writes, which can leave a Live Activity
+            // frozen mid-download. Coalesce to the newest state and publish at
+            // a steady interval instead of flooding ActivityKit.
+            if let lastUpdate = lastUpdateAtByDownloadID[downloadID] {
+                let remaining = minimumUpdateInterval - Date().timeIntervalSince(lastUpdate)
+                if remaining > 0 {
+                    pendingUpdates[downloadID] = pending
+                    try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
+                    continue
+                }
+            }
+
             let content = ActivityContent(
                 state: pending.state,
-                staleDate: Date().addingTimeInterval(15 * 60)
+                staleDate: Date().addingTimeInterval(60 * 60)
             )
 
             let currentActivities = activities(for: downloadID)
@@ -97,6 +113,7 @@ enum DownloadLiveActivityController {
                 for currentActivity in currentActivities {
                     await currentActivity.update(content)
                 }
+                lastUpdateAtByDownloadID[downloadID] = Date()
                 continue
             }
 
@@ -113,6 +130,7 @@ enum DownloadLiveActivityController {
                     content: content,
                     pushType: nil
                 )
+                lastUpdateAtByDownloadID[downloadID] = Date()
             } catch {
                 Logger.shared.log(
                     "Could not start download Live Activity: \(error.localizedDescription)",
@@ -130,8 +148,10 @@ enum DownloadLiveActivityController {
         pendingUpdates.removeValue(forKey: downloadID)
 
         if let drainTask = drainTasks[downloadID] {
+            drainTask.cancel()
             await drainTask.value
         }
+        lastUpdateAtByDownloadID.removeValue(forKey: downloadID)
 
         let matchingActivities = Activity<DownloadActivityAttributes>.activities.filter {
             $0.attributes.downloadID == downloadID
