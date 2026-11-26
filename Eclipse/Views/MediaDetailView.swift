@@ -527,9 +527,9 @@ struct MediaDetailContentView: View {
     @State private var romajiTitle: String?
     @State private var logoURL: String?
     @AppStorage(MediaDetailRatingNotesPositionSettings.portraitOffsetKey)
-    private var portraitRatingNotesOffset = MediaDetailRatingNotesPositionSettings.defaultOffset
+    private var portraitRatingNotesOffset = MediaDetailRatingNotesPositionSettings.defaultPortraitOffset
     @AppStorage(MediaDetailRatingNotesPositionSettings.landscapeOffsetKey)
-    private var landscapeRatingNotesOffset = MediaDetailRatingNotesPositionSettings.defaultOffset
+    private var landscapeRatingNotesOffset = MediaDetailRatingNotesPositionSettings.defaultLandscapeOffset
     @AppStorage(MediaDetailTitleLogoPositionSettings.verticalPositionKey)
     private var titleLogoVerticalPosition = MediaDetailTitleLogoPositionSettings.defaultVerticalPosition
     @AppStorage(MediaDetailTitleLogoAppearanceSettings.sizeKey)
@@ -537,9 +537,9 @@ struct MediaDetailContentView: View {
     @AppStorage(MediaDetailTitleLogoAppearanceSettings.weightKey)
     private var detailTitleLogoWeight = MediaDetailTitleLogoAppearanceSettings.defaultWeight
     @AppStorage(MediaDetailHeroContentPositionSettings.actionsOffsetKey)
-    private var heroActionsVerticalOffset = MediaDetailHeroContentPositionSettings.defaultOffset
+    private var heroActionsVerticalOffset = MediaDetailHeroContentPositionSettings.defaultActionsOffset
     @AppStorage(MediaDetailHeroContentPositionSettings.synopsisOffsetKey)
-    private var heroSynopsisVerticalOffset = MediaDetailHeroContentPositionSettings.defaultOffset
+    private var heroSynopsisVerticalOffset = MediaDetailHeroContentPositionSettings.defaultSynopsisOffset
     @AppStorage(LandscapeMediaDetailAppearanceSettings.logoPositionKey)
     private var landscapeTitleLogoVerticalPosition = LandscapeMediaDetailAppearanceSettings.defaultLogoPosition
     @AppStorage(LandscapeMediaDetailAppearanceSettings.logoHorizontalPositionKey)
@@ -549,19 +549,19 @@ struct MediaDetailContentView: View {
     @AppStorage(LandscapeMediaDetailAppearanceSettings.logoWeightKey)
     private var landscapeTitleLogoWeight = LandscapeMediaDetailAppearanceSettings.defaultLogoWeight
     @AppStorage(LandscapeMediaDetailAppearanceSettings.actionsOffsetKey)
-    private var landscapeHeroActionsVerticalOffset = LandscapeMediaDetailAppearanceSettings.defaultOffset
+    private var landscapeHeroActionsVerticalOffset = LandscapeMediaDetailAppearanceSettings.defaultActionsOffset
     @AppStorage(LandscapeMediaDetailAppearanceSettings.synopsisOffsetKey)
-    private var landscapeHeroSynopsisVerticalOffset = LandscapeMediaDetailAppearanceSettings.defaultOffset
+    private var landscapeHeroSynopsisVerticalOffset = LandscapeMediaDetailAppearanceSettings.defaultSynopsisOffset
     @AppStorage(LandscapeMediaDetailAppearanceSettings.contentHorizontalOffsetKey)
     private var landscapeContentHorizontalOffset = LandscapeMediaDetailAppearanceSettings.defaultContentHorizontalOffset
     @AppStorage("mediaDetailPortraitHeroBleedIntensity")
     private var portraitHeroBleedIntensity = 1.0
     @AppStorage("mediaDetailLandscapeHeroBleedIntensity")
-    private var landscapeHeroBleedIntensity = 1.0
+    private var landscapeHeroBleedIntensity = LandscapeMediaDetailAppearanceSettings.defaultHeroBleedIntensity
     @AppStorage("mediaDetailLandscapeHeroHorizontalStretch")
-    private var landscapeHeroHorizontalStretch = 1.0
+    private var landscapeHeroHorizontalStretch = LandscapeMediaDetailAppearanceSettings.defaultHeroHorizontalStretch
     @AppStorage("mediaDetailLandscapeHeroVerticalStretch")
-    private var landscapeHeroVerticalStretch = 1.0
+    private var landscapeHeroVerticalStretch = LandscapeMediaDetailAppearanceSettings.defaultHeroVerticalStretch
 
     private var activeTitleLogoPosition: Double {
         usesLandscapeDetailComposition ? landscapeTitleLogoVerticalPosition : titleLogoVerticalPosition
@@ -592,7 +592,7 @@ struct MediaDetailContentView: View {
     @State private var animeSeasonAniListIds: [Int: Int] = [:]
     @State private var animeSeasonKitsuIds: [Int: Int] = [:]
     @State private var animeProviderAliases: [Int: Int] = [:]
-    @AppStorage("catalogHideAnimeSpecialsAndOVAs", store: .standard) private var hideAnimeSpecialsAndOVAs = false
+    @AppStorage("catalogHideAnimeSpecialsAndOVAs", store: .standard) private var hideAnimeSpecialsAndOVAs = true
     @State private var animeSpecialEntries: [AniListSpecialSearchEntry] = []
     @State private var isLoadingAnimeSpecials = false
     @State private var selectedSpecialEpisodeContext: SpecialEpisodeListContext?
@@ -685,7 +685,7 @@ struct MediaDetailContentView: View {
     @AppStorage("tmdbLanguage") private var selectedLanguage = "en-US"
     @AppStorage("mediaDetailElementOrder") private var mediaDetailElementOrder = MediaDetailElement.defaultOrderRawValue
     @AppStorage("mediaDetailHiddenElements") private var mediaDetailHiddenElements = ""
-    @AppStorage("showCastSection") private var legacyShowCastSection = true
+    @AppStorage("showCastSection") private var legacyShowCastSection = false
     @AppStorage(MediaDetailPlatformDefaults.seasonMenuKey) private var useSeasonMenu = MediaDetailPlatformDefaults.prefersCompactSeasonMenu
     @AppStorage(MediaDetailAgeRatingSettings.enabledKey) private var mediaDetailAgeRatingEnabled = MediaDetailAgeRatingSettings.defaultEnabled
     @AppStorage(MediaDetailSimilarTitlesSettings.enabledKey) private var mediaDetailSimilarTitlesEnabled = MediaDetailSimilarTitlesSettings.defaultEnabled
