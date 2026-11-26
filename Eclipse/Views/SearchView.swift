@@ -2791,10 +2791,55 @@ private struct BrowseMediaView: View {
                 voteAverageGte: ratingFloor,
                 page: page
             )
-            let results = upcomingOnly
+            var results = upcomingOnly
                 ? fetched.results.filter { Self.hasOfficialUpcomingDate($0) }
                 : fetched.results
-            return BrowsePageResult(results: results, hasMore: fetched.hasMore)
+            var hasMore = fetched.hasMore
+
+            if isAnime {
+                // TMDB's animation discover index is incomplete for anime and
+                // often omits titles that AniList still catalogs. Merge a
+                // paged AniList source into the same result pipeline so the
+                // existing dub, age, runtime, and production filters still run.
+                let catalogKind: AniListService.AniListCatalogKind =
+                    sort == .rank ? .topRated : (sort == .newest ? .trending : .popular)
+                if let aniListResults = try? await AniListService.shared.fetchAnimeCatalog(
+                    catalogKind,
+                    page: page,
+                    limit: 20,
+                    tmdbService: tmdbService
+                ) {
+                    let selectedGenreIDs = Set(effectiveGenreIds)
+                    let selectedCountrySet = Set(effectiveCountries)
+                    let aniListCandidates = aniListResults.compactMap { candidate -> TMDBSearchResult? in
+                        let anime = candidate.withAnimeHint(true)
+                        if let ids = anime.genreIds, !selectedGenreIDs.isEmpty,
+                           !ids.contains(where: selectedGenreIDs.contains) {
+                            return nil
+                        }
+                        if upcomingOnly && !Self.hasOfficialUpcomingDate(anime) { return nil }
+                        if let year = Int(anime.displayDate.prefix(4)),
+                           !requestedYears.isEmpty, !requestedYears.contains(year) {
+                            return nil
+                        }
+                        if !selectedCountrySet.isEmpty,
+                           let countries = anime.originCountry,
+                           !countries.contains(where: selectedCountrySet.contains) {
+                            return nil
+                        }
+                        if let effectiveLanguage,
+                           let language = anime.originalLanguage?.lowercased(),
+                           language != effectiveLanguage.lowercased() {
+                            return nil
+                        }
+                        if let ratingFloor, anime.voteAverage < ratingFloor { return nil }
+                        return anime
+                    }
+                    results = sortedDeduplicatedResults(results + aniListCandidates, by: sort)
+                    hasMore = hasMore || aniListResults.count >= 20
+                }
+            }
+            return BrowsePageResult(results: results, hasMore: hasMore)
         }
 
         return try await withThrowingTaskGroup(of: BrowsePageResult.self) { group in
