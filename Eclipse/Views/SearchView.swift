@@ -450,7 +450,10 @@ struct SearchView: View {
             tvSearchIsVisible = true
             tvSearchPresentationGeneration = UUID()
 #endif
-            if UserDefaults.standard.object(forKey: "searchHistorySavingEnabled") == nil, !searchHistoryData.isEmpty {
+            let settingsDomain = Bundle.main.bundleIdentifier ?? "app.Eclipse"
+            let hasSavedHistoryPreference = UserDefaults.standard
+                .persistentDomain(forName: settingsDomain)?["searchHistorySavingEnabled"] != nil
+            if !hasSavedHistoryPreference, !searchHistoryData.isEmpty {
                 searchHistorySavingEnabled = true
             }
             loadSearchHistory()
