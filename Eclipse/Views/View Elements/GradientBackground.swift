@@ -2671,7 +2671,6 @@ struct EclipseAmbientMotionBackground: View {
         }
         .blendMode(.screen)
         .opacity(quality.layerOpacity)
-        .compositingGroup()
     }
 
     private func drawAmbientLayer(
