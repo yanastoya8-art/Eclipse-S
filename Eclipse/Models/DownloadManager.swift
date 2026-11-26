@@ -2666,11 +2666,16 @@ final class DownloadManager: NSObject, ObservableObject {
             // background-task restoration before admitting their in-memory queue.
             restoringBackgroundTasks = false
         }
-        processQueue()
 #if os(iOS) && !targetEnvironment(macCatalyst)
+        // Attach continuation requests only to transfers that were already
+        // active when the app returned to the foreground. Running this after
+        // processQueue() also captures freshly admitted startup-queue items,
+        // incorrectly minting a foreground intent for work that was queued
+        // before activation.
         attachLiveActivitiesToActiveHLSDownloads()
         attachLiveActivitiesToActiveDirectDownloads()
 #endif
+        processQueue()
     }
 
     /// A suspended foreground HLS worker can be lost without receiving the
