@@ -23,6 +23,14 @@ final class SettingsScopeTests: XCTestCase {
         for shape in expected {
             XCTAssertEqual(HomeAnimatedBackgroundShape.resolved(shape.rawValue), shape)
         }
+        for retiredShape in [
+            HomeAnimatedBackgroundShape.stars,
+            .crescentMoon,
+            .spiral,
+            .sun
+        ] {
+            XCTAssertEqual(HomeAnimatedBackgroundShape.resolved(retiredShape.rawValue), .dragon)
+        }
         XCTAssertEqual(HomeAnimatedBackgroundShape.resolved(nil), .dragon)
     }
 
