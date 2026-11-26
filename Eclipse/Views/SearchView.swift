@@ -2198,7 +2198,11 @@ private struct BrowseMediaView: View {
     }
 
     private var resultsGrid: some View {
-        LazyVStack(spacing: 0) {
+        // The outer container has only the grid, pagination sentinel and
+        // footer. Keep it eager so SwiftUI always lays out the sentinel after
+        // the nested LazyVGrid; nesting two lazy containers here could leave
+        // the sentinel unrealized after a page append on some device sizes.
+        VStack(spacing: 0) {
             LazyVGrid(columns: gridColumns, spacing: isIPad ? 24 : 16) {
                 ForEach(results, id: \.stableIdentity) { result in
                     SearchResultCard(result: result)
@@ -2230,7 +2234,8 @@ private struct BrowseMediaView: View {
             // automatic at every depth without a manual "Load More" control.
             if hasMorePages {
                 Color.clear
-                    .frame(height: 1)
+                    .frame(height: 24)
+                    .accessibilityHidden(true)
                     .id("browse-search-pagination-\(currentPage)-\(results.count)")
                     .onAppear { loadNextPage() }
             }
