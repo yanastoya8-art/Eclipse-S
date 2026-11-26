@@ -6892,6 +6892,45 @@ final class DownloadManager: NSObject, ObservableObject {
         persistResolvedVariant: Bool = true,
         protectedNuvioAttemptID: UUID? = nil
     ) {
+        // A managed local proxy cannot be handed to a background URLSession.
+        // Validate an HTTP upstream against the public-address policy first,
+        // then re-enter with the validated remote URL so the background
+        // session never receives an untrusted loopback/proxy destination.
+        if streamURLOverride == nil,
+           protectedNuvioAttemptID == nil,
+           protectedProviderAttempts[item.id]?.mainProxyURL == nil,
+           let proxyURL = URL(string: item.streamURL),
+           let target = MPVHeaderProxy.shared.recoverableTargetURL(for: proxyURL),
+           target.scheme?.lowercased() == "http" {
+            let proxyHeaders = MPVHeaderProxy.shared.upstreamProbeTarget(for: proxyURL)?.headers ?? item.headers
+            Task { [weak self] in
+                do {
+                    let validated = try await SkyStreamRemoteURLPolicy.shared.validateForNetworkDispatch(
+                        target.absoluteString,
+                        purpose: .mediaSegment
+                    )
+                    await MainActor.run {
+                        self?.startHLSDownload(
+                            item,
+                            streamURLOverride: validated.url,
+                            headersOverride: proxyHeaders,
+                            pinnedVariantOverride: pinnedVariantOverride,
+                            persistResolvedVariant: persistResolvedVariant,
+                            protectedNuvioAttemptID: protectedNuvioAttemptID
+                        )
+                    }
+                } catch {
+                    await MainActor.run {
+                        self?.markFailed(
+                            id: item.id,
+                            error: "This HTTP stream does not resolve to a safe public address."
+                        )
+                    }
+                }
+            }
+            return
+        }
+
         guard var url = streamURLOverride ?? URL(string: item.streamURL) else {
             markFailed(id: item.id, error: "Invalid stream URL")
             return
@@ -8209,7 +8248,7 @@ final class DownloadManager: NSObject, ObservableObject {
             let managedProxyTarget = URL(string: item.streamURL)
                 .flatMap { MPVHeaderProxy.shared.recoverableTargetURL(for: $0) }
             let safeManagedProxyTarget = managedProxyTarget.flatMap { candidate -> URL? in
-                guard ["http", "https"].contains(candidate.scheme?.lowercased() ?? ""),
+                guard candidate.scheme?.lowercased() == "https",
                       candidate.host != nil,
                       candidate.user == nil,
                       candidate.password == nil,
