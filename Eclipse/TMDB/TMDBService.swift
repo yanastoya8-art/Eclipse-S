@@ -791,7 +791,7 @@ class TMDBService: ObservableObject {
             }
         }
 
-        return pages.sorted { $0.0 < $1.0 }.flatMap(\.1)
+        return pages.sorted { $0.0 < $1.0 }.flatMap { $0.1 }
     }
 
     func findByIMDbId(_ imdbId: String, preferredMediaType: String? = nil) async throws -> TMDBSearchResult? {
@@ -988,7 +988,7 @@ class TMDBService: ObservableObject {
         }
 
         var seenIDs = Set<Int>()
-        return pages.sorted { $0.0 < $1.0 }.flatMap(\.1).filter {
+        return pages.sorted { $0.0 < $1.0 }.flatMap { $0.1 }.filter {
             seenIDs.insert($0.id).inserted
         }
     }
