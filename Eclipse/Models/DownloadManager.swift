@@ -3151,7 +3151,7 @@ final class DownloadManager: NSObject, ObservableObject {
                 && !attempt.revoked && self.hlsIntentIsCurrent(attempt.intent)
             self.hlsBackgroundScheduler?.finish(attemptID: attempt.attemptID, success: didComplete)
 #if os(iOS)
-            if endLiveActivity, #available(iOS 16.2, *) {
+            if #available(iOS 16.2, *), endLiveActivity {
                 Task { @MainActor in
                     await DownloadLiveActivityController.end(downloadID: id, status: didComplete ? "Completed" : "Paused")
                 }
@@ -8146,12 +8146,18 @@ final class DownloadManager: NSObject, ObservableObject {
             // URLSessionDownloadTasks. Permit their queue admission while the
             // app is backgrounded; loopback/provider-proxy streams still need
             // the app process and must wait for foreground execution.
+#if os(iOS) && !targetEnvironment(macCatalyst)
+            let sourceURL = URL(string: item.streamURL)
             let backgroundSessionCanOwnResources =
-                URL(string: item.streamURL)?.scheme?.lowercased() == "https"
+                sourceURL?.scheme?.lowercased() == "https"
                 && item.providerTransportKind != .skyStreamHLS
+                && protectedProviderAttempts[item.id]?.mainProxyURL == nil
                 && !["127.0.0.1", "localhost", "::1"].contains(
-                    URL(string: item.streamURL)?.host?.lowercased() ?? ""
+                    sourceURL?.host?.lowercased() ?? ""
                 )
+#else
+            let backgroundSessionCanOwnResources = false
+#endif
             if !backgroundSessionCanOwnResources {
                 return "Waiting for app to reopen"
             }
