@@ -672,7 +672,7 @@ enum HomeAnimatedBackgroundQuality: String, CaseIterable, Identifiable {
         }
     }
 
-    static var defaultValue: HomeAnimatedBackgroundQuality { .low }
+    static var defaultValue: HomeAnimatedBackgroundQuality { .high }
 
     static func resolved(_ rawValue: String?) -> HomeAnimatedBackgroundQuality {
         guard let rawValue,
