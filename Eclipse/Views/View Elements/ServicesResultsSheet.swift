@@ -28,21 +28,15 @@ private func copyProviderDownloadURL(_ rawURL: String, headers: [String: String]
 
     let sanitizedHeaders = AVPlayerResourceLoader.sanitizedHTTPHeaders(headers ?? [:])
 
-    // A header-free provider URL is portable and does not depend on Eclipse
-    // keeping its loopback proxy alive after the user switches to Safari or
-    // another app. Prefer that URL directly.
-    if sanitizedHeaders.isEmpty {
-        ProviderExternalApplication.copy(sourceURL.absoluteString)
-        return
-    }
-
-    // Header-protected sources need Eclipse's authenticated proxy. Keep the
-    // proxy link scoped to the current device; never copy the upstream URL
-    // without the credentials required to fetch it.
-    guard let downloadURL = MPVHeaderProxy.shared.makeProxyURL(
+    // Safari recognizes raw media URLs as playable resources and opens
+    // them inline. Always use the LAN download route so the response includes
+    // Content-Disposition: attachment, including for providers with no headers.
+    // Required provider headers remain scoped to the source origin by the proxy.
+    guard let downloadURL = MPVHeaderProxy.shared.makeLANProxyURL(
         for: sourceURL,
         headers: sanitizedHeaders,
-        logType: "Download"
+        logType: "Download",
+        asDownload: true
     ) else {
         Logger.shared.log(
             "Could not create an authenticated download URL for host \(sourceURL.host ?? "unknown")",
