@@ -9988,7 +9988,7 @@ final class AniListService {
                     var bestMatch: TMDBTVShow?
 
                     for candidate in titleCandidates where !candidate.isEmpty {
-                        var results = (try? await tmdbService.searchTVShows(query: candidate)) ?? []
+                        var results = (try? await tmdbService.searchTVShows(query: candidate, maxPages: 2)) ?? []
                         // AniList titles are frequently romanized or English even
                         // when Eclipse is displaying another language. TMDB can
                         // return localized near-matches for the first query and
@@ -9998,7 +9998,8 @@ final class AniListService {
                         if langCode.caseInsensitiveCompare("en-US") != .orderedSame {
                             let englishResults = (try? await tmdbService.searchTVShows(
                                 query: candidate,
-                                languageOverride: "en-US"
+                                languageOverride: "en-US",
+                                maxPages: 2
                             )) ?? []
                             var seenIDs = Set(results.map(\.id))
                             results.append(contentsOf: englishResults.filter {
@@ -10137,7 +10138,9 @@ final class AniListService {
         }
 
         let langCode = self.preferredLanguageCode
-        let cacheLanguage = self.tmdbMatchCacheLanguage
+        // Bump the match-cache namespace when the lookup strategy changes so
+        // old first-page-only misses do not keep hiding valid anime results.
+        let cacheLanguage = self.tmdbMatchCacheLanguage + "|expanded-search-v2"
 
         guard let matches = try? await TrackerImportWork.map(animeList, operation: { anime -> (Int, TMDBSearchResult?, AnimeTMDBMatchCacheRecord?) in
             try Task.checkCancellation()
@@ -10170,13 +10173,32 @@ final class AniListService {
 
             for candidate in titleCandidates where !candidate.isEmpty {
                 try Task.checkCancellation()
-                let results: [TMDBTVShow]
+                var results: [TMDBTVShow] = []
                 do {
-                    results = try await tmdbService.searchTVShows(query: candidate)
+                    results = try await tmdbService.searchTVShows(query: candidate, maxPages: 2)
                 } catch {
                     try Task.checkCancellation()
                     lookupCompleted = false
-                    continue
+                }
+
+                // AniList titles are often romanized or English while TMDB's
+                // selected-language index is localized. Search the English TV
+                // index as well and merge by TMDB ID before matching.
+                if langCode.caseInsensitiveCompare("en-US") != .orderedSame {
+                    do {
+                        let englishResults = try await tmdbService.searchTVShows(
+                            query: candidate,
+                            languageOverride: "en-US",
+                            maxPages: 2
+                        )
+                        var seenIDs = Set(results.map(\.id))
+                        results.append(contentsOf: englishResults.filter {
+                            seenIDs.insert($0.id).inserted
+                        })
+                    } catch {
+                        try Task.checkCancellation()
+                        lookupCompleted = false
+                    }
                 }
                 guard !results.isEmpty else { continue }
                 let candidateKey = normalized(candidate)
