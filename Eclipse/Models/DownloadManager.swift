@@ -6905,7 +6905,7 @@ final class DownloadManager: NSObject, ObservableObject {
            protectedProviderAttempts[item.id]?.mainProxyURL == nil,
            let upstream = MPVHeaderProxy.shared.upstreamProbeTarget(for: url),
            let scheme = upstream.url.scheme?.lowercased(),
-           (scheme == "http" || scheme == "https"),
+           scheme == "https",
            upstream.url.host != nil,
            upstream.url.user == nil,
            upstream.url.password == nil,
