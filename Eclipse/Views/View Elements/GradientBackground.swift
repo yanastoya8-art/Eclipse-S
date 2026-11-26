@@ -859,6 +859,9 @@ private struct HomeAnimatedCreatureMotif: View {
             draw(in: &drawing, canvasSize: canvasSize)
         }
         .frame(width: size.width, height: size.height)
+        // Preserve the vector artwork's alpha channel through both normal and
+        // glow rendering; the motif itself has no rectangular backing layer.
+        .drawingGroup(opaque: false, colorMode: .linear)
         .accessibilityHidden(true)
     }
 
@@ -2275,6 +2278,14 @@ struct EclipseAmbientMotionBackground: View {
                 ambientLayer(size: size, motionEnabled: motionEnabled)
                     .frame(width: size.width, height: size.height)
                     .clipped()
+            }
+        }
+        .onAppear {
+            // Migrate any saved legacy geometric symbol to an approved vector
+            // creature so the old square/star motifs cannot reappear.
+            let resolved = HomeAnimatedBackgroundShape.resolved(shapeRawValue)
+            if shapeRawValue != resolved.rawValue {
+                shapeRawValue = resolved.rawValue
             }
         }
         .allowsHitTesting(false)
