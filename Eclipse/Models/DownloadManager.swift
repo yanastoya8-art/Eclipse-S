@@ -12,7 +12,7 @@ enum DownloadConcurrencySettings {
     static let hlsLimitKey = "maximumConcurrentHLSDownloads"
     static let limits = 1...4
 
-    static func sanitized(_ value: Int?, defaultValue: Int = 2) -> Int {
+    static func sanitized(_ value: Int?, defaultValue: Int = 4) -> Int {
         min(max(value ?? defaultValue, limits.lowerBound), limits.upperBound)
     }
 
@@ -21,7 +21,7 @@ enum DownloadConcurrencySettings {
     }
 
     static func hlsLimit(defaults: UserDefaults = .standard) -> Int {
-        min(videoLimit(defaults: defaults), sanitized(defaults.object(forKey: hlsLimitKey) as? Int, defaultValue: 1))
+        min(videoLimit(defaults: defaults), sanitized(defaults.object(forKey: hlsLimitKey) as? Int, defaultValue: 4))
     }
 }
 
@@ -1980,7 +1980,7 @@ final class DownloadManager: NSObject, ObservableObject {
     }
     private var maxConcurrentHLSDownloads: Int {
         min(maxConcurrentDownloads, hlsConcurrencyLimitOverride.map {
-            DownloadConcurrencySettings.sanitized($0(), defaultValue: 1)
+            DownloadConcurrencySettings.sanitized($0(), defaultValue: 4)
         } ?? DownloadConcurrencySettings.hlsLimit())
     }
     private let minimumFreeBytesForHLS: Int64 = 750 * 1024 * 1024
