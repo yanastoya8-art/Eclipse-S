@@ -1873,7 +1873,9 @@ class TMDBService: ObservableObject {
         }
 
         if !excludedKeywordIds.isEmpty {
-            let keywordValue = excludedKeywordIds.map(String.init).joined(separator: ",")
+            // Exclude a title when it has any one of the selected keywords.
+            // TMDB uses "|" for OR semantics in without_keywords.
+            let keywordValue = excludedKeywordIds.map(String.init).joined(separator: "|")
             queryItems.append(URLQueryItem(name: "without_keywords", value: keywordValue))
         }
 
