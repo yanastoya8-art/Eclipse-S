@@ -1527,6 +1527,142 @@ private struct HomeAnimatedCreatureMotif: View {
         }
         drawing.stroke(details, with: .color(detailColor), style: StrokeStyle(lineWidth: 2.15, lineCap: .round, lineJoin: .round))
 
+        // Fine anatomy pass: controlled, shape-specific linework. These marks
+        // are drawn inside the creature silhouette, never as detached overlays.
+        var anatomy = Path()
+        switch shape {
+        case .dragon:
+            // Membrane ribs follow the wing's sweep; cheek and neck contours
+            // clarify the Night-Fury head without adding a floating eye graphic.
+            anatomy.move(to: CGPoint(x: 201, y: 157))
+            anatomy.addQuadCurve(to: CGPoint(x: 250, y: 202), control: CGPoint(x: 225, y: 164))
+            anatomy.move(to: CGPoint(x: 205, y: 169))
+            anatomy.addQuadCurve(to: CGPoint(x: 239, y: 197), control: CGPoint(x: 216, y: 181))
+            anatomy.move(to: CGPoint(x: 218, y: 93))
+            anatomy.addQuadCurve(to: CGPoint(x: 268, y: 91), control: CGPoint(x: 239, y: 81))
+            anatomy.move(to: CGPoint(x: 270, y: 133))
+            anatomy.addQuadCurve(to: CGPoint(x: 300, y: 123), control: CGPoint(x: 288, y: 138))
+            for index in 0..<4 {
+                let t = CGFloat(index)
+                anatomy.move(to: CGPoint(x: 207 + t * 7, y: 162 + t * 5))
+                anatomy.addQuadCurve(to: CGPoint(x: 229 + t * 5, y: 183 + t * 4), control: CGPoint(x: 224 + t * 5, y: 166 + t * 5))
+            }
+        case .bird:
+            // Layered flight-feather separations and a hooked beak ridge.
+            for index in 0..<5 {
+                let t = CGFloat(index)
+                anatomy.move(to: CGPoint(x: 190 - t * 15, y: 154 + t * 5))
+                anatomy.addQuadCurve(to: CGPoint(x: 72 + t * 16, y: 103 + t * 13), control: CGPoint(x: 127 - t * 5, y: 117 + t * 9))
+                anatomy.move(to: CGPoint(x: 210 + t * 15, y: 154 + t * 5))
+                anatomy.addQuadCurve(to: CGPoint(x: 328 - t * 16, y: 103 + t * 13), control: CGPoint(x: 273 + t * 5, y: 117 + t * 9))
+            }
+            anatomy.move(to: CGPoint(x: 192, y: 164))
+            anatomy.addQuadCurve(to: CGPoint(x: 208, y: 164), control: CGPoint(x: 202, y: 177))
+        case .snake:
+            // Separate hood ribs and belly scutes; no decorative eye-shaped marks.
+            for index in 0..<6 {
+                let y = CGFloat(151 + index * 15)
+                let halfWidth = CGFloat(24 + index * 3)
+                anatomy.move(to: CGPoint(x: 200 - halfWidth, y: y))
+                anatomy.addQuadCurve(to: CGPoint(x: 200 + halfWidth, y: y), control: CGPoint(x: 200, y: y + 8))
+            }
+            for index in 0..<4 {
+                let y = CGFloat(63 + index * 10)
+                anatomy.move(to: CGPoint(x: 154 + CGFloat(index * 3), y: y))
+                anatomy.addQuadCurve(to: CGPoint(x: 200, y: y + 25), control: CGPoint(x: 174, y: y + 8))
+                anatomy.addQuadCurve(to: CGPoint(x: 246 - CGFloat(index * 3), y: y), control: CGPoint(x: 226, y: y + 8))
+            }
+        case .wolf:
+            // Cheek fur, muzzle bridge and layered neck ruff.
+            for index in 0..<4 {
+                let t = CGFloat(index)
+                anatomy.move(to: CGPoint(x: 144 + t * 7, y: 166 + t * 9))
+                anatomy.addQuadCurve(to: CGPoint(x: 176 + t * 5, y: 207 + t * 5), control: CGPoint(x: 145 + t * 9, y: 194 + t * 5))
+                anatomy.move(to: CGPoint(x: 256 + t * 5, y: 207 + t * 5))
+                anatomy.addQuadCurve(to: CGPoint(x: 288 + t * 7, y: 166 + t * 9), control: CGPoint(x: 319 - t * 9, y: 194 + t * 5))
+            }
+            anatomy.move(to: CGPoint(x: 178, y: 246))
+            anatomy.addQuadCurve(to: CGPoint(x: 222, y: 246), control: CGPoint(x: 200, y: 260))
+        case .fox:
+            // Nine tail ribbons receive separate inner contours and a clean
+            // central facial blaze, keeping the tails readable at small sizes.
+            for index in 0..<8 {
+                let t = CGFloat(index) - 3.5
+                anatomy.move(to: CGPoint(x: 200 + t * 5, y: 218))
+                anatomy.addQuadCurve(to: CGPoint(x: 200 + t * 31, y: 100 + abs(t) * 13), control: CGPoint(x: 200 + t * 22, y: 165))
+            }
+            anatomy.move(to: CGPoint(x: 200, y: 146))
+            anatomy.addQuadCurve(to: CGPoint(x: 200, y: 252), control: CGPoint(x: 178, y: 203))
+        case .phoenix:
+            // Individual flight feathers, central shaft and tail-plume veins.
+            for index in 0..<6 {
+                let t = CGFloat(index)
+                anatomy.move(to: CGPoint(x: 190 - t * 7, y: 144 + t * 4))
+                anatomy.addQuadCurve(to: CGPoint(x: 58 + t * 17, y: 62 + t * 15), control: CGPoint(x: 116 - t * 2, y: 100 + t * 10))
+                anatomy.move(to: CGPoint(x: 210 + t * 7, y: 144 + t * 4))
+                anatomy.addQuadCurve(to: CGPoint(x: 342 - t * 17, y: 62 + t * 15), control: CGPoint(x: 284 + t * 2, y: 100 + t * 10))
+            }
+            for index in 0..<4 {
+                let x = CGFloat(176 + index * 16)
+                anatomy.move(to: CGPoint(x: x, y: 223))
+                anatomy.addQuadCurve(to: CGPoint(x: 200, y: 278), control: CGPoint(x: x - 8, y: 257))
+            }
+        case .cat:
+            // Muzzle, cheek whiskers, chest fur and shoulder contours.
+            anatomy.move(to: CGPoint(x: 177, y: 176))
+            anatomy.addQuadCurve(to: CGPoint(x: 223, y: 176), control: CGPoint(x: 200, y: 194))
+            anatomy.move(to: CGPoint(x: 177, y: 182))
+            anatomy.addLine(to: CGPoint(x: 126, y: 173))
+            anatomy.move(to: CGPoint(x: 177, y: 190))
+            anatomy.addLine(to: CGPoint(x: 122, y: 196))
+            anatomy.move(to: CGPoint(x: 223, y: 182))
+            anatomy.addLine(to: CGPoint(x: 274, y: 173))
+            anatomy.move(to: CGPoint(x: 223, y: 190))
+            anatomy.addLine(to: CGPoint(x: 278, y: 196))
+            for index in 0..<4 {
+                let x = CGFloat(178 + index * 15)
+                anatomy.move(to: CGPoint(x: x, y: 264))
+                anatomy.addQuadCurve(to: CGPoint(x: x + 4, y: 294), control: CGPoint(x: x - 5, y: 282))
+            }
+        case .mermaid:
+            // Hair strands, fin rays and staggered scale arcs.
+            for index in 0..<7 {
+                let t = CGFloat(index)
+                anatomy.move(to: CGPoint(x: 169 + t * 9, y: 64))
+                anatomy.addCurve(to: CGPoint(x: 132 + t * 7, y: 174), control1: CGPoint(x: 132 + t * 12, y: 95), control2: CGPoint(x: 124 + t * 10, y: 143))
+            }
+            for row in 0..<5 {
+                let y = CGFloat(218 + row * 10)
+                for column in 0..<4 {
+                    let x = CGFloat(174 + column * 15 + (row % 2) * 7)
+                    anatomy.addArc(center: CGPoint(x: x, y: y), radius: 9, startAngle: .degrees(205), endAngle: .degrees(335), clockwise: false)
+                }
+            }
+            anatomy.move(to: CGPoint(x: 256, y: 424))
+            anatomy.addQuadCurve(to: CGPoint(x: 206, y: 475), control: CGPoint(x: 228, y: 447))
+            anatomy.move(to: CGPoint(x: 256, y: 424))
+            anatomy.addQuadCurve(to: CGPoint(x: 306, y: 475), control: CGPoint(x: 284, y: 447))
+        case .paw:
+            // Natural toe-pad creases and heel-pad folds; no extra graphic elements.
+            for index in 0..<4 {
+                let x = CGFloat(117 + index * 42)
+                anatomy.move(to: CGPoint(x: x, y: 124))
+                anatomy.addQuadCurve(to: CGPoint(x: x + 17, y: 145), control: CGPoint(x: x + 4, y: 139))
+            }
+            anatomy.move(to: CGPoint(x: 157, y: 222))
+            anatomy.addQuadCurve(to: CGPoint(x: 243, y: 222), control: CGPoint(x: 200, y: 239))
+            anatomy.move(to: CGPoint(x: 151, y: 247))
+            anatomy.addQuadCurve(to: CGPoint(x: 249, y: 247), control: CGPoint(x: 200, y: 262))
+        default:
+            break
+        }
+        drawing.stroke(
+            anatomy,
+            with: .color(motifTint.opacity(min(1, motifAlpha * 0.48))),
+            style: StrokeStyle(lineWidth: 1.15, lineCap: .round, lineJoin: .round)
+        )
+
+
         // Fine anime-illustration linework adds recognizable anatomy and surface
         // texture while retaining a single palette hue. These strokes deliberately
         // use the selected animation tint (not neutral grey), so changing the
