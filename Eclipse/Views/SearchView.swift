@@ -224,15 +224,8 @@ struct SearchView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if searchText.isEmpty {
                 if searchHistory.isEmpty {
-                    VStack {
-                        Image(systemName: "magnifyingglass.circle")
-                            .imageScale(.large)
-                            .font(.system(size: 60))
-                            .foregroundColor(.secondary)
-
-
-                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    Color.clear
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     VStack(alignment: .leading, spacing: 0) {
                         HStack {
