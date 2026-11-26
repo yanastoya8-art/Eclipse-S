@@ -6901,17 +6901,19 @@ final class DownloadManager: NSObject, ObservableObject {
         // downloader. Private/loopback targets remain on the foreground path.
         var transportHeadersOverride = headersOverride
         var unwrappedManagedProxy = false
+        let managedProxySession = MPVHeaderProxy.shared.upstreamProbeTarget(for: url)
+        let managedProxyTarget = MPVHeaderProxy.shared.recoverableTargetURL(for: url)
+            ?? managedProxySession?.url
         if protectedNuvioAttemptID == nil,
            protectedProviderAttempts[item.id]?.mainProxyURL == nil,
-           let upstream = MPVHeaderProxy.shared.upstreamProbeTarget(for: url),
-           let scheme = upstream.url.scheme?.lowercased(),
-           scheme == "https",
-           upstream.url.host != nil,
-           upstream.url.user == nil,
-           upstream.url.password == nil,
-           !["127.0.0.1", "localhost", "::1"].contains(upstream.url.host?.lowercased() ?? "") {
-            url = upstream.url
-            transportHeadersOverride = headersOverride ?? upstream.headers
+           let upstreamTarget = managedProxyTarget,
+           upstreamTarget.scheme?.lowercased() == "https",
+           upstreamTarget.host != nil,
+           upstreamTarget.user == nil,
+           upstreamTarget.password == nil,
+           !["127.0.0.1", "localhost", "::1"].contains(upstreamTarget.host?.lowercased() ?? "") {
+            url = upstreamTarget
+            transportHeadersOverride = headersOverride ?? managedProxySession?.headers ?? item.headers
             unwrappedManagedProxy = true
         }
 
@@ -8202,7 +8204,7 @@ final class DownloadManager: NSObject, ObservableObject {
 #if os(iOS) && !targetEnvironment(macCatalyst)
             let skyStreamTransport = directSkyStreamHLSBackgroundTransport(for: item)
             let managedProxyTarget = URL(string: item.streamURL)
-                .flatMap { MPVHeaderProxy.shared.upstreamProbeTarget(for: $0)?.url }
+                .flatMap { MPVHeaderProxy.shared.recoverableTargetURL(for: $0) }
             let safeManagedProxyTarget = managedProxyTarget.flatMap { candidate -> URL? in
                 guard candidate.scheme?.lowercased() == "https",
                       candidate.host != nil,
