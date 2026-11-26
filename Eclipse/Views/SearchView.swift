@@ -799,7 +799,12 @@ struct SearchView: View {
         return await withTaskGroup(of: (Int, TMDBSearchResult).self) { group in
             for (index, result) in candidates {
                 group.addTask {
-                    let identity = await AniListService.shared.searchAnimeIdentity(title: result.displayTitle)
+                    var identity = await AniListService.shared.searchAnimeIdentity(title: result.displayTitle)
+                    if identity == nil,
+                       let originalName = result.originalName,
+                       originalName.caseInsensitiveCompare(result.displayTitle) != .orderedSame {
+                        identity = await AniListService.shared.searchAnimeIdentity(title: originalName)
+                    }
                     guard let identity = identity?.sanitizedForPersistence else {
                         return (index, result)
                     }
@@ -808,6 +813,7 @@ struct SearchView: View {
                         mediaType: result.mediaType,
                         title: result.title,
                         name: result.name,
+                        originalName: result.originalName,
                         overview: result.overview,
                         posterPath: result.posterPath,
                         backdropPath: result.backdropPath,
@@ -2953,7 +2959,15 @@ private struct BrowseMediaView: View {
                                 format: mapping?.mediaType
                             )
                         } else if likelyAnime {
-                            identity = await AniListService.shared.searchAnimeIdentity(title: result.displayTitle)
+                            let titleIdentity = await AniListService.shared.searchAnimeIdentity(title: result.displayTitle)
+                            if let titleIdentity {
+                                identity = titleIdentity
+                            } else if let originalName = result.originalName,
+                                      originalName.caseInsensitiveCompare(result.displayTitle) != .orderedSame {
+                                identity = await AniListService.shared.searchAnimeIdentity(title: originalName)
+                            } else {
+                                identity = nil
+                            }
                         } else {
                             identity = nil
                         }
@@ -2981,6 +2995,7 @@ private struct BrowseMediaView: View {
                         mediaType: result.mediaType,
                         title: result.title,
                         name: result.name,
+                        originalName: result.originalName,
                         overview: result.overview,
                         posterPath: result.posterPath,
                         backdropPath: result.backdropPath,
@@ -3028,7 +3043,15 @@ private struct BrowseMediaView: View {
                                     format: mapping?.mediaType
                                 )
                             } else if nextLikelyAnime {
-                                identity = await AniListService.shared.searchAnimeIdentity(title: nextResult.displayTitle)
+                                let titleIdentity = await AniListService.shared.searchAnimeIdentity(title: nextResult.displayTitle)
+                                if let titleIdentity {
+                                    identity = titleIdentity
+                                } else if let originalName = nextResult.originalName,
+                                          originalName.caseInsensitiveCompare(nextResult.displayTitle) != .orderedSame {
+                                    identity = await AniListService.shared.searchAnimeIdentity(title: originalName)
+                                } else {
+                                    identity = nil
+                                }
                             } else {
                                 identity = nil
                             }
@@ -3053,6 +3076,7 @@ private struct BrowseMediaView: View {
                         return (nextIndex, TMDBSearchResult(
                             id: nextResult.id, mediaType: nextResult.mediaType,
                             title: nextResult.title, name: nextResult.name,
+                            originalName: nextResult.originalName,
                             overview: nextResult.overview, posterPath: nextResult.posterPath,
                             backdropPath: nextResult.backdropPath, releaseDate: nextResult.releaseDate,
                             firstAirDate: nextResult.firstAirDate, voteAverage: nextResult.voteAverage,
