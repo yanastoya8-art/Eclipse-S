@@ -9003,6 +9003,7 @@ final class LiquidGlassAppearanceSettings: ObservableObject {
     static let browseFilterChipColorKey = "browseFilterChipColor"
     static let browseFilterButtonColorKey = "browseFilterButtonColor"
     static let browseFilterOptionsColorKey = "browseFilterOptionsColor"
+    static let defaultLightBarOpacity = 0.08
 
     private var isReloadingProfile = false
 
@@ -9051,7 +9052,9 @@ final class LiquidGlassAppearanceSettings: ObservableObject {
     var bottomBarTint: Color { bottomBarColor.opacity(0.42) }
 
     func searchFieldColor(for colorScheme: ColorScheme) -> Color {
-        colorScheme == .light ? lightBarColor : darkBarColor
+        colorScheme == .light
+            ? lightBarColor.opacity(Self.defaultLightBarOpacity)
+            : darkBarColor
     }
 
     private init() {
