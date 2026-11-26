@@ -104,27 +104,27 @@ struct AlternativeUIView: View {
     @AppStorage(MediaDetailPlatformDefaults.horizontalEpisodeListKey) private var horizontalEpisodeList = MediaDetailPlatformDefaults.prefersHorizontalEpisodes
     @AppStorage(MediaDetailEpisodeCardAppearanceSettings.colorDataKey) private var episodeCardColorData = Data()
     @AppStorage(ScheduleCardAppearanceSettings.colorDataKey) private var scheduleCardColorData = Data()
-    @AppStorage("scheduleControlsCornerRadius") private var scheduleControlsCornerRadiusValue = 14.0
-    @AppStorage("scheduleTimeCornerRadius") private var scheduleTimeCornerRadiusValue = 10.0
+    @AppStorage("scheduleControlsCornerRadius") private var scheduleControlsCornerRadiusValue = 19.0
+    @AppStorage("scheduleTimeCornerRadius") private var scheduleTimeCornerRadiusValue = 23.0
     @AppStorage(MediaDetailEpisodeVisibilitySettings.showUnairedEpisodesKey) private var showUnairedEpisodes = MediaDetailEpisodeVisibilitySettings.defaultShowUnairedEpisodes
     @AppStorage(MediaDetailTitleLogoPositionSettings.verticalPositionKey) private var titleLogoVerticalPosition = MediaDetailTitleLogoPositionSettings.defaultVerticalPosition
     @AppStorage(MediaDetailTitleLogoAppearanceSettings.sizeKey) private var titleLogoSize = MediaDetailTitleLogoAppearanceSettings.defaultSize
     @AppStorage(MediaDetailTitleLogoAppearanceSettings.weightKey) private var titleLogoWeight = MediaDetailTitleLogoAppearanceSettings.defaultWeight
-    @AppStorage(MediaDetailHeroContentPositionSettings.actionsOffsetKey) private var heroActionsOffset = MediaDetailHeroContentPositionSettings.defaultOffset
-    @AppStorage(MediaDetailHeroContentPositionSettings.synopsisOffsetKey) private var heroSynopsisOffset = MediaDetailHeroContentPositionSettings.defaultOffset
-    @AppStorage(MediaDetailRatingNotesPositionSettings.portraitOffsetKey) private var portraitRatingNotesOffset = MediaDetailRatingNotesPositionSettings.defaultOffset
-    @AppStorage(MediaDetailRatingNotesPositionSettings.landscapeOffsetKey) private var landscapeRatingNotesOffset = MediaDetailRatingNotesPositionSettings.defaultOffset
+    @AppStorage(MediaDetailHeroContentPositionSettings.actionsOffsetKey) private var heroActionsOffset = MediaDetailHeroContentPositionSettings.defaultActionsOffset
+    @AppStorage(MediaDetailHeroContentPositionSettings.synopsisOffsetKey) private var heroSynopsisOffset = MediaDetailHeroContentPositionSettings.defaultSynopsisOffset
+    @AppStorage(MediaDetailRatingNotesPositionSettings.portraitOffsetKey) private var portraitRatingNotesOffset = MediaDetailRatingNotesPositionSettings.defaultPortraitOffset
+    @AppStorage(MediaDetailRatingNotesPositionSettings.landscapeOffsetKey) private var landscapeRatingNotesOffset = MediaDetailRatingNotesPositionSettings.defaultLandscapeOffset
     @AppStorage(LandscapeMediaDetailAppearanceSettings.logoPositionKey) private var landscapeTitleLogoPosition = LandscapeMediaDetailAppearanceSettings.defaultLogoPosition
     @AppStorage(LandscapeMediaDetailAppearanceSettings.logoHorizontalPositionKey) private var landscapeTitleLogoHorizontalPosition = LandscapeMediaDetailAppearanceSettings.defaultLogoHorizontalPosition
     @AppStorage(LandscapeMediaDetailAppearanceSettings.logoSizeKey) private var landscapeTitleLogoSize = LandscapeMediaDetailAppearanceSettings.defaultLogoSize
     @AppStorage(LandscapeMediaDetailAppearanceSettings.logoWeightKey) private var landscapeTitleLogoWeight = LandscapeMediaDetailAppearanceSettings.defaultLogoWeight
-    @AppStorage(LandscapeMediaDetailAppearanceSettings.actionsOffsetKey) private var landscapeHeroActionsOffset = LandscapeMediaDetailAppearanceSettings.defaultOffset
-    @AppStorage(LandscapeMediaDetailAppearanceSettings.synopsisOffsetKey) private var landscapeHeroSynopsisOffset = LandscapeMediaDetailAppearanceSettings.defaultOffset
+    @AppStorage(LandscapeMediaDetailAppearanceSettings.actionsOffsetKey) private var landscapeHeroActionsOffset = LandscapeMediaDetailAppearanceSettings.defaultActionsOffset
+    @AppStorage(LandscapeMediaDetailAppearanceSettings.synopsisOffsetKey) private var landscapeHeroSynopsisOffset = LandscapeMediaDetailAppearanceSettings.defaultSynopsisOffset
     @AppStorage(LandscapeMediaDetailAppearanceSettings.contentHorizontalOffsetKey) private var landscapeContentHorizontalOffset = LandscapeMediaDetailAppearanceSettings.defaultContentHorizontalOffset
     @AppStorage("mediaDetailPortraitHeroBleedIntensity") private var portraitHeroBleedIntensity = 1.0
-    @AppStorage("mediaDetailLandscapeHeroBleedIntensity") private var landscapeHeroBleedIntensity = 1.0
-    @AppStorage("mediaDetailLandscapeHeroHorizontalStretch") private var landscapeHeroHorizontalStretch = 1.0
-    @AppStorage("mediaDetailLandscapeHeroVerticalStretch") private var landscapeHeroVerticalStretch = 1.0
+    @AppStorage("mediaDetailLandscapeHeroBleedIntensity") private var landscapeHeroBleedIntensity = LandscapeMediaDetailAppearanceSettings.defaultHeroBleedIntensity
+    @AppStorage("mediaDetailLandscapeHeroHorizontalStretch") private var landscapeHeroHorizontalStretch = LandscapeMediaDetailAppearanceSettings.defaultHeroHorizontalStretch
+    @AppStorage("mediaDetailLandscapeHeroVerticalStretch") private var landscapeHeroVerticalStretch = LandscapeMediaDetailAppearanceSettings.defaultHeroVerticalStretch
     @AppStorage(ImageDataSaverSettings.enabledKey, store: .standard) private var imageDataSaverEnabled = false
     @AppStorage(MediaDetailAgeRatingSettings.enabledKey) private var mediaDetailAgeRatingEnabled = MediaDetailAgeRatingSettings.defaultEnabled
     @AppStorage(MediaDetailSimilarTitlesSettings.enabledKey) private var mediaDetailSimilarTitlesEnabled = MediaDetailSimilarTitlesSettings.defaultEnabled
@@ -157,7 +157,7 @@ struct AlternativeUIView: View {
 #if !os(tvOS)
     @AppStorage("hideSplashScreen", store: ProfileSettingsStore.device) private var hideSplashScreen = false
     @AppStorage("splashScreenMinimumDuration", store: ProfileSettingsStore.device) private var splashScreenMinimumDuration = 1.6
-    @AppStorage("splashScreenMaximumDuration", store: ProfileSettingsStore.device) private var splashScreenMaximumDuration = 12.0
+    @AppStorage("splashScreenMaximumDuration", store: ProfileSettingsStore.device) private var splashScreenMaximumDuration = 4.0
     @AppStorage("openAppInLibrary", store: ProfileSettingsStore.device) private var openAppInLibrary = false
 #endif
 
@@ -1514,10 +1514,10 @@ struct AlternativeUIView: View {
         mediaDetailElements = mediaDetailElements.map { element in
             element == .trailers ? element : (defaults.next() ?? element)
         }
-        hiddenMediaDetailElements = hiddenMediaDetailElements.intersection([.trailers])
+        hiddenMediaDetailElements = MediaDetailElement.defaultHiddenElements.union([.trailers])
 #else
         mediaDetailElements = MediaDetailElement.defaultOrder
-        hiddenMediaDetailElements = []
+        hiddenMediaDetailElements = MediaDetailElement.defaultHiddenElements
 #endif
         mediaDetailSimilarTitlesEnabled = MediaDetailSimilarTitlesSettings.defaultEnabled
         MediaDetailElement.saveOrder(mediaDetailElements)
