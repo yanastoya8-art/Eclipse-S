@@ -6810,13 +6810,16 @@ final class DownloadManager: NSObject, ObservableObject {
             if isSyntacticallyApproved,
                directCandidate,
                stremioAuthorityAllowsDirect,
-               scheme == "https" {
+               (scheme == "http" || scheme == "https") {
                 do {
+                    // HTTP is valid for media manifests/segments. The dispatch
+                    // policy still performs fresh DNS validation and rejects
+                    // private, loopback, and otherwise prohibited destinations.
                     let validated = try await SkyStreamRemoteURLPolicy.shared.validateForNetworkDispatch(
                         comparisonURLString,
                         purpose: .mediaSegment
                     )
-                    directBackgroundAllowed = validated.url.scheme?.lowercased() == "https"
+                    directBackgroundAllowed = ["http", "https"].contains(validated.url.scheme?.lowercased() ?? "")
                 } catch {
                     // Retain the existing protected proxy route when a URL
                     // cannot be safely dispatched by the OS background session.
@@ -6907,7 +6910,7 @@ final class DownloadManager: NSObject, ObservableObject {
         if protectedNuvioAttemptID == nil,
            protectedProviderAttempts[item.id]?.mainProxyURL == nil,
            let upstreamTarget = managedProxyTarget,
-           upstreamTarget.scheme?.lowercased() == "https",
+           ["http", "https"].contains(upstreamTarget.scheme?.lowercased() ?? ""),
            upstreamTarget.host != nil,
            upstreamTarget.user == nil,
            upstreamTarget.password == nil,
@@ -8206,7 +8209,7 @@ final class DownloadManager: NSObject, ObservableObject {
             let managedProxyTarget = URL(string: item.streamURL)
                 .flatMap { MPVHeaderProxy.shared.recoverableTargetURL(for: $0) }
             let safeManagedProxyTarget = managedProxyTarget.flatMap { candidate -> URL? in
-                guard candidate.scheme?.lowercased() == "https",
+                guard ["http", "https"].contains(candidate.scheme?.lowercased() ?? ""),
                       candidate.host != nil,
                       candidate.user == nil,
                       candidate.password == nil,
