@@ -4167,9 +4167,9 @@ enum HomeAnimatedShapeArtwork {
         // Preserve the independent eye-colour settings for Toothless, Cobra and Hawk.
         let eyeRect: CGRect?
         switch shape {
-        case .dragon: eyeRect = CGRect(x: 65, y: 25, width: 7, height: 5)
-        case .snake: eyeRect = CGRect(x: 63, y: 21, width: 5, height: 4)
-        case .bird: eyeRect = CGRect(x: 64, y: 44, width: 5, height: 4)
+        case .dragon: eyeRect = CGRect(x: 54, y: 19, width: 5, height: 3)
+        case .snake: eyeRect = CGRect(x: 59, y: 15, width: 4, height: 3)
+        case .bird: eyeRect = CGRect(x: 64, y: 43, width: 4, height: 3)
         default: eyeRect = nil
         }
         if let eyeRect {
