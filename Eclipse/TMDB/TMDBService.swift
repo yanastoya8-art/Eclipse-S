@@ -752,7 +752,11 @@ class TMDBService: ObservableObject {
                 let filtered = response.results.filter { $0.mediaType == "movie" || $0.mediaType == "tv" }
                 allResults.append(contentsOf: filtered)
 
-                if filtered.count < 20 {
+                // TMDB's multi-search pages also contain people. A page with
+                // fewer than 20 movie/TV rows may still be full, so only stop
+                // when the raw response itself is short. Stopping on the
+                // filtered count silently skipped titles ranked behind people.
+                if response.results.count < 20 {
                     break
                 }
             } catch {
