@@ -5048,6 +5048,14 @@ private final class MPVHeaderProxyCore {
                     .replacingOccurrences(of: "\"", with: "_")
                     .replacingOccurrences(of: "\r", with: "_")
                     .replacingOccurrences(of: "\n", with: "_")
+                // Safari can choose inline playback for known media MIME types
+                // even when a proxy response is intended as a download. Use a
+                // generic binary type as well as attachment disposition so the
+                // copied URL consistently opens the iOS download flow.
+                responseHeaders = responseHeaders.filter {
+                    $0.key.caseInsensitiveCompare("Content-Type") != .orderedSame
+                }
+                responseHeaders["Content-Type"] = "application/octet-stream"
                 responseHeaders["Content-Disposition"] = "attachment; filename=\"\(filename)\""
                 responseHeaders["Cache-Control"] = "no-store"
             }
