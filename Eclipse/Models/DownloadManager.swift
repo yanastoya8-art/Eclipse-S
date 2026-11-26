@@ -7427,6 +7427,9 @@ final class DownloadManager: NSObject, ObservableObject {
             && descriptor.underlyingRemoteURL.url.scheme?.lowercased() == "https"
 
         if canUseDirectBackgroundTransport {
+            MPVHeaderProxy.shared.invalidateSession(for: proxyURL)
+            skyStreamHLSProxyURLs.removeValue(forKey: item.id)
+            skyStreamHLSPinnedVariantURLs.removeValue(forKey: item.id)
             startHLSDownload(
                 currentItem,
                 streamURLOverride: descriptor.underlyingRemoteURL.url,
