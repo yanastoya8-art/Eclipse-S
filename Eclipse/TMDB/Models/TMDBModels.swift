@@ -258,6 +258,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
     let mediaType: String
     let title: String?
     let name: String?
+    let originalName: String?
     let overview: String?
     let posterPath: String?
     let backdropPath: String?
@@ -284,6 +285,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
         case id, overview, popularity, adult
         case mediaType = "media_type"
         case title, name
+        case originalName = "original_name"
         case posterPath = "poster_path"
         case backdropPath = "backdrop_path"
         case releaseDate = "release_date"
@@ -307,6 +309,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
         mediaType: String,
         title: String?,
         name: String?,
+        originalName: String? = nil,
         overview: String?,
         posterPath: String?,
         backdropPath: String?,
@@ -331,6 +334,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
         self.mediaType = mediaType
         self.title = title
         self.name = name
+        self.originalName = originalName
         self.overview = overview
         self.posterPath = posterPath
         self.backdropPath = backdropPath
@@ -366,6 +370,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
         mediaType = try container.decode(String.self, forKey: .mediaType)
         title = try container.decodeIfPresent(String.self, forKey: .title)
         name = try container.decodeIfPresent(String.self, forKey: .name)
+        originalName = try container.decodeIfPresent(String.self, forKey: .originalName)
         overview = try container.decodeIfPresent(String.self, forKey: .overview)
         posterPath = try container.decodeIfPresent(String.self, forKey: .posterPath)
         backdropPath = try container.decodeIfPresent(String.self, forKey: .backdropPath)
@@ -507,6 +512,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             mediaType: normalizedMediaType,
             title: title,
             name: name,
+            originalName: originalName,
             overview: overview,
             posterPath: posterPath,
             backdropPath: backdropPath,
@@ -582,6 +588,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             mediaType: mediaType,
             title: title,
             name: name,
+            originalName: originalName,
             overview: overview,
             posterPath: posterPath,
             backdropPath: backdropPath,
@@ -610,6 +617,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             mediaType: mediaType,
             title: title,
             name: name,
+            originalName: originalName,
             overview: overview,
             posterPath: posterPath,
             backdropPath: backdropPath,
@@ -638,6 +646,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             mediaType: mediaType,
             title: title,
             name: name,
+            originalName: originalName,
             overview: overview,
             posterPath: posterPath,
             backdropPath: backdropPath,
@@ -666,6 +675,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             mediaType: mediaType,
             title: title,
             name: name,
+            originalName: originalName,
             overview: overview,
             posterPath: posterPath,
             backdropPath: backdropPath,
@@ -694,6 +704,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             mediaType: mediaType,
             title: title,
             name: name,
+            originalName: originalName,
             overview: overview,
             posterPath: posterPath,
             backdropPath: backdropPath,
@@ -722,6 +733,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             mediaType: mediaType,
             title: title,
             name: name,
+            originalName: originalName,
             overview: overview,
             posterPath: posterPath,
             backdropPath: backdropPath,
@@ -750,6 +762,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             mediaType: mediaType,
             title: title,
             name: name,
+            originalName: originalName,
             overview: overview,
             posterPath: posterPath,
             backdropPath: backdropPath,
@@ -898,6 +911,7 @@ struct TMDBMovie: Codable, Identifiable {
 struct TMDBTVShow: Codable, Identifiable {
     let id: Int
     let name: String
+    let originalName: String?
     let overview: String?
     let posterPath: String?
     let backdropPath: String?
@@ -912,6 +926,7 @@ struct TMDBTVShow: Codable, Identifiable {
 
     enum CodingKeys: String, CodingKey {
         case id, name, overview, popularity, adult
+        case originalName = "original_name"
         case posterPath = "poster_path"
         case backdropPath = "backdrop_path"
         case firstAirDate = "first_air_date"
@@ -938,6 +953,7 @@ struct TMDBTVShow: Codable, Identifiable {
             mediaType: "tv",
             title: nil,
             name: name,
+            originalName: originalName,
             overview: overview,
             posterPath: posterPath,
             backdropPath: backdropPath,
