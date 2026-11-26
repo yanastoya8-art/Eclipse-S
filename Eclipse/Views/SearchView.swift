@@ -863,7 +863,25 @@ struct SearchView: View {
             do {
                 // Search multiple TMDB pages so less popular series and
                 // titles ranked below unrelated matches are not silently omitted.
-                var results = try await tmdbService.searchMulti(query: query, maxPages: 4)
+                var results = try await tmdbService.searchMulti(query: query, maxPages: 10)
+                try Task.checkCancellation()
+
+                // TMDB ranks localized aliases differently across languages.
+                // A second English multi-search catches original-language
+                // titles that are absent from the selected UI-language index.
+                if selectedLanguage.caseInsensitiveCompare("en-US") != .orderedSame {
+                    if let englishResults = try? await tmdbService.searchMulti(
+                        query: query,
+                        languageOverride: "en-US",
+                        maxPages: 10
+                    ) {
+                        try Task.checkCancellation()
+                        var seen = Set(results.map(\.stableIdentity))
+                        results.append(contentsOf: englishResults.filter {
+                            seen.insert($0.stableIdentity).inserted
+                        })
+                    }
+                }
                 try Task.checkCancellation()
                 let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
                 let requiresGlobalAnimeAgeRating = UserDefaults.standard.bool(forKey: "catalogHideBelowPG13Anime")
@@ -876,7 +894,7 @@ struct SearchView: View {
                 let shouldSearchTVEndpoint = searchFilter != .movies
                 if shouldSearchTVEndpoint {
                     var seen = Set(results.map(\.stableIdentity))
-                    if let tvResults = try? await tmdbService.searchTVShows(query: query, maxPages: 4) {
+                    if let tvResults = try? await tmdbService.searchTVShows(query: query, maxPages: 10) {
                         try Task.checkCancellation()
                         results.append(contentsOf: tvResults
                             .map(\.asSearchResult)
@@ -892,7 +910,7 @@ struct SearchView: View {
                         if let englishTVResults = try? await tmdbService.searchTVShows(
                             query: query,
                             languageOverride: "en-US",
-                            maxPages: 4
+                            maxPages: 10
                         ) {
                             try Task.checkCancellation()
                             results.append(contentsOf: englishTVResults
