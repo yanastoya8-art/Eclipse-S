@@ -516,7 +516,7 @@ enum MediaDetailSimilarTitlesSettings {
 
 enum ServicesSheetPresentationSettings {
     static let stremioStyleEnabledKey = "servicesStremioStyleSheetEnabled"
-    static let defaultStremioStyleEnabled = false
+    static let defaultStremioStyleEnabled = true
 
     static func usesStremioStyle(defaults: UserDefaults = ProfileSettingsStore.services) -> Bool {
         defaults.object(forKey: stremioStyleEnabledKey) == nil
