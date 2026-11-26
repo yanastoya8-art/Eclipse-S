@@ -3151,7 +3151,7 @@ final class DownloadManager: NSObject, ObservableObject {
                 && !attempt.revoked && self.hlsIntentIsCurrent(attempt.intent)
             self.hlsBackgroundScheduler?.finish(attemptID: attempt.attemptID, success: didComplete)
 #if os(iOS)
-            if #available(iOS 16.2, *), endLiveActivity {
+            if #available(iOS 16.2, *), (endLiveActivity || attempt.mainFinished) {
                 Task { @MainActor in
                     await DownloadLiveActivityController.end(downloadID: id, status: didComplete ? "Completed" : "Paused")
                 }
