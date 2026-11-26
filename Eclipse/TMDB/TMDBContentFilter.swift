@@ -221,7 +221,7 @@ final class MyDubListDubFilter: @unchecked Sendable {
 
     var selectedLanguages: Set<String> {
         let storedLanguages = ProfileSettingsStore.active.stringArray(forKey: Self.selectedLanguagesKey)
-        let languages = storedLanguages ?? Self.supportedLanguages
+        let languages = storedLanguages ?? Array(Self.supportedLanguages)
         return Set(languages.filter { Self.supportedLanguages.contains($0) })
     }
 
