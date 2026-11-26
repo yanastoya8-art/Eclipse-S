@@ -41,10 +41,10 @@ struct SettingsView: View {
     @AppStorage("catalogHideBelowPG13Movies", store: .standard) private var hideBelowPG13Movies = true
     @AppStorage("catalogHideBelowTV14Shows", store: .standard) private var hideBelowTV14Shows = true
     @AppStorage("catalogHideBelowPG13Anime", store: .standard) private var hideBelowPG13Anime = true
-    @AppStorage("catalogHideAllAgesMovies", store: .standard) private var hideAllAgesMovies = false
-    @AppStorage("catalogHideAllAgesSeries", store: .standard) private var hideAllAgesSeries = false
-    @AppStorage("catalogHideAllAgesAnime", store: .standard) private var hideAllAgesAnime = false
-    @AppStorage("catalogRequireEnglishSpanishAudio", store: .standard) private var requireEnglishSpanishAudio = false
+    @AppStorage("catalogHideAllAgesMovies", store: .standard) private var hideAllAgesMovies = true
+    @AppStorage("catalogHideAllAgesSeries", store: .standard) private var hideAllAgesSeries = true
+    @AppStorage("catalogHideAllAgesAnime", store: .standard) private var hideAllAgesAnime = true
+    @AppStorage("catalogRequireEnglishSpanishAudio", store: .standard) private var requireEnglishSpanishAudio = true
 #if !os(tvOS)
     @State private var settingsSearchText = ""
 #if os(macOS) && arch(x86_64)
@@ -1959,7 +1959,7 @@ struct SettingsSearchContainer<Content: View>: View {
             .providerUncapitalizedInput()
             .tint(accentColorManager.currentAccentColor)
 #if os(iOS)
-            .toolbarBackground(glassAppearance.lightBarColor.opacity(0.34), for: .navigationBar)
+            .toolbarBackground(glassAppearance.lightBarColor.opacity(LiquidGlassAppearanceSettings.defaultLightBarOpacity), for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
 #endif
             .environment(
@@ -5638,10 +5638,10 @@ private struct ProductionsSettingsView: View {
 private struct AnimeFiltersSettingsView: View {
     @StateObject private var accentColorManager = AccentColorManager.shared
     @AppStorage("catalogHideAnime", store: .standard) private var hideAnime = false
-    @AppStorage("catalogHideHentai", store: .standard) private var hideHentai = false
-    @AppStorage("catalogHideYuri", store: .standard) private var hideYuri = false
-    @AppStorage("catalogHideYaoi", store: .standard) private var hideYaoi = false
-    @AppStorage("catalogHideAnimeSpecialsAndOVAs", store: .standard) private var hideAnimeSpecialsAndOVAs = false
+    @AppStorage("catalogHideHentai", store: .standard) private var hideHentai = true
+    @AppStorage("catalogHideYuri", store: .standard) private var hideYuri = true
+    @AppStorage("catalogHideYaoi", store: .standard) private var hideYaoi = true
+    @AppStorage("catalogHideAnimeSpecialsAndOVAs", store: .standard) private var hideAnimeSpecialsAndOVAs = true
 
     private func filtersDidChange() {
         NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil)
