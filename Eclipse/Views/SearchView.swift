@@ -1539,6 +1539,26 @@ private struct BrowseMediaView: View {
         )
     }
 
+    private static func migratingPreviousDefault(
+        _ configuration: BrowseFilterConfiguration,
+        for mediaType: BrowseMediaType
+    ) -> BrowseFilterConfiguration {
+        // Users who already opened Browse have the old defaults persisted per
+        // profile. Migrate only an exact match to those old defaults, so custom
+        // filter selections remain untouched.
+        var previousDefault = defaultConfiguration(for: mediaType)
+        previousDefault.minimumRating = 6
+        if mediaType == .tv {
+            previousDefault.excludedGenreKeys = [
+                "tmdb-99", "tmdb-10762", "tmdb-10763",
+                "tmdb-10764", "tmdb-10767", "tmdb-37"
+            ]
+        }
+        return configuration == previousDefault
+            ? defaultConfiguration(for: mediaType)
+            : configuration
+    }
+
     private static func sanitizedConfiguration(
         _ configuration: BrowseFilterConfiguration,
         for mediaType: BrowseMediaType
@@ -1560,7 +1580,8 @@ private struct BrowseMediaView: View {
         for mediaType in BrowseMediaType.allCases {
             let stored = preferences?.configurationsByMediaType[mediaType.rawValue]
                 ?? defaultConfiguration(for: mediaType)
-            configurations[mediaType] = sanitizedConfiguration(stored, for: mediaType)
+            let migrated = migratingPreviousDefault(stored, for: mediaType)
+            configurations[mediaType] = sanitizedConfiguration(migrated, for: mediaType)
         }
 
         return RestoredBrowseFilters(
