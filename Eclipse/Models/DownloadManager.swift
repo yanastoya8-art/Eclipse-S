@@ -3043,9 +3043,14 @@ final class DownloadManager: NSObject, ObservableObject {
         let completedBytes = max(item.downloadedBytes, 0)
         let totalBytes = hasByteTotal ? item.totalBytes : 0
         let measuredSegmentProgress = Double(completedSegments) / Double(max(segmentTotal, 1))
-        let progress = hasByteTotal
-            ? min(Double(completedBytes) / Double(totalBytes), 1)
-            : min(max(progressOverride ?? measuredSegmentProgress, 0), 1)
+        // HLS reports its measured segment fraction on every worker
+        // progress callback. Prefer that live value over a possibly stale byte
+        // total carried by migrated/resumed metadata; otherwise the Activity
+        // can lag behind the Downloads screen even while the worker advances.
+        let progress = progressOverride.map { min(max($0, 0), 1) }
+            ?? (hasByteTotal
+                ? min(Double(completedBytes) / Double(totalBytes), 1)
+                : measuredSegmentProgress)
         let progressUnitsCompleted = Int64((progress * Double(segmentTotal)).rounded(.down))
         let subtitle = hasByteTotal
             ? "\(DownloadByteCountFormatter.string(fromByteCount: completedBytes)) of \(DownloadByteCountFormatter.string(fromByteCount: totalBytes))"
