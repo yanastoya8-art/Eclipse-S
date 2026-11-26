@@ -2845,7 +2845,7 @@ private struct BrowseMediaView: View {
                            language != effectiveLanguage.lowercased() {
                             return nil
                         }
-                        if let ratingFloor, anime.voteAverage < ratingFloor { return nil }
+                        if let ratingFloor, (anime.voteAverage ?? 0) < ratingFloor { return nil }
                         return anime
                     }
                     results = sortedDeduplicatedResults(results + aniListCandidates, by: sort)
