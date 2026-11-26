@@ -364,6 +364,8 @@ enum MediaDetailElement: String, CaseIterable, Identifiable {
         .similarTitles
     ]
 
+    static let defaultHiddenElements: Set<MediaDetailElement> = [.cast, .traktComments]
+
     var displayName: String {
         switch self {
         case .actions:
@@ -460,15 +462,19 @@ enum MediaDetailElement: String, CaseIterable, Identifiable {
         orderedElements(from: defaults.string(forKey: orderStorageKey))
     }
 
-    static func hiddenElements(from rawValue: String?, legacyShowCastSection: Bool = true) -> Set<MediaDetailElement> {
+    static func hiddenElements(from rawValue: String?, legacyShowCastSection: Bool = false) -> Set<MediaDetailElement> {
+        guard let rawValue else {
+            return legacyShowCastSection ? [] : defaultHiddenElements
+        }
+
         var hidden = Set(
-            (rawValue ?? "")
+            rawValue
                 .split(separator: ",")
                 .compactMap { MediaDetailElement(rawValue: String($0)) }
         )
 
-        if (rawValue ?? "").isEmpty, !legacyShowCastSection {
-            hidden.insert(.cast)
+        if rawValue.isEmpty, !legacyShowCastSection {
+            hidden.formUnion(defaultHiddenElements)
         }
 
         return hidden
@@ -477,14 +483,14 @@ enum MediaDetailElement: String, CaseIterable, Identifiable {
     static func hiddenElements(defaults: UserDefaults = ProfileSettingsStore.active) -> Set<MediaDetailElement> {
         hiddenElements(
             from: defaults.string(forKey: hiddenStorageKey),
-            legacyShowCastSection: defaults.object(forKey: legacyShowCastStorageKey) as? Bool ?? true
+            legacyShowCastSection: defaults.object(forKey: legacyShowCastStorageKey) as? Bool ?? false
         )
     }
 
     static func isVisible(
         _ element: MediaDetailElement,
         hiddenRawValue: String?,
-        legacyShowCastSection: Bool = true
+        legacyShowCastSection: Bool = false
     ) -> Bool {
         !hiddenElements(from: hiddenRawValue, legacyShowCastSection: legacyShowCastSection).contains(element)
     }
@@ -921,7 +927,7 @@ enum MPVMetalQualityProfile: String, CaseIterable, Identifiable {
         }
     }
 
-    static let defaultProfile: MPVMetalQualityProfile = .auto
+    static let defaultProfile: MPVMetalQualityProfile = .sharp
 }
 
 enum MPVUpscalingMode: String, CaseIterable, Identifiable {
@@ -963,7 +969,7 @@ enum MPVUpscalingMode: String, CaseIterable, Identifiable {
         }
     }
 
-    static let defaultMode: MPVUpscalingMode = .off
+    static let defaultMode: MPVUpscalingMode = .upscaleTo4K
 }
 
 enum MPVTVUpscalingTarget: String, CaseIterable, Identifiable {
@@ -1042,7 +1048,7 @@ enum MPVNeuralUpscaler: String, CaseIterable, Identifiable {
 
     static let offeredUpscalers: [MPVNeuralUpscaler] = [.off, .automatic, .anime, .general]
 
-    static let defaultUpscaler: MPVNeuralUpscaler = .off
+    static let defaultUpscaler: MPVNeuralUpscaler = .automatic
 }
 
 enum AudioComfortMode: String, CaseIterable, Identifiable {
@@ -1399,7 +1405,7 @@ enum CloudSyncTotalBudget: Int, CaseIterable, Identifiable, Sendable {
     case unlimited = 9_223_372_036_854_775_807
 
     nonisolated static let storageKey = "experimentalCloudSyncTotalBudgetBytesV1"
-    nonisolated static let fallback: CloudSyncTotalBudget = .standard
+    nonisolated static let fallback: CloudSyncTotalBudget = .unlimited
 
     nonisolated static let reservedSnapshotCopies = 2
     nonisolated static let defaultRetainedSnapshotCopies = 4
@@ -8682,7 +8688,7 @@ class Settings: ObservableObject {
 
     var mpvForegroundFPS: Int {
         get {
-            ProfileSettingsStore.active.integer(forKey: "mpvForegroundFPS") == 60 ? 60 : 30
+            ProfileSettingsStore.active.integer(forKey: "mpvForegroundFPS") == 30 ? 30 : 60
         }
         set {
             ProfileSettingsStore.active.set(newValue == 60 ? 60 : 30, forKey: "mpvForegroundFPS")
@@ -8761,7 +8767,7 @@ class Settings: ObservableObject {
     }
 
     var mpvPictureInPictureEnabled: Bool {
-        get { ProfileSettingsStore.active.object(forKey: "mpvPictureInPictureEnabled") as? Bool ?? true }
+        get { ProfileSettingsStore.active.object(forKey: "mpvPictureInPictureEnabled") as? Bool ?? false }
         set { ProfileSettingsStore.active.set(newValue, forKey: "mpvPictureInPictureEnabled") }
     }
 
@@ -8776,7 +8782,7 @@ class Settings: ObservableObject {
     }
 
     var mpvTrueHDAtmosEnabled: Bool {
-        get { ProfileSettingsStore.active.object(forKey: "mpvTrueHDAtmosEnabled") as? Bool ?? false }
+        get { ProfileSettingsStore.active.object(forKey: "mpvTrueHDAtmosEnabled") as? Bool ?? true }
         set { ProfileSettingsStore.active.set(newValue, forKey: "mpvTrueHDAtmosEnabled") }
     }
 
