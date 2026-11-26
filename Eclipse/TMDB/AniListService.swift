@@ -9988,7 +9988,7 @@ final class AniListService {
                     var bestMatch: TMDBTVShow?
 
                     for candidate in titleCandidates where !candidate.isEmpty {
-                        var results = (try? await tmdbService.searchTVShows(query: candidate, maxPages: 2)) ?? []
+                        var results = (try? await tmdbService.searchTVShows(query: candidate, maxPages: 4)) ?? []
                         // AniList titles are frequently romanized or English even
                         // when Eclipse is displaying another language. TMDB can
                         // return localized near-matches for the first query and
@@ -9999,7 +9999,7 @@ final class AniListService {
                             let englishResults = (try? await tmdbService.searchTVShows(
                                 query: candidate,
                                 languageOverride: "en-US",
-                                maxPages: 2
+                                maxPages: 4
                             )) ?? []
                             var seenIDs = Set(results.map(\.id))
                             results.append(contentsOf: englishResults.filter {
