@@ -7820,10 +7820,11 @@ final class DownloadManager: NSObject, ObservableObject {
         let plan: NuvioDownloadTransportPlan
         let attemptHeaders: [String: String]
         if directBackgroundApproved {
-            // Only public HTTPS Nuvio/service URLs that passed DNS validation
-            // use the OS-owned session. Stremio and SkyStream retain the
-            // pinned local proxy because their routing grants private-origin
-            // access that URLSession cannot safely reproduce.
+            // Only public HTTPS provider stream URLs that passed DNS
+            // validation use the OS-owned session. This includes Stremio CDN
+            // URLs when the resolved target is public; configured/private
+            // Stremio origins still retain their pinned local proxy because
+            // URLSession cannot safely reproduce that private-origin grant.
             proxyURL = nil
             attemptHeaders = safeTransportHeaders
             plan = NuvioDownloadTransportPlan.directBackgroundAttempt(
