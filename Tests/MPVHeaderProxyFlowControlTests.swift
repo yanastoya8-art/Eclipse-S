@@ -897,6 +897,28 @@ final class MPVHeaderProxyFlowControlTests: XCTestCase {
         XCTAssertEqual(flow.admit(chunk), .closed)
     }
 
+    func testManagedProxyTargetCanBeRecoveredAfterSessionInvalidation() throws {
+        let (server, proxy, proxyURL, _) = try makeFixture(
+            pinned: false,
+            body: .media,
+            bytes: 1_024
+        )
+        defer {
+            proxy.invalidateSession(for: proxyURL)
+            proxy.shutdownForTesting()
+            server.stop()
+        }
+
+        let recovered = try XCTUnwrap(proxy.recoverableTargetURL(for: proxyURL))
+        XCTAssertEqual(recovered.scheme, "http")
+        XCTAssertEqual(recovered.host, "127.0.0.1")
+        XCTAssertEqual(recovered.path, "/media")
+
+        proxy.invalidateSession(for: proxyURL)
+        XCTAssertNil(proxy.upstreamProbeTarget(for: proxyURL))
+        XCTAssertEqual(proxy.recoverableTargetURL(for: proxyURL), recovered)
+    }
+
     private func makeFixture(pinned: Bool, body: ProxyFlowFixtureBody, bytes: Int,
                              redirects: Int = 0, rateLimits: Int = 0,
                              requestTimeout: TimeInterval? = nil, stallAfterBytes: Int? = nil,
