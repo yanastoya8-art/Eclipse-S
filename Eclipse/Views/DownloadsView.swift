@@ -252,7 +252,7 @@ struct DownloadsView: View {
         EclipseEmptyState(
             icon: "arrow.down.circle",
             title: "No Downloads",
-            message: "Download movies and episodes to watch offline. Use the download button on any media page."
+            message: ""
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
