@@ -6422,10 +6422,13 @@ final class LocalFileLANServer {
             status = 206
         }
         let length = end - start + 1
-        let mime = Self.mimeType(for: entry.url)
         let download = components.queryItems?.contains(where: { $0.name == "download" && $0.value == "1" }) == true
+        // A copied download URL must behave as a file transfer even when the
+        // underlying extension is a Safari-playable video/audio format.
+        let mime = download ? "application/octet-stream" : Self.mimeType(for: entry.url)
         var response = "HTTP/1.1 \(status) \(status == 206 ? "Partial Content" : "OK")\r\n"
         response += "Content-Type: \(mime)\r\nContent-Length: \(length)\r\nAccept-Ranges: bytes\r\n"
+        response += "X-Content-Type-Options: nosniff\r\n"
         response += "Cache-Control: no-store\r\nConnection: close\r\n"
         response += "Content-Disposition: \(download ? "attachment" : "inline"); filename=\"\(entry.url.lastPathComponent.replacingOccurrences(of: "\"", with: "_").replacingOccurrences(of: "\r", with: "_").replacingOccurrences(of: "\n", with: "_"))\"\r\n"
         if status == 206 { response += "Content-Range: bytes \(start)-\(end)/\(fileSize)\r\n" }
