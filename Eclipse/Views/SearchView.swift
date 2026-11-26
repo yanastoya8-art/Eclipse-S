@@ -21,7 +21,7 @@ struct SearchView: View {
 #endif
     @AppStorage("tmdbLanguage") private var selectedLanguage = "en-US"
     @AppStorage("searchHistory") private var searchHistoryData: Data = Data()
-    @AppStorage("searchHistorySavingEnabled") private var searchHistorySavingEnabled = true
+    @AppStorage("searchHistorySavingEnabled") private var searchHistorySavingEnabled = false
 
     @State private var searchText = ""
     @State private var searchResults: [TMDBSearchResult] = []
@@ -450,6 +450,9 @@ struct SearchView: View {
             tvSearchIsVisible = true
             tvSearchPresentationGeneration = UUID()
 #endif
+            if UserDefaults.standard.object(forKey: "searchHistorySavingEnabled") == nil, !searchHistoryData.isEmpty {
+                searchHistorySavingEnabled = true
+            }
             loadSearchHistory()
         }
         .onChangeComp(of: searchHistorySavingEnabled) { _, enabled in
