@@ -1508,9 +1508,8 @@ private struct BrowseMediaView: View {
         case .tv:
             selectedGenres = ["tmdb-10765"] // Sci-Fi & Fantasy
             excludedGenres = [
-                "tmdb-99", "tmdb-10762", "tmdb-10763",
-                "tmdb-10764", "tmdb-10767", "tmdb-37"
-            ] // Documentary, Kids, News, Reality, Talk, Western
+                "tmdb-99", "tmdb-10762", "tmdb-10763"
+            ] // Documentary, Kids, News
         case .anime:
             selectedGenres = []
             excludedGenres = [
@@ -1522,6 +1521,12 @@ private struct BrowseMediaView: View {
             ]
         }
 
+        let defaultMinimumRating: Double
+        switch mediaType {
+        case .movie: defaultMinimumRating = 6
+        case .tv, .anime: defaultMinimumRating = 0
+        }
+
         return BrowseFilterConfiguration(
             selectedGenreKeys: selectedGenres,
             excludedGenreKeys: excludedGenres,
@@ -1529,7 +1534,7 @@ private struct BrowseMediaView: View {
             excludedYears: [],
             selectedCountryCodes: [],
             sortRawValue: BrowseSort.newest.rawValue,
-            minimumRating: 6,
+            minimumRating: defaultMinimumRating,
             ageRatingRawValue: BrowseAgeRating.all.rawValue
         )
     }
