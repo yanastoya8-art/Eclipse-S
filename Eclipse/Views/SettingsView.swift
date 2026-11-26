@@ -36,7 +36,7 @@ struct SettingsView: View {
     @AppStorage("githubReleaseUpdateAvailable", store: .standard) private var githubReleaseUpdateAvailable = false
     @AppStorage("githubReleaseLatestVersion", store: .standard) private var githubReleaseLatestVersion = ""
     @AppStorage("githubReleaseURL", store: .standard) private var githubReleaseURL = ""
-    @AppStorage("defaultScheduleMode") private var defaultScheduleModeRaw = ScheduleMode.anime.rawValue
+    @AppStorage("defaultScheduleMode") private var defaultScheduleModeRaw = ScheduleMode.combined.rawValue
     @AppStorage(ScheduleWindow.storageKey) private var scheduleWindowDays = ScheduleWindow.defaultValue.rawValue
     @AppStorage("catalogHideBelowPG13Movies", store: .standard) private var hideBelowPG13Movies = true
     @AppStorage("catalogHideBelowTV14Shows", store: .standard) private var hideBelowTV14Shows = true
@@ -3835,7 +3835,7 @@ private struct SupportPurchaseStatusRow: View {
 #endif
 
 struct ScheduleSettingsView: View {
-    @AppStorage("defaultScheduleMode") private var defaultScheduleModeRaw = ScheduleMode.anime.rawValue
+    @AppStorage("defaultScheduleMode") private var defaultScheduleModeRaw = ScheduleMode.combined.rawValue
     @AppStorage("showLocalScheduleTime") private var showLocalScheduleTime = true
     @AppStorage(ScheduleWindow.storageKey) private var scheduleWindowDays = ScheduleWindow.defaultValue.rawValue
     @StateObject private var accentColorManager = AccentColorManager.shared
@@ -5429,7 +5429,7 @@ private struct CloudSyncHealthSection: View {
 
 private struct SearchPrivacySettingsView: View {
     @StateObject private var accentColorManager = AccentColorManager.shared
-    @AppStorage("searchHistorySavingEnabled") private var saveSearchHistory = true
+    @AppStorage("searchHistorySavingEnabled") private var saveSearchHistory = false
     @AppStorage("searchHistory") private var searchHistoryData: Data = Data()
 
     var body: some View {
@@ -5567,12 +5567,12 @@ private struct LanguageFiltersSettingsView: View {
 
 private struct ReleaseDateFiltersSettingsView: View {
     @StateObject private var accentColorManager = AccentColorManager.shared
-    @AppStorage("catalogHidePre1994Anime", store: .standard) private var hidePre1994Anime = false
-    @AppStorage("catalogHidePre1994Movies", store: .standard) private var hidePre1994Movies = false
-    @AppStorage("catalogHidePre1994TVShows", store: .standard) private var hidePre1994TVShows = false
-    @AppStorage("catalogHideUnreleasedAnime", store: .standard) private var hideUnreleasedAnime = false
-    @AppStorage("catalogHideUnreleasedMovies", store: .standard) private var hideUnreleasedMovies = false
-    @AppStorage("catalogHideUnreleasedTVShows", store: .standard) private var hideUnreleasedTVShows = false
+    @AppStorage("catalogHidePre1994Anime", store: .standard) private var hidePre1994Anime = true
+    @AppStorage("catalogHidePre1994Movies", store: .standard) private var hidePre1994Movies = true
+    @AppStorage("catalogHidePre1994TVShows", store: .standard) private var hidePre1994TVShows = true
+    @AppStorage("catalogHideUnreleasedAnime", store: .standard) private var hideUnreleasedAnime = true
+    @AppStorage("catalogHideUnreleasedMovies", store: .standard) private var hideUnreleasedMovies = true
+    @AppStorage("catalogHideUnreleasedTVShows", store: .standard) private var hideUnreleasedTVShows = true
 
     private func filtersDidChange() {
         NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil)
@@ -5611,7 +5611,7 @@ private struct ReleaseDateFiltersSettingsView: View {
 
 private struct ProductionsSettingsView: View {
     @StateObject private var accentColorManager = AccentColorManager.shared
-    @AppStorage("catalogHideUnofficialContent", store: .standard) private var hideUnofficialContent = false
+    @AppStorage("catalogHideUnofficialContent", store: .standard) private var hideUnofficialContent = true
 
     private func filtersDidChange() {
         NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil)
@@ -5684,7 +5684,7 @@ private struct AnimeFiltersSettingsView: View {
 
 private struct RuntimeFiltersSettingsView: View {
     @StateObject private var accentColorManager = AccentColorManager.shared
-    @AppStorage("catalogHideUnder20MinuteContent", store: .standard) private var hideUnder20MinuteContent = false
+    @AppStorage("catalogHideUnder20MinuteContent", store: .standard) private var hideUnder20MinuteContent = true
 
     private func filtersDidChange() {
         NotificationCenter.default.post(name: TMDBContentFilter.catalogFiltersDidChangeNotification, object: nil)
