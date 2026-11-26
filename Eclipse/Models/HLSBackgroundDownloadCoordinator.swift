@@ -146,13 +146,12 @@ final class HLSBackgroundDownloadCoordinator: HLSBackgroundDownloadScheduling {
             title: request.title,
             subtitle: "Preparing download"
         )
-        // HLS transfers are segmented and still need the app process to
-        // coordinate playlist, key, and segment requests. A fail-fast request
-        // is rejected whenever iOS cannot grant execution immediately, after
-        // which the app only has its short UIKit background allowance. Queue
-        // the user-initiated continuation so iOS can grant it when resources
-        // become available rather than silently falling back to that timeout.
-        taskRequest.strategy = .queue
+        // The HLS downloader hands playlist, key, and segment resources to
+        // its OS-owned background URLSession. Continued-processing is only an
+        // optional execution/progress allowance; queueing that allowance must
+        // never hold the actual download in Eclipse's queue. Fail fast when
+        // iOS cannot grant it and let background URLSession own the transfers.
+        taskRequest.strategy = .fail
         let token = request.token
         DispatchQueue.global(qos: .utility).async { [weak self, weak slot] in
             do {
