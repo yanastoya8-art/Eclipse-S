@@ -6889,9 +6889,30 @@ final class DownloadManager: NSObject, ObservableObject {
         persistResolvedVariant: Bool = true,
         protectedNuvioAttemptID: UUID? = nil
     ) {
-        guard let url = streamURLOverride ?? URL(string: item.streamURL) else {
+        guard var url = streamURLOverride ?? URL(string: item.streamURL) else {
             markFailed(id: item.id, error: "Invalid stream URL")
             return
+        }
+
+        // A managed playback proxy is loopback-only and cannot be reached by
+        // the OS background URLSession after iOS suspends Eclipse. When the
+        // proxy exposes its already-authorized upstream target, hand that
+        // remote URL and its scoped headers directly to the native HLS
+        // downloader. Private/loopback targets remain on the foreground path.
+        var transportHeadersOverride = headersOverride
+        var unwrappedManagedProxy = false
+        if protectedNuvioAttemptID == nil,
+           protectedProviderAttempts[item.id]?.mainProxyURL == nil,
+           let upstream = MPVHeaderProxy.shared.upstreamProbeTarget(for: url),
+           let scheme = upstream.url.scheme?.lowercased(),
+           (scheme == "http" || scheme == "https"),
+           upstream.url.host != nil,
+           upstream.url.user == nil,
+           upstream.url.password == nil,
+           !["127.0.0.1", "localhost", "::1"].contains(upstream.url.host?.lowercased() ?? "") {
+            url = upstream.url
+            transportHeadersOverride = headersOverride ?? upstream.headers
+            unwrappedManagedProxy = true
         }
 
 #if os(iOS) && !targetEnvironment(macCatalyst)
@@ -6943,7 +6964,7 @@ final class DownloadManager: NSObject, ObservableObject {
         let pinnedVariant = pinnedVariantOverride
             ?? item.hlsVariantURL.flatMap { URL(string: $0) }
         let expectedTotal = item.hlsTotalSegments ?? 0
-        let refreshedHeaders = headersOverride
+        let refreshedHeaders = transportHeadersOverride
             ?? effectiveHeaders(item.headers, for: url)
         let attemptID = UUID()
 
@@ -6979,7 +7000,8 @@ final class DownloadManager: NSObject, ObservableObject {
                 && (protectedNuvioAttemptID == nil
                     || protectedProviderAttempts[item.id]?.mainProxyURL == nil),
             requiresPublicNetworkValidationForBackgroundURLSession:
-                item.providerTransportKind == .skyStreamHLS
+                unwrappedManagedProxy
+                || item.providerTransportKind == .skyStreamHLS
                 || (protectedNuvioAttemptID != nil
                     && protectedProviderAttempts[item.id]?.mainProxyURL == nil)
         )
