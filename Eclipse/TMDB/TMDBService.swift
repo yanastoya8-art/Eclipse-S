@@ -733,34 +733,75 @@ class TMDBService: ObservableObject {
         languageOverride: String? = nil,
         maxPages: Int = 2
     ) async throws -> [TMDBSearchResult] {
-        guard !query.isEmpty else { return [] }
+        let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedQuery.isEmpty, (1...10).contains(maxPages) else { return [] }
 
-        guard (1...10).contains(maxPages),
-              !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return []
-        }
-        var allResults: [TMDBSearchResult] = []
-
-        for page in 1...maxPages {
-            guard let url = searchEndpointURL("multi", query: query, page: page, language: languageOverride) else {
-                throw TMDBError.invalidURL
-            }
-
+        func fetchPage(_ page: Int) async throws -> TMDBSearchResponse {
+            guard let url = searchEndpointURL(
+                "multi",
+                query: normalizedQuery,
+                page: page,
+                language: languageOverride
+            ) else { throw TMDBError.invalidURL }
             do {
                 let (data, _) = try await throttledData(from: url)
-                let response = try decodeTMDBListResponse(TMDBSearchResponse.self, from: data, endpoint: url.path)
-                let filtered = response.results.filter { $0.mediaType == "movie" || $0.mediaType == "tv" }
-                allResults.append(contentsOf: filtered)
-
-                if response.results.count < 20 {
-                    break
-                }
+                return try decodeTMDBListResponse(TMDBSearchResponse.self, from: data, endpoint: url.path)
             } catch {
                 throw TMDBError.wrapping(error)
             }
         }
 
-        return allResults
+        // Fetch page one first so we can avoid needless requests for short
+        // result sets. The old implementation fetched every page serially,
+        // multiplying interactive search latency by as much as ten.
+        let firstPage = try await fetchPage(1)
+        let pageLimit = min(maxPages, max(firstPage.totalPages, 1))
+        var pages: [(Int, [TMDBSearchResult])] = [
+            (1, firstPage.results.filter { $0.mediaType == "movie" || $0.mediaType == "tv" })
+        ]
+        guard pageLimit > 1 else {
+            return pages[0].1
+        }
+
+        await withTaskGroup(of: (Int, [TMDBSearchResult])?.self) { group in
+            var nextPage = 2
+            let initialBatchEnd = min(pageLimit, 5)
+            while nextPage <= initialBatchEnd {
+                let page = nextPage
+                group.addTask {
+                    do {
+                        let response = try await fetchPage(page)
+                        let filtered = response.results.filter { $0.mediaType == "movie" || $0.mediaType == "tv" }
+                        return (page, filtered)
+                    } catch {
+                        // A transient failure on one later page must not erase
+                        // the valid first page or every other successful page.
+                        return nil
+                    }
+                }
+                nextPage += 1
+            }
+
+            while let result = await group.next() {
+                if let result { pages.append(result) }
+                if nextPage <= pageLimit, !Task.isCancelled {
+                    let page = nextPage
+                    group.addTask {
+                        do {
+                            let response = try await fetchPage(page)
+                            let filtered = response.results.filter { $0.mediaType == "movie" || $0.mediaType == "tv" }
+                            return (page, filtered)
+                        } catch {
+                            return nil
+                        }
+                    }
+                    nextPage += 1
+                }
+            }
+        }
+        try Task.checkCancellation()
+
+        return pages.sorted { $0.0 < $1.0 }.flatMap { $0.1 }
     }
 
     func findByIMDbId(_ imdbId: String, preferredMediaType: String? = nil) async throws -> TMDBSearchResult? {
@@ -903,41 +944,73 @@ class TMDBService: ObservableObject {
         maxPages: Int = 1
     ) async throws -> [TMDBTVShow] {
         let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalizedQuery.isEmpty else { return [] }
-        guard (1...10).contains(maxPages) else { return [] }
+        guard !normalizedQuery.isEmpty, (1...10).contains(maxPages) else { return [] }
 
-        var allResults: [TMDBTVShow] = []
-        var seenIDs = Set<Int>()
-
-        for page in 1...maxPages {
+        func fetchPage(_ page: Int) async throws -> TMDBTVSearchResponse {
             guard let url = searchEndpointURL(
                 "tv",
                 query: normalizedQuery,
                 page: page,
                 language: languageOverride
-            ) else {
-                throw TMDBError.invalidURL
-            }
-
+            ) else { throw TMDBError.invalidURL }
             do {
                 let (data, _) = try await throttledData(from: url)
-                let response = try decodeTMDBListResponse(
-                    TMDBTVSearchResponse.self,
-                    from: data,
-                    endpoint: url.path
-                )
-                for show in response.results where seenIDs.insert(show.id).inserted {
-                    allResults.append(show)
-                }
-                if response.results.count < 20 {
-                    break
-                }
+                return try decodeTMDBListResponse(TMDBTVSearchResponse.self, from: data, endpoint: url.path)
             } catch {
                 throw TMDBError.wrapping(error)
             }
         }
 
-        return allResults
+        // Resolve the first page before fan-out, then fetch up to four pages
+        // concurrently. This preserves broad title coverage without making
+        // the Search screen wait for ten serial network round trips.
+        let firstPage = try await fetchPage(1)
+        let pageLimit = min(maxPages, max(firstPage.totalPages, 1))
+        guard pageLimit > 1 else {
+            return firstPage.results
+        }
+
+        var pages: [(Int, [TMDBTVShow])] = [(1, firstPage.results)]
+        await withTaskGroup(of: (Int, [TMDBTVShow])?.self) { group in
+            var nextPage = 2
+            let initialBatchEnd = min(pageLimit, 5)
+            while nextPage <= initialBatchEnd {
+                let page = nextPage
+                group.addTask {
+                    do {
+                        let response = try await fetchPage(page)
+                        return (page, response.results)
+                    } catch {
+                        // Preserve the first-page TV matches when a later
+                        // page is rate-limited or temporarily unavailable.
+                        return nil
+                    }
+                }
+                nextPage += 1
+            }
+
+            while let result = await group.next() {
+                if let result { pages.append(result) }
+                if nextPage <= pageLimit, !Task.isCancelled {
+                    let page = nextPage
+                    group.addTask {
+                        do {
+                            let response = try await fetchPage(page)
+                            return (page, response.results)
+                        } catch {
+                            return nil
+                        }
+                    }
+                    nextPage += 1
+                }
+            }
+        }
+        try Task.checkCancellation()
+
+        var seenIDs = Set<Int>()
+        return pages.sorted { $0.0 < $1.0 }.flatMap { $0.1 }.filter {
+            seenIDs.insert($0.id).inserted
+        }
     }
 
     func getMovieDetails(id: Int) async throws -> TMDBMovieDetail {

@@ -5486,6 +5486,34 @@ final class SkyStreamURLAndHeaderSecurityTests: XCTestCase {
     }
     #endif
 
+    func testPublicHTTPMediaResourcesAreAllowedForBackgroundDispatch() async throws {
+        let policy = SkyStreamRemoteURLPolicy { _ in ["93.184.216.34"] }
+        let target = try await policy.validateForNetworkDispatch(
+            "http://video.example.test/playlist.m3u8",
+            purpose: .mediaSegment
+        )
+
+        XCTAssertEqual(target.url.scheme, "http")
+        XCTAssertEqual(target.origin.scheme, "http")
+        XCTAssertEqual(target.checkedAddresses, ["93.184.216.34"])
+    }
+
+    func testPrivateHTTPMediaResourcesRemainBlockedForBackgroundDispatch() async throws {
+        let policy = SkyStreamRemoteURLPolicy { _ in ["192.168.1.20"] }
+
+        do {
+            _ = try await policy.validateForNetworkDispatch(
+                "http://video.example.test/playlist.m3u8",
+                purpose: .mediaSegment
+            )
+            XCTFail("Private HTTP destinations must not be handed to background URLSession")
+        } catch let error as SkyStreamSecurityError {
+            guard case .prohibitedAddress = error else {
+                return XCTFail("Unexpected security error: \\(error)")
+            }
+        }
+    }
+
     func testPinnedConnectionIdentityUsesOnlyFreshlyApprovedNumericAddressAndOriginalTLSHost() async throws {
         let policy = SkyStreamRemoteURLPolicy { _ in ["93.184.216.34"] }
         let target = try await policy.validateForNetworkDispatch(

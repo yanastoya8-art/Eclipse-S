@@ -3071,6 +3071,28 @@ private final class MPVHeaderProxyCore {
         return decodeTargetURL(encoded)
     }
 
+    /// Recover the signed upstream URL embedded in a managed proxy route even
+    /// after its in-memory session has been torn down by an iOS process restart.
+    /// The token and strict route shape are still required; callers must supply
+    /// their persisted source headers and revalidate the remote target before
+    /// dispatching any background network request.
+    func recoverableTargetURL(for proxyURL: URL) -> URL? {
+        guard managedSessionID(from: proxyURL) != nil,
+              let components = URLComponents(url: proxyURL, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
+        let pathParts = components.path.split(separator: "/")
+        let queryItems = components.queryItems ?? []
+        guard pathParts.count == 2,
+              queryItems.filter({ $0.name == "url" }).count == 1,
+              queryItems.filter({ $0.name == "token" }).count == 1,
+              queryItems.allSatisfy({ $0.name == "url" || $0.name == "token" }),
+              let encoded = queryItems.first(where: { $0.name == "url" })?.value else {
+            return nil
+        }
+        return decodeTargetURL(encoded)
+    }
+
     func upstreamHealth(for proxyURL: URL) -> MPVHeaderProxyUpstreamHealth? {
         guard let sessionID = managedSessionID(from: proxyURL) else { return nil }
         let transport = withSessionsLock { sessions[sessionID]?.upstreamTransport }
@@ -5048,6 +5070,14 @@ private final class MPVHeaderProxyCore {
                     .replacingOccurrences(of: "\"", with: "_")
                     .replacingOccurrences(of: "\r", with: "_")
                     .replacingOccurrences(of: "\n", with: "_")
+                // Safari can choose inline playback for known media MIME types
+                // even when a proxy response is intended as a download. Use a
+                // generic binary type as well as attachment disposition so the
+                // copied URL consistently opens the iOS download flow.
+                responseHeaders = responseHeaders.filter {
+                    $0.key.caseInsensitiveCompare("Content-Type") != .orderedSame
+                }
+                responseHeaders["Content-Type"] = "application/octet-stream"
                 responseHeaders["Content-Disposition"] = "attachment; filename=\"\(filename)\""
                 responseHeaders["Cache-Control"] = "no-store"
             }
@@ -5686,6 +5716,11 @@ private final class MPVHeaderProxyCore {
                     .replacingOccurrences(of: "\"", with: "_")
                     .replacingOccurrences(of: "\r", with: "_")
                     .replacingOccurrences(of: "\n", with: "_")
+                // Match the buffered response path: Safari can play known video MIME types inline.
+                responseHeaders = responseHeaders.filter {
+                    $0.key.caseInsensitiveCompare("Content-Type") != .orderedSame
+                }
+                responseHeaders["Content-Type"] = "application/octet-stream"
                 responseHeaders["Content-Disposition"] = "attachment; filename=\"\(filename)\""
                 responseHeaders["Cache-Control"] = "no-store"
             }
@@ -6165,6 +6200,10 @@ final class MPVHeaderProxy {
         proxy.originalTargetURL(for: proxyURL)
     }
 
+    func recoverableTargetURL(for proxyURL: URL) -> URL? {
+        proxy.recoverableTargetURL(for: proxyURL)
+    }
+
     func upstreamHealth(for proxyURL: URL) -> MPVHeaderProxyUpstreamHealth? {
         proxy.upstreamHealth(for: proxyURL)
     }
@@ -6409,10 +6448,13 @@ final class LocalFileLANServer {
             status = 206
         }
         let length = end - start + 1
-        let mime = Self.mimeType(for: entry.url)
         let download = components.queryItems?.contains(where: { $0.name == "download" && $0.value == "1" }) == true
+        // A copied download URL must behave as a file transfer even when the
+        // underlying extension is a Safari-playable video/audio format.
+        let mime = download ? "application/octet-stream" : Self.mimeType(for: entry.url)
         var response = "HTTP/1.1 \(status) \(status == 206 ? "Partial Content" : "OK")\r\n"
         response += "Content-Type: \(mime)\r\nContent-Length: \(length)\r\nAccept-Ranges: bytes\r\n"
+        response += "X-Content-Type-Options: nosniff\r\n"
         response += "Cache-Control: no-store\r\nConnection: close\r\n"
         response += "Content-Disposition: \(download ? "attachment" : "inline"); filename=\"\(entry.url.lastPathComponent.replacingOccurrences(of: "\"", with: "_").replacingOccurrences(of: "\r", with: "_").replacingOccurrences(of: "\n", with: "_"))\"\r\n"
         if status == 206 { response += "Content-Range: bytes \(start)-\(end)/\(fileSize)\r\n" }

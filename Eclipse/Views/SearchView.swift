@@ -25,6 +25,7 @@ struct SearchView: View {
 
     @State private var searchText = ""
     @State private var searchResults: [TMDBSearchResult] = []
+    @State private var cachedCatalogResults: [TMDBSearchResult] = []
     @State private var filterRefreshRevision = 0
     @State private var isLoading = false
     @State private var errorMessage: String?
@@ -61,7 +62,7 @@ struct SearchView: View {
         // resolves. Replacing the backing array during scrolling resets the
         // LazyVGrid's layout and causes visible flashing/jumps to the top.
         _ = filterRefreshRevision
-        let catalogResults = contentFilter.filterSearchResults(searchResults)
+        let catalogResults = cachedCatalogResults
         switch searchFilter {
         case .all:
             return catalogResults
@@ -138,18 +139,6 @@ struct SearchView: View {
                 .providerNavigationStyle()
             }
 #endif
-        }
-        .onReceive(NotificationCenter.default.publisher(for: TMDBContentFilter.catalogFiltersDidChangeNotification)) { _ in
-            guard !searchResults.isEmpty else { return }
-            let snapshot = searchResults
-            Task {
-                await contentFilter.prepareMaturityRatings(for: snapshot)
-                await MainActor.run {
-                    // Refresh derived results without mutating the source
-                    // snapshot, preserving the current scroll position.
-                    filterRefreshRevision &+= 1
-                }
-            }
         }
     }
 
@@ -443,6 +432,10 @@ struct SearchView: View {
                 // Trigger a derived-results refresh only. Keep the source
                 // result array intact so SwiftUI preserves the scroll anchor.
                 filterRefreshRevision &+= 1
+                cachedCatalogResults = contentFilter.filterSearchResults(
+                    searchResults,
+                    resolveMetadataInBackground: false
+                )
             }
         }
         .onAppear {
@@ -718,6 +711,7 @@ struct SearchView: View {
 
         searchRequestSerial += 1
         searchResults = []
+        cachedCatalogResults = []
 #if os(tvOS)
         tvFocusedResultID = nil
 #endif
@@ -751,6 +745,7 @@ struct SearchView: View {
 
         guard !query.isEmpty else {
             searchResults = []
+            cachedCatalogResults = []
 #if os(tvOS)
             tvFocusedResultID = nil
 #endif
@@ -799,7 +794,12 @@ struct SearchView: View {
         return await withTaskGroup(of: (Int, TMDBSearchResult).self) { group in
             for (index, result) in candidates {
                 group.addTask {
-                    let identity = await AniListService.shared.searchAnimeIdentity(title: result.displayTitle)
+                    var identity = await AniListService.shared.searchAnimeIdentity(title: result.displayTitle)
+                    if identity == nil,
+                       let originalName = result.originalName,
+                       originalName.caseInsensitiveCompare(result.displayTitle) != .orderedSame {
+                        identity = await AniListService.shared.searchAnimeIdentity(title: originalName)
+                    }
                     guard let identity = identity?.sanitizedForPersistence else {
                         return (index, result)
                     }
@@ -808,6 +808,7 @@ struct SearchView: View {
                         mediaType: result.mediaType,
                         title: result.title,
                         name: result.name,
+                        originalName: result.originalName,
                         overview: result.overview,
                         posterPath: result.posterPath,
                         backdropPath: result.backdropPath,
@@ -863,7 +864,11 @@ struct SearchView: View {
             do {
                 // Search multiple TMDB pages so less popular series and
                 // titles ranked below unrelated matches are not silently omitted.
-                var results = try await tmdbService.searchMulti(query: query, maxPages: 10)
+                // A transient failure of TMDB's multi-search endpoint must
+                // not abort the whole query. The dedicated TV endpoint below
+                // is an independent fallback for series and anime titles.
+                var results = (try? await tmdbService.searchMulti(query: query, maxPages: 10)) ?? []
+                try Task.checkCancellation()
                 try Task.checkCancellation()
                 // Search in English as well as the selected UI language. TMDB's
                 // localized multi-search can omit original-language titles
@@ -907,7 +912,7 @@ struct SearchView: View {
                         if let englishTVResults = try? await tmdbService.searchTVShows(
                             query: query,
                             languageOverride: "en-US",
-                            maxPages: 4
+                            maxPages: 10
                         ) {
                             try Task.checkCancellation()
                             results.append(contentsOf: englishTVResults
@@ -967,7 +972,10 @@ struct SearchView: View {
                           searchText.trimmingCharacters(in: .whitespacesAndNewlines).caseInsensitiveCompare(query) == .orderedSame else {
                         return
                     }
-                    let filteredResults = contentFilter.filterSearchResults(identityResolvedResults)
+                    let filteredResults = contentFilter.filterSearchResults(
+                        identityResolvedResults,
+                        resolveMetadataInBackground: false
+                    )
 #if os(tvOS)
                     let restoredFocus = restoredTVResultFocus(
                         previousID: tvFocusedResultID,
@@ -976,8 +984,19 @@ struct SearchView: View {
                     )
 #endif
                     self.searchResults = identityResolvedResults
+                    self.cachedCatalogResults = filteredResults
                     self.isLoading = false
                     self.activeSearchTask = nil
+                    // Resolve expensive runtime/production/audio metadata once
+                    // per completed query, not every time SwiftUI recomputes
+                    // filteredResults while the user scrolls the grid.
+                    let metadataSnapshot = identityResolvedResults
+                    Task(priority: .utility) {
+                        await contentFilter.resolveBrowseFilterMetadata(
+                            for: metadataSnapshot,
+                            requiresAnimeAgeRating: requiresGlobalAnimeAgeRating
+                        )
+                    }
 #if os(tvOS)
                     if let restoredFocus {
                         DispatchQueue.main.async {
@@ -2785,10 +2804,55 @@ private struct BrowseMediaView: View {
                 voteAverageGte: ratingFloor,
                 page: page
             )
-            let results = upcomingOnly
+            var results = upcomingOnly
                 ? fetched.results.filter { Self.hasOfficialUpcomingDate($0) }
                 : fetched.results
-            return BrowsePageResult(results: results, hasMore: fetched.hasMore)
+            var hasMore = fetched.hasMore
+
+            if isAnime {
+                // TMDB's animation discover index is incomplete for anime and
+                // often omits titles that AniList still catalogs. Merge a
+                // paged AniList source into the same result pipeline so the
+                // existing dub, age, runtime, and production filters still run.
+                let catalogKind: AniListService.AniListCatalogKind =
+                    sort == .rank ? .topRated : (sort == .newest ? .trending : .popular)
+                if let aniListResults = try? await AniListService.shared.fetchAnimeCatalog(
+                    catalogKind,
+                    page: page,
+                    limit: 20,
+                    tmdbService: tmdbService
+                ) {
+                    let selectedGenreIDs = Set(effectiveGenreIds)
+                    let selectedCountrySet = Set(effectiveCountries)
+                    let aniListCandidates = aniListResults.compactMap { candidate -> TMDBSearchResult? in
+                        let anime = candidate.withAnimeHint(true)
+                        if let ids = anime.genreIds, !selectedGenreIDs.isEmpty,
+                           !ids.contains(where: selectedGenreIDs.contains) {
+                            return nil
+                        }
+                        if upcomingOnly && !Self.hasOfficialUpcomingDate(anime) { return nil }
+                        if let year = Int(anime.displayDate.prefix(4)),
+                           !requestedYears.isEmpty, !requestedYears.contains(year) {
+                            return nil
+                        }
+                        if !selectedCountrySet.isEmpty,
+                           let countries = anime.originCountry,
+                           !countries.contains(where: selectedCountrySet.contains) {
+                            return nil
+                        }
+                        if let effectiveLanguage,
+                           let language = anime.originalLanguage?.lowercased(),
+                           language != effectiveLanguage.lowercased() {
+                            return nil
+                        }
+                        if let ratingFloor, (anime.voteAverage ?? 0) < ratingFloor { return nil }
+                        return anime
+                    }
+                    results = sortedDeduplicatedResults(results + aniListCandidates, by: sort)
+                    hasMore = hasMore || !aniListResults.isEmpty
+                }
+            }
+            return BrowsePageResult(results: results, hasMore: hasMore)
         }
 
         return try await withThrowingTaskGroup(of: BrowsePageResult.self) { group in
@@ -2953,7 +3017,15 @@ private struct BrowseMediaView: View {
                                 format: mapping?.mediaType
                             )
                         } else if likelyAnime {
-                            identity = await AniListService.shared.searchAnimeIdentity(title: result.displayTitle)
+                            let titleIdentity = await AniListService.shared.searchAnimeIdentity(title: result.displayTitle)
+                            if let titleIdentity {
+                                identity = titleIdentity
+                            } else if let originalName = result.originalName,
+                                      originalName.caseInsensitiveCompare(result.displayTitle) != .orderedSame {
+                                identity = await AniListService.shared.searchAnimeIdentity(title: originalName)
+                            } else {
+                                identity = nil
+                            }
                         } else {
                             identity = nil
                         }
@@ -2981,6 +3053,7 @@ private struct BrowseMediaView: View {
                         mediaType: result.mediaType,
                         title: result.title,
                         name: result.name,
+                        originalName: result.originalName,
                         overview: result.overview,
                         posterPath: result.posterPath,
                         backdropPath: result.backdropPath,
@@ -3028,7 +3101,15 @@ private struct BrowseMediaView: View {
                                     format: mapping?.mediaType
                                 )
                             } else if nextLikelyAnime {
-                                identity = await AniListService.shared.searchAnimeIdentity(title: nextResult.displayTitle)
+                                let titleIdentity = await AniListService.shared.searchAnimeIdentity(title: nextResult.displayTitle)
+                                if let titleIdentity {
+                                    identity = titleIdentity
+                                } else if let originalName = nextResult.originalName,
+                                          originalName.caseInsensitiveCompare(nextResult.displayTitle) != .orderedSame {
+                                    identity = await AniListService.shared.searchAnimeIdentity(title: originalName)
+                                } else {
+                                    identity = nil
+                                }
                             } else {
                                 identity = nil
                             }
@@ -3053,6 +3134,7 @@ private struct BrowseMediaView: View {
                         return (nextIndex, TMDBSearchResult(
                             id: nextResult.id, mediaType: nextResult.mediaType,
                             title: nextResult.title, name: nextResult.name,
+                            originalName: nextResult.originalName,
                             overview: nextResult.overview, posterPath: nextResult.posterPath,
                             backdropPath: nextResult.backdropPath, releaseDate: nextResult.releaseDate,
                             firstAirDate: nextResult.firstAirDate, voteAverage: nextResult.voteAverage,
@@ -3162,7 +3244,17 @@ private struct BrowseMediaView: View {
             case .movie:
                 return result
             case .tv:
-                return BrowseAnimeClassifier.shouldIncludeInTV(result) ? result : nil
+                // Only remove results that carry explicit anime signals.
+                // The previous classifier could reject ordinary TV titles
+                // when provider identity metadata was incomplete.
+                let language = result.originalLanguage?.lowercased() ?? ""
+                let animeCountries: Set<String> = ["JP", "CN", "KR", "TW"]
+                let hasAnimeSignals = result.animeIdentitySeed != nil
+                    || result.isAnimeHint == true
+                    || (result.genreIds?.contains(16) == true
+                        && (["ja", "zh", "ko"].contains(language)
+                            || result.originCountry?.contains(where: { animeCountries.contains($0) }) == true))
+                return hasAnimeSignals ? nil : result
             case .anime:
                 // The Anime Browse discover query is already constrained to
                 // animation genre 16. Do not discard entries just because TMDB

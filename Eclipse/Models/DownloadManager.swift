@@ -2618,7 +2618,7 @@ final class DownloadManager: NSObject, ObservableObject {
 #if os(iOS) && !targetEnvironment(macCatalyst)
             if self.hlsBackgroundDownloadsEnabled {
                 // If the preference is enabled while a direct transfer is already
-                // active, attach its Live Activity without restarting the transfer.
+                // active, attach its background-continuation attempt without restarting it.
                 for (id, task) in self.activeTasks {
                     guard let item = self.downloads.first(where: { $0.id == id }),
                           item.status == .downloading else { continue }
@@ -2666,11 +2666,16 @@ final class DownloadManager: NSObject, ObservableObject {
             // background-task restoration before admitting their in-memory queue.
             restoringBackgroundTasks = false
         }
-        processQueue()
 #if os(iOS) && !targetEnvironment(macCatalyst)
+        // Attach continuation requests only to transfers that were already
+        // active when the app returned to the foreground. Running this after
+        // processQueue() also captures freshly admitted startup-queue items,
+        // incorrectly minting a foreground intent for work that was queued
+        // before activation.
         attachLiveActivitiesToActiveHLSDownloads()
         attachLiveActivitiesToActiveDirectDownloads()
 #endif
+        processQueue()
     }
 
     /// A suspended foreground HLS worker can be lost without receiving the
@@ -2892,7 +2897,7 @@ final class DownloadManager: NSObject, ObservableObject {
         } else {
             // Do not invent a 1 GB denominator when the server omits its
             // Content-Length. Keep the byte counter truthful and let the
-            // Live Activity show an indeterminate/estimated percentage only
+            // The download UI show an indeterminate/estimated percentage only
             // when the transport itself supplies one.
             total = 0
             completed = max(item.downloadedBytes, 0)
@@ -2908,17 +2913,7 @@ final class DownloadManager: NSObject, ObservableObject {
                 subtitle: subtitle
             )
         }
-#if os(iOS)
-        if #available(iOS 16.2, *) {
-            Task { @MainActor in
-                await DownloadLiveActivityController.update(
-                    downloadID: id, title: item.displayTitle,
-                    progress: total > 0 ? Double(completed) / Double(total) : min(max(progress ?? item.progress, 0), 1),
-                    completedBytes: completed, totalBytes: total, status: subtitle
-                )
-            }
-        }
-#endif
+
     }
 
     private func finishDirectBackgroundAttempt(id: String, taskIdentifier: Int? = nil, success: Bool) {
@@ -2945,13 +2940,7 @@ final class DownloadManager: NSObject, ObservableObject {
                 success: success && !attempt.revoked
             )
         }
-#if os(iOS)
-        if #available(iOS 16.2, *) {
-            Task { @MainActor in
-                await DownloadLiveActivityController.end(downloadID: id, status: success ? "Completed" : "Paused")
-            }
-        }
-#endif
+
     }
 
     private func hlsIntentIsCurrent(_ intent: HLSForegroundIntent) -> Bool {
@@ -2990,7 +2979,7 @@ final class DownloadManager: NSObject, ObservableObject {
 #endif
         // Direct transfers are owned by URLSession's background session and
         // can continue on older iOS versions even without a continued-processing
-        // Live Activity. Keep protected headers alive only while that task exists.
+        // continued-processing task. Keep protected headers alive only while that task exists.
         return true
     }
 
@@ -3062,19 +3051,7 @@ final class DownloadManager: NSObject, ObservableObject {
                 subtitle: subtitle
             )
         }
-#if os(iOS)
-        if #available(iOS 16.2, *) {
-            Task { @MainActor in
-                await DownloadLiveActivityController.update(
-                    downloadID: id, title: item.displayTitle,
-                    progress: progress,
-                    completedBytes: completedBytes,
-                    totalBytes: totalBytes,
-                    status: subtitle
-                )
-            }
-        }
-#endif
+
     }
 
     private func expireHLSBackgroundAttempt(id: String, attempt: HLSBackgroundAttempt) {
@@ -3107,14 +3084,12 @@ final class DownloadManager: NSObject, ObservableObject {
             }
         }
         // Persist the latest completed segment and release the temporary
-        // scheduler slot. Keep the Live Activity alive for OS-owned resources;
-        // it is ended by the actual downloader completion callback.
+        // scheduler slot. OS-owned URLSession transfers continue independently.
         finishHLSBackgroundAttempt(
             id: id,
             attempt: attempt,
             success: false,
-            waitForWorker: canContinueInForeground,
-            endLiveActivity: !resourcesOwnedByBackgroundSession
+            waitForWorker: canContinueInForeground
         )
     }
 
@@ -3146,8 +3121,7 @@ final class DownloadManager: NSObject, ObservableObject {
         id: String,
         attempt: HLSBackgroundAttempt,
         success: Bool,
-        waitForWorker: Bool = true,
-        endLiveActivity: Bool = true
+        waitForWorker: Bool = true
     ) {
         guard hlsBackgroundAttempts[id] === attempt, !attempt.finishing else { return }
         attempt.finishing = true
@@ -3167,13 +3141,7 @@ final class DownloadManager: NSObject, ObservableObject {
             let didComplete = (success || attempt.succeeded) && persisted
                 && !attempt.revoked && self.hlsIntentIsCurrent(attempt.intent)
             self.hlsBackgroundScheduler?.finish(attemptID: attempt.attemptID, success: didComplete)
-#if os(iOS)
-            if #available(iOS 16.2, *), (endLiveActivity || attempt.mainFinished) {
-                Task { @MainActor in
-                    await DownloadLiveActivityController.end(downloadID: id, status: didComplete ? "Completed" : "Paused")
-                }
-            }
-#endif
+
             self.processQueue()
         }
     }
@@ -4470,11 +4438,7 @@ final class DownloadManager: NSObject, ObservableObject {
 #if os(iOS) && !targetEnvironment(macCatalyst)
             self.revokeHLSBackgroundAttempt(id: id)
             self.finishDirectBackgroundAttempt(id: id, success: false)
-            if #available(iOS 16.2, *) {
-                Task { @MainActor in
-                    await DownloadLiveActivityController.end(downloadID: id, status: "Deleted")
-                }
-            }
+
 #endif
             self.invalidateSourceRefresh(id: id)
             self.mediaSourceRecoveryAttempts.removeValue(forKey: id)
@@ -4524,11 +4488,7 @@ final class DownloadManager: NSObject, ObservableObject {
             for item in self.downloads where matchingIds.contains(item.id) {
 #if os(iOS) && !targetEnvironment(macCatalyst)
                 self.revokeHLSBackgroundAttempt(id: item.id)
-                if #available(iOS 16.2, *) {
-                    Task { @MainActor in
-                        await DownloadLiveActivityController.end(downloadID: item.id, status: "Deleted")
-                    }
-                }
+
 #endif
 #if (os(iOS) && !targetEnvironment(macCatalyst)) || os(macOS)
                 self.clearSkyStreamDownloadRuntimeState(id: item.id, discardDescriptor: true)
@@ -4556,11 +4516,7 @@ final class DownloadManager: NSObject, ObservableObject {
             for item in self.downloads where completedIds.contains(item.id) {
 #if os(iOS) && !targetEnvironment(macCatalyst)
                 self.revokeHLSBackgroundAttempt(id: item.id)
-                if #available(iOS 16.2, *) {
-                    Task { @MainActor in
-                        await DownloadLiveActivityController.end(downloadID: item.id, status: "Deleted")
-                    }
-                }
+
 #endif
                 self.downloadAdmissionTokens.removeValue(forKey: item.id)
 #if (os(iOS) && !targetEnvironment(macCatalyst)) || os(macOS)
@@ -4589,13 +4545,7 @@ final class DownloadManager: NSObject, ObservableObject {
         #endif
 #if os(iOS) && !targetEnvironment(macCatalyst)
         revokeAllHLSBackgroundAttempts()
-        if #available(iOS 16.2, *) {
-            for item in downloads {
-                Task { @MainActor in
-                    await DownloadLiveActivityController.end(downloadID: item.id, status: "Deleted")
-                }
-            }
-        }
+
 #endif
         downloadAdmissionTokens.removeAll()
         for id in sourceRefreshes.ids { invalidateSourceRefresh(id: id) }
@@ -4704,12 +4654,18 @@ final class DownloadManager: NSObject, ObservableObject {
             }
         guard let sourceURL else { return nil }
 
+        // MKV is a stream container in Eclipse, not a browser download target.
+        // Copy its authoritative URL verbatim: do not proxy it, add attachment
+        // headers, rewrite its query, or otherwise alter the provider URL.
+        if sourceURL.pathExtension.caseInsensitiveCompare("mkv") == .orderedSame {
+            return sourceURL
+        }
+
         let headers = protectedAttempt?.authorityHeaders ?? item.headers
-        // Always route copied links through the download response path, even
-        // when the provider needs no headers. Returning the origin URL directly
-        // lets Safari treat MP4/WebM/MKV resources as inline playback instead
-        // of a file download. The LAN proxy adds Content-Disposition: attachment
-        // and preserves any required provider headers.
+        // Non-MKV formats use the authenticated download response route so
+        // Safari receives Content-Disposition: attachment and provider headers.
+        // HLS manifests still require segment-aware handling; this response
+        // header alone cannot package an HLS playlist into one video file.
         return MPVHeaderProxy.shared.makeLANProxyURL(
             for: sourceURL,
             headers: headers,
@@ -6513,13 +6469,7 @@ final class DownloadManager: NSObject, ObservableObject {
     }
 
     private func startDownload(_ item: DownloadItem) {
-#if os(iOS)
-        if #available(iOS 16.2, *) {
-            Task { @MainActor in
-                DownloadLiveActivityController.prepare(downloadID: item.id)
-            }
-        }
-#endif
+
         #if os(macOS)
         guard !admissionsStopped, !storageMutationInProgress else { return }
         if item.pendingMacFinalization != nil {
@@ -6860,13 +6810,16 @@ final class DownloadManager: NSObject, ObservableObject {
             if isSyntacticallyApproved,
                directCandidate,
                stremioAuthorityAllowsDirect,
-               scheme == "https" {
+               (scheme == "http" || scheme == "https") {
                 do {
+                    // HTTP is valid for media manifests/segments. The dispatch
+                    // policy still performs fresh DNS validation and rejects
+                    // private, loopback, and otherwise prohibited destinations.
                     let validated = try await SkyStreamRemoteURLPolicy.shared.validateForNetworkDispatch(
                         comparisonURLString,
                         purpose: .mediaSegment
                     )
-                    directBackgroundAllowed = validated.url.scheme?.lowercased() == "https"
+                    directBackgroundAllowed = ["http", "https"].contains(validated.url.scheme?.lowercased() ?? "")
                 } catch {
                     // Retain the existing protected proxy route when a URL
                     // cannot be safely dispatched by the OS background session.
@@ -6939,9 +6892,71 @@ final class DownloadManager: NSObject, ObservableObject {
         persistResolvedVariant: Bool = true,
         protectedNuvioAttemptID: UUID? = nil
     ) {
-        guard let url = streamURLOverride ?? URL(string: item.streamURL) else {
+        // A managed local proxy cannot be handed to a background URLSession.
+        // Validate an HTTP upstream against the public-address policy first,
+        // then re-enter with the validated remote URL so the background
+        // session never receives an untrusted loopback/proxy destination.
+        if streamURLOverride == nil,
+           protectedNuvioAttemptID == nil,
+           protectedProviderAttempts[item.id]?.mainProxyURL == nil,
+           let proxyURL = URL(string: item.streamURL),
+           let target = MPVHeaderProxy.shared.recoverableTargetURL(for: proxyURL),
+           target.scheme?.lowercased() == "http" {
+            let proxyHeaders = MPVHeaderProxy.shared.upstreamProbeTarget(for: proxyURL)?.headers ?? item.headers
+            Task { [weak self] in
+                do {
+                    let validated = try await SkyStreamRemoteURLPolicy.shared.validateForNetworkDispatch(
+                        target.absoluteString,
+                        purpose: .mediaSegment
+                    )
+                    await MainActor.run {
+                        self?.startHLSDownload(
+                            item,
+                            streamURLOverride: validated.url,
+                            headersOverride: proxyHeaders,
+                            pinnedVariantOverride: pinnedVariantOverride,
+                            persistResolvedVariant: persistResolvedVariant,
+                            protectedNuvioAttemptID: protectedNuvioAttemptID
+                        )
+                    }
+                } catch {
+                    await MainActor.run {
+                        self?.markFailed(
+                            id: item.id,
+                            error: "This HTTP stream does not resolve to a safe public address."
+                        )
+                    }
+                }
+            }
+            return
+        }
+
+        guard var url = streamURLOverride ?? URL(string: item.streamURL) else {
             markFailed(id: item.id, error: "Invalid stream URL")
             return
+        }
+
+        // A managed playback proxy is loopback-only and cannot be reached by
+        // the OS background URLSession after iOS suspends Eclipse. When the
+        // proxy exposes its already-authorized upstream target, hand that
+        // remote URL and its scoped headers directly to the native HLS
+        // downloader. Private/loopback targets remain on the foreground path.
+        var transportHeadersOverride = headersOverride
+        var unwrappedManagedProxy = false
+        let managedProxySession = MPVHeaderProxy.shared.upstreamProbeTarget(for: url)
+        let managedProxyTarget = MPVHeaderProxy.shared.recoverableTargetURL(for: url)
+            ?? managedProxySession?.url
+        if protectedNuvioAttemptID == nil,
+           protectedProviderAttempts[item.id]?.mainProxyURL == nil,
+           let upstreamTarget = managedProxyTarget,
+           ["http", "https"].contains(upstreamTarget.scheme?.lowercased() ?? ""),
+           upstreamTarget.host != nil,
+           upstreamTarget.user == nil,
+           upstreamTarget.password == nil,
+           !["127.0.0.1", "localhost", "::1"].contains(upstreamTarget.host?.lowercased() ?? "") {
+            url = upstreamTarget
+            transportHeadersOverride = headersOverride ?? managedProxySession?.headers ?? item.headers
+            unwrappedManagedProxy = true
         }
 
 #if os(iOS) && !targetEnvironment(macCatalyst)
@@ -6993,7 +7008,7 @@ final class DownloadManager: NSObject, ObservableObject {
         let pinnedVariant = pinnedVariantOverride
             ?? item.hlsVariantURL.flatMap { URL(string: $0) }
         let expectedTotal = item.hlsTotalSegments ?? 0
-        let refreshedHeaders = headersOverride
+        let refreshedHeaders = transportHeadersOverride
             ?? effectiveHeaders(item.headers, for: url)
         let attemptID = UUID()
 
@@ -7029,7 +7044,8 @@ final class DownloadManager: NSObject, ObservableObject {
                 && (protectedNuvioAttemptID == nil
                     || protectedProviderAttempts[item.id]?.mainProxyURL == nil),
             requiresPublicNetworkValidationForBackgroundURLSession:
-                item.providerTransportKind == .skyStreamHLS
+                unwrappedManagedProxy
+                || item.providerTransportKind == .skyStreamHLS
                 || (protectedNuvioAttemptID != nil
                     && protectedProviderAttempts[item.id]?.mainProxyURL == nil)
         )
@@ -7143,8 +7159,8 @@ final class DownloadManager: NSObject, ObservableObject {
 #if os(iOS) && !targetEnvironment(macCatalyst)
                 // Publish the downloader's measured segment fraction directly.
                 // Byte checkpoints are intentionally durable and throttled, so
-                // using only their persisted counters made the Live Activity lag
-                // behind the progress visible in the Downloads screen.
+                // using only persisted counters made the progress display lag
+                // behind the measured progress visible in the Downloads screen.
                 self.updateHLSBackgroundProgress(
                     id: item.id,
                     stage: "Downloading video",
@@ -7321,12 +7337,7 @@ final class DownloadManager: NSObject, ObservableObject {
                 if self.hlsBackgroundAttempts[item.id]?.attemptID != attemptID {
                     let completed = self.downloads.first(where: { $0.id == item.id })?.status == .completed
                     Task { @MainActor in
-                        if #available(iOS 16.2, *) {
-                            await DownloadLiveActivityController.end(
-                                downloadID: item.id,
-                                status: completed ? "Completed" : "Paused"
-                            )
-                        }
+
                     }
                 }
 #endif
@@ -8208,18 +8219,55 @@ final class DownloadManager: NSObject, ObservableObject {
     }
 #endif
 
+    private func directSkyStreamHLSBackgroundTransport(
+        for item: DownloadItem
+    ) -> (url: URL, headers: [String: String])? {
+        guard item.providerTransportKind == .skyStreamHLS,
+              let descriptor = skyStreamHLSDescriptors[item.id],
+              descriptor.mediaKind == .hls,
+              descriptor.proxyOptions == nil,
+              descriptor.routes.allSatisfy({ $0.headers.values == descriptor.headers.values }),
+              descriptor.underlyingRemoteURL.url.scheme?.lowercased() == "https" else {
+            return nil
+        }
+        return (descriptor.underlyingRemoteURL.url, descriptor.headers.values)
+    }
+
     private func hlsStartDelayReason(for item: DownloadItem) -> String? {
         #if canImport(UIKit)
         if UIApplication.shared.applicationState != .active {
-            // Public HTTPS HLS resources are transferred as OS-owned
-            // URLSessionDownloadTasks. Permit their queue admission while the
-            // app is backgrounded; loopback/provider-proxy streams still need
-            // the app process and must wait for foreground execution.
+            // A validated SkyStream HLS descriptor may use its public remote
+            // manifest directly when every route shares one header policy.
+            // The old blanket SkyStream exclusion kept those downloads queued
+            // even though HLSDownloader can hand every resource to the
+            // OS-owned background URLSession. Loopback and complex proxy routes
+            // still require Eclipse in the foreground.
 #if os(iOS) && !targetEnvironment(macCatalyst)
-            let sourceURL = URL(string: item.streamURL)
+            let skyStreamTransport = directSkyStreamHLSBackgroundTransport(for: item)
+            let managedProxyTarget = URL(string: item.streamURL)
+                .flatMap { MPVHeaderProxy.shared.recoverableTargetURL(for: $0) }
+            let safeManagedProxyTarget = managedProxyTarget.flatMap { candidate -> URL? in
+                guard candidate.scheme?.lowercased() == "https",
+                      candidate.host != nil,
+                      candidate.user == nil,
+                      candidate.password == nil,
+                      !["127.0.0.1", "localhost", "::1"].contains(candidate.host?.lowercased() ?? "") else {
+                    return nil
+                }
+                return candidate
+            }
+            let managedProxyCanRunInBackground =
+                managedProxyTarget == nil || safeManagedProxyTarget != nil
+            let sourceURL = skyStreamTransport?.url
+                ?? safeManagedProxyTarget
+                ?? URL(string: item.streamURL)
+            let isSupportedRemoteScheme = ["http", "https"].contains(sourceURL?.scheme?.lowercased() ?? "")
+            let skyStreamRouteIsBackgroundSafe =
+                item.providerTransportKind != .skyStreamHLS || skyStreamTransport != nil
             let backgroundSessionCanOwnResources =
-                sourceURL?.scheme?.lowercased() == "https"
-                && item.providerTransportKind != .skyStreamHLS
+                isSupportedRemoteScheme
+                && managedProxyCanRunInBackground
+                && skyStreamRouteIsBackgroundSafe
                 && protectedProviderAttempts[item.id]?.mainProxyURL == nil
                 && !["127.0.0.1", "localhost", "::1"].contains(
                     sourceURL?.host?.lowercased() ?? ""

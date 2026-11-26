@@ -15,13 +15,21 @@ final class SettingsScopeTests: XCTestCase {
         XCTAssertEqual(AppearancePalettes.base(for: .ember).displayName, "Ember")
     }
 
-    func testAnimatedMotifPickerContainsOnlyApprovedIllustrations() {
-        XCTAssertEqual(
-            HomeAnimatedBackgroundShape.allCases,
-            [.dragon, .bird, .snake, .wolf, .fox, .phoenix, .cat, .mermaid, .paw]
-        )
-        for legacyShape in ["stars", "crescentMoon", "sun", "spiral"] {
-            XCTAssertEqual(HomeAnimatedBackgroundShape.resolved(legacyShape), .dragon)
+    func testAnimatedMotifPickerContainsAllApprovedIllustrations() {
+        let expected: [HomeAnimatedBackgroundShape] = [
+            .dragon, .bird, .snake, .wolf, .fox, .phoenix, .cat, .mermaid, .paw
+        ]
+        XCTAssertEqual(HomeAnimatedBackgroundShape.allCases, expected)
+        for shape in expected {
+            XCTAssertEqual(HomeAnimatedBackgroundShape.resolved(shape.rawValue), shape)
+        }
+        for retiredShape in [
+            HomeAnimatedBackgroundShape.stars,
+            .crescentMoon,
+            .spiral,
+            .sun
+        ] {
+            XCTAssertEqual(HomeAnimatedBackgroundShape.resolved(retiredShape.rawValue), .dragon)
         }
         XCTAssertEqual(HomeAnimatedBackgroundShape.resolved(nil), .dragon)
     }

@@ -9,6 +9,14 @@ import zlib
 import UIKit
 
 final class TMDBAlternatePosterTests: XCTestCase {
+    func testTVSearchResultPreservesTMDBOriginalName() throws {
+        let payload = Data(#"{"id":1801400001,"name":"Attack on Titan","original_name":"進撃の巨人","vote_average":8.7,"popularity":12.3,"genre_ids":[16],"original_language":"ja","origin_country":["JP"],"vote_count":1000}"#.utf8)
+        let show = try JSONDecoder().decode(TMDBTVShow.self, from: payload)
+
+        XCTAssertEqual(show.asSearchResult.displayTitle, "Attack on Titan")
+        XCTAssertEqual(show.asSearchResult.originalName, "進撃の巨人")
+    }
+
     private let service = TMDBService.shared
     private let reviewedRejectedTVAssets: [(id: Int, path: String)] = [
         (21734, "/7YIJzhKwqIatbR42vDkU8OojzHq.jpg"),
