@@ -3069,6 +3069,7 @@ final class DownloadManager: NSObject, ObservableObject {
         // applicationDidBecomeActive start a fresh worker from that checkpoint.
         hlsBackgroundSubtitles.removeValue(forKey: id)?.task.cancel()
         hlsForegroundIntents.removeValue(forKey: id)
+        attempt.granted = false
         if activeHLSAttemptIDs[id] == attempt.attemptID {
             attempt.downloader.setContinuedProcessingGranted(false)
         }
@@ -7258,6 +7259,21 @@ final class DownloadManager: NSObject, ObservableObject {
                         )
                     }
                 }
+#if os(iOS) && !targetEnvironment(macCatalyst)
+                // A background URLSession-owned HLS worker can outlive its
+                // continued-processing attempt. In that case the attempt was
+                // already detached to free the scheduler slot; end the activity
+                // only now that the actual HLS worker has completed.
+                if self.hlsBackgroundAttempts[item.id]?.attemptID != attemptID {
+                    let completed = self.downloads.first(where: { $0.id == item.id })?.status == .completed
+                    Task { @MainActor in
+                        await DownloadLiveActivityController.end(
+                            downloadID: item.id,
+                            status: completed ? "Completed" : "Paused"
+                        )
+                    }
+                }
+#endif
             }
         }
 
