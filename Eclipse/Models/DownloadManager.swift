@@ -4713,11 +4713,10 @@ final class DownloadManager: NSObject, ObservableObject {
         // lets Safari treat MP4/WebM/MKV resources as inline playback instead
         // of a file download. The LAN proxy adds Content-Disposition: attachment
         // and preserves any required provider headers.
-        return MPVHeaderProxy.shared.makeLANProxyURL(
+        return MPVHeaderProxy.shared.makeProxyURL(
             for: sourceURL,
             headers: headers,
-            logType: "Download",
-            asDownload: true
+            logType: "Download"
         )
     }
 #endif
