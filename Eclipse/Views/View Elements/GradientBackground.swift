@@ -903,8 +903,7 @@ private struct HomeAnimatedCreatureMotif: View {
         let illustration = drawing.resolve(Image(assetName))
         drawing.draw(illustration, in: artworkRect)
     }
-
-
+}
 
 struct EclipseAmbientMotionBackground: View {
     let topClearance: CGFloat
