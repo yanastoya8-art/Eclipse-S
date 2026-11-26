@@ -7290,7 +7290,8 @@ final class DownloadManager: NSObject, ObservableObject {
                 // continued-processing attempt. In that case the attempt was
                 // already detached to free the scheduler slot; end the activity
                 // only now that the actual HLS worker has completed.
-                if self.hlsBackgroundAttempts[item.id]?.attemptID != attemptID {
+                if #available(iOS 16.2, *),
+                   self.hlsBackgroundAttempts[item.id]?.attemptID != attemptID {
                     let completed = self.downloads.first(where: { $0.id == item.id })?.status == .completed
                     Task { @MainActor in
                         await DownloadLiveActivityController.end(
