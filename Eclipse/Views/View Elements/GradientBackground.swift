@@ -2318,6 +2318,7 @@ struct EclipseAmbientMotionBackground: View {
     @AppStorage(HomeAnimatedBackgroundSettings.shapeGlowKey) private var shapeGlow = HomeAnimatedBackgroundSettings.defaultShapeGlow
     @AppStorage(HomeAnimatedBackgroundSettings.shapeBrightnessKey) private var shapeBrightness = HomeAnimatedBackgroundSettings.defaultShapeBrightness
     @AppStorage(HomeAnimatedBackgroundParticleColor.customColorDataKey) private var customParticleColorData = Data()
+    @State private var isVisible = false
 
     private let particles: [(x: CGFloat, y: CGFloat, size: CGFloat, drift: CGFloat, opacity: Double)] = [
         (0.25, 0.24, 2.8, 15, 0.34),
@@ -2351,7 +2352,9 @@ struct EclipseAmbientMotionBackground: View {
     }
 
     private var frameInterval: Double {
-        HomeAnimatedBackgroundFrameRate.resolved(frameRateRawValue).frameInterval
+        // Keep the animated Canvas from competing with scrolling and tab
+        // transitions on devices where 60/120 FPS makes every hidden tab redraw.
+        max(HomeAnimatedBackgroundFrameRate.resolved(frameRateRawValue).frameInterval, 1.0 / 30.0)
     }
 
     private var selectedShape: HomeAnimatedBackgroundShape {
@@ -2384,12 +2387,16 @@ struct EclipseAmbientMotionBackground: View {
             }
         }
         .onAppear {
+            isVisible = true
             // Migrate any saved legacy geometric symbol to an approved vector
             // creature so the old square/star motifs cannot reappear.
             let resolved = HomeAnimatedBackgroundShape.resolved(shapeRawValue)
             if shapeRawValue != resolved.rawValue {
                 shapeRawValue = resolved.rawValue
             }
+        }
+        .onDisappear {
+            isVisible = false
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
@@ -2409,7 +2416,7 @@ struct EclipseAmbientMotionBackground: View {
     }
 
     private func ambientLayer(size: CGSize, motionEnabled: Bool) -> some View {
-        TimelineView(.animation(minimumInterval: frameInterval, paused: !motionEnabled)) { timeline in
+        TimelineView(.animation(minimumInterval: frameInterval, paused: !motionEnabled || !isVisible)) { timeline in
             Canvas(opaque: false, colorMode: .linear) { context, canvasSize in
                 var drawingContext = context
                 drawAmbientLayer(
