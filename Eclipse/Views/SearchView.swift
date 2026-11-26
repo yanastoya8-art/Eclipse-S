@@ -1499,16 +1499,37 @@ private struct BrowseMediaView: View {
     }
 
     private static func defaultConfiguration(for mediaType: BrowseMediaType) -> BrowseFilterConfiguration {
-        BrowseFilterConfiguration(
-            selectedGenreKeys: [],
-            excludedGenreKeys: [],
+        let selectedGenres: [String]
+        let excludedGenres: [String]
+        switch mediaType {
+        case .movie:
+            selectedGenres = ["tmdb-14"] // Fantasy
+            excludedGenres = ["tmdb-99", "tmdb-10402", "tmdb-37"] // Documentary, Music, Western
+        case .tv:
+            selectedGenres = ["tmdb-10765"] // Sci-Fi & Fantasy
+            excludedGenres = [
+                "tmdb-99", "tmdb-10762", "tmdb-10763",
+                "tmdb-10764", "tmdb-10767", "tmdb-37"
+            ] // Documentary, Kids, News, Reality, Talk, Western
+        case .anime:
+            selectedGenres = []
+            excludedGenres = [
+                "tmdb-10762", // Kids
+                "keyword-isekai",
+                "keyword-slice of life",
+                "keyword-harem",
+                "keyword-music"
+            ]
+        }
+
+        return BrowseFilterConfiguration(
+            selectedGenreKeys: selectedGenres,
+            excludedGenreKeys: excludedGenres,
             selectedYears: [],
             excludedYears: [],
-            // Do not silently restrict the default Anime catalogue to Japan;
-            // users can opt into a country filter explicitly when browsing.
             selectedCountryCodes: [],
-            sortRawValue: BrowseSort.popularity.rawValue,
-            minimumRating: 0,
+            sortRawValue: BrowseSort.newest.rawValue,
+            minimumRating: 6,
             ageRatingRawValue: BrowseAgeRating.all.rawValue
         )
     }
