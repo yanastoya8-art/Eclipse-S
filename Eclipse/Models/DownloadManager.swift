@@ -3039,13 +3039,17 @@ final class DownloadManager: NSObject, ObservableObject {
         let attempt = hlsBackgroundAttempts[id].flatMap { $0.granted && !$0.revoked ? $0 : nil }
         let segmentTotal = Int64(max(item.hlsTotalSegments ?? 1, 1))
         let completedSegments = min(Int64(max(item.hlsResumeSegmentIndex ?? 0, 0)), segmentTotal)
-        let hasByteTotal = item.totalBytes > 0
+        // HLS progress callbacks carry the live segment fraction. Persisted
+        // byte totals can describe an earlier source/attempt and must never
+        // override the worker's current measured progress.
+        let hasByteTotal = progressOverride == nil && item.totalBytes > 0
         let completedBytes = max(item.downloadedBytes, 0)
         let totalBytes = hasByteTotal ? item.totalBytes : 0
         let measuredSegmentProgress = Double(completedSegments) / Double(max(segmentTotal, 1))
-        let progress = hasByteTotal
-            ? min(Double(completedBytes) / Double(totalBytes), 1)
-            : min(max(progressOverride ?? measuredSegmentProgress, 0), 1)
+        let progress = progressOverride.map { min(max($0, 0), 1) }
+            ?? (hasByteTotal
+                ? min(Double(completedBytes) / Double(totalBytes), 1)
+                : measuredSegmentProgress)
         let progressUnitsCompleted = Int64((progress * Double(segmentTotal)).rounded(.down))
         let subtitle = hasByteTotal
             ? "\(DownloadByteCountFormatter.string(fromByteCount: completedBytes)) of \(DownloadByteCountFormatter.string(fromByteCount: totalBytes))"
@@ -7106,7 +7110,12 @@ final class DownloadManager: NSObject, ObservableObject {
                 hlsResumeByteCount: byteCount
             )
 #if os(iOS) && !targetEnvironment(macCatalyst)
-            self.updateHLSBackgroundProgress(id: item.id, stage: "Downloading video")
+            let totalSegments = max(self.downloads[index].hlsTotalSegments ?? segmentsWritten, 1)
+            self.updateHLSBackgroundProgress(
+                id: item.id,
+                stage: "Downloading video",
+                progressOverride: Double(min(segmentsWritten, totalSegments)) / Double(totalSegments)
+            )
 #endif
             if segmentsWritten > 0, self.downloads[index].rateLimitRetryCount != nil {
                 self.downloads[index].rateLimitRetryCount = nil
