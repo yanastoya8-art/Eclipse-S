@@ -230,10 +230,6 @@ struct SearchView: View {
                             .font(.system(size: 60))
                             .foregroundColor(.secondary)
 
-                        Text("Search Movies & TV Shows")
-                            .font(.title2)
-                            .foregroundColor(.secondary)
-                            .padding()
 
                      }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
