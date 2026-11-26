@@ -602,7 +602,7 @@ struct DownloadsView: View {
                     Label("Share", systemImage: "square.and.arrow.up")
                 }
             }
-#if os(iOS)
+#if os(iOS) && !targetEnvironment(macCatalyst)
             if downloadManager.copyableDownloadURL(for: item) != nil {
                 Button {
                     guard let sourceURL = downloadManager.copyableDownloadURL(for: item) else { return }
