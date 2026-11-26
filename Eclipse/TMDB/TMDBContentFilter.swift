@@ -1105,6 +1105,12 @@ class TMDBContentFilter: ObservableObject {
                     )
                 }
             }
+            if defaults.bool(forKey: "catalogRequireEnglishSpanishAudio"),
+               !nonAnimeResults.isEmpty {
+                group.addTask {
+                    await self.resolveCatalogAudioAvailability(for: nonAnimeResults)
+                }
+            }
             if !tmdbRatingResults.isEmpty {
                 group.addTask {
                     await TMDBMaturityRatingStore.shared.resolve(
@@ -1742,6 +1748,19 @@ class TMDBContentFilter: ObservableObject {
 
     private func scheduleCatalogAudioAvailabilityResolutionIfNeeded(for results: [TMDBSearchResult]) {
         guard UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") else { return }
+        Task(priority: .utility) {
+            await self.resolveCatalogAudioAvailability(for: results)
+        }
+    }
+
+    /// Resolve non-anime native/dub audio eligibility before Browse publishes
+    /// its filtered page. The normal catalogue path can schedule this work in
+    /// the background, but Browse/Search use a cache-only predicate to avoid
+    /// repeated task creation during SwiftUI redraws; without this awaited path,
+    /// every non-native-language movie/TV result was rejected before its dub
+    /// availability could ever be checked.
+    private func resolveCatalogAudioAvailability(for results: [TMDBSearchResult]) async {
+        guard UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") else { return }
         let candidates = results.filter { result in
             guard !Self.isAnimeResult(result),
                   (result.isMovie || result.isTVShow),
@@ -1760,63 +1779,59 @@ class TMDBContentFilter: ObservableObject {
         guard !candidates.isEmpty else { return }
 
         let selectedLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
-        Task(priority: .utility) {
-            await withTaskGroup(of: (String, Bool?).self) { group in
-                var iterator = candidates.makeIterator()
-                let concurrencyLimit = 4
-                for _ in 0..<min(concurrencyLimit, candidates.count) {
-                    guard let result = iterator.next() else { continue }
-                    let key = self.catalogAudioAvailabilityKey(for: result)
+        await withTaskGroup(of: (String, Bool?).self) { group in
+            var iterator = candidates.makeIterator()
+            let concurrencyLimit = 4
+            for _ in 0..<min(concurrencyLimit, candidates.count) {
+                guard let result = iterator.next() else { continue }
+                let key = self.catalogAudioAvailabilityKey(for: result)
+                group.addTask {
+                    let available = await self.catalogAudioMatch(
+                        for: result,
+                        selectedLanguages: selectedLanguages
+                    )
+                    return (key, available)
+                }
+            }
+
+            var didResolveAny = false
+            while let (key, available) = await group.next() {
+                animeEligibilityLock.lock()
+                catalogAudioLoadingKeys.remove(key)
+                if let available {
+                    catalogAudioCheckedKeys.insert(key)
+                    catalogAudioRetryAfterByKey.removeValue(forKey: key)
+                    if available {
+                        catalogAudioEligibleKeys.insert(key)
+                    } else {
+                        catalogAudioEligibleKeys.remove(key)
+                    }
+                    didResolveAny = true
+                } else {
+                    catalogAudioRetryAfterByKey[key] = Date().addingTimeInterval(10 * 60)
+                    didResolveAny = true
+                }
+                animeEligibilityLock.unlock()
+
+                if let result = iterator.next() {
+                    let nextKey = self.catalogAudioAvailabilityKey(for: result)
                     group.addTask {
                         let available = await self.catalogAudioMatch(
                             for: result,
                             selectedLanguages: selectedLanguages
                         )
-                        return (key, available)
-                    }
-                }
-
-                var didResolveAny = false
-                while let (key, available) = await group.next() {
-                    animeEligibilityLock.lock()
-                    catalogAudioLoadingKeys.remove(key)
-                    if let available {
-                        catalogAudioCheckedKeys.insert(key)
-                        catalogAudioRetryAfterByKey.removeValue(forKey: key)
-                        if available {
-                            catalogAudioEligibleKeys.insert(key)
-                        } else {
-                            catalogAudioEligibleKeys.remove(key)
-                        }
-                        didResolveAny = true
-                    } else {
-                        catalogAudioRetryAfterByKey[key] = Date().addingTimeInterval(10 * 60)
-                        didResolveAny = true
-                    }
-                    animeEligibilityLock.unlock()
-
-                    if let result = iterator.next() {
-                        let nextKey = self.catalogAudioAvailabilityKey(for: result)
-                        group.addTask {
-                            let available = await self.catalogAudioMatch(
-                                for: result,
-                                selectedLanguages: selectedLanguages
-                            )
-                            return (nextKey, available)
-                        }
-                    }
-                }
-
-                if didResolveAny {
-                    await MainActor.run {
-                        self.catalogAudioRevision &+= 1
-                        NotificationCenter.default.post(
-                            name: Self.catalogFiltersDidChangeNotification,
-                            object: nil
-                        )
+                        return (nextKey, available)
                     }
                 }
             }
+        }
+
+        await MainActor.run {
+            self.catalogAudioRevision &+= 1
+            NotificationCenter.default.post(
+                name: Self.catalogFiltersDidChangeNotification,
+                object: nil
+            )
         }
     }
 
