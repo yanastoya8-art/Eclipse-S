@@ -9989,14 +9989,21 @@ final class AniListService {
 
                     for candidate in titleCandidates where !candidate.isEmpty {
                         var results = (try? await tmdbService.searchTVShows(query: candidate)) ?? []
-                        // TMDB's localized search can omit the English or
-                        // romanized title. Retry only an empty localized result
-                        // in English rather than paying for two requests every time.
-                        if results.isEmpty {
-                            results = (try? await tmdbService.searchTVShows(
+                        // AniList titles are frequently romanized or English even
+                        // when Eclipse is displaying another language. TMDB can
+                        // return localized near-matches for the first query and
+                        // omit the correct English/romanized show. Always merge
+                        // the English index pass before matching instead of
+                        // treating any localized result as proof the title exists.
+                        if langCode.caseInsensitiveCompare("en-US") != .orderedSame {
+                            let englishResults = (try? await tmdbService.searchTVShows(
                                 query: candidate,
                                 languageOverride: "en-US"
                             )) ?? []
+                            var seenIDs = Set(results.map(\\.id))
+                            results.append(contentsOf: englishResults.filter {
+                                seenIDs.insert($0.id).inserted
+                            })
                         }
                         guard !results.isEmpty else { continue }
                         let candidateKey = normalized(candidate)
