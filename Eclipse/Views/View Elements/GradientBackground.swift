@@ -872,17 +872,25 @@ private struct HomeAnimatedCreatureMotif: View {
         }
         // Render the motif directly with vector paths. The old JPEG atlas
         // had opaque rectangular tiles and became visibly pixelated when scaled.
-        let sx = canvasSize.width / 400
-        let sy = canvasSize.height / 300
+        // Keep the illustration's original 4:3 drawing coordinates intact.
+        // Independent X/Y scaling stretched wings, faces and tails on narrow
+        // or wide devices; aspect-fit keeps the creature crisp and undistorted.
+        let scale = min(canvasSize.width / 400, canvasSize.height / 300)
+        let artworkSize = CGSize(width: 400 * scale, height: 300 * scale)
+        let origin = CGPoint(
+            x: (canvasSize.width - artworkSize.width) / 2,
+            y: (canvasSize.height - artworkSize.height) / 2
+        )
         var drawing = context
         drawing.translateBy(x: canvasSize.width / 2, y: canvasSize.height / 2)
-        drawing.rotate(by: .degrees(sin(phase * 0.55) * 1.4))
+        drawing.rotate(by: .degrees(sin(phase * 0.55) * 1.1))
         drawing.translateBy(x: -canvasSize.width / 2, y: -canvasSize.height / 2)
-        let breathingScale = CGFloat(1.0 + sin(phase * 1.15) * 0.012)
+        let breathingScale = CGFloat(1.0 + sin(phase * 1.15) * 0.008)
         drawing.translateBy(x: canvasSize.width / 2, y: canvasSize.height / 2)
         drawing.scaleBy(x: breathingScale, y: breathingScale)
         drawing.translateBy(x: -canvasSize.width / 2, y: -canvasSize.height / 2)
-        drawing.scaleBy(x: sx, y: sy)
+        drawing.translateBy(x: origin.x, y: origin.y)
+        drawing.scaleBy(x: scale, y: scale)
         let fill = Path { path in
             switch shape {
             case .cat:
