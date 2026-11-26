@@ -763,33 +763,43 @@ class TMDBService: ObservableObject {
             return pages[0].1
         }
 
-        try await withThrowingTaskGroup(of: (Int, [TMDBSearchResult]).self) { group in
+        await withTaskGroup(of: (Int, [TMDBSearchResult])?.self) { group in
             var nextPage = 2
             let initialBatchEnd = min(pageLimit, 5)
             while nextPage <= initialBatchEnd {
                 let page = nextPage
                 group.addTask {
-                    let response = try await fetchPage(page)
-                    let filtered = response.results.filter { $0.mediaType == "movie" || $0.mediaType == "tv" }
-                    return (page, filtered)
+                    do {
+                        let response = try await fetchPage(page)
+                        let filtered = response.results.filter { $0.mediaType == "movie" || $0.mediaType == "tv" }
+                        return (page, filtered)
+                    } catch {
+                        // A transient failure on one later page must not erase
+                        // the valid first page or every other successful page.
+                        return nil
+                    }
                 }
                 nextPage += 1
             }
 
-            while let result = try await group.next() {
-                try Task.checkCancellation()
-                pages.append(result)
-                if nextPage <= pageLimit {
+            while let result = await group.next() {
+                if let result { pages.append(result) }
+                if nextPage <= pageLimit, !Task.isCancelled {
                     let page = nextPage
                     group.addTask {
-                        let response = try await fetchPage(page)
-                        let filtered = response.results.filter { $0.mediaType == "movie" || $0.mediaType == "tv" }
-                        return (page, filtered)
+                        do {
+                            let response = try await fetchPage(page)
+                            let filtered = response.results.filter { $0.mediaType == "movie" || $0.mediaType == "tv" }
+                            return (page, filtered)
+                        } catch {
+                            return nil
+                        }
                     }
                     nextPage += 1
                 }
             }
         }
+        try Task.checkCancellation()
 
         return pages.sorted { $0.0 < $1.0 }.flatMap { $0.1 }
     }
@@ -961,31 +971,41 @@ class TMDBService: ObservableObject {
         }
 
         var pages: [(Int, [TMDBTVShow])] = [(1, firstPage.results)]
-        try await withThrowingTaskGroup(of: (Int, [TMDBTVShow]).self) { group in
+        await withTaskGroup(of: (Int, [TMDBTVShow])?.self) { group in
             var nextPage = 2
             let initialBatchEnd = min(pageLimit, 5)
             while nextPage <= initialBatchEnd {
                 let page = nextPage
                 group.addTask {
-                    let response = try await fetchPage(page)
-                    return (page, response.results)
+                    do {
+                        let response = try await fetchPage(page)
+                        return (page, response.results)
+                    } catch {
+                        // Preserve the first-page TV matches when a later
+                        // page is rate-limited or temporarily unavailable.
+                        return nil
+                    }
                 }
                 nextPage += 1
             }
 
-            while let result = try await group.next() {
-                try Task.checkCancellation()
-                pages.append(result)
-                if nextPage <= pageLimit {
+            while let result = await group.next() {
+                if let result { pages.append(result) }
+                if nextPage <= pageLimit, !Task.isCancelled {
                     let page = nextPage
                     group.addTask {
-                        let response = try await fetchPage(page)
-                        return (page, response.results)
+                        do {
+                            let response = try await fetchPage(page)
+                            return (page, response.results)
+                        } catch {
+                            return nil
+                        }
                     }
                     nextPage += 1
                 }
             }
         }
+        try Task.checkCancellation()
 
         var seenIDs = Set<Int>()
         return pages.sorted { $0.0 < $1.0 }.flatMap { $0.1 }.filter {
