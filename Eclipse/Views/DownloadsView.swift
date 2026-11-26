@@ -46,7 +46,7 @@ struct DownloadsView: View {
     @State private var showingDeleteCompletedConfirmation = false
     @State private var showingDeleteSeriesConfirmation = false
     @State private var seriesToDelete: (tmdbId: Int, title: String)? = nil
-    @AppStorage(DownloadLibraryPosterSize.storageKey) private var libraryPosterSizeRaw = DownloadLibraryPosterSize.standard.rawValue
+    @AppStorage(DownloadLibraryPosterSize.storageKey) private var libraryPosterSizeRaw = DownloadLibraryPosterSize.extraLarge.rawValue
 
     private var libraryPosterSize: DownloadLibraryPosterSize {
         DownloadLibraryPosterSize(rawValue: libraryPosterSizeRaw) ?? .standard
