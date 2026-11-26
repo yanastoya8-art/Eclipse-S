@@ -4138,7 +4138,7 @@ enum HomeAnimatedShapeArtwork {
         guard decodedCount > 0,
               let object = try? JSONSerialization.jsonObject(with: Data(output.prefix(decodedCount))),
               let rows = object as? [[String]] else { return [] }
-        return rows.map { $0.map(makePath) }
+        return rows.map { row in row.map { Self.makePath($0) } }
     }()
 
     /// Draws a complete reference-derived motif while preserving the existing
