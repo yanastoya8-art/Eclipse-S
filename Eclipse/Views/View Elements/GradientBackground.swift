@@ -859,9 +859,6 @@ private struct HomeAnimatedCreatureMotif: View {
             draw(in: &drawing, canvasSize: canvasSize)
         }
         .frame(width: size.width, height: size.height)
-        // Preserve the vector artwork's alpha channel through both normal and
-        // glow rendering; the motif itself has no rectangular backing layer.
-        .drawingGroup(opaque: false, colorMode: .linear)
         .accessibilityHidden(true)
     }
 
