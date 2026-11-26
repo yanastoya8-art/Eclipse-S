@@ -61,7 +61,10 @@ struct SearchView: View {
         // resolves. Replacing the backing array during scrolling resets the
         // LazyVGrid's layout and causes visible flashing/jumps to the top.
         _ = filterRefreshRevision
-        let catalogResults = contentFilter.filterSearchResults(searchResults)
+        let catalogResults = contentFilter.filterSearchResults(
+            searchResults,
+            resolveMetadataInBackground: false
+        )
         switch searchFilter {
         case .all:
             return catalogResults
@@ -138,18 +141,6 @@ struct SearchView: View {
                 .providerNavigationStyle()
             }
 #endif
-        }
-        .onReceive(NotificationCenter.default.publisher(for: TMDBContentFilter.catalogFiltersDidChangeNotification)) { _ in
-            guard !searchResults.isEmpty else { return }
-            let snapshot = searchResults
-            Task {
-                await contentFilter.prepareMaturityRatings(for: snapshot)
-                await MainActor.run {
-                    // Refresh derived results without mutating the source
-                    // snapshot, preserving the current scroll position.
-                    filterRefreshRevision &+= 1
-                }
-            }
         }
     }
 
@@ -984,6 +975,16 @@ struct SearchView: View {
                     self.searchResults = identityResolvedResults
                     self.isLoading = false
                     self.activeSearchTask = nil
+                    // Resolve expensive runtime/production/audio metadata once
+                    // per completed query, not every time SwiftUI recomputes
+                    // filteredResults while the user scrolls the grid.
+                    let metadataSnapshot = identityResolvedResults
+                    Task(priority: .utility) {
+                        await contentFilter.resolveBrowseFilterMetadata(
+                            for: metadataSnapshot,
+                            requiresAnimeAgeRating: requiresGlobalAnimeAgeRating
+                        )
+                    }
 #if os(tvOS)
                     if let restoredFocus {
                         DispatchQueue.main.async {
