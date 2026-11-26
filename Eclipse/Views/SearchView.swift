@@ -25,6 +25,7 @@ struct SearchView: View {
 
     @State private var searchText = ""
     @State private var searchResults: [TMDBSearchResult] = []
+    @State private var cachedCatalogResults: [TMDBSearchResult] = []
     @State private var filterRefreshRevision = 0
     @State private var isLoading = false
     @State private var errorMessage: String?
@@ -61,10 +62,7 @@ struct SearchView: View {
         // resolves. Replacing the backing array during scrolling resets the
         // LazyVGrid's layout and causes visible flashing/jumps to the top.
         _ = filterRefreshRevision
-        let catalogResults = contentFilter.filterSearchResults(
-            searchResults,
-            resolveMetadataInBackground: false
-        )
+        let catalogResults = cachedCatalogResults
         switch searchFilter {
         case .all:
             return catalogResults
@@ -434,6 +432,10 @@ struct SearchView: View {
                 // Trigger a derived-results refresh only. Keep the source
                 // result array intact so SwiftUI preserves the scroll anchor.
                 filterRefreshRevision &+= 1
+                cachedCatalogResults = contentFilter.filterSearchResults(
+                    searchResults,
+                    resolveMetadataInBackground: false
+                )
             }
         }
         .onAppear {
@@ -709,6 +711,7 @@ struct SearchView: View {
 
         searchRequestSerial += 1
         searchResults = []
+        cachedCatalogResults = []
 #if os(tvOS)
         tvFocusedResultID = nil
 #endif
@@ -742,6 +745,7 @@ struct SearchView: View {
 
         guard !query.isEmpty else {
             searchResults = []
+            cachedCatalogResults = []
 #if os(tvOS)
             tvFocusedResultID = nil
 #endif
@@ -968,7 +972,10 @@ struct SearchView: View {
                           searchText.trimmingCharacters(in: .whitespacesAndNewlines).caseInsensitiveCompare(query) == .orderedSame else {
                         return
                     }
-                    let filteredResults = contentFilter.filterSearchResults(identityResolvedResults)
+                    let filteredResults = contentFilter.filterSearchResults(
+                        identityResolvedResults,
+                        resolveMetadataInBackground: false
+                    )
 #if os(tvOS)
                     let restoredFocus = restoredTVResultFocus(
                         previousID: tvFocusedResultID,
@@ -977,6 +984,7 @@ struct SearchView: View {
                     )
 #endif
                     self.searchResults = identityResolvedResults
+                    self.cachedCatalogResults = filteredResults
                     self.isLoading = false
                     self.activeSearchTask = nil
                     // Resolve expensive runtime/production/audio metadata once
