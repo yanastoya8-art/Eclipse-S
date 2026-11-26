@@ -2985,7 +2985,6 @@ final class DownloadManager: NSObject, ObservableObject {
               hlsIntentIsCurrent(intent), hlsBackgroundAttempts[id] == nil,
               let item = downloads.first(where: { $0.id == id }),
               item.status == .downloading,
-              item.hasVerifiedHLSCheckpoint || item.hlsResumeManifestSHA256 != nil,
               let scheduler = hlsBackgroundScheduler else { return }
         let attempt = HLSBackgroundAttempt(attemptID: attemptID, intent: intent, protectedAttemptID: protectedAttemptID, downloader: downloader, dateAdded: item.dateAdded)
         hlsBackgroundAttempts[id] = attempt
@@ -6405,7 +6404,9 @@ final class DownloadManager: NSObject, ObservableObject {
 
 #if (os(iOS) && !targetEnvironment(macCatalyst)) || os(macOS)
             let protectedAuthority = Self.protectedAuthorityState(for: item)
-            if protectedAuthority != .notProtected, !protectedProviderTransportMayStart {
+            if protectedAuthority != .notProtected,
+               !protectedProviderTransportMayStart,
+               !nuvioDirectBackgroundApprovedIDs.contains(item.id) {
                 setQueuedMessage(id: item.id, message: "Waiting for app to reopen")
                 continue
             }
@@ -6533,7 +6534,7 @@ final class DownloadManager: NSObject, ObservableObject {
                 markFailed(id: item.id, error: "The Stremio download reference is no longer valid.")
                 return
             }
-            guard protectedProviderTransportMayStart else {
+            guard protectedProviderTransportMayStart || nuvioDirectBackgroundApprovedIDs.contains(item.id) else {
                 setQueuedMessage(id: item.id, message: "Waiting for app to reopen")
                 return
             }
@@ -6554,7 +6555,7 @@ final class DownloadManager: NSObject, ObservableObject {
                 setQueuedMessage(id: item.id, message: "Waiting for the download's profile")
                 return
             }
-            guard protectedProviderTransportMayStart else {
+            guard protectedProviderTransportMayStart || nuvioDirectBackgroundApprovedIDs.contains(item.id) else {
                 setQueuedMessage(id: item.id, message: "Waiting for app to reopen")
                 return
             }
@@ -6574,7 +6575,7 @@ final class DownloadManager: NSObject, ObservableObject {
                 setQueuedMessage(id: item.id, message: "Waiting for the download's profile")
                 return
             }
-            guard protectedProviderTransportMayStart else {
+            guard protectedProviderTransportMayStart || nuvioDirectBackgroundApprovedIDs.contains(item.id) else {
                 setQueuedMessage(id: item.id, message: "Waiting for app to reopen")
                 return
             }
@@ -6860,7 +6861,7 @@ final class DownloadManager: NSObject, ObservableObject {
                 let currentAuthority = Self.protectedAuthorityState(for: current)
                 guard currentAuthority != .notProtected,
                       currentAuthority != .invalid,
-                      self.protectedProviderTransportMayStart,
+                      self.protectedProviderTransportMayStart || directBackgroundAllowed,
                       self.protectedOwnerMatchesActiveProfile(current),
                       current.effectiveProtectedProviderKind != .stremio
                         || self.stremioConfiguredOriginAuthorities[current.id]
@@ -7038,11 +7039,6 @@ final class DownloadManager: NSObject, ObservableObject {
                   !self.invalidatedHLSAttemptIDs.contains(attemptID),
                   let index = self.downloads.firstIndex(where: { $0.id == item.id }) else { return }
             self.downloads[index].hlsResumeManifestSHA256 = digest
-#if os(iOS) && !targetEnvironment(macCatalyst)
-            if digest != nil, let backgroundIntent, let downloader {
-                self.beginHLSBackgroundAttempt(id: item.id, attemptID: attemptID, intent: backgroundIntent, protectedAttemptID: protectedNuvioAttemptID, downloader: downloader)
-            }
-#endif
         }
 
         downloader.onCheckpoint = { [weak self] segmentsWritten, byteCount in
@@ -7269,6 +7265,21 @@ final class DownloadManager: NSObject, ObservableObject {
             saveDownloads()
         }
 
+#if os(iOS) && !targetEnvironment(macCatalyst)
+        // Request the continued-processing grant before the first playlist
+        // fetch. Waiting for the manifest fingerprint meant the app could be
+        // suspended before a grant was even requested, leaving HLS stuck after
+        // its first background URLSession resource task.
+        if let backgroundIntent {
+            beginHLSBackgroundAttempt(
+                id: item.id,
+                attemptID: attemptID,
+                intent: backgroundIntent,
+                protectedAttemptID: protectedNuvioAttemptID,
+                downloader: downloader
+            )
+        }
+#endif
         downloader.start()
 
         let originalStreamURL = URL(string: item.streamURL) ?? url
@@ -7672,7 +7683,7 @@ final class DownloadManager: NSObject, ObservableObject {
         let stremioAuthority = providerKind == .stremio
             ? stremioConfiguredOriginAuthorities[item.id]
             : nil
-        guard protectedProviderTransportMayStart,
+        guard protectedProviderTransportMayStart || nuvioDirectBackgroundApprovedIDs.contains(item.id),
               providerKind != .stremio || stremioAuthority != nil,
               protectedOwnerMatchesActiveProfile(item),
               let current = downloads.first(where: { $0.id == item.id }),
