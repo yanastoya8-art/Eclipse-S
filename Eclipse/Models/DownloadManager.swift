@@ -3066,12 +3066,11 @@ final class DownloadManager: NSObject, ObservableObject {
 
     private func expireHLSBackgroundAttempt(id: String, attempt: HLSBackgroundAttempt) {
         guard hlsBackgroundAttempts[id] === attempt, !attempt.revoked else { return }
-        // The continued-processing grant is the execution allowance for this
-        // segmented worker. Once iOS expires it, leaving the downloader in the
-        // active-worker registry can strand a suspended worker forever: the
-        // foreground recovery path sees the stale object and assumes it is live.
-        // Stop at the durable segment checkpoint, retain the row, and let
-        // applicationDidBecomeActive start a fresh worker from that checkpoint.
+        // The continued-processing grant is temporary. If playlist, key and
+        // segment requests are owned by the OS background URLSession, retain the
+        // worker so it can consume completed resources after a system wake. A
+        // foreground-only worker is stopped at its durable checkpoint and
+        // restarted when the app becomes active.
         hlsBackgroundSubtitles.removeValue(forKey: id)?.task.cancel()
         hlsForegroundIntents.removeValue(forKey: id)
         attempt.granted = false
