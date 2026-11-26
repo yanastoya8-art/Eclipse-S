@@ -690,6 +690,27 @@ class TMDBContentFilter: ObservableObject {
     ]
 
     private init() {
+        UserDefaults.standard.register(defaults: [
+            "catalogHideBelowPG13Movies": true,
+            "catalogHideBelowTV14Shows": true,
+            "catalogHideBelowPG13Anime": true,
+            "catalogHideAllAgesMovies": true,
+            "catalogHideAllAgesSeries": true,
+            "catalogHideAllAgesAnime": true,
+            "catalogRequireEnglishSpanishAudio": true,
+            "catalogHideHentai": true,
+            "catalogHideYuri": true,
+            "catalogHideYaoi": true,
+            "catalogHideAnimeSpecialsAndOVAs": true,
+            "catalogHidePre1994Anime": true,
+            "catalogHidePre1994Movies": true,
+            "catalogHidePre1994TVShows": true,
+            "catalogHideUnreleasedAnime": true,
+            "catalogHideUnreleasedMovies": true,
+            "catalogHideUnreleasedTVShows": true,
+            "catalogHideUnofficialContent": true,
+            "catalogHideUnder20MinuteContent": true
+        ])
         self.filterHorror = ProfileSettingsStore.active.bool(forKey: "filterHorror")
         Task { _ = await MyDubListDubFilter.shared.refresh() }
         TMDBMaturityRatingStore.shared.$revision
