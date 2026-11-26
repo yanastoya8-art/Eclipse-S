@@ -12,16 +12,26 @@ enum DownloadConcurrencySettings {
     static let hlsLimitKey = "maximumConcurrentHLSDownloads"
     static let limits = 1...4
 
+    static func registerDefaults(defaults: UserDefaults = .standard) {
+        defaults.register(defaults: [
+            videoLimitKey: 4,
+            hlsLimitKey: 4,
+            "downloadSkipFillerEnabled": true
+        ])
+    }
+
     static func sanitized(_ value: Int?, defaultValue: Int = 4) -> Int {
         min(max(value ?? defaultValue, limits.lowerBound), limits.upperBound)
     }
 
     static func videoLimit(defaults: UserDefaults = .standard) -> Int {
-        sanitized(defaults.object(forKey: videoLimitKey) as? Int)
+        registerDefaults(defaults: defaults)
+        return sanitized(defaults.object(forKey: videoLimitKey) as? Int)
     }
 
     static func hlsLimit(defaults: UserDefaults = .standard) -> Int {
-        min(videoLimit(defaults: defaults), sanitized(defaults.object(forKey: hlsLimitKey) as? Int, defaultValue: 4))
+        registerDefaults(defaults: defaults)
+        return min(videoLimit(defaults: defaults), sanitized(defaults.object(forKey: hlsLimitKey) as? Int, defaultValue: 4))
     }
 }
 
