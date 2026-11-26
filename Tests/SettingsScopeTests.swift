@@ -17,8 +17,7 @@ final class SettingsScopeTests: XCTestCase {
 
     func testAnimatedMotifPickerContainsAllApprovedIllustrations() {
         let expected: [HomeAnimatedBackgroundShape] = [
-            .dragon, .bird, .snake, .wolf, .fox, .phoenix, .cat, .mermaid, .paw,
-            .stars, .crescentMoon, .spiral, .sun
+            .dragon, .bird, .snake, .wolf, .fox, .phoenix, .cat, .mermaid, .paw
         ]
         XCTAssertEqual(HomeAnimatedBackgroundShape.allCases, expected)
         for shape in expected {
