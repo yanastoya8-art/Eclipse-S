@@ -9988,18 +9988,19 @@ final class AniListService {
                     var bestMatch: TMDBTVShow?
 
                     for candidate in titleCandidates where !candidate.isEmpty {
-                        var results = (try? await tmdbService.searchTVShows(query: candidate, maxPages: 4)) ?? []
-                        // AniList titles are frequently romanized or English even
-                        // when Eclipse is displaying another language. TMDB can
-                        // return localized near-matches for the first query and
-                        // omit the correct English/romanized show. Always merge
-                        // the English index pass before matching instead of
-                        // treating any localized result as proof the title exists.
-                        if langCode.caseInsensitiveCompare("en-US") != .orderedSame {
+                        let candidateKey = normalized(candidate)
+                        var results = (try? await tmdbService.searchTVShows(query: candidate, maxPages: 2)) ?? []
+
+                        // Only query TMDB's English index when the localized
+                        // index did not return an exact title. This keeps
+                        // romanized/English anime discoverable without issuing
+                        // up to six pages of duplicate lookups for every alias.
+                        if langCode.caseInsensitiveCompare("en-US") != .orderedSame,
+                           !results.contains(where: { normalized($0.name) == candidateKey }) {
                             let englishResults = (try? await tmdbService.searchTVShows(
                                 query: candidate,
                                 languageOverride: "en-US",
-                                maxPages: 4
+                                maxPages: 2
                             )) ?? []
                             var seenIDs = Set(results.map(\.id))
                             results.append(contentsOf: englishResults.filter {
@@ -10007,7 +10008,6 @@ final class AniListService {
                             })
                         }
                         guard !results.isEmpty else { continue }
-                        let candidateKey = normalized(candidate)
 
                         let exactMatches = results.filter { normalized($0.name) == candidateKey }
                         if !exactMatches.isEmpty {
