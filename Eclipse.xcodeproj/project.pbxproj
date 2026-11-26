@@ -585,13 +585,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 13;
-			name = "Embed App Extensions";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1735,12 +1728,6 @@
 /* End PBXGroup section */
 
 
-			isa = PBXGroup;
-			children = (
-			);
-			path = DownloadLiveActivityWidget;
-			sourceTree = "<group>";
-		};
 
 /* Begin PBXNativeTarget section */
 		12F7450D2EB52DFC00889684 /* Tests */ = {
@@ -1812,15 +1799,6 @@
 			productType = "com.apple.product-type.application";
 		};
 
-			isa = PBXNativeTarget;
-			buildPhases = (
-			);
-			buildRules = ();
-			dependencies = ();
-			name = DownloadLiveActivityWidget;
-			productName = DownloadLiveActivityWidget;
-			productType = "com.apple.product-type.app-extension";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
