@@ -203,8 +203,8 @@ struct StorageView: View {
     @State private var scanTask: Task<StorageScanResult?, Never>?
     @State private var scanGeneration = UUID()
 
-    @AppStorage("autoClearCacheEnabled", store: .standard) private var autoClearCacheEnabled = false
-    @AppStorage("autoClearCacheThresholdMB", store: .standard) private var autoClearCacheThresholdMB: Double = 500
+    @AppStorage("autoClearCacheEnabled", store: .standard) private var autoClearCacheEnabled = true
+    @AppStorage("autoClearCacheThresholdMB", store: .standard) private var autoClearCacheThresholdMB: Double = 2000
 
     @StateObject private var accentColorManager = AccentColorManager.shared
 
@@ -524,11 +524,11 @@ struct StorageView: View {
 
 struct DownloadsSettingsView: View {
     @AppStorage(DownloadLibraryPosterSize.storageKey, store: .standard)
-    private var downloadLibraryPosterSize = DownloadLibraryPosterSize.standard.rawValue
+    private var downloadLibraryPosterSize = DownloadLibraryPosterSize.extraLarge.rawValue
 #if !os(tvOS)
-    @AppStorage(DownloadConcurrencySettings.videoLimitKey, store: .standard) private var concurrentVideoDownloads = 2
-    @AppStorage(DownloadConcurrencySettings.hlsLimitKey, store: .standard) private var concurrentHLSDownloads = 1
-    @AppStorage(DownloadAllFillerPolicy.enabledKey) private var downloadSkipFillerEnabled = false
+    @AppStorage(DownloadConcurrencySettings.videoLimitKey, store: .standard) private var concurrentVideoDownloads = 4
+    @AppStorage(DownloadConcurrencySettings.hlsLimitKey, store: .standard) private var concurrentHLSDownloads = 4
+    @AppStorage(DownloadAllFillerPolicy.enabledKey) private var downloadSkipFillerEnabled = true
 #endif
 #if os(iOS) && !targetEnvironment(macCatalyst)
     @AppStorage(BackgroundDownloadSettings.enabledKey, store: .standard) private var backgroundDownloadsEnabled = true
