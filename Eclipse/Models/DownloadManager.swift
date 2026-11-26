@@ -4711,7 +4711,7 @@ final class DownloadManager: NSObject, ObservableObject {
         // Always route copied links through the download response path, even
         // when the provider needs no headers. Returning the origin URL directly
         // lets Safari treat MP4/WebM/MKV resources as inline playback instead
-        // of a file download. The LAN proxy adds Content-Disposition: attachment
+        // of a file download. The loopback proxy adds Content-Disposition: attachment
         // and preserves any required provider headers.
         return MPVHeaderProxy.shared.makeProxyURL(
             for: sourceURL,
