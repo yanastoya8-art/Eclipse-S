@@ -7018,7 +7018,11 @@ final class DownloadManager: NSObject, ObservableObject {
             enforcesConservativeDiskCapacityReserve: item.providerTransportKind == .skyStreamHLS,
             durableCheckpoints: usesDurableCheckpoints,
             sessionConfiguration: hlsSessionConfiguration,
-            useBackgroundURLSession: url.scheme?.lowercased() == "https"
+            // URLSession background transfers support both HTTP and HTTPS.
+            // Restricting this to HTTPS silently forced otherwise-supported
+            // HTTP HLS streams back onto the foreground-only worker, which
+            // iOS suspends as soon as the app leaves the foreground.
+            useBackgroundURLSession: ["http", "https"].contains(url.scheme?.lowercased() ?? "")
                 && !["127.0.0.1", "localhost", "::1"].contains(url.host?.lowercased() ?? "")
                 && item.providerTransportKind != .skyStreamHLS
                 && (protectedNuvioAttemptID == nil
