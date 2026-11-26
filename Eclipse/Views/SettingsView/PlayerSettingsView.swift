@@ -449,7 +449,7 @@ final class PlayerSettingsStore: ObservableObject {
         self.playerOpenSubtitlesAutoFallbackEnabled = Self.resolvedBool(store: store, genericKey: "playerOpenSubtitlesAutoFallbackEnabled", legacyKey: "vlcOpenSubtitlesAutoFallbackEnabled", defaultValue: true)
         self.playerSubtitleAppearanceEnabled = Self.resolvedBool(store: store, genericKey: "playerSubtitleAppearanceEnabled", legacyKey: "enableVLCSubtitleEditMenu", defaultValue: true)
 
-        self.mpvForegroundFPS = store.integer(forKey: "mpvForegroundFPS") == 60 ? 60 : 30
+        self.mpvForegroundFPS = store.integer(forKey: "mpvForegroundFPS") == 30 ? 30 : 60
         self.mpvRenderBackend = .defaultBackend
         let metalQualityRaw = store.string(forKey: "mpvMetalQualityProfile") ?? MPVMetalQualityProfile.defaultProfile.rawValue
         self.mpvMetalQualityProfile = MPVMetalQualityProfile(rawValue: metalQualityRaw) ?? .defaultProfile
@@ -463,12 +463,12 @@ final class PlayerSettingsStore: ObservableObject {
         self.mpvPlayerSkin = MPVPlayerSkinSettings.selected(defaults: store)
         self.mpvPerformanceOverlayEnabled = store.bool(forKey: "mpvPerformanceOverlayEnabled")
         self.mpvAppExitPictureInPictureEnabled = store.bool(forKey: "mpvAppExitPictureInPictureEnabled")
-        self.mpvPictureInPictureEnabled = store.object(forKey: "mpvPictureInPictureEnabled") as? Bool ?? true
+        self.mpvPictureInPictureEnabled = store.object(forKey: "mpvPictureInPictureEnabled") as? Bool ?? false
         let hdrModeRaw = store.string(forKey: "mpvHDRMode") ?? MPVHDRMode.defaultMode.rawValue
         self.mpvHDRMode = MPVHDRMode(rawValue: hdrModeRaw) ?? .defaultMode
         self.mpvDolbyVisionEnabled = store.object(forKey: "mpvDolbyVisionEnabled") as? Bool ?? true
         self.mpvDolbyAtmosEnabled = store.object(forKey: "mpvDolbyAtmosEnabled") as? Bool ?? true
-        self.mpvTrueHDAtmosEnabled = store.object(forKey: "mpvTrueHDAtmosEnabled") as? Bool ?? false
+        self.mpvTrueHDAtmosEnabled = store.object(forKey: "mpvTrueHDAtmosEnabled") as? Bool ?? true
         let audioComfortModeRaw = store.string(forKey: "audioComfortMode") ?? AudioComfortMode.defaultMode.rawValue
         self.audioComfortMode = AudioComfortMode(rawValue: audioComfortModeRaw) ?? .defaultMode
         if let rawScopes = store.array(forKey: "audioComfortScopeCategories") as? [String] {
