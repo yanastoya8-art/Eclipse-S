@@ -611,10 +611,16 @@ enum HomeAnimatedBackgroundShape: String, CaseIterable, Identifiable {
 
     static func resolved(_ rawValue: String?) -> HomeAnimatedBackgroundShape {
         guard let rawValue, let shape = Self(rawValue: rawValue) else { return defaultValue }
-        // Every approved motif remains selectable. Older installations
-        // retain their saved star, moon and sun selections instead of silently
-        // replacing them with Toothless.
-        return shape
+        // These four cases are retained only to decode legacy preferences and
+        // keep old drawing switches source-compatible. They are retired and
+        // must not reappear as simplified geometric substitutes for the nine
+        // approved transparent creature illustrations.
+        switch shape {
+        case .stars, .crescentMoon, .spiral, .sun:
+            return defaultValue
+        default:
+            return shape
+        }
     }
 }
 
@@ -2637,8 +2643,8 @@ struct EclipseAmbientMotionBackground: View {
         }
         .onAppear {
             refreshCustomParticleColor()
-            // Preserve every approved illustration, including the celestial
-            // motifs that older builds previously migrated to Toothless.
+            // Migrate retired geometric motifs to the default approved
+            // creature artwork; only the nine approved illustrations remain selectable.
             let resolved = HomeAnimatedBackgroundShape.resolved(shapeRawValue)
             if shapeRawValue != resolved.rawValue {
                 shapeRawValue = resolved.rawValue
