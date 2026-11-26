@@ -8145,18 +8145,39 @@ final class DownloadManager: NSObject, ObservableObject {
     }
 #endif
 
+    private func directSkyStreamHLSBackgroundTransport(
+        for item: DownloadItem
+    ) -> (url: URL, headers: [String: String])? {
+        guard item.providerTransportKind == .skyStreamHLS,
+              let descriptor = skyStreamHLSDescriptors[item.id],
+              descriptor.mediaKind == .hls,
+              descriptor.proxyOptions == nil,
+              descriptor.routes.allSatisfy({ $0.headers.values == descriptor.headers.values }),
+              let url = Optional(descriptor.underlyingRemoteURL.url),
+              url.scheme?.lowercased() == "https" else {
+            return nil
+        }
+        return (url, descriptor.headers.values)
+    }
+
     private func hlsStartDelayReason(for item: DownloadItem) -> String? {
         #if canImport(UIKit)
         if UIApplication.shared.applicationState != .active {
-            // Public HTTPS HLS resources are transferred as OS-owned
-            // URLSessionDownloadTasks. Permit their queue admission while the
-            // app is backgrounded; loopback/provider-proxy streams still need
-            // the app process and must wait for foreground execution.
+            // A validated SkyStream HLS descriptor may use its public remote
+            // manifest directly when every route shares one header policy.
+            // The old blanket SkyStream exclusion kept those downloads queued
+            // even though HLSDownloader can hand every resource to the
+            // OS-owned background URLSession. Loopback and complex proxy routes
+            // still require Eclipse in the foreground.
 #if os(iOS) && !targetEnvironment(macCatalyst)
-            let sourceURL = URL(string: item.streamURL)
+            let skyStreamTransport = directSkyStreamHLSBackgroundTransport(for: item)
+            let sourceURL = skyStreamTransport?.url ?? URL(string: item.streamURL)
+            let isSupportedRemoteScheme = ["http", "https"].contains(sourceURL?.scheme?.lowercased() ?? "")
+            let skyStreamRouteIsBackgroundSafe =
+                item.providerTransportKind != .skyStreamHLS || skyStreamTransport != nil
             let backgroundSessionCanOwnResources =
-                sourceURL?.scheme?.lowercased() == "https"
-                && item.providerTransportKind != .skyStreamHLS
+                isSupportedRemoteScheme
+                && skyStreamRouteIsBackgroundSafe
                 && protectedProviderAttempts[item.id]?.mainProxyURL == nil
                 && !["127.0.0.1", "localhost", "::1"].contains(
                     sourceURL?.host?.lowercased() ?? ""
