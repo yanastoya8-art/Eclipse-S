@@ -871,7 +871,7 @@ private struct HomeAnimatedCreatureMotif: View {
         drawing.translateBy(x: canvasSize.width / 2, y: canvasSize.height / 2)
         drawing.rotate(by: .degrees(sin(phase * 0.55) * 1.4))
         drawing.translateBy(x: -canvasSize.width / 2, y: -canvasSize.height / 2)
-        let breathingScale = 1.0 + sin(phase * 1.15) * 0.012
+        let breathingScale = CGFloat(1.0 + sin(phase * 1.15) * 0.012)
         drawing.translateBy(x: canvasSize.width / 2, y: canvasSize.height / 2)
         drawing.scaleBy(x: breathingScale, y: breathingScale)
         drawing.translateBy(x: -canvasSize.width / 2, y: -canvasSize.height / 2)
@@ -4219,9 +4219,9 @@ enum HomeAnimatedShapeArtwork {
             for coordinate in contour.split(separator: "|") {
                 let pair = coordinate.split(separator: ",")
                 guard pair.count == 2,
-                      let x = Double(pair[0]),
-                      let y = Double(pair[1]) else { continue }
-                let point = CGPoint(x: x, y: y)
+                      let x = Double(String(pair[0])),
+                      let y = Double(String(pair[1])) else { continue }
+                let point = CGPoint(x: CGFloat(x), y: CGFloat(y))
                 if firstPoint {
                     path.move(to: point)
                     firstPoint = false
