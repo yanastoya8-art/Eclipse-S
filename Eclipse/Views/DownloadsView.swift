@@ -249,12 +249,8 @@ struct DownloadsView: View {
     }
 
     private var emptyState: some View {
-        EclipseEmptyState(
-            icon: "arrow.down.circle",
-            title: "No Downloads",
-            message: ""
-        )
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        Color.clear
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder
