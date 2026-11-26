@@ -71,8 +71,6 @@ enum MediaDetailHeroContentPositionSettings {
     static let synopsisOffsetKey = "mediaDetailHeroSynopsisOffset"
     static let defaultActionsOffset = 60.0
     static let defaultSynopsisOffset = 70.0
-    static let defaultPortraitOffset = 20.0
-    static let defaultLandscapeOffset = 30.0
     static let defaultOffset = 0.0
     static let supportedRange: ClosedRange<Double> = -100...100
     static let step = 5.0
@@ -120,6 +118,8 @@ enum MediaDetailEpisodeCardAppearanceSettings {
 enum MediaDetailRatingNotesPositionSettings {
     static let portraitOffsetKey = "mediaDetailPortraitRatingNotesOffset"
     static let landscapeOffsetKey = "mediaDetailLandscapeRatingNotesOffset"
+    static let defaultPortraitOffset = 20.0
+    static let defaultLandscapeOffset = 30.0
     static let defaultOffset = 0.0
     static let supportedRange: ClosedRange<Double> = -100...100
     static let step = 5.0
