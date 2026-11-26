@@ -2573,12 +2573,24 @@ struct EclipseAmbientMotionBackground: View {
         (0.66, 0.34, 2.1, -10, 0.24)
     ]
 
+    // Decode the archived custom colour only when the setting changes.
+    // Canvas redraws on every animation frame, so decoding here repeatedly
+    // needlessly performed secure archive work at the animation frame rate.
+    @State private var resolvedCustomParticleColor: Color = .purple
+
     private var customParticleColor: Color {
-        guard let archived = try? PortableColorArchive.color(from: customParticleColorData) else { return .purple }
+        resolvedCustomParticleColor
+    }
+
+    private func refreshCustomParticleColor() {
+        guard let archived = try? PortableColorArchive.color(from: customParticleColorData) else {
+            resolvedCustomParticleColor = .purple
+            return
+        }
 #if os(macOS)
-        return Color(nsColor: archived)
+        resolvedCustomParticleColor = Color(nsColor: archived)
 #else
-        return Color(uiColor: archived)
+        resolvedCustomParticleColor = Color(uiColor: archived)
 #endif
     }
 
@@ -2625,12 +2637,16 @@ struct EclipseAmbientMotionBackground: View {
             }
         }
         .onAppear {
+            refreshCustomParticleColor()
             // Preserve every approved illustration, including the celestial
             // motifs that older builds previously migrated to Toothless.
             let resolved = HomeAnimatedBackgroundShape.resolved(shapeRawValue)
             if shapeRawValue != resolved.rawValue {
                 shapeRawValue = resolved.rawValue
             }
+        }
+        .onChange(of: customParticleColorData) { _ in
+            refreshCustomParticleColor()
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
