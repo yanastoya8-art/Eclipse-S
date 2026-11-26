@@ -8201,12 +8201,29 @@ final class DownloadManager: NSObject, ObservableObject {
             // still require Eclipse in the foreground.
 #if os(iOS) && !targetEnvironment(macCatalyst)
             let skyStreamTransport = directSkyStreamHLSBackgroundTransport(for: item)
-            let sourceURL = skyStreamTransport?.url ?? URL(string: item.streamURL)
+            let managedProxyTarget = URL(string: item.streamURL)
+                .flatMap { MPVHeaderProxy.shared.upstreamProbeTarget(for: $0)?.url }
+            let safeManagedProxyTarget = managedProxyTarget.flatMap { candidate -> URL? in
+                guard candidate.scheme?.lowercased() == "https",
+                      candidate.host != nil,
+                      candidate.user == nil,
+                      candidate.password == nil,
+                      !["127.0.0.1", "localhost", "::1"].contains(candidate.host?.lowercased() ?? "") else {
+                    return nil
+                }
+                return candidate
+            }
+            let managedProxyCanRunInBackground =
+                managedProxyTarget == nil || safeManagedProxyTarget != nil
+            let sourceURL = skyStreamTransport?.url
+                ?? safeManagedProxyTarget
+                ?? URL(string: item.streamURL)
             let isSupportedRemoteScheme = ["http", "https"].contains(sourceURL?.scheme?.lowercased() ?? "")
             let skyStreamRouteIsBackgroundSafe =
                 item.providerTransportKind != .skyStreamHLS || skyStreamTransport != nil
             let backgroundSessionCanOwnResources =
                 isSupportedRemoteScheme
+                && managedProxyCanRunInBackground
                 && skyStreamRouteIsBackgroundSafe
                 && protectedProviderAttempts[item.id]?.mainProxyURL == nil
                 && !["127.0.0.1", "localhost", "::1"].contains(
