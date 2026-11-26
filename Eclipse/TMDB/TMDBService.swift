@@ -728,17 +728,21 @@ class TMDBService: ObservableObject {
         return components.url
     }
 
-    func searchMulti(query: String, maxPages: Int = 2) async throws -> [TMDBSearchResult] {
+    func searchMulti(
+        query: String,
+        languageOverride: String? = nil,
+        maxPages: Int = 2
+    ) async throws -> [TMDBSearchResult] {
         guard !query.isEmpty else { return [] }
 
-        guard (1...5).contains(maxPages),
+        guard (1...10).contains(maxPages),
               !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return []
         }
         var allResults: [TMDBSearchResult] = []
 
         for page in 1...maxPages {
-            guard let url = searchEndpointURL("multi", query: query, page: page) else {
+            guard let url = searchEndpointURL("multi", query: query, page: page, language: languageOverride) else {
                 throw TMDBError.invalidURL
             }
 
@@ -900,7 +904,7 @@ class TMDBService: ObservableObject {
     ) async throws -> [TMDBTVShow] {
         let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedQuery.isEmpty else { return [] }
-        guard (1...5).contains(maxPages) else { return [] }
+        guard (1...10).contains(maxPages) else { return [] }
 
         var allResults: [TMDBTVShow] = []
         var seenIDs = Set<Int>()
