@@ -1130,6 +1130,17 @@ final class AnimeScheduleLanguageLookupPolicyTests: XCTestCase {
     }
 
     func testNoSelectedLanguageLeavesScheduleUnfiltered() {
+        let defaults = UserDefaults.standard
+        let key = "catalogRequireEnglishSpanishAudio"
+        let original = defaults.object(forKey: key)
+        defer {
+            if let original {
+                defaults.set(original, forKey: key)
+            } else {
+                defaults.removeObject(forKey: key)
+            }
+        }
+        defaults.set(false, forKey: key)
         XCTAssertTrue(ScheduleAudioLanguagePolicy.matches(originalLanguage: "ja", selectedLanguages: []))
     }
 }

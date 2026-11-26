@@ -423,12 +423,12 @@ final class MediaStateMergeTests: XCTestCase {
 
         defaults.removeObject(forKey: CloudSyncTotalBudget.storageKey)
         XCTAssertEqual(
-            CloudSyncTotalBudget.current, .standard,
-            "An unset budget must resolve to the 50 MB default; 0 is the unset sentinel and must never mean No Limit"
+            CloudSyncTotalBudget.current, .unlimited,
+            "An unset or unknown budget must use the configured No Limit fallback."
         )
 
         defaults.set(1_234, forKey: CloudSyncTotalBudget.storageKey)
-        XCTAssertEqual(CloudSyncTotalBudget.current, .standard)
+        XCTAssertEqual(CloudSyncTotalBudget.current, .unlimited)
 
         defaults.set(CloudSyncTotalBudget.unlimited.rawValue, forKey: CloudSyncTotalBudget.storageKey)
         XCTAssertEqual(CloudSyncTotalBudget.current, .unlimited)

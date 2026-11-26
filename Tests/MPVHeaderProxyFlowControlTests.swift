@@ -491,6 +491,7 @@ private final class ProxyFlowTaskDouble: URLSessionDataTask, @unchecked Sendable
     private var currentState: URLSessionTask.State = .running
     private var suspensionCount = 0
     private var resumptionCount = 0
+    private var suspensionHandler: (() -> Void)?
 
     override var state: URLSessionTask.State {
         lock.lock()
@@ -510,11 +511,19 @@ private final class ProxyFlowTaskDouble: URLSessionDataTask, @unchecked Sendable
         return resumptionCount
     }
 
+    func installSuspensionHandler(_ handler: @escaping () -> Void) {
+        lock.lock()
+        suspensionHandler = handler
+        lock.unlock()
+    }
+
     override func suspend() {
         lock.lock()
-        defer { lock.unlock() }
         suspensionCount += 1
         currentState = .suspended
+        let handler = suspensionHandler
+        lock.unlock()
+        handler?()
     }
 
     override func resume() {
@@ -528,13 +537,12 @@ private final class ProxyFlowTaskDouble: URLSessionDataTask, @unchecked Sendable
 final class MPVHeaderProxyFlowControlTests: XCTestCase {
     func testNativeStalledSendBelowWatermarkSuspendsAndResumes() {
         let task = ProxyFlowTaskDouble()
+        let suspended = expectation(description: "The stalled downstream task is suspended.")
+        task.installSuspensionHandler { suspended.fulfill() }
         let flow = MPVHeaderProxyFlowControl(pinned: false, downstreamStallInterval: 0.05)
         defer { flow.close() }
         flow.attach(task)
         XCTAssertEqual(flow.admit(65_536), .accepted)
-        let suspended = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            task.state == .suspended
-        }, object: nil)
         wait(for: [suspended], timeout: 2)
         XCTAssertEqual(task.suspensions, 1)
         XCTAssertEqual(flow.admit(65_536), .accepted)

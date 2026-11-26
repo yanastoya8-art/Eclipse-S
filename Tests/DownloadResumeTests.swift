@@ -146,10 +146,10 @@ final class DownloadResumeTests: XCTestCase {
         let name = "DownloadConcurrencyTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
-        XCTAssertEqual(DownloadConcurrencySettings.videoLimit(defaults: defaults), 2)
-        XCTAssertEqual(DownloadConcurrencySettings.hlsLimit(defaults: defaults), 1)
+        XCTAssertEqual(DownloadConcurrencySettings.videoLimit(defaults: defaults), 4)
+        XCTAssertEqual(DownloadConcurrencySettings.hlsLimit(defaults: defaults), 4)
         defaults.set(4, forKey: DownloadConcurrencySettings.hlsLimitKey)
-        XCTAssertEqual(DownloadConcurrencySettings.hlsLimit(defaults: defaults), 2)
+        XCTAssertEqual(DownloadConcurrencySettings.hlsLimit(defaults: defaults), 4)
         defaults.set(1, forKey: DownloadConcurrencySettings.videoLimitKey)
         XCTAssertEqual(DownloadConcurrencySettings.hlsLimit(defaults: defaults), 1)
         defaults.set(Int.max, forKey: DownloadConcurrencySettings.videoLimitKey)
@@ -296,11 +296,12 @@ final class DownloadResumeTests: XCTestCase {
         XCTAssertEqual(manager.downloads.filter { $0.status == .downloading }.count, 2)
     }
 
-    func testDownloadAllFillerOptionFailsOpenAndDefaultsOff() throws {
+    func testDownloadAllFillerOptionDefaultsOnAndFailsOpenForOtherClassifications() throws {
         let name = "DownloadFillerTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
-        XCTAssertFalse(defaults.bool(forKey: DownloadAllFillerPolicy.enabledKey))
+        DownloadConcurrencySettings.registerDefaults(defaults: defaults)
+        XCTAssertTrue(defaults.bool(forKey: DownloadAllFillerPolicy.enabledKey))
         for classification: AnimeEpisodeClassification in [.filler, .mixed, .animeCanon, .mangaCanon, .unknown] {
             XCTAssertFalse(DownloadAllFillerPolicy.shouldSkip(classification, enabled: false))
             XCTAssertEqual(DownloadAllFillerPolicy.shouldSkip(classification, enabled: true), classification == .filler)
