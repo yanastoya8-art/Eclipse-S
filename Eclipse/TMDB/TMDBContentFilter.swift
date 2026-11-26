@@ -220,8 +220,9 @@ final class MyDubListDubFilter: @unchecked Sendable {
     ]
 
     var selectedLanguages: Set<String> {
-        Set((ProfileSettingsStore.active.stringArray(forKey: Self.selectedLanguagesKey) ?? [])
-            .filter { Self.supportedLanguages.contains($0) })
+        let storedLanguages = ProfileSettingsStore.active.stringArray(forKey: Self.selectedLanguagesKey)
+        let languages = storedLanguages ?? Self.supportedLanguages
+        return Set(languages.filter { Self.supportedLanguages.contains($0) })
     }
 
     /// Loads the last verified language snapshot synchronously before a search or
