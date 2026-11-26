@@ -2618,7 +2618,7 @@ final class DownloadManager: NSObject, ObservableObject {
 #if os(iOS) && !targetEnvironment(macCatalyst)
             if self.hlsBackgroundDownloadsEnabled {
                 // If the preference is enabled while a direct transfer is already
-                // active, attach its Live Activity without restarting the transfer.
+                // active, attach its background-continuation attempt without restarting it.
                 for (id, task) in self.activeTasks {
                     guard let item = self.downloads.first(where: { $0.id == id }),
                           item.status == .downloading else { continue }
@@ -2892,7 +2892,7 @@ final class DownloadManager: NSObject, ObservableObject {
         } else {
             // Do not invent a 1 GB denominator when the server omits its
             // Content-Length. Keep the byte counter truthful and let the
-            // Live Activity show an indeterminate/estimated percentage only
+            // The download UI show an indeterminate/estimated percentage only
             // when the transport itself supplies one.
             total = 0
             completed = max(item.downloadedBytes, 0)
@@ -2974,7 +2974,7 @@ final class DownloadManager: NSObject, ObservableObject {
 #endif
         // Direct transfers are owned by URLSession's background session and
         // can continue on older iOS versions even without a continued-processing
-        // Live Activity. Keep protected headers alive only while that task exists.
+        // continued-processing task. Keep protected headers alive only while that task exists.
         return true
     }
 
@@ -3079,14 +3079,12 @@ final class DownloadManager: NSObject, ObservableObject {
             }
         }
         // Persist the latest completed segment and release the temporary
-        // scheduler slot. Keep the Live Activity alive for OS-owned resources;
-        // it is ended by the actual downloader completion callback.
+        // scheduler slot. OS-owned URLSession transfers continue independently.
         finishHLSBackgroundAttempt(
             id: id,
             attempt: attempt,
             success: false,
-            waitForWorker: canContinueInForeground,
-            endLiveActivity: !resourcesOwnedByBackgroundSession
+            waitForWorker: canContinueInForeground
         )
     }
 
@@ -3118,8 +3116,7 @@ final class DownloadManager: NSObject, ObservableObject {
         id: String,
         attempt: HLSBackgroundAttempt,
         success: Bool,
-        waitForWorker: Bool = true,
-        endLiveActivity: Bool = true
+        waitForWorker: Bool = true
     ) {
         guard hlsBackgroundAttempts[id] === attempt, !attempt.finishing else { return }
         attempt.finishing = true
@@ -7085,8 +7082,8 @@ final class DownloadManager: NSObject, ObservableObject {
 #if os(iOS) && !targetEnvironment(macCatalyst)
                 // Publish the downloader's measured segment fraction directly.
                 // Byte checkpoints are intentionally durable and throttled, so
-                // using only their persisted counters made the Live Activity lag
-                // behind the progress visible in the Downloads screen.
+                // using only persisted counters made the progress display lag
+                // behind the measured progress visible in the Downloads screen.
                 self.updateHLSBackgroundProgress(
                     id: item.id,
                     stage: "Downloading video",
