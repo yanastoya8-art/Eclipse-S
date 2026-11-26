@@ -2908,17 +2908,7 @@ final class DownloadManager: NSObject, ObservableObject {
                 subtitle: subtitle
             )
         }
-#if os(iOS)
-        if #available(iOS 16.2, *) {
-            Task { @MainActor in
-                await DownloadLiveActivityController.update(
-                    downloadID: id, title: item.displayTitle,
-                    progress: total > 0 ? Double(completed) / Double(total) : min(max(progress ?? item.progress, 0), 1),
-                    completedBytes: completed, totalBytes: total, status: subtitle
-                )
-            }
-        }
-#endif
+
     }
 
     private func finishDirectBackgroundAttempt(id: String, taskIdentifier: Int? = nil, success: Bool) {
@@ -2945,13 +2935,7 @@ final class DownloadManager: NSObject, ObservableObject {
                 success: success && !attempt.revoked
             )
         }
-#if os(iOS)
-        if #available(iOS 16.2, *) {
-            Task { @MainActor in
-                await DownloadLiveActivityController.end(downloadID: id, status: success ? "Completed" : "Paused")
-            }
-        }
-#endif
+
     }
 
     private func hlsIntentIsCurrent(_ intent: HLSForegroundIntent) -> Bool {
@@ -3062,19 +3046,7 @@ final class DownloadManager: NSObject, ObservableObject {
                 subtitle: subtitle
             )
         }
-#if os(iOS)
-        if #available(iOS 16.2, *) {
-            Task { @MainActor in
-                await DownloadLiveActivityController.update(
-                    downloadID: id, title: item.displayTitle,
-                    progress: progress,
-                    completedBytes: completedBytes,
-                    totalBytes: totalBytes,
-                    status: subtitle
-                )
-            }
-        }
-#endif
+
     }
 
     private func expireHLSBackgroundAttempt(id: String, attempt: HLSBackgroundAttempt) {
@@ -3167,13 +3139,7 @@ final class DownloadManager: NSObject, ObservableObject {
             let didComplete = (success || attempt.succeeded) && persisted
                 && !attempt.revoked && self.hlsIntentIsCurrent(attempt.intent)
             self.hlsBackgroundScheduler?.finish(attemptID: attempt.attemptID, success: didComplete)
-#if os(iOS)
-            if #available(iOS 16.2, *), (endLiveActivity || attempt.mainFinished) {
-                Task { @MainActor in
-                    await DownloadLiveActivityController.end(downloadID: id, status: didComplete ? "Completed" : "Paused")
-                }
-            }
-#endif
+
             self.processQueue()
         }
     }
@@ -4470,11 +4436,7 @@ final class DownloadManager: NSObject, ObservableObject {
 #if os(iOS) && !targetEnvironment(macCatalyst)
             self.revokeHLSBackgroundAttempt(id: id)
             self.finishDirectBackgroundAttempt(id: id, success: false)
-            if #available(iOS 16.2, *) {
-                Task { @MainActor in
-                    await DownloadLiveActivityController.end(downloadID: id, status: "Deleted")
-                }
-            }
+
 #endif
             self.invalidateSourceRefresh(id: id)
             self.mediaSourceRecoveryAttempts.removeValue(forKey: id)
@@ -4524,11 +4486,7 @@ final class DownloadManager: NSObject, ObservableObject {
             for item in self.downloads where matchingIds.contains(item.id) {
 #if os(iOS) && !targetEnvironment(macCatalyst)
                 self.revokeHLSBackgroundAttempt(id: item.id)
-                if #available(iOS 16.2, *) {
-                    Task { @MainActor in
-                        await DownloadLiveActivityController.end(downloadID: item.id, status: "Deleted")
-                    }
-                }
+
 #endif
 #if (os(iOS) && !targetEnvironment(macCatalyst)) || os(macOS)
                 self.clearSkyStreamDownloadRuntimeState(id: item.id, discardDescriptor: true)
@@ -4556,11 +4514,7 @@ final class DownloadManager: NSObject, ObservableObject {
             for item in self.downloads where completedIds.contains(item.id) {
 #if os(iOS) && !targetEnvironment(macCatalyst)
                 self.revokeHLSBackgroundAttempt(id: item.id)
-                if #available(iOS 16.2, *) {
-                    Task { @MainActor in
-                        await DownloadLiveActivityController.end(downloadID: item.id, status: "Deleted")
-                    }
-                }
+
 #endif
                 self.downloadAdmissionTokens.removeValue(forKey: item.id)
 #if (os(iOS) && !targetEnvironment(macCatalyst)) || os(macOS)
@@ -4589,13 +4543,7 @@ final class DownloadManager: NSObject, ObservableObject {
         #endif
 #if os(iOS) && !targetEnvironment(macCatalyst)
         revokeAllHLSBackgroundAttempts()
-        if #available(iOS 16.2, *) {
-            for item in downloads {
-                Task { @MainActor in
-                    await DownloadLiveActivityController.end(downloadID: item.id, status: "Deleted")
-                }
-            }
-        }
+
 #endif
         downloadAdmissionTokens.removeAll()
         for id in sourceRefreshes.ids { invalidateSourceRefresh(id: id) }
@@ -6513,13 +6461,7 @@ final class DownloadManager: NSObject, ObservableObject {
     }
 
     private func startDownload(_ item: DownloadItem) {
-#if os(iOS)
-        if #available(iOS 16.2, *) {
-            Task { @MainActor in
-                DownloadLiveActivityController.prepare(downloadID: item.id)
-            }
-        }
-#endif
+
         #if os(macOS)
         guard !admissionsStopped, !storageMutationInProgress else { return }
         if item.pendingMacFinalization != nil {
@@ -7321,12 +7263,7 @@ final class DownloadManager: NSObject, ObservableObject {
                 if self.hlsBackgroundAttempts[item.id]?.attemptID != attemptID {
                     let completed = self.downloads.first(where: { $0.id == item.id })?.status == .completed
                     Task { @MainActor in
-                        if #available(iOS 16.2, *) {
-                            await DownloadLiveActivityController.end(
-                                downloadID: item.id,
-                                status: completed ? "Completed" : "Paused"
-                            )
-                        }
+
                     }
                 }
 #endif
