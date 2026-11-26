@@ -249,12 +249,8 @@ struct DownloadsView: View {
     }
 
     private var emptyState: some View {
-        EclipseEmptyState(
-            icon: "arrow.down.circle",
-            title: "No Downloads",
-            message: "Download movies and episodes to watch offline. Use the download button on any media page."
-        )
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        Color.clear
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder
