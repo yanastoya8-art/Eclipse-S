@@ -15,6 +15,17 @@ final class SettingsScopeTests: XCTestCase {
         XCTAssertEqual(AppearancePalettes.base(for: .ember).displayName, "Ember")
     }
 
+    func testAnimatedMotifPickerContainsOnlyApprovedIllustrations() {
+        XCTAssertEqual(
+            HomeAnimatedBackgroundShape.allCases,
+            [.dragon, .bird, .snake, .wolf, .fox, .phoenix, .cat, .mermaid, .paw]
+        )
+        for legacyShape in ["stars", "crescentMoon", "sun", "spiral"] {
+            XCTAssertEqual(HomeAnimatedBackgroundShape.resolved(legacyShape), .dragon)
+        }
+        XCTAssertEqual(HomeAnimatedBackgroundShape.resolved(nil), .dragon)
+    }
+
     func testUnofficialYouTubeFilteringUsesProducerMetadataNotSynopsisMentions() {
         XCTAssertTrue(
             TMDBContentFilter.isUnofficialCreatorContent(
