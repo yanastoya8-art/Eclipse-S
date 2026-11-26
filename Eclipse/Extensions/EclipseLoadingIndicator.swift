@@ -35,15 +35,34 @@ private struct EclipseLoadingSpinner: View {
     let diameter: CGFloat
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var rotation: Double = 0
-    @State private var counterRotation: Double = 0
-    @State private var pulse = false
 
     private var lineWidth: CGFloat { max(2.4, diameter * 0.12) }
 
     var body: some View {
-        ZStack {
+        Group {
+            if reduceMotion {
+                spinner(rotation: 42, counterRotation: -24, pulse: false)
+            } else {
+                // Drive rotation from a continuously advancing timeline instead
+                // of a one-shot onAppear animation. SwiftUI can recreate or
+                // interrupt repeatForever animations when lazy Browse rows
+                // appear/disappear or their transaction disables animations.
+                TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: false)) { context in
+                    let elapsed = context.date.timeIntervalSinceReferenceDate
+                    spinner(
+                        rotation: elapsed.truncatingRemainder(dividingBy: 0.85) / 0.85 * 360,
+                        counterRotation: -(elapsed.truncatingRemainder(dividingBy: 1.6) / 1.6 * 360),
+                        pulse: (sin(elapsed * 2 * .pi / 2.1) + 1) / 2 > 0.5
+                    )
+                }
+            }
+        }
+        .frame(width: diameter * 1.75, height: diameter * 1.75)
+        .accessibilityHidden(true)
+    }
 
+    private func spinner(rotation: Double, counterRotation: Double, pulse: Bool) -> some View {
+        ZStack {
             Circle()
                 .fill(
                     RadialGradient(
@@ -88,25 +107,6 @@ private struct EclipseLoadingSpinner: View {
                 .frame(width: diameter, height: diameter)
                 .rotationEffect(.degrees(rotation))
                 .shadow(color: tint.opacity(0.6), radius: lineWidth * 0.8)
-        }
-        .frame(width: diameter * 1.75, height: diameter * 1.75)
-        .onAppear(perform: start)
-    }
-
-    private func start() {
-        guard !reduceMotion else {
-
-            pulse = true
-            return
-        }
-        withAnimation(.linear(duration: 0.85).repeatForever(autoreverses: false)) {
-            rotation = 360
-        }
-        withAnimation(.linear(duration: 1.6).repeatForever(autoreverses: false)) {
-            counterRotation = -360
-        }
-        withAnimation(.easeInOut(duration: 1.05).repeatForever(autoreverses: true)) {
-            pulse = true
         }
     }
 }
