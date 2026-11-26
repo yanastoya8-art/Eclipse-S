@@ -861,6 +861,10 @@ private struct HomeAnimatedCreatureMotif: View {
     /// Draw the creature directly into an existing Canvas context. This keeps
     /// the artwork reusable for both its normal pass and the blurred glow pass.
     func draw(in context: inout GraphicsContext, canvasSize: CGSize) {
+        if shape == .dragon {
+            drawToothless(in: &context, canvasSize: canvasSize)
+            return
+        }
         // Render the motif directly with vector paths. The old JPEG atlas
         // had opaque rectangular tiles and became visibly pixelated when scaled.
         let sx = canvasSize.width / 400
@@ -2324,6 +2328,170 @@ private struct HomeAnimatedCreatureMotif: View {
         let conceptDetailColor = motifTint.opacity(min(1, opacity * brightness * 0.78))
         drawing.stroke(conceptDetails, with: .color(conceptDetailColor), style: StrokeStyle(lineWidth: 1.25, lineCap: .round, lineJoin: .round))
 
+    }
+    private func drawToothless(in context: inout GraphicsContext, canvasSize: CGSize) {
+        let sx = canvasSize.width / 400
+        let sy = canvasSize.height / 300
+        var drawing = context
+        drawing.translateBy(x: canvasSize.width / 2, y: canvasSize.height / 2)
+        drawing.rotate(by: .degrees(sin(phase * 0.48) * 0.8))
+        drawing.translateBy(x: -canvasSize.width / 2, y: -canvasSize.height / 2)
+        let breathing = CGFloat(1.0 + sin(phase * 1.1) * 0.008)
+        drawing.translateBy(x: canvasSize.width / 2, y: canvasSize.height / 2)
+        drawing.scaleBy(x: breathing, y: breathing)
+        drawing.translateBy(x: -canvasSize.width / 2, y: -canvasSize.height / 2)
+        drawing.scaleBy(x: sx, y: sy)
+
+        let alpha = min(1, opacity * brightness)
+        var silhouette = Path()
+
+        // Long, flexible tail and the asymmetrical split tail-fin.
+        silhouette.move(to: CGPoint(x: 160, y: 174))
+        silhouette.addCurve(to: CGPoint(x: 103, y: 150), control1: CGPoint(x: 131, y: 176), control2: CGPoint(x: 111, y: 165))
+        silhouette.addCurve(to: CGPoint(x: 75, y: 111), control1: CGPoint(x: 90, y: 136), control2: CGPoint(x: 73, y: 122))
+        silhouette.addCurve(to: CGPoint(x: 96, y: 102), control1: CGPoint(x: 72, y: 96), control2: CGPoint(x: 84, y: 94))
+        silhouette.addCurve(to: CGPoint(x: 121, y: 145), control1: CGPoint(x: 107, y: 110), control2: CGPoint(x: 111, y: 131))
+        silhouette.addCurve(to: CGPoint(x: 171, y: 157), control1: CGPoint(x: 143, y: 150), control2: CGPoint(x: 158, y: 148))
+        silhouette.closeSubpath()
+
+        silhouette.move(to: CGPoint(x: 82, y: 119))
+        silhouette.addCurve(to: CGPoint(x: 31, y: 79), control1: CGPoint(x: 57, y: 105), control2: CGPoint(x: 39, y: 88))
+        silhouette.addCurve(to: CGPoint(x: 76, y: 91), control1: CGPoint(x: 43, y: 65), control2: CGPoint(x: 62, y: 70))
+        silhouette.addCurve(to: CGPoint(x: 111, y: 119), control1: CGPoint(x: 91, y: 96), control2: CGPoint(x: 103, y: 108))
+        silhouette.addCurve(to: CGPoint(x: 82, y: 119), control1: CGPoint(x: 101, y: 125), control2: CGPoint(x: 90, y: 126))
+        silhouette.closeSubpath()
+        silhouette.move(to: CGPoint(x: 83, y: 119))
+        silhouette.addCurve(to: CGPoint(x: 47, y: 148), control1: CGPoint(x: 68, y: 132), control2: CGPoint(x: 54, y: 144))
+        silhouette.addCurve(to: CGPoint(x: 82, y: 135), control1: CGPoint(x: 57, y: 159), control2: CGPoint(x: 72, y: 149))
+        silhouette.addCurve(to: CGPoint(x: 111, y: 123), control1: CGPoint(x: 94, y: 131), control2: CGPoint(x: 104, y: 126))
+        silhouette.closeSubpath()
+
+        // Muscular torso, raised neck and broad, blunt muzzle.
+        silhouette.move(to: CGPoint(x: 135, y: 164))
+        silhouette.addCurve(to: CGPoint(x: 160, y: 129), control1: CGPoint(x: 127, y: 144), control2: CGPoint(x: 141, y: 128))
+        silhouette.addCurve(to: CGPoint(x: 213, y: 128), control1: CGPoint(x: 177, y: 116), control2: CGPoint(x: 199, y: 120))
+        silhouette.addCurve(to: CGPoint(x: 246, y: 158), control1: CGPoint(x: 234, y: 130), control2: CGPoint(x: 249, y: 142))
+        silhouette.addCurve(to: CGPoint(x: 238, y: 201), control1: CGPoint(x: 258, y: 178), control2: CGPoint(x: 251, y: 194))
+        silhouette.addCurve(to: CGPoint(x: 191, y: 224), control1: CGPoint(x: 223, y: 221), control2: CGPoint(x: 204, y: 229))
+        silhouette.addCurve(to: CGPoint(x: 143, y: 210), control1: CGPoint(x: 175, y: 230), control2: CGPoint(x: 153, y: 224))
+        silhouette.addCurve(to: CGPoint(x: 135, y: 164), control1: CGPoint(x: 128, y: 194), control2: CGPoint(x: 124, y: 178))
+        silhouette.closeSubpath()
+
+        silhouette.move(to: CGPoint(x: 203, y: 160))
+        silhouette.addCurve(to: CGPoint(x: 224, y: 103), control1: CGPoint(x: 207, y: 137), control2: CGPoint(x: 211, y: 116))
+        silhouette.addCurve(to: CGPoint(x: 264, y: 87), control1: CGPoint(x: 237, y: 85), control2: CGPoint(x: 250, y: 82))
+        silhouette.addCurve(to: CGPoint(x: 309, y: 105), control1: CGPoint(x: 287, y: 88), control2: CGPoint(x: 305, y: 94))
+        silhouette.addCurve(to: CGPoint(x: 337, y: 124), control1: CGPoint(x: 326, y: 106), control2: CGPoint(x: 340, y: 115))
+        silhouette.addCurve(to: CGPoint(x: 313, y: 143), control1: CGPoint(x: 336, y: 140), control2: CGPoint(x: 328, y: 148))
+        silhouette.addCurve(to: CGPoint(x: 277, y: 139), control1: CGPoint(x: 300, y: 143), control2: CGPoint(x: 288, y: 142))
+        silhouette.addCurve(to: CGPoint(x: 247, y: 166), control1: CGPoint(x: 266, y: 141), control2: CGPoint(x: 257, y: 156))
+        silhouette.closeSubpath()
+
+        // Two swept-back ear fins, kept attached to the skull silhouette.
+        silhouette.move(to: CGPoint(x: 252, y: 100))
+        silhouette.addCurve(to: CGPoint(x: 233, y: 55), control1: CGPoint(x: 245, y: 77), control2: CGPoint(x: 236, y: 61))
+        silhouette.addCurve(to: CGPoint(x: 278, y: 88), control1: CGPoint(x: 251, y: 60), control2: CGPoint(x: 268, y: 72))
+        silhouette.closeSubpath()
+        silhouette.move(to: CGPoint(x: 293, y: 99))
+        silhouette.addCurve(to: CGPoint(x: 335, y: 65), control1: CGPoint(x: 312, y: 82), control2: CGPoint(x: 326, y: 66))
+        silhouette.addCurve(to: CGPoint(x: 319, y: 112), control1: CGPoint(x: 342, y: 88), control2: CGPoint(x: 333, y: 103))
+        silhouette.closeSubpath()
+
+        // A large folded wing rises behind the shoulders; its membrane is
+        // separated into distinct lobes rather than a rectangular panel.
+        silhouette.move(to: CGPoint(x: 176, y: 157))
+        silhouette.addCurve(to: CGPoint(x: 139, y: 88), control1: CGPoint(x: 161, y: 133), control2: CGPoint(x: 135, y: 111))
+        silhouette.addCurve(to: CGPoint(x: 155, y: 51), control1: CGPoint(x: 128, y: 68), control2: CGPoint(x: 136, y: 51))
+        silhouette.addCurve(to: CGPoint(x: 205, y: 87), control1: CGPoint(x: 175, y: 57), control2: CGPoint(x: 191, y: 69))
+        silhouette.addCurve(to: CGPoint(x: 242, y: 48), control1: CGPoint(x: 220, y: 75), control2: CGPoint(x: 234, y: 54))
+        silhouette.addCurve(to: CGPoint(x: 253, y: 112), control1: CGPoint(x: 256, y: 69), control2: CGPoint(x: 259, y: 91))
+        silhouette.addCurve(to: CGPoint(x: 224, y: 162), control1: CGPoint(x: 256, y: 139), control2: CGPoint(x: 241, y: 155))
+        silhouette.closeSubpath()
+
+        // Four grounded limbs with hooked claws.
+        silhouette.move(to: CGPoint(x: 153, y: 191))
+        silhouette.addCurve(to: CGPoint(x: 134, y: 247), control1: CGPoint(x: 151, y: 216), control2: CGPoint(x: 137, y: 230))
+        silhouette.addCurve(to: CGPoint(x: 112, y: 253), control1: CGPoint(x: 126, y: 257), control2: CGPoint(x: 116, y: 258))
+        silhouette.addLine(to: CGPoint(x: 108, y: 241))
+        silhouette.addLine(to: CGPoint(x: 119, y: 235))
+        silhouette.addLine(to: CGPoint(x: 125, y: 207))
+        silhouette.closeSubpath()
+        silhouette.move(to: CGPoint(x: 205, y: 196))
+        silhouette.addCurve(to: CGPoint(x: 229, y: 247), control1: CGPoint(x: 216, y: 218), control2: CGPoint(x: 226, y: 233))
+        silhouette.addLine(to: CGPoint(x: 254, y: 253))
+        silhouette.addLine(to: CGPoint(x: 261, y: 241))
+        silhouette.addLine(to: CGPoint(x: 246, y: 233))
+        silhouette.addLine(to: CGPoint(x: 235, y: 200))
+        silhouette.closeSubpath()
+        silhouette.move(to: CGPoint(x: 226, y: 158))
+        silhouette.addCurve(to: CGPoint(x: 267, y: 211), control1: CGPoint(x: 241, y: 172), control2: CGPoint(x: 257, y: 190))
+        silhouette.addCurve(to: CGPoint(x: 256, y: 225), control1: CGPoint(x: 274, y: 223), control2: CGPoint(x: 265, y: 229))
+        silhouette.addLine(to: CGPoint(x: 239, y: 211))
+        silhouette.closeSubpath()
+
+        drawing.fill(
+            silhouette,
+            with: .linearGradient(
+                Gradient(colors: [
+                    color.opacity(alpha * 0.64),
+                    color.opacity(alpha),
+                    color.opacity(alpha * 0.76)
+                ]),
+                startPoint: CGPoint(x: 130, y: 56),
+                endPoint: CGPoint(x: 262, y: 258)
+            )
+        )
+
+        var detail = Path()
+        // Wing ribs and membrane seams.
+        detail.move(to: CGPoint(x: 153, y: 62))
+        detail.addQuadCurve(to: CGPoint(x: 184, y: 147), control: CGPoint(x: 157, y: 111))
+        detail.move(to: CGPoint(x: 161, y: 79))
+        detail.addQuadCurve(to: CGPoint(x: 206, y: 141), control: CGPoint(x: 177, y: 110))
+        detail.move(to: CGPoint(x: 241, y: 59))
+        detail.addQuadCurve(to: CGPoint(x: 226, y: 145), control: CGPoint(x: 244, y: 101))
+        detail.move(to: CGPoint(x: 205, y: 88))
+        detail.addQuadCurve(to: CGPoint(x: 216, y: 145), control: CGPoint(x: 210, y: 119))
+        // Shoulder, jaw and chest anatomy.
+        detail.move(to: CGPoint(x: 226, y: 119))
+        detail.addQuadCurve(to: CGPoint(x: 299, y: 125), control: CGPoint(x: 259, y: 103))
+        detail.move(to: CGPoint(x: 279, y: 140))
+        detail.addQuadCurve(to: CGPoint(x: 320, y: 132), control: CGPoint(x: 303, y: 145))
+        detail.move(to: CGPoint(x: 211, y: 151))
+        detail.addQuadCurve(to: CGPoint(x: 236, y: 187), control: CGPoint(x: 226, y: 164))
+        detail.move(to: CGPoint(x: 178, y: 173))
+        detail.addQuadCurve(to: CGPoint(x: 211, y: 204), control: CGPoint(x: 194, y: 193))
+        // Small dorsal spines and three curved scale rows.
+        for index in 0..<5 {
+            let x = CGFloat(177 + index * 12)
+            detail.move(to: CGPoint(x: x, y: 130))
+            detail.addLine(to: CGPoint(x: x + 5, y: 116))
+            detail.addLine(to: CGPoint(x: x + 10, y: 131))
+        }
+        for index in 0..<3 {
+            let y = CGFloat(176 + index * 12)
+            detail.move(to: CGPoint(x: 157, y: y))
+            detail.addQuadCurve(to: CGPoint(x: 222, y: y), control: CGPoint(x: 190, y: y + 8))
+        }
+        // Claws, tail-fin webbing and the nose line. No separate eye overlay.
+        detail.move(to: CGPoint(x: 112, y: 247))
+        detail.addLine(to: CGPoint(x: 103, y: 255))
+        detail.move(to: CGPoint(x: 122, y: 245))
+        detail.addLine(to: CGPoint(x: 119, y: 255))
+        detail.move(to: CGPoint(x: 251, y: 250))
+        detail.addLine(to: CGPoint(x: 261, y: 258))
+        detail.move(to: CGPoint(x: 239, y: 248))
+        detail.addLine(to: CGPoint(x: 243, y: 258))
+        detail.move(to: CGPoint(x: 81, y: 116))
+        detail.addQuadCurve(to: CGPoint(x: 49, y: 91), control: CGPoint(x: 67, y: 100))
+        detail.move(to: CGPoint(x: 81, y: 132))
+        detail.addQuadCurve(to: CGPoint(x: 58, y: 144), control: CGPoint(x: 68, y: 139))
+
+        drawing.stroke(
+            detail,
+            with: .color(color.opacity(min(1, alpha * 0.56))),
+            style: StrokeStyle(lineWidth: 1.9, lineCap: .round, lineJoin: .round)
+        )
     }
 }
 
