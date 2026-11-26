@@ -3072,17 +3072,14 @@ final class DownloadManager: NSObject, ObservableObject {
         if activeHLSAttemptIDs[id] == attempt.attemptID {
             attempt.downloader.setContinuedProcessingGranted(false)
         }
-        // If the app is already active, expiration only removes the
-        // continued-processing allowance. The foreground worker still has
-        // execution time and must be allowed to finish without interruption.
-        // When the app is backgrounded, stop at the last durable segment and
-        // recover from that checkpoint on the next foreground activation.
+        // A background URLSession owns each HTTPS playlist/key/segment
+        // request independently of Eclipse's short continued-processing grant.
+        // Do not cancel its worker or mark the download paused when that grant
+        // expires: completed resources remain cached by the coordinator and
+        // the worker can consume them on the next system wake/foreground turn.
         let canContinueInForeground = hlsApplicationIsActive && hlsIntentIsCurrent(attempt.intent)
-        if !canContinueInForeground {
-            // Continued-processing expiration is a system interruption,
-            // not a user cancellation. Detach the in-flight OS-owned HLS
-            // resource task so URLSession can finish it and the next worker
-            // can reattach after iOS grants execution again.
+        let resourcesOwnedByBackgroundSession = attempt.downloader.usesBackgroundURLSessionForResources
+        if !canContinueInForeground && !resourcesOwnedByBackgroundSession {
             attempt.downloader.cancel(reason: .backgroundProcessingExpired)
             if let index = downloads.firstIndex(where: { $0.id == id }),
                downloads[index].status != .completed {
@@ -3091,9 +3088,16 @@ final class DownloadManager: NSObject, ObservableObject {
                 saveDownloads()
             }
         }
-        // waitForCheckpoint persists the last fully-written segment before
-        // releasing the scheduler slot in either foreground or background.
-        finishHLSBackgroundAttempt(id: id, attempt: attempt, success: false)
+        // Persist the latest completed segment and release the temporary
+        // scheduler slot. Keep the Live Activity alive for OS-owned resources;
+        // it is ended by the actual downloader completion callback.
+        finishHLSBackgroundAttempt(
+            id: id,
+            attempt: attempt,
+            success: false,
+            waitForWorker: canContinueInForeground,
+            endLiveActivity: !resourcesOwnedByBackgroundSession
+        )
     }
 
     private func revokeHLSBackgroundAttempt(id: String) {
@@ -3120,7 +3124,13 @@ final class DownloadManager: NSObject, ObservableObject {
         }
     }
 
-    private func finishHLSBackgroundAttempt(id: String, attempt: HLSBackgroundAttempt, success: Bool, waitForWorker: Bool = true) {
+    private func finishHLSBackgroundAttempt(
+        id: String,
+        attempt: HLSBackgroundAttempt,
+        success: Bool,
+        waitForWorker: Bool = true,
+        endLiveActivity: Bool = true
+    ) {
         guard hlsBackgroundAttempts[id] === attempt, !attempt.finishing else { return }
         attempt.finishing = true
         Task { @MainActor [weak self] in
@@ -3140,7 +3150,7 @@ final class DownloadManager: NSObject, ObservableObject {
                 && !attempt.revoked && self.hlsIntentIsCurrent(attempt.intent)
             self.hlsBackgroundScheduler?.finish(attemptID: attempt.attemptID, success: didComplete)
 #if os(iOS)
-            if #available(iOS 16.2, *) {
+            if endLiveActivity, #available(iOS 16.2, *) {
                 Task { @MainActor in
                     await DownloadLiveActivityController.end(downloadID: id, status: didComplete ? "Completed" : "Paused")
                 }
