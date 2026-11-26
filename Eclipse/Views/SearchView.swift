@@ -907,7 +907,7 @@ struct SearchView: View {
                         if let englishTVResults = try? await tmdbService.searchTVShows(
                             query: query,
                             languageOverride: "en-US",
-                            maxPages: 4
+                            maxPages: 10
                         ) {
                             try Task.checkCancellation()
                             results.append(contentsOf: englishTVResults
