@@ -28,7 +28,7 @@ struct SplashScreenView: View {
     @State private var loadingPulse = false
 
     @AppStorage("splashScreenMinimumDuration", store: ProfileSettingsStore.device) private var configuredMinimumDuration = 1.6
-    @AppStorage("splashScreenMaximumDuration", store: ProfileSettingsStore.device) private var configuredMaximumDuration = 12.0
+    @AppStorage("splashScreenMaximumDuration", store: ProfileSettingsStore.device) private var configuredMaximumDuration = 4.0
     @State private var maximumTimeElapsed = false
 
     private var minimumDuration: Double { min(max(configuredMinimumDuration, 1.3), 10.0) }
