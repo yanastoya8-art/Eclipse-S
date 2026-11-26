@@ -1638,10 +1638,10 @@ private struct HomeAnimatedCreatureMotif: View {
                     anatomy.addArc(center: CGPoint(x: x, y: y), radius: 9, startAngle: .degrees(205), endAngle: .degrees(335), clockwise: false)
                 }
             }
-            anatomy.move(to: CGPoint(x: 256, y: 424))
-            anatomy.addQuadCurve(to: CGPoint(x: 206, y: 475), control: CGPoint(x: 228, y: 447))
-            anatomy.move(to: CGPoint(x: 256, y: 424))
-            anatomy.addQuadCurve(to: CGPoint(x: 306, y: 475), control: CGPoint(x: 284, y: 447))
+            anatomy.move(to: CGPoint(x: 256, y: 258))
+            anatomy.addQuadCurve(to: CGPoint(x: 218, y: 292), control: CGPoint(x: 232, y: 275))
+            anatomy.move(to: CGPoint(x: 256, y: 258))
+            anatomy.addQuadCurve(to: CGPoint(x: 294, y: 292), control: CGPoint(x: 280, y: 275))
         case .paw:
             // Natural toe-pad creases and heel-pad folds; no extra graphic elements.
             for index in 0..<4 {
