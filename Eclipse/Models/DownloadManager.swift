@@ -2920,6 +2920,11 @@ final class DownloadManager: NSObject, ObservableObject {
             return
         }
         let attempt = directBackgroundAttempts[id]
+        if let taskIdentifier,
+           let currentTask = activeTasks[id],
+           currentTask.taskIdentifier != taskIdentifier {
+            return
+        }
         if let attempt, taskIdentifier != nil, attempt.taskIdentifier != taskIdentifier {
             return
         }
