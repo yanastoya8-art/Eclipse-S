@@ -7024,11 +7024,17 @@ final class DownloadManager: NSObject, ObservableObject {
             // iOS suspends as soon as the app leaves the foreground.
             useBackgroundURLSession: ["http", "https"].contains(url.scheme?.lowercased() ?? "")
                 && !["127.0.0.1", "localhost", "::1"].contains(url.host?.lowercased() ?? "")
-                && item.providerTransportKind != .skyStreamHLS
                 && (protectedNuvioAttemptID == nil
                     || protectedProviderAttempts[item.id]?.mainProxyURL == nil),
-            requiresPublicNetworkValidationForBackgroundURLSession: protectedNuvioAttemptID != nil
-                && protectedProviderAttempts[item.id]?.mainProxyURL == nil
+            // SkyStream HLS is allowed to use the OS-owned resource session too,
+            // but every initial resource and redirect must pass the public-network
+            // validation policy before it is dispatched. Previously this provider
+            // was unconditionally excluded, so backgrounding always suspended its
+            // foreground-only playlist/segment worker.
+            requiresPublicNetworkValidationForBackgroundURLSession:
+                item.providerTransportKind == .skyStreamHLS
+                || (protectedNuvioAttemptID != nil
+                    && protectedProviderAttempts[item.id]?.mainProxyURL == nil)
         )
 
 #if os(iOS) && !targetEnvironment(macCatalyst)
