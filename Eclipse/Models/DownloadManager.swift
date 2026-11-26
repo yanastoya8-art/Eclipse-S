@@ -8116,7 +8116,19 @@ final class DownloadManager: NSObject, ObservableObject {
     private func hlsStartDelayReason(for item: DownloadItem) -> String? {
         #if canImport(UIKit)
         if UIApplication.shared.applicationState != .active {
-            return "Waiting for app to reopen"
+            // Public HTTPS HLS resources are transferred as OS-owned
+            // URLSessionDownloadTasks. Permit their queue admission while the
+            // app is backgrounded; loopback/provider-proxy streams still need
+            // the app process and must wait for foreground execution.
+            let backgroundSessionCanOwnResources =
+                URL(string: item.streamURL)?.scheme?.lowercased() == "https"
+                && item.providerTransportKind != .skyStreamHLS
+                && !["127.0.0.1", "localhost", "::1"].contains(
+                    URL(string: item.streamURL)?.host?.lowercased() ?? ""
+                )
+            if !backgroundSessionCanOwnResources {
+                return "Waiting for app to reopen"
+            }
         }
 
         let device = UIDevice.current
