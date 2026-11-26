@@ -1510,7 +1510,9 @@ private struct BrowseMediaView: View {
             excludedGenreKeys: [],
             selectedYears: [],
             excludedYears: [],
-            selectedCountryCodes: mediaType.isAnime ? ["JP"] : [],
+            // Do not silently restrict the default Anime catalogue to Japan;
+            // users can opt into a country filter explicitly when browsing.
+            selectedCountryCodes: [],
             sortRawValue: BrowseSort.popularity.rawValue,
             minimumRating: 0,
             ageRatingRawValue: BrowseAgeRating.all.rawValue
