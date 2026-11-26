@@ -2836,7 +2836,7 @@ private struct BrowseMediaView: View {
                         return anime
                     }
                     results = sortedDeduplicatedResults(results + aniListCandidates, by: sort)
-                    hasMore = hasMore || aniListResults.count >= 20
+                    hasMore = hasMore || !aniListResults.isEmpty
                 }
             }
             return BrowsePageResult(results: results, hasMore: hasMore)
