@@ -1855,7 +1855,6 @@ private struct HomeAnimatedCreatureMotif: View {
             microDetails.addQuadCurve(to: CGPoint(x: 97, y: 113), control: CGPoint(x: 88, y: 119))
         case .bird:
             // Beak, eye ring, layered flight-feather shafts and separated talons.
-            microDetails.addEllipse(in: CGRect(x: 207, y: 143, width: 7, height: 7))
             microDetails.move(to: CGPoint(x: 214, y: 151))
             microDetails.addLine(to: CGPoint(x: 233, y: 157))
             microDetails.addLine(to: CGPoint(x: 214, y: 161))
@@ -2167,7 +2166,7 @@ private struct HomeAnimatedCreatureMotif: View {
         let conceptDetailColor = motifTint.opacity(min(1, opacity * brightness * 0.78))
         drawing.stroke(conceptDetails, with: .color(conceptDetailColor), style: StrokeStyle(lineWidth: 1.25, lineCap: .round, lineJoin: .round))
 
-        if shape == .snake || shape == .wolf || shape == .cat || shape == .bird || shape == .fox {
+        if shape == .snake || shape == .wolf || shape == .cat || shape == .fox {
             var eye = Path()
             let eyeRect: CGRect
             switch shape {
@@ -2175,7 +2174,6 @@ private struct HomeAnimatedCreatureMotif: View {
             case .fox: eyeRect = CGRect(x: 184, y: 126, width: 8, height: 6)
             case .wolf: eyeRect = CGRect(x: 282, y: 123, width: 7, height: 7)
             case .cat: eyeRect = CGRect(x: 245, y: 151, width: 7, height: 7)
-            case .bird: eyeRect = CGRect(x: 207, y: 145, width: 9, height: 7)
             default: eyeRect = .zero
             }
             eye.addEllipse(in: eyeRect)
@@ -4068,9 +4066,3 @@ extension View {
         }
     }
 }
-
-
-/// Detailed, monochrome vector artwork traced from the approved Eclipse animation
-/// concept sheet. The source illustrations are converted into tonal vector bands,
-/// so every highlight and texture follows the user's selected animation tint.
-/// Reference-matched monochrome artwork for Eclipse's animated background shapes.
