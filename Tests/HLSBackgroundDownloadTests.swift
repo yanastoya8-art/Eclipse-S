@@ -270,7 +270,7 @@ final class HLSBackgroundDownloadTests: XCTestCase {
             fixture.manager.applicationDidEnterBackground()
             fixture.release()
             try await eventually { fixture.item.status == .completed && fixture.scheduler.finishes.count == 1 }
-            XCTAssertEqual(fixture.scheduler.finishes.map(\\.success), [true])
+            XCTAssertEqual(fixture.scheduler.finishes.map(\.success), [true])
             XCTAssertEqual(try fixture.completedData(), Data("AABBCC".utf8))
         } catch {
             await fixture.cleanUp()
