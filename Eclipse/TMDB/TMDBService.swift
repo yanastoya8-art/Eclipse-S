@@ -759,7 +759,7 @@ class TMDBService: ObservableObject {
         var pages: [(Int, [TMDBSearchResult])] = [
             (1, firstPage.results.filter { $0.mediaType == "movie" || $0.mediaType == "tv" })
         ]
-        guard pageLimit > 1, firstPage.results.count >= 20 else {
+        guard pageLimit > 1 else {
             return pages[0].1
         }
 
@@ -966,7 +966,7 @@ class TMDBService: ObservableObject {
         // the Search screen wait for ten serial network round trips.
         let firstPage = try await fetchPage(1)
         let pageLimit = min(maxPages, max(firstPage.totalPages, 1))
-        guard pageLimit > 1, firstPage.results.count >= 20 else {
+        guard pageLimit > 1 else {
             return firstPage.results
         }
 
