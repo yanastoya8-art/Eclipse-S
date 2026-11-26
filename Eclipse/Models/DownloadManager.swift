@@ -4653,6 +4653,34 @@ final class DownloadManager: NSObject, ObservableObject {
         }
     }
 
+#if os(iOS) && !targetEnvironment(macCatalyst)
+    /// Returns the currently authoritative source link for a download. Protected
+    /// providers intentionally scrub signed URLs from persisted metadata, so
+    /// prefer the live URLSession request / protected attempt while it exists.
+    /// Preserve required headers through the same authenticated proxy used by
+    /// the player instead of copying a URL that cannot be opened.
+    func copyableDownloadURL(for item: DownloadItem) -> URL? {
+        let protectedAttempt = protectedProviderAttempts[item.id]
+        let activeRequestURL = activeTasks[item.id]?.currentRequest?.url
+            ?? activeTasks[item.id]?.originalRequest?.url
+        let sourceURL = protectedAttempt.flatMap {
+            DownloadSourceLinkPolicy.copyableURL($0.authorityURL)
+        } ?? DownloadSourceLinkPolicy.copyableURL(item.streamURL)
+            ?? activeRequestURL.flatMap {
+                DownloadSourceLinkPolicy.copyableURL($0.absoluteString)
+            }
+        guard let sourceURL else { return nil }
+
+        let headers = protectedAttempt?.authorityHeaders ?? item.headers
+        guard !headers.isEmpty else { return sourceURL }
+        return MPVHeaderProxy.shared.makeProxyURL(
+            for: sourceURL,
+            headers: headers,
+            logType: "Download"
+        )
+    }
+#endif
+
     func localFileURL(for item: DownloadItem) -> URL? {
         guard let fileName = item.localFileName else { return nil }
         return existingDownloadFileURL(relativePath: fileName, for: item)
