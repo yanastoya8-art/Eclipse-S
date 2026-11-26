@@ -866,9 +866,8 @@ struct SearchView: View {
         activeSearchTask?.cancel()
         activeSearchTask = Task {
             do {
-                // One TMDB page is enough for interactive search. Fetching
-                // a second page for every keystroke added latency without
-                // improving exact-title lookup in the common case.
+                // Search multiple TMDB pages so less popular series and
+                // titles ranked below unrelated matches are not silently omitted.
                 var results = try await tmdbService.searchMulti(query: query, maxPages: 4)
                 try Task.checkCancellation()
                 let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
