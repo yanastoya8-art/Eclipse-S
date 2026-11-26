@@ -2781,8 +2781,7 @@ final class DownloadManager: NSObject, ObservableObject {
         for (id, downloader) in activeHLSDownloaders {
             guard let attemptID = activeHLSAttemptIDs[id],
                   let item = downloads.first(where: { $0.id == id }),
-                  item.status == .downloading,
-                  item.hasVerifiedHLSCheckpoint || item.hlsResumeManifestSHA256 != nil else { continue }
+                  item.status == .downloading else { continue }
             beginHLSBackgroundAttempt(
                 id: id,
                 attemptID: attemptID,
@@ -3000,7 +2999,6 @@ final class DownloadManager: NSObject, ObservableObject {
               hlsIntentIsCurrent(intent), hlsBackgroundAttempts[id] == nil,
               let item = downloads.first(where: { $0.id == id }),
               item.status == .downloading,
-              item.hasVerifiedHLSCheckpoint || item.hlsResumeManifestSHA256 != nil,
               let scheduler = hlsBackgroundScheduler else { return }
         let attempt = HLSBackgroundAttempt(attemptID: attemptID, intent: intent, protectedAttemptID: protectedAttemptID, downloader: downloader, dateAdded: item.dateAdded)
         hlsBackgroundAttempts[id] = attempt
@@ -7086,7 +7084,12 @@ final class DownloadManager: NSObject, ObservableObject {
                   let index = self.downloads.firstIndex(where: { $0.id == item.id }) else { return }
             self.downloads[index].hlsResumeManifestSHA256 = digest
 #if os(iOS) && !targetEnvironment(macCatalyst)
-            if digest != nil, let backgroundIntent, let downloader {
+            // A valid manifest digest is required for safe resume matching,
+            // but not for continuing the current live worker in the background.
+            // Some provider HLS playlists do not yield a stable digest; requiring
+            // one here prevented Stremio/Mangayomi streams from ever receiving
+            // the continued-processing grant.
+            if let backgroundIntent, let downloader {
                 self.beginHLSBackgroundAttempt(
                     id: item.id,
                     attemptID: attemptID,
