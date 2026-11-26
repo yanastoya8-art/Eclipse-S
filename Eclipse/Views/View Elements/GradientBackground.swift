@@ -847,7 +847,6 @@ private struct EclipseAmbientMotionHostingBoundary: UIViewControllerRepresentabl
 private struct HomeAnimatedCreatureMotif: View {
     let shape: HomeAnimatedBackgroundShape
     let color: Color
-    let eyeColor: Color
     let opacity: Double
     let brightness: Double
     let size: CGSize
@@ -1422,20 +1421,6 @@ private struct HomeAnimatedCreatureMotif: View {
             with: .color(motifTint.opacity(min(1, motifAlpha * 0.9))),
             style: StrokeStyle(lineWidth: 2.15, lineCap: .round, lineJoin: .round)
         )
-        if shape == .dragon {
-            // Toothless's almond-shaped irises use the independent eye-colour setting;
-            // the dark pupils remain separate for contrast.
-            var eyes = Path()
-            eyes.move(to: CGPoint(x: 244, y: 98))
-            eyes.addQuadCurve(to: CGPoint(x: 276, y: 104), control: CGPoint(x: 263, y: 88))
-            eyes.addQuadCurve(to: CGPoint(x: 269, y: 117), control: CGPoint(x: 278, y: 114))
-            eyes.addQuadCurve(to: CGPoint(x: 243, y: 110), control: CGPoint(x: 256, y: 121))
-            eyes.addQuadCurve(to: CGPoint(x: 244, y: 98), control: CGPoint(x: 237, y: 104))
-            drawing.fill(eyes, with: .color(eyeColor.opacity(min(1, opacity * 1.25))))
-            var pupils = Path()
-            pupils.addEllipse(in: CGRect(x: 256, y: 100, width: 5, height: 11))
-            drawing.fill(pupils, with: .color(Color.black.opacity(min(1, opacity * 0.72))))
-        }
         var details = Path()
         let detailColor = motifTint.opacity(min(1, opacity * 0.85 * brightness))
         switch shape {
@@ -2180,19 +2165,6 @@ private struct HomeAnimatedCreatureMotif: View {
         let conceptDetailColor = motifTint.opacity(min(1, opacity * brightness * 0.78))
         drawing.stroke(conceptDetails, with: .color(conceptDetailColor), style: StrokeStyle(lineWidth: 1.25, lineCap: .round, lineJoin: .round))
 
-        if shape == .snake || shape == .wolf || shape == .cat || shape == .fox {
-            var eye = Path()
-            let eyeRect: CGRect
-            switch shape {
-            case .snake: eyeRect = CGRect(x: 224, y: 57, width: 8, height: 6)
-            case .fox: eyeRect = CGRect(x: 184, y: 126, width: 8, height: 6)
-            case .wolf: eyeRect = CGRect(x: 282, y: 123, width: 7, height: 7)
-            case .cat: eyeRect = CGRect(x: 245, y: 151, width: 7, height: 7)
-            default: eyeRect = .zero
-            }
-            eye.addEllipse(in: eyeRect)
-            drawing.fill(eye, with: .color(shape == .snake || shape == .bird ? eyeColor.opacity(min(1, opacity * 1.15)) : motifTint.opacity(min(1, opacity * 0.95))))
-        }
     }
 }
 
@@ -2469,7 +2441,6 @@ struct EclipseAmbientMotionBackground: View {
             let motif = HomeAnimatedCreatureMotif(
                 shape: selectedShape,
                 color: primaryColor,
-                eyeColor: primaryColor,
                 opacity: shapeOpacity,
                 brightness: shapeBrightness,
                 size: CGSize(width: motifSize * 4 / 3, height: motifSize),
