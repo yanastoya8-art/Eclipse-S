@@ -866,10 +866,9 @@ struct SearchView: View {
         activeSearchTask?.cancel()
         activeSearchTask = Task {
             do {
-                // One TMDB page is enough for interactive search. Fetching
-                // a second page for every keystroke added latency without
-                // improving exact-title lookup in the common case.
-                var results = try await tmdbService.searchMulti(query: query, maxPages: 2)
+                // Search multiple TMDB pages so less popular series and
+                // titles ranked below unrelated matches are not silently omitted.
+                var results = try await tmdbService.searchMulti(query: query, maxPages: 4)
                 try Task.checkCancellation()
                 let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
                 let requiresGlobalAnimeAgeRating = UserDefaults.standard.bool(forKey: "catalogHideBelowPG13Anime")
@@ -882,7 +881,7 @@ struct SearchView: View {
                 let shouldSearchTVEndpoint = searchFilter != .movies
                 if shouldSearchTVEndpoint {
                     var seen = Set(results.map(\.stableIdentity))
-                    if let tvResults = try? await tmdbService.searchTVShows(query: query, maxPages: 2) {
+                    if let tvResults = try? await tmdbService.searchTVShows(query: query, maxPages: 4) {
                         try Task.checkCancellation()
                         results.append(contentsOf: tvResults
                             .map(\.asSearchResult)
@@ -898,7 +897,7 @@ struct SearchView: View {
                         if let englishTVResults = try? await tmdbService.searchTVShows(
                             query: query,
                             languageOverride: "en-US",
-                            maxPages: 2
+                            maxPages: 4
                         ) {
                             try Task.checkCancellation()
                             results.append(contentsOf: englishTVResults
@@ -1510,7 +1509,9 @@ private struct BrowseMediaView: View {
             excludedGenreKeys: [],
             selectedYears: [],
             excludedYears: [],
-            selectedCountryCodes: mediaType.isAnime ? ["JP"] : [],
+            // Do not silently restrict the default Anime catalogue to Japan;
+            // users can opt into a country filter explicitly when browsing.
+            selectedCountryCodes: [],
             sortRawValue: BrowseSort.popularity.rawValue,
             minimumRating: 0,
             ageRatingRawValue: BrowseAgeRating.all.rawValue

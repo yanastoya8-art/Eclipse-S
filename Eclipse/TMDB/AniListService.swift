@@ -9988,17 +9988,19 @@ final class AniListService {
                     var bestMatch: TMDBTVShow?
 
                     for candidate in titleCandidates where !candidate.isEmpty {
-                        var results = (try? await tmdbService.searchTVShows(query: candidate)) ?? []
-                        // AniList titles are frequently romanized or English even
-                        // when Eclipse is displaying another language. TMDB can
-                        // return localized near-matches for the first query and
-                        // omit the correct English/romanized show. Always merge
-                        // the English index pass before matching instead of
-                        // treating any localized result as proof the title exists.
-                        if langCode.caseInsensitiveCompare("en-US") != .orderedSame {
+                        let candidateKey = normalized(candidate)
+                        var results = (try? await tmdbService.searchTVShows(query: candidate, maxPages: 2)) ?? []
+
+                        // Only query TMDB's English index when the localized
+                        // index did not return an exact title. This keeps
+                        // romanized/English anime discoverable without issuing
+                        // up to six pages of duplicate lookups for every alias.
+                        if langCode.caseInsensitiveCompare("en-US") != .orderedSame,
+                           !results.contains(where: { normalized($0.name) == candidateKey }) {
                             let englishResults = (try? await tmdbService.searchTVShows(
                                 query: candidate,
-                                languageOverride: "en-US"
+                                languageOverride: "en-US",
+                                maxPages: 2
                             )) ?? []
                             var seenIDs = Set(results.map(\.id))
                             results.append(contentsOf: englishResults.filter {
@@ -10006,7 +10008,6 @@ final class AniListService {
                             })
                         }
                         guard !results.isEmpty else { continue }
-                        let candidateKey = normalized(candidate)
 
                         let exactMatches = results.filter { normalized($0.name) == candidateKey }
                         if !exactMatches.isEmpty {
@@ -10137,7 +10138,9 @@ final class AniListService {
         }
 
         let langCode = self.preferredLanguageCode
-        let cacheLanguage = self.tmdbMatchCacheLanguage
+        // Bump the match-cache namespace when the lookup strategy changes so
+        // old first-page-only misses do not keep hiding valid anime results.
+        let cacheLanguage = self.tmdbMatchCacheLanguage + "|expanded-search-v2"
 
         guard let matches = try? await TrackerImportWork.map(animeList, operation: { anime -> (Int, TMDBSearchResult?, AnimeTMDBMatchCacheRecord?) in
             try Task.checkCancellation()
@@ -10170,16 +10173,36 @@ final class AniListService {
 
             for candidate in titleCandidates where !candidate.isEmpty {
                 try Task.checkCancellation()
-                let results: [TMDBTVShow]
+                let candidateKey = normalized(candidate)
+                var results: [TMDBTVShow] = []
                 do {
-                    results = try await tmdbService.searchTVShows(query: candidate)
+                    results = try await tmdbService.searchTVShows(query: candidate, maxPages: 2)
                 } catch {
                     try Task.checkCancellation()
                     lookupCompleted = false
-                    continue
+                }
+
+                // Only query the English index when the localized index did not
+                // return an exact title. This preserves romanized/English
+                // fallbacks without multiplying requests for already matched aliases.
+                if langCode.caseInsensitiveCompare("en-US") != .orderedSame,
+                   !results.contains(where: { normalized($0.name) == candidateKey }) {
+                    do {
+                        let englishResults = try await tmdbService.searchTVShows(
+                            query: candidate,
+                            languageOverride: "en-US",
+                            maxPages: 2
+                        )
+                        var seenIDs = Set(results.map(\.id))
+                        results.append(contentsOf: englishResults.filter {
+                            seenIDs.insert($0.id).inserted
+                        })
+                    } catch {
+                        try Task.checkCancellation()
+                        lookupCompleted = false
+                    }
                 }
                 guard !results.isEmpty else { continue }
-                let candidateKey = normalized(candidate)
 
                 let exactMatches = results.filter { normalized($0.name) == candidateKey }
                 if !exactMatches.isEmpty {

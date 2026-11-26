@@ -28,35 +28,29 @@ private func copyProviderDownloadURL(_ rawURL: String, headers: [String: String]
 
     let sanitizedHeaders = AVPlayerResourceLoader.sanitizedHTTPHeaders(headers ?? [:])
 
-    // Always route through the download-mode response proxy, including streams
-    // that need no custom headers. The proxy adds Content-Disposition:
-    // attachment; copying the provider URL directly lets Safari play inline.
-    // Header-protected streams also retain their sanitized request headers.
-    // This link is intended to be opened by a browser on the same device.
-    // Use the loopback proxy instead of a LAN address: it works on Wi-Fi,
-    // cellular and restricted local-network configurations alike.
-    let downloadURL = MPVHeaderProxy.shared.makeProxyURL(
-        for: sourceURL,
-        headers: sanitizedHeaders,
-        logType: "Download"
-    )
-    if let downloadURL {
-        ProviderExternalApplication.copy(downloadURL.absoluteString)
+    // A header-free provider URL is portable and does not depend on Eclipse
+    // keeping its loopback proxy alive after the user switches to Safari or
+    // another app. Prefer that URL directly.
+    if sanitizedHeaders.isEmpty {
+        ProviderExternalApplication.copy(sourceURL.absoluteString)
         return
     }
 
-    // A direct URL is still useful for header-free streams when the local
-    // proxy cannot bind (for example, while the app is offline from Wi-Fi).
-    // Never fall back for authenticated streams because that would produce a
-    // copied link that cannot reproduce the provider request.
-    guard sanitizedHeaders.isEmpty else {
+    // Header-protected sources need Eclipse's authenticated proxy. Keep the
+    // proxy link scoped to the current device; never copy the upstream URL
+    // without the credentials required to fetch it.
+    guard let downloadURL = MPVHeaderProxy.shared.makeProxyURL(
+        for: sourceURL,
+        headers: sanitizedHeaders,
+        logType: "Download"
+    ) else {
         Logger.shared.log(
             "Could not create an authenticated download URL for host \(sourceURL.host ?? "unknown")",
             type: "Download"
         )
         return
     }
-    ProviderExternalApplication.copy(sourceURL.absoluteString)
+    ProviderExternalApplication.copy(downloadURL.absoluteString)
 }
 
 extension Notification.Name {

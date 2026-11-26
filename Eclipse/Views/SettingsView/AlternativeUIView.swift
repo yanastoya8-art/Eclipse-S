@@ -39,9 +39,6 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
     case animationShapeGlow
     case animationShapeBrightness
     case animationShapeSize
-    case toothlessEyeColor
-    case cobraEyeColor
-    case hawkEyeColor
     case appPerformanceOverlay
     case hideSplashScreen
     case splashScreenDuration
@@ -86,7 +83,7 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
             return "theme"
         case .interface, .globalAppearance, .accentColor, .liquidGlassDarkBarColor, .liquidGlassLightBarColor, .liquidGlassBottomBarColor, .browseFilterChipColor, .browseFilterButtonColor, .browseFilterOptionsColor:
             return "interface"
-        case .animatedBackground, .animationQuality, .animationColor, .customAnimationColor, .animationFrameRate, .animationShape, .animationShapeEnabled, .animationShapeOpacity, .animationShapeGlow, .animationShapeBrightness, .animationShapeSize, .toothlessEyeColor, .cobraEyeColor, .hawkEyeColor, .appPerformanceOverlay:
+        case .animatedBackground, .animationQuality, .animationColor, .customAnimationColor, .animationFrameRate, .animationShape, .animationShapeEnabled, .animationShapeOpacity, .animationShapeGlow, .animationShapeBrightness, .animationShapeSize, .appPerformanceOverlay:
             return "animation"
         case .hideSplashScreen, .splashScreenDuration, .splashScreenMaximumDuration, .openInLibrary:
             return "startup"
@@ -156,9 +153,6 @@ struct AlternativeUIView: View {
     @AppStorage(HomeAnimatedBackgroundSettings.downloadsBackgroundKey) private var downloadsAnimatedBackgroundEnabled = true
     @AppStorage(HomeAnimatedBackgroundSettings.downloadsShapeKey) private var downloadsAnimatedShapeEnabled = true
     @AppStorage(HomeAnimatedBackgroundParticleColor.customColorDataKey) private var customAnimationParticleColorData = Data()
-    @AppStorage("homeAnimatedBackgroundToothlessEyeColorData") private var toothlessEyeColorData = Data()
-    @AppStorage("homeAnimatedBackgroundCobraEyeColorData") private var cobraEyeColorData = Data()
-    @AppStorage("homeAnimatedBackgroundHawkEyeColorData") private var hawkEyeColorData = Data()
     @AppStorage(AppPerformanceOverlaySettings.enabledKey) private var appPerformanceOverlayEnabled = AppPerformanceOverlaySettings.defaultEnabled
 #if !os(tvOS)
     @AppStorage("hideSplashScreen", store: ProfileSettingsStore.device) private var hideSplashScreen = false
@@ -721,36 +715,6 @@ struct AlternativeUIView: View {
 
 
             settingRow(
-                title: "Toothless Eye Color",
-                description: "Choose a separate custom eye color for Toothless. This does not change the dragon's body or the overall animation color."
-            ) {
-                ColorPicker("Toothless Eye Color", selection: archivedColorBinding(data: $toothlessEyeColorData, fallback: Color(red: 1.0, green: 0.78, blue: 0.20)))
-                    .labelsHidden()
-                    .accessibilityIdentifier("settings.appearance.toothlessEyeColor")
-                    .id(AppearanceSettingsSearchTarget.toothlessEyeColor.anchorID)
-            }
-
-            settingRow(
-                title: "Cobra Eye Color",
-                description: "Choose a separate custom eye color for the cobra."
-            ) {
-                ColorPicker("Cobra Eye Color", selection: archivedColorBinding(data: $cobraEyeColorData, fallback: Color(red: 1.0, green: 0.72, blue: 0.20)))
-                    .labelsHidden()
-                    .accessibilityIdentifier("settings.appearance.cobraEyeColor")
-                    .id(AppearanceSettingsSearchTarget.cobraEyeColor.anchorID)
-            }
-
-            settingRow(
-                title: "Hawk Eye Color",
-                description: "Choose a separate custom eye color for the hawk."
-            ) {
-                ColorPicker("Hawk Eye Color", selection: archivedColorBinding(data: $hawkEyeColorData, fallback: Color(red: 1.0, green: 0.82, blue: 0.34)))
-                    .labelsHidden()
-                    .accessibilityIdentifier("settings.appearance.hawkEyeColor")
-                    .id(AppearanceSettingsSearchTarget.hawkEyeColor.anchorID)
-            }
-
-            settingRow(
                 title: "Animation Frame Rate",
                 description: "Choose 20, 30, 60, or 120 FPS for background motion. Higher rates use more power; the display and system may limit the actual rate."
             ) {
@@ -870,32 +834,6 @@ struct AlternativeUIView: View {
         )
     }
 
-
-    private func archivedColorBinding(data: Binding<Data>, fallback: Color) -> Binding<Color> {
-        Binding(
-            get: {
-                guard !data.wrappedValue.isEmpty,
-                      let archived = try? PortableColorArchive.color(from: data.wrappedValue) else {
-                    return fallback
-                }
-#if os(macOS)
-                return Color(nsColor: archived)
-#else
-                return Color(uiColor: archived)
-#endif
-            },
-            set: { color in
-#if os(macOS)
-                let archived = NSColor(color)
-#else
-                let archived = UIColor(color)
-#endif
-                if let encoded = try? PortableColorArchive.data(for: archived, requiringSecureCoding: false) {
-                    data.wrappedValue = encoded
-                }
-            }
-        )
-    }
 
     private var customAnimationParticleColorBinding: Binding<Color> {
         Binding(
@@ -1605,9 +1543,6 @@ struct AlternativeUIView: View {
         homeAnimatedBackgroundQuality = HomeAnimatedBackgroundQuality.defaultValue.rawValue
         homeAnimatedBackgroundFrameRate = HomeAnimatedBackgroundFrameRate.defaultValue.rawValue
         homeAnimatedBackgroundParticleColor = HomeAnimatedBackgroundParticleColor.defaultValue.rawValue
-        toothlessEyeColorData = Data()
-        cobraEyeColorData = Data()
-        hawkEyeColorData = Data()
         appPerformanceOverlayEnabled = AppPerformanceOverlaySettings.defaultEnabled
 #if !os(tvOS)
         hideSplashScreen = false

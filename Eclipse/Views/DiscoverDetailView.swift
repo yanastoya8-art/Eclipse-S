@@ -514,8 +514,8 @@ struct DiscoverDetailView: View {
                 do {
                     let newItems = try await loadMore(requestedPage)
                     guard generation == loadGeneration else { return }
-                    let existingIDs = Set(items.map { $0.stableIdentity })
-                    let unique = newItems.filter { !existingIDs.contains($0.stableIdentity) }
+                    var seenIDs = Set(items.map { $0.stableIdentity })
+                    let unique = newItems.filter { seenIDs.insert($0.stableIdentity).inserted }
 
                     if !unique.isEmpty {
                         // Resolve metadata while retaining the raw provider

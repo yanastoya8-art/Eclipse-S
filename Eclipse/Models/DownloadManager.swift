@@ -1886,6 +1886,7 @@ final class DownloadManager: NSObject, ObservableObject {
         let dateAdded: Date
         var granted = false
         var revoked = false
+        var schedulerFinished = false
 
         init(attemptID: UUID, taskIdentifier: Int, intent: HLSForegroundIntent, dateAdded: Date) {
             self.attemptID = attemptID
@@ -2831,16 +2832,20 @@ final class DownloadManager: NSObject, ObservableObject {
             onExpiration: { [weak self, weak attempt] in
                 guard let self, let attempt,
                       self.directBackgroundAttempts[id] === attempt else { return }
-                attempt.revoked = true
-                // The continued-processing task is only the visible progress
-                // activity. The actual transfer belongs to URLSession's
-                // OS-managed background session and must not be cancelled when
-                // iOS expires that auxiliary activity.
-                self.finishDirectBackgroundAttempt(
-                    id: id,
-                    taskIdentifier: attempt.taskIdentifier,
-                    success: false
-                )
+                // The continued-processing grant is a temporary execution
+                // allowance, not the lifetime of the download or its Live
+                // Activity. iOS may expire that allowance while the
+                // OS-managed URLSession transfer continues. Release only the
+                // scheduler slot and keep the attempt registered so progress
+                // updates continue until URLSession reports completion.
+                attempt.granted = false
+                if !attempt.schedulerFinished {
+                    attempt.schedulerFinished = true
+                    self.hlsBackgroundScheduler?.finish(
+                        attemptID: attempt.attemptID,
+                        success: false
+                    )
+                }
                 Logger.shared.log(
                     "Direct progress activity expired; retaining OS-managed URLSession transfer",
                     type: "Download"
@@ -2914,10 +2919,23 @@ final class DownloadManager: NSObject, ObservableObject {
             }
             return
         }
-        guard let attempt = directBackgroundAttempts[id],
-              taskIdentifier == nil || attempt.taskIdentifier == taskIdentifier else { return }
+        let attempt = directBackgroundAttempts[id]
+        if let taskIdentifier,
+           let currentTask = activeTasks[id],
+           currentTask.taskIdentifier != taskIdentifier {
+            return
+        }
+        if let attempt, taskIdentifier != nil, attempt.taskIdentifier != taskIdentifier {
+            return
+        }
         directBackgroundAttempts.removeValue(forKey: id)
-        hlsBackgroundScheduler?.finish(attemptID: attempt.attemptID, success: success && !attempt.revoked)
+        if let attempt, !attempt.schedulerFinished {
+            attempt.schedulerFinished = true
+            hlsBackgroundScheduler?.finish(
+                attemptID: attempt.attemptID,
+                success: success && !attempt.revoked
+            )
+        }
 #if os(iOS)
         if #available(iOS 16.2, *) {
             Task { @MainActor in
@@ -3049,28 +3067,25 @@ final class DownloadManager: NSObject, ObservableObject {
 
     private func expireHLSBackgroundAttempt(id: String, attempt: HLSBackgroundAttempt) {
         guard hlsBackgroundAttempts[id] === attempt, !attempt.revoked else { return }
-        // The continued-processing grant is the execution allowance for this
-        // segmented worker. Once iOS expires it, leaving the downloader in the
-        // active-worker registry can strand a suspended worker forever: the
-        // foreground recovery path sees the stale object and assumes it is live.
-        // Stop at the durable segment checkpoint, retain the row, and let
-        // applicationDidBecomeActive start a fresh worker from that checkpoint.
+        // The continued-processing grant is temporary. If playlist, key and
+        // segment requests are owned by the OS background URLSession, retain the
+        // worker so it can consume completed resources after a system wake. A
+        // foreground-only worker is stopped at its durable checkpoint and
+        // restarted when the app becomes active.
         hlsBackgroundSubtitles.removeValue(forKey: id)?.task.cancel()
         hlsForegroundIntents.removeValue(forKey: id)
+        attempt.granted = false
         if activeHLSAttemptIDs[id] == attempt.attemptID {
             attempt.downloader.setContinuedProcessingGranted(false)
         }
-        // If the app is already active, expiration only removes the
-        // continued-processing allowance. The foreground worker still has
-        // execution time and must be allowed to finish without interruption.
-        // When the app is backgrounded, stop at the last durable segment and
-        // recover from that checkpoint on the next foreground activation.
+        // A background URLSession owns each HTTPS playlist/key/segment
+        // request independently of Eclipse's short continued-processing grant.
+        // Do not cancel its worker or mark the download paused when that grant
+        // expires: completed resources remain cached by the coordinator and
+        // the worker can consume them on the next system wake/foreground turn.
         let canContinueInForeground = hlsApplicationIsActive && hlsIntentIsCurrent(attempt.intent)
-        if !canContinueInForeground {
-            // Continued-processing expiration is a system interruption,
-            // not a user cancellation. Detach the in-flight OS-owned HLS
-            // resource task so URLSession can finish it and the next worker
-            // can reattach after iOS grants execution again.
+        let resourcesOwnedByBackgroundSession = attempt.downloader.usesBackgroundURLSessionForResources
+        if !canContinueInForeground && !resourcesOwnedByBackgroundSession {
             attempt.downloader.cancel(reason: .backgroundProcessingExpired)
             if let index = downloads.firstIndex(where: { $0.id == id }),
                downloads[index].status != .completed {
@@ -3079,9 +3094,16 @@ final class DownloadManager: NSObject, ObservableObject {
                 saveDownloads()
             }
         }
-        // waitForCheckpoint persists the last fully-written segment before
-        // releasing the scheduler slot in either foreground or background.
-        finishHLSBackgroundAttempt(id: id, attempt: attempt, success: false)
+        // Persist the latest completed segment and release the temporary
+        // scheduler slot. Keep the Live Activity alive for OS-owned resources;
+        // it is ended by the actual downloader completion callback.
+        finishHLSBackgroundAttempt(
+            id: id,
+            attempt: attempt,
+            success: false,
+            waitForWorker: canContinueInForeground,
+            endLiveActivity: !resourcesOwnedByBackgroundSession
+        )
     }
 
     private func revokeHLSBackgroundAttempt(id: String) {
@@ -3108,7 +3130,13 @@ final class DownloadManager: NSObject, ObservableObject {
         }
     }
 
-    private func finishHLSBackgroundAttempt(id: String, attempt: HLSBackgroundAttempt, success: Bool, waitForWorker: Bool = true) {
+    private func finishHLSBackgroundAttempt(
+        id: String,
+        attempt: HLSBackgroundAttempt,
+        success: Bool,
+        waitForWorker: Bool = true,
+        endLiveActivity: Bool = true
+    ) {
         guard hlsBackgroundAttempts[id] === attempt, !attempt.finishing else { return }
         attempt.finishing = true
         Task { @MainActor [weak self] in
@@ -3128,7 +3156,7 @@ final class DownloadManager: NSObject, ObservableObject {
                 && !attempt.revoked && self.hlsIntentIsCurrent(attempt.intent)
             self.hlsBackgroundScheduler?.finish(attemptID: attempt.attemptID, success: didComplete)
 #if os(iOS)
-            if #available(iOS 16.2, *) {
+            if #available(iOS 16.2, *), (endLiveActivity || attempt.mainFinished) {
                 Task { @MainActor in
                     await DownloadLiveActivityController.end(downloadID: id, status: didComplete ? "Completed" : "Paused")
                 }
@@ -4639,6 +4667,34 @@ final class DownloadManager: NSObject, ObservableObject {
             cancelDownload(id: item.id)
         }
     }
+
+#if os(iOS) && !targetEnvironment(macCatalyst)
+    /// Returns the currently authoritative source link for a download. Protected
+    /// providers intentionally scrub signed URLs from persisted metadata, so
+    /// prefer the live URLSession request / protected attempt while it exists.
+    /// Preserve required headers through the same authenticated proxy used by
+    /// the player instead of copying a URL that cannot be opened.
+    func copyableDownloadURL(for item: DownloadItem) -> URL? {
+        let protectedAttempt = protectedProviderAttempts[item.id]
+        let activeRequestURL = activeTasks[item.id]?.currentRequest?.url
+            ?? activeTasks[item.id]?.originalRequest?.url
+        let sourceURL = protectedAttempt.flatMap {
+            DownloadSourceLinkPolicy.copyableURL($0.authorityURL)
+        } ?? DownloadSourceLinkPolicy.copyableURL(item.streamURL)
+            ?? activeRequestURL.flatMap {
+                DownloadSourceLinkPolicy.copyableURL($0.absoluteString)
+            }
+        guard let sourceURL else { return nil }
+
+        let headers = protectedAttempt?.authorityHeaders ?? item.headers
+        guard !headers.isEmpty else { return sourceURL }
+        return MPVHeaderProxy.shared.makeProxyURL(
+            for: sourceURL,
+            headers: headers,
+            logType: "Download"
+        )
+    }
+#endif
 
     func localFileURL(for item: DownloadItem) -> URL? {
         guard let fileName = item.localFileName else { return nil }
@@ -6364,7 +6420,9 @@ final class DownloadManager: NSObject, ObservableObject {
 
 #if (os(iOS) && !targetEnvironment(macCatalyst)) || os(macOS)
             let protectedAuthority = Self.protectedAuthorityState(for: item)
-            if protectedAuthority != .notProtected, !protectedProviderTransportMayStart {
+            if protectedAuthority != .notProtected,
+               !protectedProviderTransportMayStart,
+               !nuvioDirectBackgroundApprovedIDs.contains(item.id) {
                 setQueuedMessage(id: item.id, message: "Waiting for app to reopen")
                 continue
             }
@@ -6492,7 +6550,7 @@ final class DownloadManager: NSObject, ObservableObject {
                 markFailed(id: item.id, error: "The Stremio download reference is no longer valid.")
                 return
             }
-            guard protectedProviderTransportMayStart else {
+            guard protectedProviderTransportMayStart || nuvioDirectBackgroundApprovedIDs.contains(item.id) else {
                 setQueuedMessage(id: item.id, message: "Waiting for app to reopen")
                 return
             }
@@ -6513,7 +6571,7 @@ final class DownloadManager: NSObject, ObservableObject {
                 setQueuedMessage(id: item.id, message: "Waiting for the download's profile")
                 return
             }
-            guard protectedProviderTransportMayStart else {
+            guard protectedProviderTransportMayStart || nuvioDirectBackgroundApprovedIDs.contains(item.id) else {
                 setQueuedMessage(id: item.id, message: "Waiting for app to reopen")
                 return
             }
@@ -6533,7 +6591,7 @@ final class DownloadManager: NSObject, ObservableObject {
                 setQueuedMessage(id: item.id, message: "Waiting for the download's profile")
                 return
             }
-            guard protectedProviderTransportMayStart else {
+            guard protectedProviderTransportMayStart || nuvioDirectBackgroundApprovedIDs.contains(item.id) else {
                 setQueuedMessage(id: item.id, message: "Waiting for app to reopen")
                 return
             }
@@ -6819,7 +6877,7 @@ final class DownloadManager: NSObject, ObservableObject {
                 let currentAuthority = Self.protectedAuthorityState(for: current)
                 guard currentAuthority != .notProtected,
                       currentAuthority != .invalid,
-                      self.protectedProviderTransportMayStart,
+                      self.protectedProviderTransportMayStart || directBackgroundAllowed,
                       self.protectedOwnerMatchesActiveProfile(current),
                       current.effectiveProtectedProviderKind != .stremio
                         || self.stremioConfiguredOriginAuthorities[current.id]
@@ -6999,7 +7057,13 @@ final class DownloadManager: NSObject, ObservableObject {
             self.downloads[index].hlsResumeManifestSHA256 = digest
 #if os(iOS) && !targetEnvironment(macCatalyst)
             if digest != nil, let backgroundIntent, let downloader {
-                self.beginHLSBackgroundAttempt(id: item.id, attemptID: attemptID, intent: backgroundIntent, protectedAttemptID: protectedNuvioAttemptID, downloader: downloader)
+                self.beginHLSBackgroundAttempt(
+                    id: item.id,
+                    attemptID: attemptID,
+                    intent: backgroundIntent,
+                    protectedAttemptID: protectedNuvioAttemptID,
+                    downloader: downloader
+                )
             }
 #endif
         }
@@ -7211,6 +7275,21 @@ final class DownloadManager: NSObject, ObservableObject {
                         )
                     }
                 }
+#if os(iOS) && !targetEnvironment(macCatalyst)
+                // A background URLSession-owned HLS worker can outlive its
+                // continued-processing attempt. In that case the attempt was
+                // already detached to free the scheduler slot; end the activity
+                // only now that the actual HLS worker has completed.
+                if self.hlsBackgroundAttempts[item.id]?.attemptID != attemptID {
+                    let completed = self.downloads.first(where: { $0.id == item.id })?.status == .completed
+                    Task { @MainActor in
+                        await DownloadLiveActivityController.end(
+                            downloadID: item.id,
+                            status: completed ? "Completed" : "Paused"
+                        )
+                    }
+                }
+#endif
             }
         }
 
@@ -7631,7 +7710,7 @@ final class DownloadManager: NSObject, ObservableObject {
         let stremioAuthority = providerKind == .stremio
             ? stremioConfiguredOriginAuthorities[item.id]
             : nil
-        guard protectedProviderTransportMayStart,
+        guard protectedProviderTransportMayStart || nuvioDirectBackgroundApprovedIDs.contains(item.id),
               providerKind != .stremio || stremioAuthority != nil,
               protectedOwnerMatchesActiveProfile(item),
               let current = downloads.first(where: { $0.id == item.id }),
@@ -8064,7 +8143,25 @@ final class DownloadManager: NSObject, ObservableObject {
     private func hlsStartDelayReason(for item: DownloadItem) -> String? {
         #if canImport(UIKit)
         if UIApplication.shared.applicationState != .active {
-            return "Waiting for app to reopen"
+            // Public HTTPS HLS resources are transferred as OS-owned
+            // URLSessionDownloadTasks. Permit their queue admission while the
+            // app is backgrounded; loopback/provider-proxy streams still need
+            // the app process and must wait for foreground execution.
+#if os(iOS) && !targetEnvironment(macCatalyst)
+            let sourceURL = URL(string: item.streamURL)
+            let backgroundSessionCanOwnResources =
+                sourceURL?.scheme?.lowercased() == "https"
+                && item.providerTransportKind != .skyStreamHLS
+                && protectedProviderAttempts[item.id]?.mainProxyURL == nil
+                && !["127.0.0.1", "localhost", "::1"].contains(
+                    sourceURL?.host?.lowercased() ?? ""
+                )
+#else
+            let backgroundSessionCanOwnResources = false
+#endif
+            if !backgroundSessionCanOwnResources {
+                return "Waiting for app to reopen"
+            }
         }
 
         let device = UIDevice.current

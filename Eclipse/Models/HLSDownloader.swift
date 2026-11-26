@@ -745,6 +745,8 @@ final class HLSDownloader: @unchecked Sendable {
     private let enforcesConservativeDiskCapacityReserve: Bool
     private let durableCheckpoints: Bool
     private let usesBackgroundURLSession: Bool
+
+    var usesBackgroundURLSessionForResources: Bool { usesBackgroundURLSession }
     private let requiresPublicNetworkValidationForBackgroundURLSession: Bool
 
     private var isCancelled = false
