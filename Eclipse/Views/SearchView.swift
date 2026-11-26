@@ -1459,11 +1459,6 @@ private struct BrowseCountry: Identifiable, Hashable {
 }
 
 private struct BrowseMediaView: View {
-    // Filter-heavy anime and TV queries can reject most results on each TMDB page.
-    // Automatically fill a usable grid before handing pagination to the scroll sentinel.
-    // The cap prevents an unbounded request chain when filters legitimately match very few titles.
-    private static let maximumAutomaticFilteredPages = 6
-
     @AppStorage("mediaColumnsPortrait") private var mediaColumnsPortrait: Int = 3
     @AppStorage("mediaColumnsLandscape") private var mediaColumnsLandscape: Int = 5
 #if os(tvOS)
@@ -2132,15 +2127,9 @@ private struct BrowseMediaView: View {
                 .font(.title3.weight(.semibold))
                 .foregroundColor(.secondary)
 
-            if hasMorePages && currentPage < Self.maximumAutomaticFilteredPages {
+            if hasMorePages || isLoading {
                 ProgressView("Searching for titles that match your filters…")
                     .font(.caption)
-            } else if hasMorePages {
-                Button("Load More Results") {
-                    loadNextPage()
-                }
-                .font(.subheadline.weight(.semibold))
-                .padding(.top, 4)
             }
         }
         .frame(maxWidth: .infinity)
@@ -2178,20 +2167,11 @@ private struct BrowseMediaView: View {
             // each successful append. Re-arm the sentinel after every append
             // so pagination remains
             // automatic at every depth without a manual "Load More" control.
-            if hasMorePages, results.count >= 12 {
+            if hasMorePages {
                 Color.clear
                     .frame(height: 1)
                     .id("browse-search-pagination-\(currentPage)-\(results.count)")
                     .onAppear { loadNextPage() }
-            } else if hasMorePages,
-                      results.count < 12,
-                      currentPage >= Self.maximumAutomaticFilteredPages {
-                Button("Load More Results") {
-                    loadNextPage()
-                }
-                .font(.subheadline.weight(.semibold))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
             }
 
             if let errorMessage {
@@ -2526,13 +2506,14 @@ private struct BrowseMediaView: View {
                         reapplyCurrentFiltersToRetainedResults()
                     }
 
-                    // Automatically fill small filtered grids (especially Anime and
-                    // TV, where metadata/audio filters can reject most rows on a page).
-                    // Once twelve results are available, the scroll sentinel takes over.
+                    // Automatically continue through filtered-out pages until the
+                    // grid has enough content to scroll. There is deliberately no
+                    // fixed page cap: Anime and TV filters can legitimately reject
+                    // several consecutive provider pages. The provider's hasMore
+                    // signal remains the hard stop.
                     if !filterDataUnavailable,
                        hasMorePages,
-                       results.count < 12,
-                       page < Self.maximumAutomaticFilteredPages {
+                       results.count < 12 {
                         loadNextPage()
                     }
 

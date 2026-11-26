@@ -612,11 +612,10 @@ struct DownloadsView: View {
                     // when headers are required; header-free URLs remain direct.
                     if item.headers.isEmpty {
                         UIPasteboard.general.url = sourceURL
-                    } else if let authenticatedURL = MPVHeaderProxy.shared.makeLANProxyURL(
+                    } else if let authenticatedURL = MPVHeaderProxy.shared.makeProxyURL(
                         for: sourceURL,
                         headers: item.headers,
-                        logType: "Download",
-                        asDownload: true
+                        logType: "Download"
                     ) {
                         UIPasteboard.general.url = authenticatedURL
                     } else {
