@@ -2986,10 +2986,11 @@ final class DownloadManager: NSObject, ObservableObject {
     }
 
     private func beginHLSBackgroundAttempt(id: String, attemptID: UUID, intent: HLSForegroundIntent, protectedAttemptID: UUID?, downloader: HLSDownloader) {
-        guard hlsBackgroundDownloadsEnabled,
+        guard hlsBackgroundDownloadsEnabled, hlsApplicationIsActive,
               hlsIntentIsCurrent(intent), hlsBackgroundAttempts[id] == nil,
               let item = downloads.first(where: { $0.id == id }),
               item.status == .downloading,
+              item.hasVerifiedHLSCheckpoint || item.hlsResumeManifestSHA256 != nil,
               let scheduler = hlsBackgroundScheduler else { return }
         let attempt = HLSBackgroundAttempt(attemptID: attemptID, intent: intent, protectedAttemptID: protectedAttemptID, downloader: downloader, dateAdded: item.dateAdded)
         hlsBackgroundAttempts[id] = attempt
@@ -6922,7 +6923,7 @@ final class DownloadManager: NSObject, ObservableObject {
 
 #if os(iOS) && !targetEnvironment(macCatalyst)
         let backgroundIntent = hlsForegroundIntents.removeValue(forKey: item.id).flatMap {
-            hlsBackgroundDownloadsEnabled && hlsIntentIsCurrent($0) ? $0 : nil
+            hlsBackgroundDownloadsEnabled && hlsApplicationIsActive && hlsIntentIsCurrent($0) ? $0 : nil
         }
 #else
         let backgroundIntent: Bool? = nil
@@ -7054,6 +7055,17 @@ final class DownloadManager: NSObject, ObservableObject {
                   !self.invalidatedHLSAttemptIDs.contains(attemptID),
                   let index = self.downloads.firstIndex(where: { $0.id == item.id }) else { return }
             self.downloads[index].hlsResumeManifestSHA256 = digest
+#if os(iOS) && !targetEnvironment(macCatalyst)
+            if digest != nil, let backgroundIntent, let downloader {
+                self.beginHLSBackgroundAttempt(
+                    id: item.id,
+                    attemptID: attemptID,
+                    intent: backgroundIntent,
+                    protectedAttemptID: protectedNuvioAttemptID,
+                    downloader: downloader
+                )
+            }
+#endif
         }
 
         downloader.onCheckpoint = { [weak self] segmentsWritten, byteCount in
@@ -7295,21 +7307,6 @@ final class DownloadManager: NSObject, ObservableObject {
             saveDownloads()
         }
 
-#if os(iOS) && !targetEnvironment(macCatalyst)
-        // Request the continued-processing grant before the first playlist
-        // fetch. Waiting for the manifest fingerprint meant the app could be
-        // suspended before a grant was even requested, leaving HLS stuck after
-        // its first background URLSession resource task.
-        if let backgroundIntent {
-            beginHLSBackgroundAttempt(
-                id: item.id,
-                attemptID: attemptID,
-                intent: backgroundIntent,
-                protectedAttemptID: protectedNuvioAttemptID,
-                downloader: downloader
-            )
-        }
-#endif
         downloader.start()
 
         let originalStreamURL = URL(string: item.streamURL) ?? url
