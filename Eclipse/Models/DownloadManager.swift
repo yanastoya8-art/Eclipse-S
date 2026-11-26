@@ -4205,7 +4205,13 @@ final class DownloadManager: NSObject, ObservableObject {
         if let hlsResumeSegmentIndex { downloads[index].hlsResumeSegmentIndex = max(0, hlsResumeSegmentIndex) }
         if let hlsResumeByteCount { downloads[index].hlsResumeByteCount = max(0, hlsResumeByteCount) }
 #if os(iOS) && !targetEnvironment(macCatalyst)
-        updateDirectBackgroundProgress(id: id, progress: progress, stage: "Downloading")
+        // HLS publishes its own segment/byte snapshot immediately after this
+        // mutation. Sending that same checkpoint through the direct-transfer
+        // publisher races the HLS publisher and can overwrite its measured
+        // segment progress with a stale direct-download snapshot.
+        if activeHLSAttemptIDs[id] == nil {
+            updateDirectBackgroundProgress(id: id, progress: progress, stage: "Downloading")
+        }
 #endif
     }
 
@@ -4697,11 +4703,16 @@ final class DownloadManager: NSObject, ObservableObject {
         guard let sourceURL else { return nil }
 
         let headers = protectedAttempt?.authorityHeaders ?? item.headers
-        guard !headers.isEmpty else { return sourceURL }
-        return MPVHeaderProxy.shared.makeProxyURL(
+        // Always route copied links through the download response path, even
+        // when the provider needs no headers. Returning the origin URL directly
+        // lets Safari treat MP4/WebM/MKV resources as inline playback instead
+        // of a file download. The LAN proxy adds Content-Disposition: attachment
+        // and preserves any required provider headers.
+        return MPVHeaderProxy.shared.makeLANProxyURL(
             for: sourceURL,
             headers: headers,
-            logType: "Download"
+            logType: "Download",
+            asDownload: true
         )
     }
 #endif
@@ -7007,7 +7018,11 @@ final class DownloadManager: NSObject, ObservableObject {
             enforcesConservativeDiskCapacityReserve: item.providerTransportKind == .skyStreamHLS,
             durableCheckpoints: usesDurableCheckpoints,
             sessionConfiguration: hlsSessionConfiguration,
-            useBackgroundURLSession: url.scheme?.lowercased() == "https"
+            // URLSession background transfers support both HTTP and HTTPS.
+            // Restricting this to HTTPS silently forced otherwise-supported
+            // HTTP HLS streams back onto the foreground-only worker, which
+            // iOS suspends as soon as the app leaves the foreground.
+            useBackgroundURLSession: ["http", "https"].contains(url.scheme?.lowercased() ?? "")
                 && !["127.0.0.1", "localhost", "::1"].contains(url.host?.lowercased() ?? "")
                 && item.providerTransportKind != .skyStreamHLS
                 && (protectedNuvioAttemptID == nil

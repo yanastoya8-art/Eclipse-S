@@ -624,6 +624,12 @@ struct AlternativeUIView: View {
                     }
                 }
                 .pickerStyle(.menu)
+                .onAppear {
+                    let resolved = HomeAnimatedBackgroundShape.resolved(homeAnimatedBackgroundShape)
+                    if homeAnimatedBackgroundShape != resolved.rawValue {
+                        homeAnimatedBackgroundShape = resolved.rawValue
+                    }
+                }
                 .accessibilityLabel("Animation Shape")
                 .accessibilityIdentifier("settings.appearance.animationShape")
                 .accessibilityValue(HomeAnimatedBackgroundShape.resolved(homeAnimatedBackgroundShape).displayName)
