@@ -21,13 +21,13 @@ private struct KidsScheduleKey: Hashable {
 
 struct ScheduleView: View {
     @AppStorage("showLocalScheduleTime") private var showLocalScheduleTime = true
-    @AppStorage("defaultScheduleMode") private var defaultScheduleModeRaw = ScheduleMode.anime.rawValue
+    @AppStorage("defaultScheduleMode") private var defaultScheduleModeRaw = ScheduleMode.combined.rawValue
     @AppStorage(ScheduleWindow.storageKey) private var scheduleWindowDays = ScheduleWindow.defaultValue.rawValue
     @StateObject private var viewModel: ScheduleViewModel
     @StateObject private var accentColorManager = AccentColorManager.shared
     @AppStorage(ScheduleCardAppearanceSettings.colorDataKey) private var scheduleCardColorData = Data()
-    @AppStorage("scheduleControlsCornerRadius") private var scheduleControlsCornerRadiusValue = 14.0
-    @AppStorage("scheduleTimeCornerRadius") private var scheduleTimeCornerRadiusValue = 10.0
+    @AppStorage("scheduleControlsCornerRadius") private var scheduleControlsCornerRadiusValue = 19.0
+    @AppStorage("scheduleTimeCornerRadius") private var scheduleTimeCornerRadiusValue = 23.0
 
     private var scheduleControlsCornerRadius: CGFloat {
         CGFloat(min(max(scheduleControlsCornerRadiusValue, 0), 32))
