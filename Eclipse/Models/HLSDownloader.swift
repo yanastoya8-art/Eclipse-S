@@ -257,7 +257,7 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
 
     private struct PendingRequest {
         let maximumResponseBytes: Int
-        let continuation: CheckedContinuation<HLSBackgroundDownloadResult, Error>
+        var continuations: [CheckedContinuation<HLSBackgroundDownloadResult, Error>]
     }
 
     private struct ResponseSnapshot: Codable {
@@ -373,10 +373,19 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
 
         return try await withCheckedThrowingContinuation { continuation in
             queue.async {
-                self.pending[description] = PendingRequest(
-                    maximumResponseBytes: maximumResponseBytes,
-                    continuation: continuation
-                )
+                if var existing = self.pending[description] {
+                    // Pause/resume recovery can request a resource while its
+                    // OS-owned transfer is still running. Coalesce the waiter
+                    // rather than replacing a live continuation and stranding
+                    // the original HLS worker indefinitely.
+                    existing.continuations.append(continuation)
+                    self.pending[description] = existing
+                } else {
+                    self.pending[description] = PendingRequest(
+                        maximumResponseBytes: maximumResponseBytes,
+                        continuations: [continuation]
+                    )
+                }
                 self.session.getAllTasks { tasks in
                     self.queue.async {
                         guard self.pending[description] != nil else { return }
@@ -417,7 +426,7 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
             let keys = self.pending.keys.filter { $0.hasPrefix(prefix) }
             for key in keys {
                 guard let request = self.pending.removeValue(forKey: key) else { continue }
-                request.continuation.resume(throwing: URLError(.cancelled))
+                request.continuations.forEach { $0.resume(throwing: URLError(.cancelled)) }
             }
         }
     }
@@ -430,7 +439,7 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
             let keys = self.pending.keys.filter { $0.hasPrefix(prefix) }
             for key in keys {
                 guard let request = self.pending.removeValue(forKey: key) else { continue }
-                request.continuation.resume(throwing: URLError(.cancelled))
+                request.continuations.forEach { $0.resume(throwing: URLError(.cancelled)) }
             }
             let activeKeys = self.activeTasks.keys.filter { $0.hasPrefix(prefix) }
             for key in activeKeys {
@@ -459,7 +468,7 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
             queue.async {
                 self.activeTasks.removeValue(forKey: description)
                 if let request = self.pending.removeValue(forKey: description) {
-                    request.continuation.resume(throwing: URLError(.dataLengthExceedsMaximum))
+                    request.continuations.forEach { $0.resume(throwing: URLError(.dataLengthExceedsMaximum)) }
                 }
             }
             return
@@ -500,11 +509,10 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
                     let response = downloadTask.response
                     try? FileManager.default.removeItem(at: fileURL)
                     try? FileManager.default.removeItem(at: self.responseURL(for: description))
-                    request.continuation.resume(
-                        returning: HLSBackgroundDownloadResult(data: data, response: response)
-                    )
+                    let result = HLSBackgroundDownloadResult(data: data, response: response)
+                    request.continuations.forEach { $0.resume(returning: result) }
                 } catch {
-                    request.continuation.resume(throwing: error)
+                    request.continuations.forEach { $0.resume(throwing: error) }
                 }
             }
         } catch {
@@ -512,7 +520,7 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
             queue.async {
                 self.activeTasks.removeValue(forKey: description)
                 if let request = self.pending.removeValue(forKey: description) {
-                    request.continuation.resume(throwing: error)
+                    request.continuations.forEach { $0.resume(throwing: error) }
                 }
             }
         }
@@ -546,7 +554,7 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
             let completionError = exceededLimit ? URLError(.dataLengthExceedsMaximum) : error
             guard let completionError,
                   let request = self.pending.removeValue(forKey: description) else { return }
-            request.continuation.resume(throwing: completionError)
+            request.continuations.forEach { $0.resume(throwing: completionError) }
         }
     }
 
