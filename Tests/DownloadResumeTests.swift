@@ -893,6 +893,35 @@ final class DownloadResumeTests: XCTestCase {
         XCTAssertEqual(segments.map(\.lastPathComponent), ["first.ts", "second.ts"])
     }
 
+    @MainActor
+    func testHLSByteRangeRequestsAreSentAndOnlyRequestedBytesArePackaged() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let output = directory.appendingPathComponent("ranged.ts")
+        let base = try XCTUnwrap(URL(string: "https://hls-resume.example/playlist.m3u8"))
+        DownloadResumeURLProtocol.configure(
+            playlist: "#EXTM3U\\n#EXT-X-BYTERANGE:4@2\\nrange.bin\\n#EXT-X-ENDLIST",
+            holdsLastSegment: false
+        )
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [DownloadResumeURLProtocol.self]
+        let finished = expectation(description: "Byte-range HLS download completes")
+        let downloader = HLSDownloader(
+            streamURL: base, headers: [:], destinationURL: output,
+            downloadId: UUID().uuidString, minimumRequestStartInterval: 0,
+            sessionConfiguration: configuration
+        )
+        downloader.onCompletion = { result in
+            if case .failure(let error) = result { XCTFail("Byte-range download failed: \\(error)") }
+            finished.fulfill()
+        }
+        downloader.start()
+        await fulfillment(of: [finished], timeout: 5)
+        XCTAssertEqual(try Data(contentsOf: output), Data("2345".utf8))
+        XCTAssertEqual(DownloadResumeURLProtocol.requestedRangeHeaders().last!, "bytes=2-5")
+    }
+
     func testHLSParsesExplicitAndImplicitByteRangesForSharedResource() throws {
         let base = try XCTUnwrap(URL(string: "https://hls-resume.example/playlist.m3u8"))
         let downloader = HLSDownloader(
@@ -1316,6 +1345,7 @@ private final class DownloadResumeURLProtocol: URLProtocol {
     private static var playlist = ""
     private static var holdsLastSegment = false
     private static var paths: [String] = []
+    private static var rangeHeaders: [String?] = []
     private static var onHeldSegmentStart: (() -> Void)?
     private static var onHeldSegmentStop: (() -> Void)?
     private var heldSegmentStop: (() -> Void)?
@@ -1332,6 +1362,7 @@ private final class DownloadResumeURLProtocol: URLProtocol {
         self.onHeldSegmentStart = onHeldSegmentStart
         self.onHeldSegmentStop = onHeldSegmentStop
         paths = []
+        rangeHeaders = []
         lock.unlock()
     }
 
@@ -1341,6 +1372,12 @@ private final class DownloadResumeURLProtocol: URLProtocol {
         return paths
     }
 
+    static func requestedRangeHeaders() -> [String?] {
+        lock.lock()
+        defer { lock.unlock() }
+        return rangeHeaders
+    }
+
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
@@ -1348,24 +1385,45 @@ private final class DownloadResumeURLProtocol: URLProtocol {
         guard let url = request.url else { return }
         Self.lock.lock()
         Self.paths.append(url.path)
+        Self.rangeHeaders.append(request.value(forHTTPHeaderField: "Range"))
         let held = Self.holdsLastSegment && url.lastPathComponent == "third.ts"
         let heldSegmentStart = held ? Self.onHeldSegmentStart : nil
         heldSegmentStop = held ? Self.onHeldSegmentStop : nil
-        let payload: String
-        switch url.lastPathComponent {
-        case "playlist.m3u8": payload = Self.playlist
-        case "first.ts": payload = "AA"
-        case "second.ts": payload = "BB"
-        default: payload = "CC"
-        }
+        let playlist = Self.playlist
         Self.lock.unlock()
         if held {
             heldSegmentStart?()
             return
         }
-        guard let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: [:]) else { return }
+
+        var statusCode = 200
+        var headers: [String: String] = [:]
+        let payload: Data
+        switch url.lastPathComponent {
+        case "playlist.m3u8":
+            payload = Data(playlist.utf8)
+        case "first.ts":
+            payload = Data("AA".utf8)
+        case "second.ts":
+            payload = Data("BB".utf8)
+        case "range.bin":
+            let full = Data("0123456789".utf8)
+            if let rawRange = request.value(forHTTPHeaderField: "Range"),
+               let match = rawRange.range(of: #"^bytes=(\\d+)-(\\d+)$"#, options: .regularExpression) {
+                let values = rawRange[match].dropFirst(6).split(separator: "-").compactMap { Int($0) }
+                guard values.count == 2, values[0] >= 0, values[1] >= values[0], values[1] < full.count else { return }
+                payload = full.subdata(in: values[0]..<(values[1] + 1))
+                statusCode = 206
+                headers["Content-Range"] = "bytes \\(values[0])-\\(values[1])/\\(full.count)"
+            } else {
+                payload = full
+            }
+        default:
+            payload = Data("CC".utf8)
+        }
+        guard let response = HTTPURLResponse(url: url, statusCode: statusCode, httpVersion: "HTTP/1.1", headerFields: headers) else { return }
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: Data(payload.utf8))
+        client?.urlProtocol(self, didLoad: payload)
         client?.urlProtocolDidFinishLoading(self)
     }
 
