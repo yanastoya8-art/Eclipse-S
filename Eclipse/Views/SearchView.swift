@@ -921,6 +921,63 @@ struct SearchView: View {
                                 .filter { seen.insert($0.stableIdentity).inserted })
                         }
                     }
+
+                    // If the full phrase is absent from both TV indexes, try
+                    // a few meaningful title words independently. Keep only
+                    // candidates whose title/original title contains every
+                    // meaningful query token, so broad token searches cannot
+                    // add unrelated shows to Search.
+                    let foldedQuery = query.folding(
+                        options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+                        locale: Locale(identifier: "en_US_POSIX")
+                    ).lowercased()
+                    let ignoredTitleWords: Set<String> = ["a", "an", "and", "of", "or", "the", "to", "in", "on", "no"]
+                    let meaningfulQueryTokens = foldedQuery
+                        .components(separatedBy: CharacterSet.alphanumerics.inverted)
+                        .filter { $0.count >= 2 && !ignoredTitleWords.contains($0) }
+                    let requiredTitleTokens = Set(meaningfulQueryTokens)
+                    let hasStrongTVMatch = results.contains { result in
+                        guard result.mediaType == "tv" else { return false }
+                        let titleTokens = Set(
+                            ([result.displayTitle, result.originalName ?? ""])
+                                .joined(separator: " ")
+                                .folding(
+                                    options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+                                    locale: Locale(identifier: "en_US_POSIX")
+                                )
+                                .lowercased()
+                                .components(separatedBy: CharacterSet.alphanumerics.inverted)
+                                .filter { !$0.isEmpty }
+                        )
+                        return !requiredTitleTokens.isEmpty
+                            && requiredTitleTokens.isSubset(of: titleTokens)
+                    }
+                    if !hasStrongTVMatch, !requiredTitleTokens.isEmpty {
+                        for token in meaningfulQueryTokens.filter({ $0.count >= 3 }).prefix(3) {
+                            try Task.checkCancellation()
+                            guard let tokenResults = try? await tmdbService.searchTVShows(
+                                query: token,
+                                maxPages: 5
+                            ) else { continue }
+                            for show in tokenResults {
+                                let candidate = show.asSearchResult
+                                let titleTokens = Set(
+                                    ([candidate.displayTitle, candidate.originalName ?? ""])
+                                        .joined(separator: " ")
+                                        .folding(
+                                            options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+                                            locale: Locale(identifier: "en_US_POSIX")
+                                        )
+                                        .lowercased()
+                                        .components(separatedBy: CharacterSet.alphanumerics.inverted)
+                                        .filter { !$0.isEmpty }
+                                )
+                                guard requiredTitleTokens.isSubset(of: titleTokens),
+                                      seen.insert(candidate.stableIdentity).inserted else { continue }
+                                results.append(candidate)
+                            }
+                        }
+                    }
                 }
 
                 // TMDB's multi-search index can omit anime or index it under
