@@ -1014,8 +1014,7 @@ struct EclipseAmbientMotionBackground: View {
         }
         .onAppear {
             refreshCustomParticleColor()
-            // Migrate retired geometric motifs to the default approved
-            // creature artwork; only the nine approved illustrations remain selectable.
+            // Migrate legacy and retired shape IDs to one of the six approved choices.
             let resolved = HomeAnimatedBackgroundShape.resolved(shapeRawValue)
             if shapeRawValue != resolved.rawValue {
                 shapeRawValue = resolved.rawValue
