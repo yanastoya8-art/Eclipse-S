@@ -898,6 +898,17 @@ final class HLSDownloader: @unchecked Sendable {
         self.durableCheckpoints = durableCheckpoints
 #if os(iOS) && !targetEnvironment(macCatalyst)
         self.usesBackgroundURLSession = useBackgroundURLSession && sessionConfiguration == nil
+        if !self.usesBackgroundURLSession, sessionConfiguration == nil {
+            let scheme = streamURL.scheme?.lowercased() ?? "missing"
+            let host = streamURL.host?.lowercased() ?? "missing"
+            let reason = useBackgroundURLSession
+                ? "a custom URLSession configuration was supplied"
+                : "the source is not a supported remote HTTP(S) endpoint"
+            Logger.shared.log(
+                "HLS: foreground-only resource transport selected scheme=\(scheme) host=\(host) reason=\(reason)",
+                type: "Download"
+            )
+        }
 #else
         self.usesBackgroundURLSession = false
 #endif
