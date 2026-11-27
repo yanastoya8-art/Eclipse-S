@@ -1119,15 +1119,15 @@ final class HomeViewModel: ObservableObject {
                 }
             }
 
-            return catalogs.map { kind, results in
+            var output: [AniListService.AniListCatalogKind: [TMDBSearchResult]] = [:]
+            for (kind, results) in catalogs {
                 // The caller needs the same page ordering as TMDB returned.
                 let replacements = resolved[kind] ?? [:]
-                return (kind, results.enumerated().map { index, result in
+                output[kind] = results.enumerated().map { index, result in
                     replacements[index] ?? result
-                })
-            }.reduce(into: [:]) { output, entry in
-                output[entry.0] = entry.1
+                }
             }
+            return output
         }
     }
 
