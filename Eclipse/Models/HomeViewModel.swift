@@ -155,10 +155,10 @@ enum HomeCatalogFailurePresentation {
             return "Eclipse could not reach TMDB. Check your internet connection, then tap Retry."
         }
 
-        let message = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
-        return message.isEmpty
-            ? "TMDB did not return Home catalog data. Check the API configuration and tap Retry."
-            : "TMDB request failed: \(message.prefix(180))"
+        // Do not echo arbitrary transport descriptions into the Home error UI:
+        // URLSession descriptions can contain the full request URL, including
+        // query-string credentials from third-party providers.
+        return "A Home catalog request failed. Check the connection and API configuration, then tap Retry."
     }
 
     private static let missingAPIKeyMessage =
@@ -961,7 +961,7 @@ final class HomeViewModel: ObservableObject {
                     break
                 }
                 Logger.shared.log(
-                    "HomeViewModel: catalog \(id) transient failure on attempt \(attempt + 1); retrying: \(error.localizedDescription)",
+                    "HomeViewModel: catalog \(id) transient failure on attempt \(attempt + 1); retrying",
                     type: "TMDB"
                 )
                 do {
