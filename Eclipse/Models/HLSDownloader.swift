@@ -248,6 +248,31 @@ struct HLSBackgroundDownloadResult {
     let response: URLResponse?
 }
 
+enum HLSBackgroundPlaylistResourcePlan {
+    static let maximumResourceCount = 20_000
+
+    static func resources(
+        segments: [URL],
+        startingAt startIndex: Int,
+        initializationSegmentURL: URL?
+    ) throws -> [URL] {
+        guard startIndex >= 0, startIndex <= segments.count else {
+            throw HLSError.unsupportedLayout(
+                reason: "This HLS resume checkpoint points outside the media playlist. Restart the download."
+            )
+        }
+
+        let resources = (initializationSegmentURL.map { [$0] } ?? [])
+            + Array(segments.dropFirst(startIndex))
+        guard resources.count <= maximumResourceCount else {
+            throw HLSError.unsupportedLayout(
+                reason: "This HLS playlist contains too many segments to queue safely for background downloading. Choose a shorter or pre-packaged stream."
+            )
+        }
+        return resources
+    }
+}
+
 /// Downloads each HLS resource as an OS-managed background URLSession task.
 /// Stable task descriptions and a small completed-file cache let a new
 /// HLSDownloader reattach after iOS relaunches Eclipse for background events.
@@ -258,6 +283,18 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
     private struct PendingRequest {
         let maximumResponseBytes: Int
         var continuations: [CheckedContinuation<HLSBackgroundDownloadResult, Error>]
+
+        mutating func append(_ continuation: CheckedContinuation<HLSBackgroundDownloadResult, Error>) {
+            continuations.append(continuation)
+        }
+
+        func resume(returning result: HLSBackgroundDownloadResult) {
+            continuations.forEach { $0.resume(returning: result) }
+        }
+
+        func resume(throwing error: Error) {
+            continuations.forEach { $0.resume(throwing: error) }
+        }
     }
 
     private struct ResponseSnapshot: Codable {
@@ -374,11 +411,9 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
         return try await withCheckedThrowingContinuation { continuation in
             queue.async {
                 if var existing = self.pending[description] {
-                    // Pause/resume recovery can request a resource while its
-                    // OS-owned transfer is still running. Coalesce the waiter
-                    // rather than replacing a live continuation and stranding
-                    // the original HLS worker indefinitely.
-                    existing.continuations.append(continuation)
+                    // Resume/recovery can reach a resource whose OS-owned
+                    // transfer is still running. Keep every waiter attached.
+                    existing.append(continuation)
                     self.pending[description] = existing
                 } else {
                     self.pending[description] = PendingRequest(
@@ -389,25 +424,22 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
                 self.session.getAllTasks { tasks in
                     self.queue.async {
                         guard self.pending[description] != nil else { return }
-
-                        // Multiple callers can reach getAllTasks before
-                        // either callback returns. Check the in-memory task
-                        // registry first so those concurrent callbacks cannot
-                        // create duplicate OS transfers for the same HLS
-                        // resource from the same stale task snapshot.
+                        // A queued segment can finish between the initial
+                        // cache lookup and getAllTasks. Recheck here so the
+                        // foreground worker consumes the completed file
+                        // instead of launching a duplicate network request.
+                        if let cached = try? self.readCompletedResult(
+                            for: description,
+                            maximumResponseBytes: maximumResponseBytes,
+                            fallbackURL: request.url
+                        ) {
+                            self.pending.removeValue(forKey: description)?.resume(returning: cached)
+                            return
+                        }
                         if let active = self.activeTasks[description] {
                             if active.state == .suspended { active.resume() }
                             return
                         }
-
-                        // A task from a previous worker may still be owned by
-                        // background URLSession after iOS suspends Eclipse.
-                        // Never cancel a different resource just because it
-                        // belongs to the same download ID: the resumed worker
-                        // will reach that exact URL and reattach to its task.
-                        // Keep completed resource files until the matching
-                        // request consumes them. Explicit Cancel/Delete still
-                        // removes every task and cache entry for the ID.
                         if let existing = tasks.first(where: { $0.taskDescription == description }) as? URLSessionDownloadTask {
                             self.activeTasks[description] = existing
                             if existing.state == .suspended { existing.resume() }
@@ -426,6 +458,68 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
         }
     }
 
+    /// Enqueue every resource in a finite media playlist before the app can be
+    /// suspended. A sequential async worker cannot create segment N+1 while
+    /// iOS has suspended the process after segment N; pre-enqueuing lets the
+    /// OS-owned background session continue the whole VOD playlist on its own.
+    func schedule(
+        _ requests: [URLRequest],
+        downloadID: String,
+        maximumResponseBytes: Int,
+        requiresPublicNetworkValidation: Bool
+    ) async {
+        let entries = requests.compactMap { request -> (URLRequest, String)? in
+            guard let url = request.url else { return nil }
+            return (request, taskDescription(
+                downloadID: downloadID,
+                url: url,
+                maximumResponseBytes: maximumResponseBytes,
+                requiresPublicNetworkValidation: requiresPublicNetworkValidation
+            ))
+        }
+        guard !entries.isEmpty else { return }
+
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            queue.async {
+                self.session.getAllTasks { tasks in
+                    self.queue.async {
+                        var existingTasks: [String: URLSessionDownloadTask] = [:]
+                        for task in tasks {
+                            guard let description = task.taskDescription,
+                                  let downloadTask = task as? URLSessionDownloadTask else { continue }
+                            existingTasks[description] = downloadTask
+                        }
+                        for (request, description) in entries {
+                            // A previous process may already have received and
+                            // cached this resource while no HLS worker was alive.
+                            // Reuse that durable result instead of downloading
+                            // the same segment again after relaunch.
+                            if self.hasCompletedResult(
+                                for: description,
+                                maximumResponseBytes: maximumResponseBytes
+                            ) {
+                                continue
+                            }
+                            if let existing = existingTasks[description] {
+                                self.activeTasks[description] = existing
+                                if existing.state == .suspended { existing.resume() }
+                                continue
+                            }
+                            var backgroundRequest = request
+                            backgroundRequest.timeoutInterval = max(backgroundRequest.timeoutInterval, 600)
+                            let task = self.session.downloadTask(with: backgroundRequest)
+                            task.taskDescription = description
+                            self.activeTasks[description] = task
+                            existingTasks[description] = task
+                            task.resume()
+                        }
+                        continuation.resume()
+                    }
+                }
+            }
+        }
+    }
+
     /// Ends only the in-process waiter. The OS-owned transfer is deliberately
     /// left alive; its completed file is cached for the next worker to consume.
     func detach(downloadID: String) {
@@ -434,7 +528,7 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
             let keys = self.pending.keys.filter { $0.hasPrefix(prefix) }
             for key in keys {
                 guard let request = self.pending.removeValue(forKey: key) else { continue }
-                request.continuations.forEach { $0.resume(throwing: URLError(.cancelled)) }
+                request.resume(throwing: URLError(.cancelled))
             }
         }
     }
@@ -447,7 +541,7 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
             let keys = self.pending.keys.filter { $0.hasPrefix(prefix) }
             for key in keys {
                 guard let request = self.pending.removeValue(forKey: key) else { continue }
-                request.continuations.forEach { $0.resume(throwing: URLError(.cancelled)) }
+                request.resume(throwing: URLError(.cancelled))
             }
             let activeKeys = self.activeTasks.keys.filter { $0.hasPrefix(prefix) }
             for key in activeKeys {
@@ -476,7 +570,7 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
             queue.async {
                 self.activeTasks.removeValue(forKey: description)
                 if let request = self.pending.removeValue(forKey: description) {
-                    request.continuations.forEach { $0.resume(throwing: URLError(.dataLengthExceedsMaximum)) }
+                    request.resume(throwing: URLError(.dataLengthExceedsMaximum))
                 }
             }
             return
@@ -517,10 +611,11 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
                     let response = downloadTask.response
                     try? FileManager.default.removeItem(at: fileURL)
                     try? FileManager.default.removeItem(at: self.responseURL(for: description))
-                    let result = HLSBackgroundDownloadResult(data: data, response: response)
-                    request.continuations.forEach { $0.resume(returning: result) }
+                    request.resume(
+                        returning: HLSBackgroundDownloadResult(data: data, response: response)
+                    )
                 } catch {
-                    request.continuations.forEach { $0.resume(throwing: error) }
+                    request.resume(throwing: error)
                 }
             }
         } catch {
@@ -528,7 +623,7 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
             queue.async {
                 self.activeTasks.removeValue(forKey: description)
                 if let request = self.pending.removeValue(forKey: description) {
-                    request.continuations.forEach { $0.resume(throwing: error) }
+                    request.resume(throwing: error)
                 }
             }
         }
@@ -562,7 +657,7 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
             let completionError = exceededLimit ? URLError(.dataLengthExceedsMaximum) : error
             guard let completionError,
                   let request = self.pending.removeValue(forKey: description) else { return }
-            request.continuations.forEach { $0.resume(throwing: completionError) }
+            request.resume(throwing: completionError)
         }
     }
 
@@ -584,6 +679,10 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
         let requiresPublicRedirectValidation = task.taskDescription.map {
             requiresPublicValidation(for: $0)
         } ?? false
+        if requiresPublicRedirectValidation, destination.scheme?.lowercased() != "https" {
+            completionHandler(nil)
+            return
+        }
         let originalHeaders = task.originalRequest?.allHTTPHeaderFields ?? [:]
         let safeHeaders = MPVHeaderProxy.shared.directTransportHeaders(
             originalHeaders,
@@ -607,9 +706,8 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
         }
         Task {
             do {
-                _ = try await SkyStreamRemoteURLPolicy.shared.validateRedirectForNetworkDispatch(
-                    from: origin,
-                    to: destination,
+                _ = try await SkyStreamRemoteURLPolicy.shared.validateForNetworkDispatch(
+                    destination.absoluteString,
                     purpose: .mediaSegment
                 )
                 completionHandler(redirected)
@@ -708,6 +806,25 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
         try? FileManager.default.removeItem(at: fileURL)
         try? FileManager.default.removeItem(at: responseURL(for: description))
         return HLSBackgroundDownloadResult(data: data, response: response)
+    }
+
+    private func hasCompletedResult(for description: String, maximumResponseBytes: Int) -> Bool {
+        let fileURL = cacheBaseURL(for: description)
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return false }
+        let attributes = try? FileManager.default.attributesOfItem(atPath: fileURL.path)
+        let modifiedAt = attributes?[.modificationDate] as? Date ?? .distantPast
+        let cacheLifetime: TimeInterval = maximumResponseBytes <= 5 * 1_024 * 1_024
+            ? 5 * 60
+            : 24 * 60 * 60
+        let size = Self.regularFileSize(at: fileURL)
+        guard Date().timeIntervalSince(modifiedAt) <= cacheLifetime,
+              size >= 0,
+              size <= Int64(maximumResponseBytes) else {
+            try? FileManager.default.removeItem(at: fileURL)
+            try? FileManager.default.removeItem(at: responseURL(for: description))
+            return false
+        }
+        return true
     }
 
     private func removeCachedResults(withPrefix prefix: String, excluding description: String? = nil) {
@@ -829,6 +946,17 @@ final class HLSDownloader: @unchecked Sendable {
         self.durableCheckpoints = durableCheckpoints
 #if os(iOS) && !targetEnvironment(macCatalyst)
         self.usesBackgroundURLSession = useBackgroundURLSession && sessionConfiguration == nil
+        if !self.usesBackgroundURLSession, sessionConfiguration == nil {
+            let scheme = streamURL.scheme?.lowercased() ?? "missing"
+            let host = streamURL.host?.lowercased() ?? "missing"
+            let reason = useBackgroundURLSession
+                ? "a custom URLSession configuration was supplied"
+                : "the source is not a supported remote HTTP(S) endpoint"
+            Logger.shared.log(
+                "HLS: foreground-only resource transport selected scheme=\(scheme) host=\(host) reason=\(reason)",
+                type: "Download"
+            )
+        }
 #else
         self.usesBackgroundURLSession = false
 #endif
@@ -1158,14 +1286,7 @@ final class HLSDownloader: @unchecked Sendable {
         return content
     }
 
-    private func fetchData(
-        url: URL,
-        maximumResponseBytes: Int = HLSDownloader.maximumMediaObjectBytes
-    ) async throws -> Data {
-        try checkCancelled()
-        try await waitForRequestStartSlot(for: url)
-        publishStage("Downloading HLS data")
-
+    private func makeTransportRequest(for url: URL) -> (URLRequest, [String: String]) {
         let effectiveHeaders = CloudflareBypassManager.shared.headersByApplyingCachedBypass(headers, for: url)
         let transportHeaders = MPVHeaderProxy.shared.directTransportHeaders(
             effectiveHeaders,
@@ -1176,6 +1297,75 @@ final class HLSDownloader: @unchecked Sendable {
         for (key, value) in transportHeaders {
             request.setValue(value, forHTTPHeaderField: key)
         }
+        return (request, effectiveHeaders)
+    }
+
+    private func scheduleBackgroundPlaylistResources(
+        segments: [URL],
+        startingAt startIndex: Int,
+        initializationSegmentURL: URL?
+    ) async throws {
+#if os(iOS) && !targetEnvironment(macCatalyst)
+        guard usesBackgroundURLSession else { return }
+        let resourceURLs = try HLSBackgroundPlaylistResourcePlan.resources(
+            segments: segments,
+            startingAt: startIndex,
+            initializationSegmentURL: initializationSegmentURL
+        )
+        var requests: [URLRequest] = []
+        requests.reserveCapacity(resourceURLs.count)
+        for url in resourceURLs {
+            try checkCancelled()
+            if requiresPublicNetworkValidationForBackgroundURLSession {
+                guard url.scheme?.lowercased() == "https" else {
+                    throw HLSError.unsupportedLayout(reason: "This protected HLS source requires HTTPS for background transfer.")
+                }
+                do {
+                    _ = try await SkyStreamRemoteURLPolicy.shared.validateForNetworkDispatch(
+                        url.absoluteString,
+                        purpose: .mediaSegment
+                    )
+                } catch {
+                    throw HLSError.unsupportedLayout(
+                        reason: "An HLS resource was rejected by the protected-source network policy."
+                    )
+                }
+            }
+            var request = makeTransportRequest(for: url).0
+            request.timeoutInterval = 600
+            requests.append(request)
+        }
+        await HLSBackgroundURLSessionCoordinator.shared.schedule(
+            requests,
+            downloadID: downloadId,
+            maximumResponseBytes: Self.maximumMediaObjectBytes,
+            requiresPublicNetworkValidation: requiresPublicNetworkValidationForBackgroundURLSession
+        )
+        do {
+            try checkCancelled()
+        } catch {
+            // Cancellation can race URLSession's asynchronous getAllTasks
+            // callback. Remove anything the batch may have queued after the
+            // user's Cancel/Delete action reached the coordinator.
+            HLSBackgroundURLSessionCoordinator.shared.cancel(downloadID: downloadId)
+            throw error
+        }
+        Logger.shared.log(
+            "HLS background: queued \(requests.count) playlist resource(s) before segment processing",
+            type: "Download"
+        )
+#endif
+    }
+
+    private func fetchData(
+        url: URL,
+        maximumResponseBytes: Int = HLSDownloader.maximumMediaObjectBytes
+    ) async throws -> Data {
+        try checkCancelled()
+        try await waitForRequestStartSlot(for: url)
+        publishStage("Downloading HLS data")
+
+        let (request, effectiveHeaders) = makeTransportRequest(for: url)
 
         #if DEBUG
         onBeforeRequestStartForTesting?(url)
@@ -1185,10 +1375,9 @@ final class HLSDownloader: @unchecked Sendable {
 #if os(iOS) && !targetEnvironment(macCatalyst)
         if usesBackgroundURLSession {
             if requiresPublicNetworkValidationForBackgroundURLSession {
-                // Media-segment policy validates public DNS destinations for
-                // both HTTP and HTTPS. Requiring HTTPS here rejected otherwise
-                // safe HTTP HLS origins before the background session could
-                // start, leaving those downloads queued until the app reopened.
+                guard url.scheme?.lowercased() == "https" else {
+                    throw HLSError.unsupportedLayout(reason: "This protected HLS source requires HTTPS for background transfer.")
+                }
                 do {
                     _ = try await SkyStreamRemoteURLPolicy.shared.validateForNetworkDispatch(
                         url.absoluteString,
@@ -1610,6 +1799,21 @@ final class HLSDownloader: @unchecked Sendable {
         do {
             try ensureDiskCapacity()
 
+            let totalSegments = segments.count
+            let startIndex = isResuming ? resumeFromSegment : 0
+
+            // Create OS-owned download tasks for the complete remaining
+            // playlist before awaiting any one segment. This is the key
+            // background-continuation requirement: iOS may suspend the Swift
+            // worker between segment requests, but URLSession keeps every
+            // already-enqueued transfer alive and delivers completed files
+            // when Eclipse is relaunched or foregrounded.
+            try await scheduleBackgroundPlaylistResources(
+                segments: segments,
+                startingAt: startIndex,
+                initializationSegmentURL: isResuming ? nil : initSegmentURL
+            )
+
             if !isResuming, let initURL = initSegmentURL {
                 publishStage("Downloading initialization segment")
                 try checkSystemBackoff()
@@ -1626,9 +1830,6 @@ final class HLSDownloader: @unchecked Sendable {
                 try ensureDiskCapacity(additionalBytes: Int64(decrypted.count))
                 try fileHandle.write(contentsOf: decrypted)
             }
-
-            let totalSegments = segments.count
-            let startIndex = isResuming ? resumeFromSegment : 0
 
             for index in startIndex..<totalSegments {
                 publishStage("Downloading video segment")
