@@ -34,15 +34,23 @@ private func copyProviderDownloadURL(_ rawURL: String, headers: [String: String]
     }
 
     let sanitizedHeaders = AVPlayerResourceLoader.sanitizedHTTPHeaders(headers ?? [:])
+    // A stream option may itself be an Eclipse-managed playback URL. Unwrap it
+    // before creating the copied link so the new proxy never targets 127.0.0.1
+    // on the user's device, and carry the original proxy's scoped credentials.
+    let managedProxySession = MPVHeaderProxy.shared.upstreamProbeTarget(for: sourceURL)
+    let targetURL = MPVHeaderProxy.shared.recoverableTargetURL(for: sourceURL)
+        ?? managedProxySession?.url
+        ?? sourceURL
+    let effectiveHeaders = managedProxySession?.headers ?? sanitizedHeaders
 
     // A playlist is not a single downloadable video file. Keep HLS manifests
     // as playable, rewritten playlists so Safari or another HLS client can fetch
     // the authenticated segments; forcing attachment here only saves the .m3u8
     // text file. Direct media files still receive Content-Disposition: attachment.
-    let isHLSManifest = sourceURL.pathExtension.caseInsensitiveCompare("m3u8") == .orderedSame
+    let isHLSManifest = targetURL.pathExtension.caseInsensitiveCompare("m3u8") == .orderedSame
     guard let downloadURL = MPVHeaderProxy.shared.makeProxyURL(
-        for: sourceURL,
-        headers: sanitizedHeaders,
+        for: targetURL,
+        headers: effectiveHeaders,
         logType: isHLSManifest ? "Stream" : "Download"
     ) else {
         Logger.shared.log(
