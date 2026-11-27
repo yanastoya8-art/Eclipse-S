@@ -3504,14 +3504,20 @@ private struct BrowseMediaView: View {
         }
 
         // Keep Browse's explicit age-rating gate on the same provider chain as
-        // the shared content filter. Otherwise the Jikan result could be cached
-        // successfully and then ignored by this second, older Taizen/MAL-only
-        // lookup immediately before the page is filtered.
-        for identity in missing where ratings[identity.anilistId] == nil || ratings[identity.anilistId] == .unknown {
-            guard !Task.isCancelled, let malID = identity.malId, malID > 0 else { continue }
-            if let fallback = try? await JikanAnimeAgeRatingService.shared.rating(malID: malID),
-               fallback != .unknown {
-                ratings[identity.anilistId] = fallback
+        // the shared content filter. Batch Jikan requests so larger pages do not
+        // wait for one network round-trip per title.
+        let jikanIdentities = missing.compactMap { identity -> (animeID: Int, malID: Int)? in
+            guard (ratings[identity.anilistId] == nil || ratings[identity.anilistId] == .unknown),
+                  let malID = identity.malId, malID > 0 else { return nil }
+            return (identity.anilistId, malID)
+        }
+        let jikanRatings = await JikanAnimeAgeRatingService.shared.ratings(
+            malIDs: Array(Set(jikanIdentities.map(\.malID)))
+        )
+        guard !Task.isCancelled else { return ratings }
+        for identity in jikanIdentities {
+            if let fallback = jikanRatings[identity.malID], fallback != .unknown {
+                ratings[identity.animeID] = fallback
             }
         }
         return ratings
