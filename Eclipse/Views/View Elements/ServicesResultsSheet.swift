@@ -2376,11 +2376,6 @@ struct ModulesSearchResultsSheet: View {
 #if !os(tvOS)
         .contextMenu {
             Button {
-                ProviderExternalApplication.copy(resolved.option.url)
-            } label: {
-                Label("Copy Stream URL", systemImage: "doc.on.doc")
-            }
-            Button {
                 copyProviderDownloadURL(resolved.option.url, headers: resolved.option.headers)
             } label: {
                 Label("Copy Download URL", systemImage: "arrow.down.doc")
@@ -2509,11 +2504,6 @@ struct ModulesSearchResultsSheet: View {
 #if !os(tvOS)
         .contextMenu {
             if let url = stream.url, !url.isEmpty {
-                Button {
-                    ProviderExternalApplication.copy(url)
-                } label: {
-                    Label("Copy Stream URL", systemImage: "doc.on.doc")
-                }
                 Button {
                     copyProviderDownloadURL(url)
                 } label: {
@@ -8057,11 +8047,6 @@ struct ModulesSearchResultsSheet: View {
 #if !os(tvOS)
         .contextMenu {
             Button {
-                ProviderExternalApplication.copy(stream.option.url)
-            } label: {
-                Label("Copy Stream URL", systemImage: "doc.on.doc")
-            }
-            Button {
                 copyProviderDownloadURL(stream.option.url, headers: stream.option.headers)
             } label: {
                 Label("Copy Download URL", systemImage: "arrow.down.doc")
@@ -8423,11 +8408,6 @@ struct ModulesSearchResultsSheet: View {
         .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 5, trailing: 14))
 #if !os(tvOS)
         .contextMenu {
-            Button {
-                ProviderExternalApplication.copy(stream.option.url)
-            } label: {
-                Label("Copy Stream URL", systemImage: "doc.on.doc")
-            }
             Button {
                 copyProviderDownloadURL(stream.option.url, headers: stream.option.headers)
             } label: {

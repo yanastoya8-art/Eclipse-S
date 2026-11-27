@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 900"><defs><linearGradient id="flame" x2="0" y2="1"><stop stop-color="#fff8b6"/><stop offset=".25" stop-color="#ffd05c"/><stop offset=".58" stop-color="#f47732"/><stop offset="1" stop-color="#a92c3f"/></linearGradient><linearGradient id="wing" x2="1" y2="1"><stop stop-color="#fff0a0"/><stop offset=".5" stop-color="#e95b2e"/><stop offset="1" stop-color="#78213c"/></linearGradient></defs><g stroke="#762a2a" stroke-width="10" stroke-linejoin="round" stroke-linecap="round">
+<!-- sweeping wings --> <path fill="url(#wing)" d="M430 410Q260 180 65 155q95 95 95 190Q95 275 35 310q125 85 180 255 85-45 215-40Z"/><path fill="url(#wing)" d="M470 410Q640 180 835 155q-95 95-95 190 65-70 125-35-125 85-180 255-85-45-215-40Z"/>
+<g fill="none" stroke="#ffd879" stroke-width="12"><path d="M400 425Q260 270 130 220m270 245Q245 380 145 365m355 60Q640 270 770 220m-270 245Q655 380 755 365"/></g>
+<!-- tail plumes --> <path fill="url(#flame)" d="M425 590Q300 675 250 845q110-70 170-90-20 80-5 115 70-80 80-155 10 75 80 155 15-35-5-115 60 20 170 90-50-170-175-255Z"/>
+<!-- body --> <path fill="url(#flame)" d="M390 380q60-80 120 0 70 100 20 230l-80 90-80-90q-50-130 20-230Z"/>
+<!-- crest --> <path fill="url(#flame)" d="M410 355Q330 270 375 160q25 65 65 95-5-130 45-195 25 100 10 180 55-70 105-85-35 115-115 190Z"/>
+<!-- head and beak --> <path fill="#ffdc79" d="M405 370q45-55 90 0l-15 75q-30 35-60 0Z"/><path fill="#55252b" d="M440 420l-10 65 50-55Z"/>
+<path fill="#fff5bb" d="M415 380q20-18 38 0l-5 25h-28Zm40 0q20-18 38 0l-5 25h-28Z"/>
+<!-- talons --> <path fill="#6c2930" d="M405 660l-25 85 55-30 20 55 25-70m40-40 25 85-55-30-20 55-25-70"/>
+</g></svg>

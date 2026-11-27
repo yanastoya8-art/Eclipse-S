@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 900"><defs><linearGradient id="armor" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#647887"/><stop offset=".28" stop-color="#263746"/><stop offset=".68" stop-color="#101923"/><stop offset="1" stop-color="#03070c"/></linearGradient><linearGradient id="mem" x2="0" y2="1"><stop stop-color="#536879"/><stop offset="1" stop-color="#111c28"/></linearGradient><radialGradient id="eye"><stop stop-color="#f8ffae"/><stop offset=".4" stop-color="#b5f34b"/><stop offset="1" stop-color="#398526"/></radialGradient></defs>
+<g stroke="#050a10" stroke-width="12" stroke-linejoin="round" stroke-linecap="round">
+<!-- tail and body --> <path fill="url(#armor)" d="M470 558 Q620 590 680 690 Q720 760 820 730 Q790 825 690 805 Q590 790 535 690 L430 635Z"/><path fill="#d9474a" d="M785 718l78-30-10 83-75 44-42-34Z"/>
+<!-- far wing --> <path fill="url(#mem)" d="M405 350 Q280 220 70 115 L135 265 40 245 170 440 250 390 315 520 425 465Z"/>
+<!-- near wing --> <path fill="url(#mem)" d="M500 350 Q620 205 835 115 L765 265 860 245 730 440 650 390 585 520 475 465Z"/>
+<path fill="none" stroke="#718493" stroke-width="7" d="M420 390 145 185m280 240L100 280m360 180L205 400m270-10L755 185m-280 240L800 280m-360 180L695 400"/>
+<!-- legs --> <path fill="url(#armor)" d="M365 570q-40 95-95 165l-10 60 75 4 60-80 42-100m110-45q25 100 90 155l28 60-75 15-75-73-50-90"/>
+<!-- head and neck --> <path fill="url(#armor)" d="M330 430q-30-100 35-165 60-60 160-30 100 30 100 130 0 85-65 140l-25 110q-80 70-170 0l-30-105Z"/>
+<!-- head fins --> <path fill="url(#armor)" d="M365 310Q260 260 270 145q75 40 130 100m175 65q100-65 155-150-2 125-105 180"/>
+<!-- cheek plates --> <path fill="#243746" d="M320 425q-80-15-120 40 75 20 130 5m260-45q80-15 120 40-75 20-130 5"/>
+<!-- muzzle --> <path fill="#8294a0" d="M360 420q100-80 205 0l-20 100q-80 65-165 0Z"/>
+<path fill="#071018" d="M420 495q45-20 90 0l-45 38Z"/>
+<ellipse cx="382" cy="370" rx="25" ry="34" fill="url(#eye)"/><ellipse cx="538" cy="370" rx="25" ry="34" fill="url(#eye)"/>
+<path fill="none" stroke="#a9bac5" stroke-width="6" d="M350 470l-60 20m260-20 60 20M390 545q65 28 130 0M360 590l-35 45m215-45 35 45"/>
+<!-- dorsal spikes --> <path fill="#718391" d="M410 270l-20-70 58 48 30-88 30 90 65-44-35 83Z"/>
+</g></svg>

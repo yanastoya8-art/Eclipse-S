@@ -937,6 +937,31 @@ struct TMDBTVShow: Codable, Identifiable {
         case voteCount = "vote_count"
     }
 
+    // TMDB occasionally returns null/missing numeric summary fields for an
+    // otherwise valid TV result. A synthesized decoder rejects the whole row,
+    // and LossyDecodableArray then silently removes the show from Search.
+    // These fields are presentation/sort metadata, so use neutral zero values
+    // rather than discarding a valid ID and title.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(Int.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        originalName = try container.decodeIfPresent(String.self, forKey: .originalName)
+        overview = try container.decodeIfPresent(String.self, forKey: .overview)
+        posterPath = try container.decodeIfPresent(String.self, forKey: .posterPath)
+        backdropPath = try container.decodeIfPresent(String.self, forKey: .backdropPath)
+        firstAirDate = try container.decodeIfPresent(String.self, forKey: .firstAirDate)
+        voteAverage = (try? container.decode(Double.self, forKey: .voteAverage))
+            .flatMap { $0.isFinite && (0...10).contains($0) ? $0 : nil } ?? 0
+        popularity = (try? container.decode(Double.self, forKey: .popularity))
+            .flatMap { $0.isFinite && $0 >= 0 ? $0 : nil } ?? 0
+        genreIds = try container.decodeIfPresent([Int].self, forKey: .genreIds)
+        adult = try container.decodeIfPresent(Bool.self, forKey: .adult)
+        originalLanguage = try container.decodeIfPresent(String.self, forKey: .originalLanguage)
+        originCountry = try container.decodeIfPresent([String].self, forKey: .originCountry)
+        voteCount = try container.decodeIfPresent(Int.self, forKey: .voteCount)
+    }
+
     var fullPosterURL: String? {
         guard let posterPath else { return nil }
         return TMDBImageRequestPolicy.urlString(for: posterPath, kind: .poster)

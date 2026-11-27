@@ -6366,10 +6366,27 @@ final class DownloadManager: NSObject, ObservableObject {
 
         let reservedValidations = nuvioDispatchValidationPendingIDs.union(sourceRefreshes.ids).count
         var slotsAvailable = maxConcurrentDownloads - currentlyDownloading - reservedValidations
-
-        guard slotsAvailable > 0, !restoringBackgroundTasks else { return }
-
         let now = Date()
+
+        // Never leave a queued row without explaining why admission has not
+        // started. The Downloads screen renders this field directly below the
+        // Queued badge, so a silent early return looks like a stuck download.
+        if restoringBackgroundTasks {
+            for item in downloads where item.status == .queued
+                && (item.retryNotBefore.map { $0 <= now } ?? true) {
+                setQueuedMessage(id: item.id, message: "Restoring background downloads")
+            }
+            return
+        }
+
+        guard slotsAvailable > 0 else {
+            let reason = "Waiting for an available download slot (\(currentlyDownloading) active, \(reservedValidations) validating)"
+            for item in downloads where item.status == .queued
+                && (item.retryNotBefore.map { $0 <= now } ?? true) {
+                setQueuedMessage(id: item.id, message: reason)
+            }
+            return
+        }
         let delayedRetryDates = downloads.compactMap { item -> Date? in
             guard item.status == .queued,
                   let retryDate = item.retryNotBefore,
@@ -6760,6 +6777,10 @@ final class DownloadManager: NSObject, ObservableObject {
         }
 #endif
         guard nuvioDispatchValidationPendingIDs.insert(item.id).inserted else { return }
+        // Provider-backed rows remain in the Queued state while their URL is
+        // checked against the public-network policy. Publish that state so the
+        // UI never shows a silent Queued row during this asynchronous phase.
+        setQueuedMessage(id: item.id, message: "Checking provider download access")
         nuvioDirectBackgroundApprovedIDs.remove(item.id)
         let validationToken = UUID()
         nuvioDispatchValidationTokens[item.id] = validationToken
@@ -8244,8 +8265,11 @@ final class DownloadManager: NSObject, ObservableObject {
             // still require Eclipse in the foreground.
 #if os(iOS) && !targetEnvironment(macCatalyst)
             let skyStreamTransport = directSkyStreamHLSBackgroundTransport(for: item)
-            let managedProxyTarget = URL(string: item.streamURL)
-                .flatMap { MPVHeaderProxy.shared.recoverableTargetURL(for: $0) }
+            let managedProxyURL = URL(string: item.streamURL)
+            let managedProxyTarget = managedProxyURL.flatMap {
+                MPVHeaderProxy.shared.recoverableTargetURL(for: $0)
+                    ?? MPVHeaderProxy.shared.upstreamProbeTarget(for: $0)?.url
+            }
             let safeManagedProxyTarget = managedProxyTarget.flatMap { candidate -> URL? in
                 guard ["http", "https"].contains(candidate.scheme?.lowercased() ?? ""),
                       candidate.host != nil,

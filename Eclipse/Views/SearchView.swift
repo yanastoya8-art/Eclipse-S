@@ -27,6 +27,7 @@ struct SearchView: View {
     @State private var searchResults: [TMDBSearchResult] = []
     @State private var cachedCatalogResults: [TMDBSearchResult] = []
     @State private var filterRefreshRevision = 0
+    @State private var lastContentFilterSettingsSignature = ""
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var searchFilter: SearchFilter = .all
@@ -425,21 +426,20 @@ struct SearchView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: TMDBContentFilter.catalogFiltersDidChangeNotification)) { _ in
-            guard !searchResults.isEmpty else { return }
-            let snapshot = searchResults
-            Task { @MainActor in
-                await contentFilter.prepareMaturityRatings(for: snapshot)
-                // Trigger a derived-results refresh only. Keep the source
-                // result array intact so SwiftUI preserves the scroll anchor.
-                filterRefreshRevision &+= 1
-                cachedCatalogResults = contentFilter.filterSearchResults(
-                    searchResults,
-                    resolveMetadataInBackground: false,
-                    allowUnresolvedOptionalMetadata: true
-                )
-            }
+            refreshSearchResultsForFilterChange()
+        }
+        // Most filter switches are stored through AppStorage/UserDefaults and
+        // do not emit catalogFiltersDidChangeNotification. Observe actual
+        // defaults changes so Search cannot keep displaying its previous,
+        // now-unfiltered result snapshot after returning from Settings.
+        .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in
+            let signature = contentFilterSettingsSignature
+            guard signature != lastContentFilterSettingsSignature else { return }
+            lastContentFilterSettingsSignature = signature
+            refreshSearchResultsForFilterChange()
         }
         .onAppear {
+            lastContentFilterSettingsSignature = contentFilterSettingsSignature
 #if os(tvOS)
             tvSearchIsVisible = true
             tvSearchPresentationGeneration = UUID()
@@ -704,6 +704,39 @@ struct SearchView: View {
         }
     }
 
+    private var contentFilterSettingsSignature: String {
+        let defaults = UserDefaults.standard
+        let keys = defaults.dictionaryRepresentation().keys
+            .filter { $0.hasPrefix("catalog") || $0 == "filterHorror" }
+            .sorted()
+        return keys.map { key in
+            "\(key)=\(String(describing: defaults.object(forKey: key) ?? "<unset>"))"
+        }.joined(separator: "|")
+    }
+
+    private func refreshSearchResultsForFilterChange() {
+        guard !searchResults.isEmpty else { return }
+        // First apply the current cache-backed policy synchronously, then
+        // resolve required metadata and apply it again. This avoids leaving
+        // stale, unfiltered cards visible while a settings-triggered lookup runs.
+        cachedCatalogResults = contentFilter.filterSearchResults(
+            searchResults,
+            resolveMetadataInBackground: false
+        )
+        filterRefreshRevision &+= 1
+        let snapshot = searchResults
+        let requestSerial = searchRequestSerial
+        Task { @MainActor in
+            await contentFilter.resolveBrowseFilterMetadata(for: snapshot)
+            guard requestSerial == searchRequestSerial else { return }
+            filterRefreshRevision &+= 1
+            cachedCatalogResults = contentFilter.filterSearchResults(
+                searchResults,
+                resolveMetadataInBackground: false
+            )
+        }
+    }
+
     private func reloadSearchResultsForProfileChange() {
         pendingSearchTask?.cancel()
         pendingSearchTask = nil
@@ -780,11 +813,11 @@ struct SearchView: View {
     private func resolveSearchAnimeIdentities(_ results: [TMDBSearchResult]) async -> [TMDBSearchResult] {
         let candidates = results.enumerated().filter { _, result in
             guard result.animeIdentitySeed == nil else { return false }
-            let language = result.originalLanguage?.lowercased() ?? ""
-            let countryMatch = result.originCountry?.contains(where: { ["JP", "CN", "KR", "TW"].contains($0) }) == true
-            let languageMatch = ["ja", "zh", "ko"].contains(language)
-            return result.isAnimeHint == true
-                || (result.genreIds?.contains(16) == true && (countryMatch || languageMatch))
+            // TMDB's country/original-language fields are incomplete on some
+            // localized TV search payloads. Animation genre is therefore the
+            // candidate signal; AniList's exact-title matcher below is the
+            // authority that decides whether the result is actually anime.
+            return result.isAnimeHint == true || result.genreIds?.contains(16) == true
         }
         guard !candidates.isEmpty else { return results }
 
@@ -795,7 +828,26 @@ struct SearchView: View {
         return await withTaskGroup(of: (Int, TMDBSearchResult).self) { group in
             for (index, result) in candidates {
                 group.addTask {
-                    var identity = await AniListService.shared.searchAnimeIdentity(title: result.displayTitle)
+                    // Prefer the authoritative TMDB→AniList crosswalk. A title
+                    // search alone can miss localized/alternate names even when
+                    // TMDB already has a stable mapping for this exact show.
+                    let mappings = await AniMapMappingService.shared.mappings(forTMDBShowId: result.id)
+                    let mapping = mappings
+                        .filter { $0.mediaType?.lowercased() != "movie" }
+                        .first { $0.anilistId != nil }
+                        ?? mappings.first { $0.anilistId != nil }
+                    var identity: AnimeMediaIdentitySeed?
+                    if let anilistID = mapping?.anilistId, anilistID > 0 {
+                        identity = AnimeMediaIdentitySeed(
+                            anilistId: anilistID,
+                            malId: mapping?.malId,
+                            kitsuId: mapping?.kitsuId,
+                            format: mapping?.mediaType
+                        ).sanitizedForPersistence
+                    }
+                    if identity == nil {
+                        identity = await AniListService.shared.searchAnimeIdentity(title: result.displayTitle)
+                    }
                     if identity == nil,
                        let originalName = result.originalName,
                        originalName.caseInsensitiveCompare(result.displayTitle) != .orderedSame {
@@ -1017,12 +1069,13 @@ struct SearchView: View {
                 // keystroke. A missing cache is handled by the schedule/filter
                 // refresh path; search must remain responsive and cancellable.
                 try Task.checkCancellation()
-                await contentFilter.prepareMaturityRatings(for: identityResolvedResults)
-                if requiresGlobalAnimeAgeRating {
-                    await contentFilter.resolveAnimeAgeRatings(
-                        for: identityResolvedResults.filter { isAnimeResult($0) }
-                    )
-                }
+                // Search must obey the same complete filter policy as Browse.
+                // Resolve only metadata required by active filters before publishing
+                // results; never expose a temporary unfiltered snapshot.
+                await contentFilter.resolveBrowseFilterMetadata(
+                    for: identityResolvedResults,
+                    requiresAnimeAgeRating: requiresGlobalAnimeAgeRating
+                )
                 try Task.checkCancellation()
 
                 await MainActor.run {
@@ -1032,8 +1085,7 @@ struct SearchView: View {
                     }
                     let filteredResults = contentFilter.filterSearchResults(
                         identityResolvedResults,
-                        resolveMetadataInBackground: false,
-                        allowUnresolvedOptionalMetadata: true
+                        resolveMetadataInBackground: false
                     )
 #if os(tvOS)
                     let restoredFocus = restoredTVResultFocus(
@@ -1046,16 +1098,6 @@ struct SearchView: View {
                     self.cachedCatalogResults = filteredResults
                     self.isLoading = false
                     self.activeSearchTask = nil
-                    // Resolve expensive runtime/production/audio metadata once
-                    // per completed query, not every time SwiftUI recomputes
-                    // filteredResults while the user scrolls the grid.
-                    let metadataSnapshot = identityResolvedResults
-                    Task(priority: .utility) {
-                        await contentFilter.resolveBrowseFilterMetadata(
-                            for: metadataSnapshot,
-                            requiresAnimeAgeRating: requiresGlobalAnimeAgeRating
-                        )
-                    }
 #if os(tvOS)
                     if let restoredFocus {
                         DispatchQueue.main.async {
@@ -1599,21 +1641,15 @@ private struct BrowseMediaView: View {
             selectedGenres = ["tmdb-14"] // Fantasy
             excludedGenres = ["tmdb-99", "tmdb-10402", "tmdb-37"] // Documentary, Music, Western
         case .tv:
-            // Select both required genres in the filter UI. The query
-            // combines them as an AND group while both remain selected.
-            selectedGenres = ["tmdb-14", "tmdb-878"] // Fantasy + Science Fiction
-            excludedGenres = [
-                "tmdb-99", "tmdb-10762", "tmdb-10763"
-            ] // Documentary, Kids, News
-        case .anime:
+            // Keep Browse broad by default. Genre constraints are user-selected
+            // refinements, not mandatory defaults that hide most TMDB series.
             selectedGenres = []
-            excludedGenres = [
-                "tmdb-10762", // Kids
-                "keyword-isekai",
-                "keyword-slice of life",
-                "keyword-harem",
-                "keyword-music"
-            ]
+            excludedGenres = []
+        case .anime:
+            // Do not silently hide whole anime genres in the default view.
+            // Users can add genre/keyword exclusions from the Browse filters.
+            selectedGenres = []
+            excludedGenres = []
         }
 
         let defaultMinimumRating: Double
@@ -1638,7 +1674,8 @@ private struct BrowseMediaView: View {
         _ configuration: BrowseFilterConfiguration,
         for mediaType: BrowseMediaType
     ) -> BrowseFilterConfiguration {
-        var previousDefault = defaultConfiguration(for: mediaType)
+        let broadDefault = defaultConfiguration(for: mediaType)
+        var previousDefault = broadDefault
         previousDefault.minimumRating = 6
         if mediaType == .tv {
             previousDefault.selectedGenreKeys = ["tmdb-10765"]
@@ -1647,9 +1684,31 @@ private struct BrowseMediaView: View {
                 "tmdb-10764", "tmdb-10767", "tmdb-37"
             ]
         }
-        return configuration == previousDefault
-            ? defaultConfiguration(for: mediaType)
-            : configuration
+        if configuration == previousDefault { return broadDefault }
+
+        // Migrate the restrictive defaults used by the previous Browse build.
+        // They were automatically selected, not a user request to limit every
+        // TV shelf to Fantasy+Sci-Fi or to hide Isekai/Slice-of-Life/Harem/Music.
+        var migrated = configuration
+        if mediaType == .tv,
+           Set(configuration.selectedGenreKeys) == Set(["tmdb-14", "tmdb-878"]),
+           Set(configuration.excludedGenreKeys) == Set(["tmdb-99", "tmdb-10762", "tmdb-10763"]) {
+            // Preserve a user's year/country/rating/sort choices while removing
+            // the old automatically-selected genre gates that hid most series.
+            migrated.selectedGenreKeys = []
+            migrated.excludedGenreKeys = []
+        }
+        if mediaType == .anime,
+           configuration.selectedGenreKeys.isEmpty,
+           Set(configuration.excludedGenreKeys) == Set([
+               "tmdb-10762", "keyword-isekai", "keyword-slice of life",
+               "keyword-harem", "keyword-music"
+           ]) {
+            // Remove the previous app-imposed exclusions without resetting
+            // unrelated user filter choices.
+            migrated.excludedGenreKeys = []
+        }
+        return migrated
     }
 
     private static func sanitizedConfiguration(

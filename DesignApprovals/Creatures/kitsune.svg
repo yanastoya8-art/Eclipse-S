@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 900"><defs><linearGradient id="fur" x2="1" y2="1"><stop stop-color="#fff8ec"/><stop offset=".42" stop-color="#f5b16c"/><stop offset="1" stop-color="#b94b3e"/></linearGradient><linearGradient id="tails" x2="0" y2="1"><stop stop-color="#fff8eb"/><stop offset=".55" stop-color="#f3a55d"/><stop offset="1" stop-color="#a93f43"/></linearGradient></defs><g stroke="#743a37" stroke-width="9" stroke-linejoin="round" stroke-linecap="round">
+<!-- nine individually separated tails --> <g fill="url(#tails)"><path d="M430 610Q170 590 75 335q125 90 245 115Q115 335 175 110q75 155 205 235Q235 170 320 45q35 165 130 275Q400 135 500 35q-5 170-25 285Q590 130 735 85q-60 165-190 270 145-75 280-45-105 150-245 210 125-15 245 65-165 85-360 65Z"/><path fill="#fff0dc" d="M435 600Q210 555 125 370q120 85 220 100Q180 360 215 195q85 135 185 190Q320 245 355 125q45 140 95 230Q455 230 570 130q-35 130-105 230 120-75 205-55-100 115-210 155 105-25 190 20-115 70-260 65Z"/></g>
+<!-- full fox torso --> <path fill="url(#fur)" d="M370 440q80-75 160 0 60 75 20 205l-100 115-100-115q-40-130 20-205Z"/>
+<!-- head and tall ears --> <path fill="url(#fur)" d="M345 395 285 190l145 105q55-30 110 0l135-105-45 205q-10 105-140 120-130-15-145-120Z"/>
+<!-- red mask marking --> <path fill="#bd5144" d="M350 390q85-70 150-15 65-55 150 15-20 80-150 105-130-25-150-105Z"/>
+<path fill="#fff7eb" d="M380 395q45-28 85 5l-10 35q-40 12-75-40m95 5q40-33 85-5-35 52-75 40Z"/>
+<path fill="#4a2830" d="M435 465q25-18 50 0l-25 25Z"/>
+<!-- legs --> <path fill="#fff0dd" d="M390 620q-35 85-15 155l-45 55h105l35-100 35 100h105l-45-55q20-70-15-155Z"/>
+<!-- tail flame line accents --> <path fill="none" stroke="#ffe0a6" stroke-width="8" d="M170 395q75 70 160 75M245 220q50 80 110 110M365 105q25 80 70 125m145-70q-45 75-95 120m190-70q-60 65-115 95"/>
+<!-- eye highlights --> <path fill="#fff0c8" d="M395 410q30-18 55 0l-5 20q-30 10-50-20m75 0q25-18 55 0-20 30-50 20Z"/>
+</g></svg>

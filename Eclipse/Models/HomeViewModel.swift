@@ -582,10 +582,25 @@ final class HomeViewModel: ObservableObject {
                 enabledCatalogIds: enabledCatalogIds,
                 needsTopRatedAnime: needsTopRatedAnime
             )
-            let rawAnimeCatalogs = await self.loadFastAnimeCatalogs(
+            let tmdbAnimeCatalogs = await self.loadFastAnimeCatalogs(
                 tmdbService: tmdbService,
                 requiredKinds: requiredAnimeCatalogs
             )
+            guard !Task.isCancelled else { return }
+            // TMDB supplies the catalog rows, but selected dub-language and
+            // anime age filters require stable AniList identity. Resolve only
+            // when an active filter needs it; otherwise keep the first shelf fast.
+            let animeIdentityRequired =
+                !MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement.isEmpty
+                || UserDefaults.standard.bool(forKey: "catalogHideBelowPG13Anime")
+                || UserDefaults.standard.bool(forKey: "catalogHideAllAgesAnime")
+                || ProfileManager.shared.isKidsModeActive
+            let rawAnimeCatalogs: [AniListService.AniListCatalogKind: [TMDBSearchResult]]
+            if animeIdentityRequired {
+                rawAnimeCatalogs = await self.resolveAnimeCatalogIdentitySeeds(tmdbAnimeCatalogs)
+            } else {
+                rawAnimeCatalogs = tmdbAnimeCatalogs.mapValues { $0.map { $0.withAnimeHint(true) } }
+            }
             guard !Task.isCancelled else { return }
             await contentFilter.prepareMaturityRatings(for: Array(rawAnimeCatalogs.values.joined()))
             let animeCatalogs = rawAnimeCatalogs.mapValues { contentFilter.filterFastAnimeSearchResults($0) }
@@ -1080,6 +1095,104 @@ final class HomeViewModel: ObservableObject {
         case .airing:
             return .airing
         }
+    }
+
+    private func resolveAnimeCatalogIdentitySeeds(
+        _ catalogs: [AniListService.AniListCatalogKind: [TMDBSearchResult]]
+    ) async -> [AniListService.AniListCatalogKind: [TMDBSearchResult]] {
+        await withTaskGroup(
+            of: (AniListService.AniListCatalogKind, Int, TMDBSearchResult).self
+        ) { group in
+            let flattened = catalogs.flatMap { kind, results in
+                results.enumerated().map { (kind, $0.offset, $0.element) }
+            }
+            var iterator = flattened.makeIterator()
+            for _ in 0..<min(8, flattened.count) {
+                guard let item = iterator.next() else { continue }
+                group.addTask {
+                    let result = await Self.resolveAnimeCatalogIdentitySeed(item.2)
+                    return (item.0, item.1, result)
+                }
+            }
+
+            var resolved: [AniListService.AniListCatalogKind: [Int: TMDBSearchResult]] = [:]
+            while let (kind, index, result) = await group.next() {
+                resolved[kind, default: [:]][index] = result
+                if let item = iterator.next() {
+                    group.addTask {
+                        let result = await Self.resolveAnimeCatalogIdentitySeed(item.2)
+                        return (item.0, item.1, result)
+                    }
+                }
+            }
+
+            var output: [AniListService.AniListCatalogKind: [TMDBSearchResult]] = [:]
+            for (kind, results) in catalogs {
+                // The caller needs the same page ordering as TMDB returned.
+                let replacements = resolved[kind] ?? [:]
+                output[kind] = results.enumerated().map { index, result in
+                    replacements[index] ?? result
+                }
+            }
+            return output
+        }
+    }
+
+    private static func resolveAnimeCatalogIdentitySeed(
+        _ result: TMDBSearchResult
+    ) async -> TMDBSearchResult {
+        if result.animeIdentitySeed != nil { return result.withAnimeHint(true) }
+
+        let mappings = await AniMapMappingService.shared.mappings(forTMDBShowId: result.id)
+        let mapping = mappings
+            .filter { $0.mediaType?.lowercased() != "movie" }
+            .first { $0.anilistId != nil }
+            ?? mappings.first { $0.anilistId != nil }
+
+        var seed: AnimeMediaIdentitySeed?
+        if let anilistID = mapping?.anilistId, anilistID > 0 {
+            seed = AnimeMediaIdentitySeed(
+                anilistId: anilistID,
+                malId: mapping?.malId,
+                kitsuId: mapping?.kitsuId,
+                format: mapping?.mediaType
+            ).sanitizedForPersistence
+        }
+        if seed == nil {
+            seed = await AniListService.shared.searchAnimeIdentity(title: result.displayTitle)
+        }
+        if seed == nil,
+           let originalName = result.originalName,
+           originalName.caseInsensitiveCompare(result.displayTitle) != .orderedSame {
+            seed = await AniListService.shared.searchAnimeIdentity(title: originalName)
+        }
+
+        guard let seed else { return result.withAnimeHint(true) }
+        return TMDBSearchResult(
+            id: result.id,
+            mediaType: result.mediaType,
+            title: result.title,
+            name: result.name,
+            originalName: result.originalName,
+            overview: result.overview,
+            posterPath: result.posterPath,
+            backdropPath: result.backdropPath,
+            releaseDate: result.releaseDate,
+            firstAirDate: result.firstAirDate,
+            voteAverage: result.voteAverage,
+            popularity: result.popularity,
+            adult: result.adult,
+            genreIds: result.genreIds,
+            originalLanguage: result.originalLanguage,
+            originCountry: result.originCountry,
+            voteCount: result.voteCount,
+            isAnimeHint: true,
+            animeIdentitySeed: seed,
+            animeArtworkURL: result.animeArtworkURL,
+            animeLogoURL: result.animeLogoURL,
+            tvMazePosterURL: result.tvMazePosterURL,
+            fanartTVPosterURL: result.fanartTVPosterURL
+        )
     }
 
     private func enrichAnimePosterArtwork(
