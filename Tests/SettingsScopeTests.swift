@@ -1,4 +1,7 @@
 import XCTest
+#if os(iOS)
+import UIKit
+#endif
 @testable import Eclipse
 
 #if os(iOS)
@@ -26,7 +29,7 @@ final class SettingsScopeTests: XCTestCase {
         ]
         for name in assetNames {
             let image = UIImage(named: name)
-            XCTAssertNotNil(image, "Missing approved creature vector asset: \\(name)")
+            XCTAssertNotNil(image, "Missing approved creature vector asset: \(name)")
             XCTAssertGreaterThan(image?.size.width ?? 0, 0)
             XCTAssertGreaterThan(image?.size.height ?? 0, 0)
         }
