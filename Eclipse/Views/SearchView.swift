@@ -828,7 +828,26 @@ struct SearchView: View {
         return await withTaskGroup(of: (Int, TMDBSearchResult).self) { group in
             for (index, result) in candidates {
                 group.addTask {
-                    var identity = await AniListService.shared.searchAnimeIdentity(title: result.displayTitle)
+                    // Prefer the authoritative TMDB→AniList crosswalk. A title
+                    // search alone can miss localized/alternate names even when
+                    // TMDB already has a stable mapping for this exact show.
+                    let mappings = await AniMapMappingService.shared.mappings(forTMDBShowId: result.id)
+                    let mapping = mappings
+                        .filter { $0.mediaType?.lowercased() != "movie" }
+                        .first { $0.anilistId != nil }
+                        ?? mappings.first { $0.anilistId != nil }
+                    var identity: AnimeMediaIdentitySeed?
+                    if let anilistID = mapping?.anilistId, anilistID > 0 {
+                        identity = AnimeMediaIdentitySeed(
+                            anilistId: anilistID,
+                            malId: mapping?.malId,
+                            kitsuId: mapping?.kitsuId,
+                            format: mapping?.mediaType
+                        ).sanitizedForPersistence
+                    }
+                    if identity == nil {
+                        identity = await AniListService.shared.searchAnimeIdentity(title: result.displayTitle)
+                    }
                     if identity == nil,
                        let originalName = result.originalName,
                        originalName.caseInsensitiveCompare(result.displayTitle) != .orderedSame {
