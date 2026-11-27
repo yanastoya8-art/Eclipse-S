@@ -6139,6 +6139,10 @@ final class MPVHeaderProxy {
     }
 #endif
 
+    func makeLocalFileDownloadURL(for fileURL: URL) -> URL? {
+        proxy.makeLocalFileDownloadURL(for: fileURL)
+    }
+
     func makeLocalManifestURL(body: Data, contentType: String, fileExtension: String, compositeVideoURL: URL? = nil, compositePreferredLanguage: String? = nil) -> URL? {
         proxy.makeLocalManifestURL(body: body, contentType: contentType, fileExtension: fileExtension, compositeVideoURL: compositeVideoURL, compositePreferredLanguage: compositePreferredLanguage)
     }
