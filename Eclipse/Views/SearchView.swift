@@ -428,14 +428,14 @@ struct SearchView: View {
             guard !searchResults.isEmpty else { return }
             let snapshot = searchResults
             Task { @MainActor in
-                await contentFilter.prepareMaturityRatings(for: snapshot)
-                // Trigger a derived-results refresh only. Keep the source
-                // result array intact so SwiftUI preserves the scroll anchor.
+                await contentFilter.resolveBrowseFilterMetadata(for: snapshot)
+                // Re-apply the complete, strict content policy after metadata
+                // changes. Unresolved optional metadata must never bypass a
+                // user's enabled filters in Search.
                 filterRefreshRevision &+= 1
                 cachedCatalogResults = contentFilter.filterSearchResults(
                     searchResults,
-                    resolveMetadataInBackground: false,
-                    allowUnresolvedOptionalMetadata: true
+                    resolveMetadataInBackground: false
                 )
             }
         }
@@ -1017,12 +1017,13 @@ struct SearchView: View {
                 // keystroke. A missing cache is handled by the schedule/filter
                 // refresh path; search must remain responsive and cancellable.
                 try Task.checkCancellation()
-                await contentFilter.prepareMaturityRatings(for: identityResolvedResults)
-                if requiresGlobalAnimeAgeRating {
-                    await contentFilter.resolveAnimeAgeRatings(
-                        for: identityResolvedResults.filter { isAnimeResult($0) }
-                    )
-                }
+                // Search must obey the same complete filter policy as Browse.
+                // Resolve only metadata required by active filters before publishing
+                // results; never expose a temporary unfiltered snapshot.
+                await contentFilter.resolveBrowseFilterMetadata(
+                    for: identityResolvedResults,
+                    requiresAnimeAgeRating: requiresGlobalAnimeAgeRating
+                )
                 try Task.checkCancellation()
 
                 await MainActor.run {
@@ -1032,8 +1033,7 @@ struct SearchView: View {
                     }
                     let filteredResults = contentFilter.filterSearchResults(
                         identityResolvedResults,
-                        resolveMetadataInBackground: false,
-                        allowUnresolvedOptionalMetadata: true
+                        resolveMetadataInBackground: false
                     )
 #if os(tvOS)
                     let restoredFocus = restoredTVResultFocus(
