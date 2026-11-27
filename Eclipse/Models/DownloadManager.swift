@@ -4643,6 +4643,15 @@ final class DownloadManager: NSObject, ObservableObject {
     /// Preserve required headers through the same authenticated proxy used by
     /// the player instead of copying a URL that cannot be opened.
     func copyableDownloadURL(for item: DownloadItem) -> URL? {
+        // A completed download must share the file Eclipse actually saved.
+        // Returning its original provider URL made HLS links expire and caused
+        // copied links to redownload a source rather than serve the local file.
+        if item.status == .completed,
+           let localURL = localFileURL(for: item),
+           let publishedURL = MPVHeaderProxy.shared.makeLocalFileDownloadURL(for: localURL) {
+            return publishedURL
+        }
+
         let protectedAttempt = protectedProviderAttempts[item.id]
         let activeRequestURL = activeTasks[item.id]?.currentRequest?.url
             ?? activeTasks[item.id]?.originalRequest?.url
@@ -4662,10 +4671,19 @@ final class DownloadManager: NSObject, ObservableObject {
         }
 
         let headers = protectedAttempt?.authorityHeaders ?? item.headers
-        // Non-MKV formats use the authenticated download response route so
-        // Safari receives Content-Disposition: attachment and provider headers.
-        // HLS manifests still require segment-aware handling; this response
-        // header alone cannot package an HLS playlist into one video file.
+        if item.isHLS || sourceURL.pathExtension.caseInsensitiveCompare("m3u8") == .orderedSame {
+            // An HLS manifest is not a single video file. Do not force Safari
+            // to save only the .m3u8 text as an attachment; expose a rewritten
+            // LAN playlist so HLS-capable clients can fetch its authenticated
+            // segments through the same proxy route.
+            return MPVHeaderProxy.shared.makeLANProxyURL(
+                for: sourceURL,
+                headers: headers,
+                logType: "LANCast",
+                asDownload: false
+            )
+        }
+
         return MPVHeaderProxy.shared.makeLANProxyURL(
             for: sourceURL,
             headers: headers,
