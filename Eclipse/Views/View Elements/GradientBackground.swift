@@ -443,7 +443,7 @@ struct SettingsGradientBackground: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @ObservedObject private var theme = EclipseTheme.shared
-    @AppStorage(HomeAnimatedBackgroundSettings.enabledKey) private var animatedBackgroundEnabled = HomeAnimatedBackgroundSettings.defaultEnabled
+    @AppStorage(HomeAnimatedBackgroundSettings.enabledKey, store: ProfileSettingsStore.active) private var animatedBackgroundEnabled = HomeAnimatedBackgroundSettings.defaultEnabled
     var allowsAnimatedBackground: Bool = true
     var allowsAnimatedShape: Bool = true
 
@@ -900,17 +900,17 @@ struct EclipseAmbientMotionBackground: View {
     let motionEnabled: Bool
     var allowsAnimatedShape: Bool = true
     @ObservedObject private var theme = EclipseTheme.shared
-    @AppStorage(HomeAnimatedBackgroundQuality.storageKey) private var qualityRawValue = HomeAnimatedBackgroundQuality.defaultValue.rawValue
-    @AppStorage(HomeAnimatedBackgroundFrameRate.storageKey) private var frameRateRawValue = HomeAnimatedBackgroundFrameRate.defaultValue.rawValue
-    @AppStorage(HomeAnimatedBackgroundParticleColor.storageKey) private var particleColorRawValue = HomeAnimatedBackgroundParticleColor.defaultValue.rawValue
-    @AppStorage(HomeAnimatedBackgroundShape.storageKey) private var shapeRawValue = HomeAnimatedBackgroundShape.defaultValue.rawValue
-    @AppStorage(HomeAnimatedCreatureColorMode.storageKey) private var creatureColorModeRawValue = HomeAnimatedCreatureColorMode.defaultValue.rawValue
-    @AppStorage(HomeAnimatedBackgroundSettings.shapeEnabledKey) private var shapeEnabled = HomeAnimatedBackgroundSettings.defaultShapeEnabled
-    @AppStorage(HomeAnimatedBackgroundSettings.shapeOpacityKey) private var shapeOpacity = HomeAnimatedBackgroundSettings.defaultShapeOpacity
-    @AppStorage(HomeAnimatedBackgroundSettings.shapeSizeKey) private var shapeSize = HomeAnimatedBackgroundSettings.defaultShapeSize
-    @AppStorage(HomeAnimatedBackgroundSettings.shapeGlowKey) private var shapeGlow = HomeAnimatedBackgroundSettings.defaultShapeGlow
-    @AppStorage(HomeAnimatedBackgroundSettings.shapeBrightnessKey) private var shapeBrightness = HomeAnimatedBackgroundSettings.defaultShapeBrightness
-    @AppStorage(HomeAnimatedBackgroundParticleColor.customColorDataKey) private var customParticleColorData = Data()
+    @AppStorage(HomeAnimatedBackgroundQuality.storageKey, store: ProfileSettingsStore.active) private var qualityRawValue = HomeAnimatedBackgroundQuality.defaultValue.rawValue
+    @AppStorage(HomeAnimatedBackgroundFrameRate.storageKey, store: ProfileSettingsStore.active) private var frameRateRawValue = HomeAnimatedBackgroundFrameRate.defaultValue.rawValue
+    @AppStorage(HomeAnimatedBackgroundParticleColor.storageKey, store: ProfileSettingsStore.active) private var particleColorRawValue = HomeAnimatedBackgroundParticleColor.defaultValue.rawValue
+    @AppStorage(HomeAnimatedBackgroundShape.storageKey, store: ProfileSettingsStore.active) private var shapeRawValue = HomeAnimatedBackgroundShape.defaultValue.rawValue
+    @AppStorage(HomeAnimatedCreatureColorMode.storageKey, store: ProfileSettingsStore.active) private var creatureColorModeRawValue = HomeAnimatedCreatureColorMode.defaultValue.rawValue
+    @AppStorage(HomeAnimatedBackgroundSettings.shapeEnabledKey, store: ProfileSettingsStore.active) private var shapeEnabled = HomeAnimatedBackgroundSettings.defaultShapeEnabled
+    @AppStorage(HomeAnimatedBackgroundSettings.shapeOpacityKey, store: ProfileSettingsStore.active) private var shapeOpacity = HomeAnimatedBackgroundSettings.defaultShapeOpacity
+    @AppStorage(HomeAnimatedBackgroundSettings.shapeSizeKey, store: ProfileSettingsStore.active) private var shapeSize = HomeAnimatedBackgroundSettings.defaultShapeSize
+    @AppStorage(HomeAnimatedBackgroundSettings.shapeGlowKey, store: ProfileSettingsStore.active) private var shapeGlow = HomeAnimatedBackgroundSettings.defaultShapeGlow
+    @AppStorage(HomeAnimatedBackgroundSettings.shapeBrightnessKey, store: ProfileSettingsStore.active) private var shapeBrightness = HomeAnimatedBackgroundSettings.defaultShapeBrightness
+    @AppStorage(HomeAnimatedBackgroundParticleColor.customColorDataKey, store: ProfileSettingsStore.active) private var customParticleColorData = Data()
 
     private let particles: [(x: CGFloat, y: CGFloat, size: CGFloat, drift: CGFloat, opacity: Double)] = [
         (0.25, 0.24, 2.8, 15, 0.34),
@@ -1798,7 +1798,7 @@ struct GlobalGradientBackground: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @ObservedObject private var theme = EclipseTheme.shared
-    @AppStorage(HomeAnimatedBackgroundSettings.enabledKey) private var animatedBackgroundEnabled = HomeAnimatedBackgroundSettings.defaultEnabled
+    @AppStorage(HomeAnimatedBackgroundSettings.enabledKey, store: ProfileSettingsStore.active) private var animatedBackgroundEnabled = HomeAnimatedBackgroundSettings.defaultEnabled
     @State private var isVisible = false
     var overrideColor: Color? = nil
     var scrollOffset: CGFloat = 0
