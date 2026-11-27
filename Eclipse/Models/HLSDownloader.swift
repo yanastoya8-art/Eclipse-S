@@ -390,16 +390,24 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
                     self.queue.async {
                         guard self.pending[description] != nil else { return }
 
-                        // A download consists of many distinct HLS resources
-                        // (playlist, key, init section and media segments).
-                        // A task from the previous worker may still be owned by
+                        // Multiple callers can reach getAllTasks before
+                        // either callback returns. Check the in-memory task
+                        // registry first so those concurrent callbacks cannot
+                        // create duplicate OS transfers for the same HLS
+                        // resource from the same stale task snapshot.
+                        if let active = self.activeTasks[description] {
+                            if active.state == .suspended { active.resume() }
+                            return
+                        }
+
+                        // A task from a previous worker may still be owned by
                         // background URLSession after iOS suspends Eclipse.
                         // Never cancel a different resource just because it
                         // belongs to the same download ID: the resumed worker
                         // will reach that exact URL and reattach to its task.
-                        // Likewise, keep completed resource files until their
-                        // matching request consumes them. Explicit Cancel/Delete
-                        // still removes every task and cache entry for the ID.
+                        // Keep completed resource files until the matching
+                        // request consumes them. Explicit Cancel/Delete still
+                        // removes every task and cache entry for the ID.
                         if let existing = tasks.first(where: { $0.taskDescription == description }) as? URLSessionDownloadTask {
                             self.activeTasks[description] = existing
                             if existing.state == .suspended { existing.resume() }
