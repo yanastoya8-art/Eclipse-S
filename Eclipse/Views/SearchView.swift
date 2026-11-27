@@ -3489,15 +3489,27 @@ private struct BrowseMediaView: View {
         let identifiers = Array(Set(identities.map(\.anilistId)))
         guard !identifiers.isEmpty, !Task.isCancelled else { return [:] }
         var ratings = (try? await TaizenAnimeAgeRatingService.shared.ratings(anilistIDs: identifiers)) ?? [:]
-        guard MALMetadataService.shared.isConfigured, !Task.isCancelled else { return ratings }
-
         let missing = identities.filter { identity in
             identity.malId != nil
                 && (ratings[identity.anilistId] == nil || ratings[identity.anilistId] == .unknown)
         }
-        for identity in missing {
+        if MALMetadataService.shared.isConfigured {
+            for identity in missing {
+                guard !Task.isCancelled, let malID = identity.malId, malID > 0 else { continue }
+                if let fallback = await MALMetadataService.shared.fetchMaturityRating(malID: malID),
+                   fallback != .unknown {
+                    ratings[identity.anilistId] = fallback
+                }
+            }
+        }
+
+        // Keep Browse's explicit age-rating gate on the same provider chain as
+        // the shared content filter. Otherwise the Jikan result could be cached
+        // successfully and then ignored by this second, older Taizen/MAL-only
+        // lookup immediately before the page is filtered.
+        for identity in missing where ratings[identity.anilistId] == nil || ratings[identity.anilistId] == .unknown {
             guard !Task.isCancelled, let malID = identity.malId, malID > 0 else { continue }
-            if let fallback = await MALMetadataService.shared.fetchMaturityRating(malID: malID),
+            if let fallback = try? await JikanAnimeAgeRatingService.shared.rating(malID: malID),
                fallback != .unknown {
                 ratings[identity.anilistId] = fallback
             }
