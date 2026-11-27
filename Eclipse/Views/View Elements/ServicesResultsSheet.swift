@@ -36,8 +36,8 @@ private func copyProviderDownloadURL(_ rawURL: String, headers: [String: String]
     let sanitizedHeaders = AVPlayerResourceLoader.sanitizedHTTPHeaders(headers ?? [:])
 
     // Safari recognizes raw media URLs as playable resources and opens
-    // them inline. Always use the LAN download route so the response includes
-    // Content-Disposition: attachment, including for providers with no headers.
+    // them inline. Use the same-device proxy so the response includes
+    // Content-Disposition: attachment without requiring LAN discovery or Wi-Fi.
     // Required provider headers remain scoped to the source origin by the proxy.
     guard let downloadURL = MPVHeaderProxy.shared.makeProxyURL(
         for: sourceURL,
