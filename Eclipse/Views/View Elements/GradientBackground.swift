@@ -855,35 +855,53 @@ private struct HomeAnimatedCreatureMotif: View {
     let phase: Double
 
     var body: some View {
-        creatureImage
-            .resizable()
-            .interpolation(.high)
-            .scaledToFit()
-            .frame(width: size.width, height: size.height)
-            // Keep the SVG's alpha channel all the way through SwiftUI
-            // compositing. Canvas.resolve/draw was flattening the vector
-            // asset into a rectangular tile on some iOS render paths.
-            .background(Color.clear)
-            .colorMultiply(color)
-            .opacity(min(1, opacity * brightness))
-            .rotationEffect(.degrees(sin(phase * 0.55) * 1.1))
-            .scaleEffect(1.0 + sin(phase * 1.1) * 0.008)
-            .accessibilityHidden(true)
+        Canvas { context, canvasSize in
+            var drawing = context
+            draw(in: &drawing, canvasSize: canvasSize)
+        }
+        .frame(width: size.width, height: size.height)
+        .accessibilityHidden(true)
     }
 
-    private var creatureImage: Image {
+    /// Draw the creature directly into an existing Canvas context. This keeps
+    /// the artwork reusable for both its normal pass and the blurred glow pass.
+    func draw(in context: inout GraphicsContext, canvasSize: CGSize) {
+        // Render the nine approved creature illustrations as vector-backed
+        // asset-catalog images. Their original transparent cut-outs are kept;
+        // no generated frame, eye overlay, or rectangular tile is introduced.
+        let assetName: String
         switch shape {
-        case .dragon: return Image("HomeCreatureDragon")
-        case .bird: return Image("HomeCreatureHawk")
-        case .snake: return Image("HomeCreatureCobra")
-        case .wolf: return Image("HomeCreatureWolf")
-        case .fox: return Image("HomeCreatureFox")
-        case .phoenix: return Image("HomeCreaturePhoenix")
-        case .cat: return Image("HomeCreatureCat")
-        case .mermaid: return Image("HomeCreatureMermaid")
-        case .paw: return Image("HomeCreaturePaw")
-        default: return Image("HomeCreatureWolf")
+        case .dragon: assetName = "HomeCreatureDragon"
+        case .bird: assetName = "HomeCreatureHawk"
+        case .snake: assetName = "HomeCreatureCobra"
+        case .wolf: assetName = "HomeCreatureWolf"
+        case .fox: assetName = "HomeCreatureFox"
+        case .phoenix: assetName = "HomeCreaturePhoenix"
+        case .cat: assetName = "HomeCreatureCat"
+        case .mermaid: assetName = "HomeCreatureMermaid"
+        case .paw: assetName = "HomeCreaturePaw"
+        default: return
         }
+
+        let scale = min(canvasSize.width / 443, canvasSize.height / 394)
+        let artworkSize = CGSize(width: 443 * scale, height: 394 * scale)
+        let artworkRect = CGRect(
+            x: (canvasSize.width - artworkSize.width) / 2,
+            y: (canvasSize.height - artworkSize.height) / 2,
+            width: artworkSize.width,
+            height: artworkSize.height
+        )
+
+        var drawing = context
+        drawing.translateBy(x: canvasSize.width / 2, y: canvasSize.height / 2)
+        drawing.rotate(by: .degrees(sin(phase * 0.55) * 1.1))
+        let breathing = CGFloat(1.0 + sin(phase * 1.1) * 0.008)
+        drawing.scaleBy(x: breathing, y: breathing)
+        drawing.translateBy(x: -canvasSize.width / 2, y: -canvasSize.height / 2)
+        drawing.addFilter(.colorMultiply(color))
+        drawing.opacity = min(1, opacity * brightness)
+        let illustration = drawing.resolve(Image(assetName))
+        drawing.draw(illustration, in: artworkRect)
     }
 }
 
