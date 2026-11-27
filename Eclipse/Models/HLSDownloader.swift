@@ -248,10 +248,10 @@ struct HLSBackgroundDownloadResult {
     let response: URLResponse?
 }
 
-/// Background URLSession can fetch both HTTP and HTTPS media. The separate
-/// network-dispatch validator still rejects private, loopback, and unsafe
-/// destinations; requiring HTTPS here incorrectly rejected otherwise valid
-/// HTTP HLS playlists and segments before that validation could run.
+/// Background URLSession can fetch both HTTP and HTTPS media. Where a
+/// source requires public-network validation, that separate dispatch check
+/// still rejects private, loopback, and unsafe destinations; requiring HTTPS
+/// here incorrectly rejected otherwise valid HTTP HLS resources first.
 enum HLSBackgroundNetworkValidationPolicy {
     static func permits(_ url: URL) -> Bool {
         guard let scheme = url.scheme?.lowercased(),
