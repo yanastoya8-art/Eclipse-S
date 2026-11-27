@@ -242,7 +242,7 @@ final class MyDubListDubFilter: @unchecked Sendable {
     var selectedLanguagesIncludingCatalogAudioRequirement: Set<String> {
         DubLanguageSelectionPolicy.effectiveLanguages(
             selectedLanguages: selectedLanguages,
-            requiresEnglishSpanishAudio: UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
+            requiresEnglishSpanishAudio: ProfileSettingsStore.active.bool(forKey: "catalogRequireEnglishSpanishAudio")
         )
     }
 
@@ -690,7 +690,7 @@ class TMDBContentFilter: ObservableObject {
     ]
 
     private init() {
-        UserDefaults.standard.register(defaults: [
+        ProfileSettingsStore.active.register(defaults: [
             "catalogHideBelowPG13Movies": true,
             "catalogHideBelowTV14Shows": true,
             "catalogHideBelowPG13Anime": true,
@@ -756,7 +756,7 @@ class TMDBContentFilter: ObservableObject {
     private var kidsModeEnabled: Bool { ProfileManager.shared.isKidsModeActive }
 
     func prepareMaturityRatings(for results: [TMDBSearchResult]) async {
-        let defaults = UserDefaults.standard
+        let defaults = ProfileSettingsStore.active
         if defaults.bool(forKey: "catalogHideUnder20MinuteContent") {
             Task(priority: .utility) { await self.resolveRuntimeMetadata(for: results) }
         }
@@ -822,7 +822,7 @@ class TMDBContentFilter: ObservableObject {
     }
 
     func prepareScheduleAgeRatings(for entries: [ScheduleEntry]) async {
-        let defaults = UserDefaults.standard
+        let defaults = ProfileSettingsStore.active
         let hideBelowAnime = defaults.bool(forKey: "catalogHideBelowPG13Anime")
         let hideAllAgesAnime = defaults.bool(forKey: "catalogHideAllAgesAnime")
         let animeEntries = (hideBelowAnime || hideAllAgesAnime)
@@ -962,7 +962,7 @@ class TMDBContentFilter: ObservableObject {
     }
 
     func scheduleEntryIsAllAges(_ entry: ScheduleEntry) -> Bool {
-        let defaults = UserDefaults.standard
+        let defaults = ProfileSettingsStore.active
         if entry.source == .anime {
             guard defaults.bool(forKey: "catalogHideAllAgesAnime") else { return false }
             let id = entry.sourceMediaId
@@ -988,7 +988,7 @@ class TMDBContentFilter: ObservableObject {
     }
 
     func scheduleEntryIsBlockedByConfiguredAgeFilter(_ entry: ScheduleEntry) -> Bool {
-        let defaults = UserDefaults.standard
+        let defaults = ProfileSettingsStore.active
         if entry.source == .anime {
             let hideBelowMinimum = defaults.bool(forKey: "catalogHideBelowPG13Anime")
             let hideAllAges = defaults.bool(forKey: "catalogHideAllAgesAnime")
@@ -1048,7 +1048,7 @@ class TMDBContentFilter: ObservableObject {
         for results: [TMDBSearchResult],
         requiresAnimeAgeRating: Bool = false
     ) async {
-        let defaults = UserDefaults.standard
+        let defaults = ProfileSettingsStore.active
         let animeResults = results.filter { Self.isAnimeResult($0) }
         let nonAnimeResults = results.filter { !Self.isAnimeResult($0) }
         let dubFilter = MyDubListDubFilter.shared
@@ -1356,10 +1356,10 @@ class TMDBContentFilter: ObservableObject {
         // lookups again here created duplicate per-page work and amplified
         // latency while users paged or changed filters.
         if resolveMetadataInBackground {
-            if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
+            if ProfileSettingsStore.active.bool(forKey: "catalogHideUnder20MinuteContent") {
                 Task(priority: .utility) { await self.resolveRuntimeMetadata(for: results) }
             }
-            if UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent") {
+            if ProfileSettingsStore.active.bool(forKey: "catalogHideUnofficialContent") {
                 Task(priority: .utility) { await self.resolveProductionMetadata(for: results) }
             }
             scheduleAnimeAudioMetadataResolutionIfNeeded(for: results)
@@ -1381,10 +1381,10 @@ class TMDBContentFilter: ObservableObject {
 
     func filterFastAnimeSearchResults(_ results: [TMDBSearchResult]) -> [TMDBSearchResult] {
         let animeResults = results.map { $0.withAnimeHint(true) }
-        if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
+        if ProfileSettingsStore.active.bool(forKey: "catalogHideUnder20MinuteContent") {
             Task(priority: .utility) { await self.resolveRuntimeMetadata(for: animeResults) }
         }
-        if UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent") {
+        if ProfileSettingsStore.active.bool(forKey: "catalogHideUnofficialContent") {
             Task(priority: .utility) { await self.resolveProductionMetadata(for: animeResults) }
         }
         scheduleAnimeAudioMetadataResolutionIfNeeded(for: animeResults)
@@ -1422,10 +1422,10 @@ class TMDBContentFilter: ObservableObject {
     func filterMovies(_ movies: [TMDBMovie]) -> [TMDBMovie] {
         let searchResults = movies.map(\.asSearchResult)
         Task(priority: .utility) { await self.prepareMaturityRatings(for: searchResults) }
-        if UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent") {
+        if ProfileSettingsStore.active.bool(forKey: "catalogHideUnofficialContent") {
             Task(priority: .utility) { await self.resolveProductionMetadata(for: searchResults) }
         }
-        if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
+        if ProfileSettingsStore.active.bool(forKey: "catalogRequireEnglishSpanishAudio") {
             scheduleAnimeAudioMetadataResolutionIfNeeded(for: movies.map(\.asSearchResult))
         }
         return movies.filter { movie in
@@ -1439,9 +1439,9 @@ class TMDBContentFilter: ObservableObject {
             let movieResult = movie.asSearchResult
             let movieAnime = Self.isAnimeResult(movieResult)
             guard !shouldExcludeAnimeSpecialOrOVA(movieResult) else { return false }
-            if UserDefaults.standard.bool(forKey: "catalogHideAnime"), movieAnime { return false }
+            if ProfileSettingsStore.active.bool(forKey: "catalogHideAnime"), movieAnime { return false }
             if movieAnime, !shouldIncludeAnimeCategoryFilters(movie.asSearchResult) { return false }
-            if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
+            if ProfileSettingsStore.active.bool(forKey: "catalogHideUnder20MinuteContent") {
                 guard CatalogRuntimeFilterPolicy.shouldInclude(
                     runtimeMinutes: cachedRuntimeMinutes(for: "movie-\(movie.id)")
                 ) else { return false }
@@ -1450,9 +1450,9 @@ class TMDBContentFilter: ObservableObject {
                 rawDate: movie.releaseDate,
                 isAnime: false,
                 isMovie: true,
-                defaults: .standard
+                defaults: ProfileSettingsStore.active
             ) else { return false }
-            if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
+            if ProfileSettingsStore.active.bool(forKey: "catalogRequireEnglishSpanishAudio") {
                 // Native audio only qualifies when it matches the user's selected
                 // language(s); English must not satisfy a Spanish-only selection.
                 guard shouldIncludeForConfiguredAgeAndAudio(movieResult) else { return false }
@@ -1480,10 +1480,10 @@ class TMDBContentFilter: ObservableObject {
     func filterTVShows(_ tvShows: [TMDBTVShow]) -> [TMDBTVShow] {
         let searchResults = tvShows.map(\.asSearchResult)
         Task(priority: .utility) { await self.prepareMaturityRatings(for: searchResults) }
-        if UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent") {
+        if ProfileSettingsStore.active.bool(forKey: "catalogHideUnofficialContent") {
             Task(priority: .utility) { await self.resolveProductionMetadata(for: searchResults) }
         }
-        if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
+        if ProfileSettingsStore.active.bool(forKey: "catalogRequireEnglishSpanishAudio") {
             scheduleAnimeAudioMetadataResolutionIfNeeded(for: tvShows.map(\.asSearchResult))
         }
         return tvShows.filter { tvShow in
@@ -1501,9 +1501,9 @@ class TMDBContentFilter: ObservableObject {
             let isAnime = tvShow.genreIds?.contains(16) == true
                 && (animeLanguages.contains(tvShow.originalLanguage?.lowercased() ?? "")
                     || tvShow.originCountry?.contains(where: { animeCountries.contains($0) }) == true)
-            if UserDefaults.standard.bool(forKey: "catalogHideAnime"), isAnime { return false }
+            if ProfileSettingsStore.active.bool(forKey: "catalogHideAnime"), isAnime { return false }
             if isAnime, !shouldIncludeAnimeCategoryFilters(tvShow.asSearchResult) { return false }
-            if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
+            if ProfileSettingsStore.active.bool(forKey: "catalogHideUnder20MinuteContent") {
                 guard CatalogRuntimeFilterPolicy.shouldInclude(
                     runtimeMinutes: cachedRuntimeMinutes(for: "tv-\(tvShow.id)")
                 ) else { return false }
@@ -1512,9 +1512,9 @@ class TMDBContentFilter: ObservableObject {
                 rawDate: tvShow.firstAirDate,
                 isAnime: isAnime,
                 isMovie: false,
-                defaults: .standard
+                defaults: ProfileSettingsStore.active
             ) else { return false }
-            if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
+            if ProfileSettingsStore.active.bool(forKey: "catalogRequireEnglishSpanishAudio") {
                 // Apply the same selected-language check to native-language
                 // titles and titles that need verified dub metadata.
                 guard shouldIncludeForConfiguredAgeAndAudio(tvResult) else { return false }
@@ -1792,7 +1792,7 @@ class TMDBContentFilter: ObservableObject {
     }
 
     private func scheduleCatalogAudioAvailabilityResolutionIfNeeded(for results: [TMDBSearchResult]) {
-        guard UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") else { return }
+        guard ProfileSettingsStore.active.bool(forKey: "catalogRequireEnglishSpanishAudio") else { return }
         Task(priority: .utility) {
             await self.resolveCatalogAudioAvailability(for: results)
         }
@@ -1805,7 +1805,7 @@ class TMDBContentFilter: ObservableObject {
     /// every non-native-language movie/TV result was rejected before its dub
     /// availability could ever be checked.
     private func resolveCatalogAudioAvailability(for results: [TMDBSearchResult]) async {
-        guard UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") else { return }
+        guard ProfileSettingsStore.active.bool(forKey: "catalogRequireEnglishSpanishAudio") else { return }
         let candidates = results.filter { result in
             guard !Self.isAnimeResult(result),
                   (result.isMovie || result.isTVShow),
@@ -1951,7 +1951,7 @@ class TMDBContentFilter: ObservableObject {
     }
 
     private func shouldIncludeTMDBAgeRating(isMovie: Bool, id: Int, enabled: Bool) -> Bool {
-        let hideAllAges = UserDefaults.standard.bool(
+        let hideAllAges = ProfileSettingsStore.active.bool(
             forKey: isMovie ? "catalogHideAllAgesMovies" : "catalogHideAllAgesSeries"
         )
         guard enabled || hideAllAges else { return true }
@@ -1976,7 +1976,7 @@ class TMDBContentFilter: ObservableObject {
         result: TMDBSearchResult,
         allowUnresolvedMetadata: Bool = false
     ) -> Bool {
-        guard UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent") else { return true }
+        guard ProfileSettingsStore.active.bool(forKey: "catalogHideUnofficialContent") else { return true }
         if Self.isUnofficialCreatorContent(title: title, overview: overview) { return false }
 
         let key = Self.runtimeCacheKey(for: result)
@@ -2185,7 +2185,7 @@ class TMDBContentFilter: ObservableObject {
         allowUpcomingContent: Bool = false,
         allowUnresolvedOptionalMetadata: Bool = false
     ) -> Bool {
-        let defaults = UserDefaults.standard
+        let defaults = ProfileSettingsStore.active
         let isAnime = Self.isAnimeResult(result)
         if defaults.bool(forKey: "catalogHideAnime"), isAnime { return false }
         if defaults.bool(forKey: "catalogHideUnder20MinuteContent") {
