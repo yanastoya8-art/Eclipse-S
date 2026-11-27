@@ -6380,7 +6380,7 @@ final class DownloadManager: NSObject, ObservableObject {
         }
 
         guard slotsAvailable > 0 else {
-            let reason = "Waiting for an available download slot (\\(currentlyDownloading) active, \\(reservedValidations) validating)"
+            let reason = "Waiting for an available download slot (\(currentlyDownloading) active, \(reservedValidations) validating)"
             for item in downloads where item.status == .queued
                 && (item.retryNotBefore.map { $0 <= now } ?? true) {
                 setQueuedMessage(id: item.id, message: reason)
