@@ -899,7 +899,6 @@ private struct HomeAnimatedCreatureMotif: View {
         )
 
         var drawing = context
-        drawing.interpolation = .high
         drawing.translateBy(x: canvasSize.width / 2, y: canvasSize.height / 2)
         drawing.rotate(by: .degrees(sin(phase * 0.55) * 1.1))
         let breathing = CGFloat(1.0 + sin(phase * 1.1) * 0.008)
