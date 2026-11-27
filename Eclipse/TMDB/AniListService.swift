@@ -7143,7 +7143,7 @@ final class AniListService {
         guard (1...1_000_000_000).contains(anilistID) else { return nil }
         let query = """
         query {
-            Media(id: \\(anilistID), type: ANIME) {
+            Media(id: \(anilistID), type: ANIME) {
                 studios {
                     nodes { name isAnimationStudio }
                 }
