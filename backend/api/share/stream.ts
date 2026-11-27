@@ -87,7 +87,9 @@ async function proxyResponse(
     });
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get("location");
-      if (!location || attempt === MAX_REDIRECTS) return response;
+      if (!location || attempt === MAX_REDIRECTS) {
+        throw new Error("Upstream redirect limit reached");
+      }
       const redirected = await validatePublicMediaURL(new URL(location, target).toString());
       headers = headersForTarget(headers, target.toString(), redirected.toString());
       target = redirected;
@@ -166,8 +168,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     copyResponseHeaders(upstream, res);
     res.status(upstream.status);
 
+    const finalURL = upstream.url ? new URL(upstream.url) : target;
     const contentType = (upstream.headers.get("content-type") ?? "").toLowerCase();
-    const isPlaylist = target.pathname.toLowerCase().endsWith(".m3u8") ||
+    const isPlaylist = finalURL.pathname.toLowerCase().endsWith(".m3u8") ||
       contentType.includes("mpegurl") || contentType.includes("x-mpegurl");
 
     if (req.method === "HEAD" || !upstream.body || !upstream.ok) {
@@ -181,7 +184,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const bytes = await readLimited(upstream.body, PLAYLIST_LIMIT_BYTES);
       const playlist = new TextDecoder("utf-8").decode(bytes);
       const baseURL = publicShareBaseURL(req);
-      const rewritten = await rewritePlaylist(playlist, target, capability, baseURL);
+      const rewritten = await rewritePlaylist(playlist, finalURL, capability, baseURL);
       res.setHeader("Content-Type", "application/vnd.apple.mpegurl; charset=utf-8");
       res.setHeader("Content-Length", Buffer.byteLength(rewritten, "utf8"));
       return res.status(upstream.status).send(rewritten);
