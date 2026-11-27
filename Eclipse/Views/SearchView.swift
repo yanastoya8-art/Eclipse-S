@@ -27,6 +27,7 @@ struct SearchView: View {
     @State private var searchResults: [TMDBSearchResult] = []
     @State private var cachedCatalogResults: [TMDBSearchResult] = []
     @State private var filterRefreshRevision = 0
+    @State private var lastContentFilterSettingsSignature = ""
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var searchFilter: SearchFilter = .all
@@ -425,30 +426,20 @@ struct SearchView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: TMDBContentFilter.catalogFiltersDidChangeNotification)) { _ in
-            guard !searchResults.isEmpty else { return }
-            // Apply all already-known rules immediately. Previously Search left
-            // its old grid on screen while the asynchronous metadata pass ran,
-            // making disabled titles appear to ignore changed content filters.
-            cachedCatalogResults = contentFilter.filterSearchResults(
-                searchResults,
-                resolveMetadataInBackground: false
-            )
-            filterRefreshRevision &+= 1
-            let snapshot = searchResults
-            let requestSerial = searchRequestSerial
-            Task { @MainActor in
-                await contentFilter.resolveBrowseFilterMetadata(for: snapshot)
-                guard requestSerial == searchRequestSerial else { return }
-                // Re-apply the complete policy after the required metadata is
-                // ready. A stale notification must not overwrite a newer query.
-                filterRefreshRevision &+= 1
-                cachedCatalogResults = contentFilter.filterSearchResults(
-                    searchResults,
-                    resolveMetadataInBackground: false
-                )
-            }
+            refreshSearchResultsForFilterChange()
+        }
+        // Most filter switches are stored through AppStorage/UserDefaults and
+        // do not emit catalogFiltersDidChangeNotification. Observe actual
+        // defaults changes so Search cannot keep displaying its previous,
+        // now-unfiltered result snapshot after returning from Settings.
+        .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in
+            let signature = contentFilterSettingsSignature
+            guard signature != lastContentFilterSettingsSignature else { return }
+            lastContentFilterSettingsSignature = signature
+            refreshSearchResultsForFilterChange()
         }
         .onAppear {
+            lastContentFilterSettingsSignature = contentFilterSettingsSignature
 #if os(tvOS)
             tvSearchIsVisible = true
             tvSearchPresentationGeneration = UUID()
@@ -710,6 +701,39 @@ struct SearchView: View {
                     self.isLoadingRandom = false
                 }
             }
+        }
+    }
+
+    private var contentFilterSettingsSignature: String {
+        let defaults = UserDefaults.standard
+        let keys = defaults.dictionaryRepresentation().keys
+            .filter { $0.hasPrefix("catalog") || $0 == "filterHorror" }
+            .sorted()
+        return keys.map { key in
+            "\(key)=\(String(describing: defaults.object(forKey: key) ?? "<unset>"))"
+        }.joined(separator: "|")
+    }
+
+    private func refreshSearchResultsForFilterChange() {
+        guard !searchResults.isEmpty else { return }
+        // First apply the current cache-backed policy synchronously, then
+        // resolve required metadata and apply it again. This avoids leaving
+        // stale, unfiltered cards visible while a settings-triggered lookup runs.
+        cachedCatalogResults = contentFilter.filterSearchResults(
+            searchResults,
+            resolveMetadataInBackground: false
+        )
+        filterRefreshRevision &+= 1
+        let snapshot = searchResults
+        let requestSerial = searchRequestSerial
+        Task { @MainActor in
+            await contentFilter.resolveBrowseFilterMetadata(for: snapshot)
+            guard requestSerial == searchRequestSerial else { return }
+            filterRefreshRevision &+= 1
+            cachedCatalogResults = contentFilter.filterSearchResults(
+                searchResults,
+                resolveMetadataInBackground: false
+            )
         }
     }
 
