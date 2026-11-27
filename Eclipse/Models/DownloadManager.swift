@@ -8247,7 +8247,7 @@ final class DownloadManager: NSObject, ObservableObject {
             let managedProxyTarget = URL(string: item.streamURL)
                 .flatMap { MPVHeaderProxy.shared.recoverableTargetURL(for: $0) }
             let safeManagedProxyTarget = managedProxyTarget.flatMap { candidate -> URL? in
-                guard candidate.scheme?.lowercased() == "https",
+                guard ["http", "https"].contains(candidate.scheme?.lowercased() ?? ""),
                       candidate.host != nil,
                       candidate.user == nil,
                       candidate.password == nil,
