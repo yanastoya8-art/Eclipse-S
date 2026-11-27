@@ -5,6 +5,54 @@ import CryptoKit
 import UIKit
 #endif
 
+struct HLSByteRange: Equatable {
+    let offset: Int64
+    let length: Int64
+
+    var upperBound: Int64? {
+        guard offset >= 0, length > 0 else { return nil }
+        let (end, overflow) = offset.addingReportingOverflow(length - 1)
+        return overflow ? nil : end
+    }
+
+    var headerValue: String? {
+        guard let upperBound else { return nil }
+        return "bytes=\(offset)-\(upperBound)"
+    }
+
+    static func parse(_ value: String, implicitOffset: Int64? = nil) -> HLSByteRange? {
+        let parts = value.split(separator: "@", maxSplits: 1, omittingEmptySubsequences: false)
+        guard parts.count == 1 || parts.count == 2,
+              let length = Int64(parts[0]), length > 0 else { return nil }
+        let offset: Int64
+        if parts.count == 2 {
+            guard let parsedOffset = Int64(parts[1]), parsedOffset >= 0 else { return nil }
+            offset = parsedOffset
+        } else {
+            guard let implicitOffset, implicitOffset >= 0 else { return nil }
+            offset = implicitOffset
+        }
+        let range = HLSByteRange(offset: offset, length: length)
+        return range.upperBound == nil ? nil : range
+    }
+}
+
+struct HLSMediaResource: Equatable {
+    let url: URL
+    let byteRange: HLSByteRange?
+
+    init(url: URL, byteRange: HLSByteRange? = nil) {
+        self.url = url
+        self.byteRange = byteRange
+    }
+
+    func apply(to request: inout URLRequest) {
+        if let header = byteRange?.headerValue {
+            request.setValue(header, forHTTPHeaderField: "Range")
+        }
+    }
+}
+
 struct HLSVariant {
     let url: URL
     let bandwidth: Int
@@ -174,13 +222,15 @@ enum HLSDownloadCompatibility {
         var initializationURI: String?
         for line in playlist.components(separatedBy: .newlines) {
             let line = line.trimmingCharacters(in: .whitespacesAndNewlines)
-            if line.hasPrefix("#EXT-X-BYTERANGE:") {
-                return "This HLS stream uses byte ranges that cannot be packaged for offline playback. Choose another stream."
+            if line.hasPrefix("#EXT-X-BYTERANGE:"),
+               HLSByteRange.parse(String(line.dropFirst("#EXT-X-BYTERANGE:".count))) == nil {
+                return "This HLS stream contains an invalid byte-range declaration and cannot be packaged safely for offline playback."
             }
             if line.hasPrefix("#EXT-X-MAP:") {
                 let values = attributes(String(line.dropFirst("#EXT-X-MAP:".count)))
-                if values["BYTERANGE"] != nil {
-                    return "This HLS stream uses an initialization byte range that cannot be packaged for offline playback. Choose another stream."
+                if let range = values["BYTERANGE"],
+                   HLSByteRange.parse(range) == nil {
+                    return "This HLS stream contains an invalid initialization byte range and cannot be packaged safely for offline playback."
                 }
                 guard let uri = values["URI"], !uri.isEmpty else {
                     return "This HLS stream has an invalid initialization section and cannot be packaged safely for offline playback. Choose another stream."
@@ -278,9 +328,26 @@ enum HLSBackgroundPlaylistResourcePlan {
                 reason: "This HLS resume checkpoint points outside the media playlist. Restart the download."
             )
         }
+        let resources = (initializationSegmentURL.map { [$0] } ?? []) + Array(segments.dropFirst(startIndex))
+        guard resources.count <= maximumResourceCount else {
+            throw HLSError.unsupportedLayout(
+                reason: "This HLS playlist contains too many segments to queue safely for background downloading. Choose a shorter or pre-packaged stream."
+            )
+        }
+        return resources
+    }
 
-        let resources = (initializationSegmentURL.map { [$0] } ?? [])
-            + Array(segments.dropFirst(startIndex))
+    static func resources(
+        segments: [HLSMediaResource],
+        startingAt startIndex: Int,
+        initializationSegment: HLSMediaResource?
+    ) throws -> [HLSMediaResource] {
+        guard startIndex >= 0, startIndex <= segments.count else {
+            throw HLSError.unsupportedLayout(
+                reason: "This HLS resume checkpoint points outside the media playlist. Restart the download."
+            )
+        }
+        let resources = (initializationSegment.map { [$0] } ?? []) + Array(segments.dropFirst(startIndex))
         guard resources.count <= maximumResourceCount else {
             throw HLSError.unsupportedLayout(
                 reason: "This HLS playlist contains too many segments to queue safely for background downloading. Choose a shorter or pre-packaged stream."
@@ -416,6 +483,7 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
         let description = taskDescription(
             downloadID: downloadID,
             url: request.url,
+            rangeHeader: request.value(forHTTPHeaderField: "Range"),
             maximumResponseBytes: maximumResponseBytes,
             requiresPublicNetworkValidation: requiresPublicNetworkValidation
         )
@@ -490,6 +558,7 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
             return (request, taskDescription(
                 downloadID: downloadID,
                 url: url,
+                rangeHeader: request.value(forHTTPHeaderField: "Range"),
                 maximumResponseBytes: maximumResponseBytes,
                 requiresPublicNetworkValidation: requiresPublicNetworkValidation
             ))
@@ -740,16 +809,17 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
     }
 
     private func taskPrefix(downloadID: String) -> String {
-        "eclipse-hls-v1-\(digest(downloadID))-"
+        "eclipse-hls-v2-\(digest(downloadID))-"
     }
 
     private func taskDescription(
         downloadID: String,
         url: URL?,
+        rangeHeader: String? = nil,
         maximumResponseBytes: Int,
         requiresPublicNetworkValidation: Bool
     ) -> String {
-        let urlValue = url?.absoluteString ?? "missing-url"
+        let urlValue = (url?.absoluteString ?? "missing-url") + "\nrange:" + (rangeHeader ?? "none")
         let boundedMaximum = min(max(maximumResponseBytes, 1), 128 * 1_024 * 1_024)
         let validationMode = requiresPublicNetworkValidation ? "public" : "user"
         return taskPrefix(downloadID: downloadID)
