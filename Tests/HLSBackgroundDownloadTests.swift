@@ -5,6 +5,74 @@ import XCTest
 
 @MainActor
 final class HLSBackgroundDownloadTests: XCTestCase {
+    func testBackgroundPlaylistPlanQueuesInitializationAndEveryRemainingSegment() throws {
+        let initialization = URL(string: "https://cdn.example/init.mp4")!
+        let segments = [
+            URL(string: "https://cdn.example/segment-1.m4s")!,
+            URL(string: "https://cdn.example/segment-2.m4s")!,
+            URL(string: "https://cdn.example/segment-3.m4s")!
+        ]
+
+        let resources = try HLSBackgroundPlaylistResourcePlan.resources(
+            segments: segments,
+            startingAt: 0,
+            initializationSegmentURL: initialization
+        )
+
+        XCTAssertEqual(resources, [initialization] + segments)
+    }
+
+    func testBackgroundPlaylistPlanResumesAfterVerifiedSegmentsWithoutRequeueingInit() throws {
+        let segments = [
+            URL(string: "https://cdn.example/segment-1.m4s")!,
+            URL(string: "https://cdn.example/segment-2.m4s")!,
+            URL(string: "https://cdn.example/segment-3.m4s")!
+        ]
+
+        let resources = try HLSBackgroundPlaylistResourcePlan.resources(
+            segments: segments,
+            startingAt: 2,
+            initializationSegmentURL: nil
+        )
+
+        XCTAssertEqual(resources, [segments[2]])
+    }
+
+    func testBackgroundPlaylistPlanRejectsOutOfRangeResumeCheckpoint() {
+        let segments = [URL(string: "https://cdn.example/segment-1.ts")!]
+
+        XCTAssertThrowsError(
+            try HLSBackgroundPlaylistResourcePlan.resources(
+                segments: segments,
+                startingAt: 2,
+                initializationSegmentURL: nil
+            )
+        )
+        XCTAssertThrowsError(
+            try HLSBackgroundPlaylistResourcePlan.resources(
+                segments: segments,
+                startingAt: -1,
+                initializationSegmentURL: nil
+            )
+        )
+    }
+
+    func testBackgroundPlaylistPlanRejectsExcessiveResourceCount() {
+        let segment = URL(string: "https://cdn.example/segment.ts")!
+        let segments = Array(
+            repeating: segment,
+            count: HLSBackgroundPlaylistResourcePlan.maximumResourceCount + 1
+        )
+
+        XCTAssertThrowsError(
+            try HLSBackgroundPlaylistResourcePlan.resources(
+                segments: segments,
+                startingAt: 0,
+                initializationSegmentURL: nil
+            )
+        )
+    }
+
     func testBackgroundSettingDefaultsOnInIsolatedDefaults() throws {
         let name = "HLSBackgroundDownloadTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
