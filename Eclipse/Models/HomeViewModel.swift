@@ -1119,11 +1119,14 @@ final class HomeViewModel: ObservableObject {
                 }
             }
 
-            return catalogs.mapValues { results in
+            return catalogs.map { kind, results in
                 // The caller needs the same page ordering as TMDB returned.
-                results.enumerated().map { index, result in
-                    resolved.first(where: { $0.value[index] != nil })?.value[index] ?? result
-                }
+                let replacements = resolved[kind] ?? [:]
+                return (kind, results.enumerated().map { index, result in
+                    replacements[index] ?? result
+                })
+            }.reduce(into: [:]) { output, entry in
+                output[entry.0] = entry.1
             }
         }
     }
