@@ -7173,7 +7173,7 @@ final class AniListService {
             return Array(Set(names)).sorted()
         } catch {
             Logger.shared.log(
-                "AnimeMetadata: AniList studio lookup failed for \\(anilistID): \\(error.localizedDescription)",
+                "AnimeMetadata: AniList studio lookup failed for \(anilistID): \(error.localizedDescription)",
                 type: "AniList"
             )
             return nil
