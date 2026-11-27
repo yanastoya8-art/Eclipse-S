@@ -34,6 +34,7 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
     case customAnimationColor
     case animationFrameRate
     case animationShape
+    case animationCreatureColorMode
     case animationShapeEnabled
     case animationShapeOpacity
     case animationShapeGlow
@@ -83,7 +84,7 @@ enum AppearanceSettingsSearchTarget: String, Hashable {
             return "theme"
         case .interface, .globalAppearance, .accentColor, .liquidGlassDarkBarColor, .liquidGlassLightBarColor, .liquidGlassBottomBarColor, .browseFilterChipColor, .browseFilterButtonColor, .browseFilterOptionsColor:
             return "interface"
-        case .animatedBackground, .animationQuality, .animationColor, .customAnimationColor, .animationFrameRate, .animationShape, .animationShapeEnabled, .animationShapeOpacity, .animationShapeGlow, .animationShapeBrightness, .animationShapeSize, .appPerformanceOverlay:
+        case .animatedBackground, .animationQuality, .animationColor, .customAnimationColor, .animationFrameRate, .animationShape, .animationCreatureColorMode, .animationShapeEnabled, .animationShapeOpacity, .animationShapeGlow, .animationShapeBrightness, .animationShapeSize, .appPerformanceOverlay:
             return "animation"
         case .hideSplashScreen, .splashScreenDuration, .splashScreenMaximumDuration, .openInLibrary:
             return "startup"
