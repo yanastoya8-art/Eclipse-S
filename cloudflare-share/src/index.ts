@@ -1,5 +1,6 @@
 interface R2ObjectBody {
   body: ReadableStream<Uint8Array>;
+  text(): Promise<string>;
   range?: { offset: number; length: number };
   size: number;
   httpEtag: string;
@@ -10,7 +11,7 @@ interface R2ObjectBody {
 interface R2Bucket {
   put(
     key: string,
-    value: ReadableStream<Uint8Array> | null,
+    value: ReadableStream<Uint8Array> | string | null,
     options?: {
       httpMetadata?: { contentType?: string; contentDisposition?: string };
       customMetadata?: Record<string, string>;
@@ -237,24 +238,17 @@ async function cleanupExpiredShares(env: Env): Promise<void> {
         limit: 500,
         include: ["customMetadata"],
       });
-      const expired: string[] = [];
-      for (const object of page.objects) {
-        let expiresAt = Number(object.customMetadata?.expiresAt ?? "0");
-        if (prefix === "shares/") {
-          const stored = await env.SHARES.get(object.key);
-          if (stored) {
-            const descriptor = await unseal<ShareDescriptor>(env, await stored.text());
-            expiresAt = descriptor?.expiresAt ?? 0;
-          }
-        }
-        if (expiresAt > 0 && expiresAt < Date.now()) expired.push(object.key);
-      }
+      const expired = page.objects
+        .filter((object) => {
+          const expiresAt = Number(object.customMetadata?.expiresAt ?? "0");
+          return expiresAt > 0 && expiresAt < Date.now();
+        })
+        .map((object) => object.key);
       await Promise.all(expired.map((key) => env.SHARES.delete(key)));
       cursor = page.truncated ? page.cursor : undefined;
     } while (cursor);
   }
-}
-\nasync function route(request: Request, env: Env): Promise<Response> {
+}\nasync function route(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: {
@@ -276,7 +270,7 @@ async function cleanupExpiredShares(env: Env): Promise<void> {
     const id = crypto.randomUUID();
     const exp = expiry(body.expiresInSeconds);
     const descriptor: ShareDescriptor = { sourceURL: source.toString(), headers, expiresAt: exp };
-    await env.SHARES.put(`shares/${id}.json`, await seal(env, descriptor));
+    await env.SHARES.put(`shares/${id}.json`, await seal(env, descriptor), {\n      customMetadata: { expiresAt: String(exp) },\n    });
     const shareUrl = await capabilityURL(env, "/v1/r", {
       kind: "source", id, url: source.toString(), exp,
     });
