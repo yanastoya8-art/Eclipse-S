@@ -430,6 +430,16 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
                             existingTasks[description] = downloadTask
                         }
                         for (request, description) in entries {
+                            // A previous process may already have received and
+                            // cached this resource while no HLS worker was alive.
+                            // Reuse that durable result instead of downloading
+                            // the same segment again after relaunch.
+                            if self.hasCompletedResult(
+                                for: description,
+                                maximumResponseBytes: maximumResponseBytes
+                            ) {
+                                continue
+                            }
                             if let existing = existingTasks[description] {
                                 self.activeTasks[description] = existing
                                 if existing.state == .suspended { existing.resume() }
@@ -736,6 +746,25 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
         try? FileManager.default.removeItem(at: fileURL)
         try? FileManager.default.removeItem(at: responseURL(for: description))
         return HLSBackgroundDownloadResult(data: data, response: response)
+    }
+
+    private func hasCompletedResult(for description: String, maximumResponseBytes: Int) -> Bool {
+        let fileURL = cacheBaseURL(for: description)
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return false }
+        let attributes = try? FileManager.default.attributesOfItem(atPath: fileURL.path)
+        let modifiedAt = attributes?[.modificationDate] as? Date ?? .distantPast
+        let cacheLifetime: TimeInterval = maximumResponseBytes <= 5 * 1_024 * 1_024
+            ? 5 * 60
+            : 24 * 60 * 60
+        let size = Self.regularFileSize(at: fileURL)
+        guard Date().timeIntervalSince(modifiedAt) <= cacheLifetime,
+              size >= 0,
+              size <= Int64(maximumResponseBytes) else {
+            try? FileManager.default.removeItem(at: fileURL)
+            try? FileManager.default.removeItem(at: responseURL(for: description))
+            return false
+        }
+        return true
     }
 
     private func removeCachedResults(withPrefix prefix: String, excluding description: String? = nil) {
