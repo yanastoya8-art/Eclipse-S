@@ -527,3 +527,40 @@ final class BrowseAnimeClassifierTests: XCTestCase {
         XCTAssertFalse(BrowseAnimeClassifier.isAnime(item))
     }
 }
+
+final class HomeCatalogFailureRecorderTests: XCTestCase {
+    func testFailureSummaryDoesNotDependOnConcurrentCompletionOrder() async {
+        let first = HomeCatalogFailureRecorder()
+        await first.record(catalogID: "popularTVShows", message: "TMDB is temporarily unavailable (HTTP 503).")
+        await first.record(catalogID: "popularMovies", message: "Eclipse could not reach TMDB. Check your internet connection, then tap Retry.")
+
+        let second = HomeCatalogFailureRecorder()
+        await second.record(catalogID: "popularMovies", message: "Eclipse could not reach TMDB. Check your internet connection, then tap Retry.")
+        await second.record(catalogID: "popularTVShows", message: "TMDB is temporarily unavailable (HTTP 503).")
+
+        let firstSummary = await first.summaryMessage()
+        let secondSummary = await second.summaryMessage()
+        XCTAssertEqual(firstSummary, secondSummary)
+        XCTAssertTrue(firstSummary?.hasPrefix("popularMovies:") == true)
+        XCTAssertTrue(firstSummary?.contains("popularTVShows:") == true)
+    }
+
+    func testCredentialFailureTakesPrecedenceOverGenericCatalogFailure() async {
+        let recorder = HomeCatalogFailureRecorder()
+        await recorder.record(catalogID: "popularTVShows", message: "TMDB is temporarily unavailable (HTTP 503).")
+        await recorder.record(catalogID: "trending", message: "TMDB rejected the API key (HTTP 401/403).")
+
+        let summary = await recorder.summaryMessage()
+        XCTAssertTrue(summary?.hasPrefix("trending: TMDB rejected the API key") == true)
+        XCTAssertTrue(summary?.contains("popularTVShows:") == true)
+    }
+
+    func testResetClearsEveryRecordedCatalogFailure() async {
+        let recorder = HomeCatalogFailureRecorder()
+        await recorder.record(catalogID: "popularMovies", message: "TMDB is temporarily unavailable.")
+        await recorder.reset()
+
+        let summary = await recorder.summaryMessage()
+        XCTAssertNil(summary)
+    }
+}
