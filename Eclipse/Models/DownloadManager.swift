@@ -8244,8 +8244,11 @@ final class DownloadManager: NSObject, ObservableObject {
             // still require Eclipse in the foreground.
 #if os(iOS) && !targetEnvironment(macCatalyst)
             let skyStreamTransport = directSkyStreamHLSBackgroundTransport(for: item)
-            let managedProxyTarget = URL(string: item.streamURL)
-                .flatMap { MPVHeaderProxy.shared.recoverableTargetURL(for: $0) }
+            let managedProxyURL = URL(string: item.streamURL)
+            let managedProxyTarget = managedProxyURL.flatMap {
+                MPVHeaderProxy.shared.recoverableTargetURL(for: $0)
+                    ?? MPVHeaderProxy.shared.upstreamProbeTarget(for: $0)?.url
+            }
             let safeManagedProxyTarget = managedProxyTarget.flatMap { candidate -> URL? in
                 guard ["http", "https"].contains(candidate.scheme?.lowercased() ?? ""),
                       candidate.host != nil,
