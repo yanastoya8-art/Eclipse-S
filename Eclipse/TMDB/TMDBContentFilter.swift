@@ -3161,6 +3161,7 @@ actor TaizenAnimeAgeRatingService {
     private struct CachedRating {
         let fetchedAt: Date
         let rating: MaturityRating
+        let studioNames: [String]?
     }
 
     private var cache: [Int: CachedRating] = [:]
@@ -3304,6 +3305,29 @@ actor JikanAnimeAgeRatingService {
         }
     }
 
+    static func parseStudioNames(from data: Data) -> [String]? {
+        guard data.count <= 512 * 1_024,
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let payload = root["data"] as? [String: Any],
+              let studios = payload["studios"] as? [[String: Any]] else {
+            return nil
+        }
+        let names = Array(Set(studios.compactMap { studio -> String? in
+            guard let rawName = studio["name"] as? String else { return nil }
+            let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+            return name.isEmpty ? nil : name
+        })).sorted()
+        return names.isEmpty ? nil : names
+    }
+
+    func studioNames(malID: Int) async -> [String]? {
+        if let cached = cache[malID], let names = cached.studioNames, !names.isEmpty {
+            return names
+        }
+        _ = try? await rating(malID: malID)
+        return cache[malID]?.studioNames
+    }
+
     func ratings(malIDs: [Int]) async -> [Int: MaturityRating] {
         let identifiers = Array(Set(malIDs.filter { (1...1_000_000_000).contains($0) }))
         guard !identifiers.isEmpty else { return [:] }
@@ -3358,7 +3382,12 @@ actor JikanAnimeAgeRatingService {
             return .unknown
         }
         let resolved = Self.parseRating(from: data)
-        cache[malID] = CachedRating(fetchedAt: Date(), rating: resolved)
+        let studios = Self.parseStudioNames(from: data)
+        cache[malID] = CachedRating(
+            fetchedAt: Date(),
+            rating: resolved,
+            studioNames: studios
+        )
         return resolved
     }
 }
