@@ -2094,7 +2094,7 @@ class TMDBContentFilter: ObservableObject {
                     group.addTask {
                         let nextKey = Self.runtimeCacheKey(for: result)
                         do {
-                            let metadata = try await self.fetchProductionMetadata(for: result)
+                            let metadata = try await Self.fetchProductionMetadata(for: result)
                             return (nextKey, metadata.names, metadata.complete)
                         } catch {
                             return (nextKey, nil, false)
