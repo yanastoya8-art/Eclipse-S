@@ -5,6 +5,14 @@ import XCTest
 
 @MainActor
 final class HLSBackgroundDownloadTests: XCTestCase {
+    func testBackgroundNetworkValidationAllowsHTTPAndHTTPSButRejectsUnsafeURLForms() {
+        XCTAssertTrue(HLSBackgroundNetworkValidationPolicy.permits(URL(string: "http://cdn.example/playlist.m3u8")!))
+        XCTAssertTrue(HLSBackgroundNetworkValidationPolicy.permits(URL(string: "https://cdn.example/segment.ts")!))
+        XCTAssertFalse(HLSBackgroundNetworkValidationPolicy.permits(URL(string: "file:///tmp/segment.ts")!))
+        XCTAssertFalse(HLSBackgroundNetworkValidationPolicy.permits(URL(string: "https:///segment.ts")!))
+        XCTAssertFalse(HLSBackgroundNetworkValidationPolicy.permits(URL(string: "https://user:pass@cdn.example/segment.ts")!))
+    }
+
     func testBackgroundPlaylistPlanQueuesInitializationAndEveryRemainingSegment() throws {
         let initialization = URL(string: "https://cdn.example/init.mp4")!
         let segments = [
