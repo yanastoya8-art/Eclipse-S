@@ -3294,6 +3294,7 @@ actor JikanAnimeAgeRatingService {
     private struct CachedRating {
         let fetchedAt: Date
         let rating: MaturityRating
+        let studioNames: [String]?
     }
 
     private var cache: [Int: CachedRating] = [:]
