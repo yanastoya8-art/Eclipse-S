@@ -1,0 +1,72 @@
+name: Deploy Cloudflare Share Worker
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "cloudflare-share/**"
+      - ".github/workflows/deploy-cloudflare-share.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-share-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cloudflare-share
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      SHARE_ADMIN_TOKEN: ${{ secrets.SHARE_ADMIN_TOKEN }}
+      SHARE_ENCRYPTION_KEY: ${{ secrets.SHARE_ENCRYPTION_KEY }}
+      PUBLIC_BASE_URL: ${{ vars.CLOUDFLARE_WORKER_BASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: cloudflare-share/package.json
+      - run: npm install --no-audit --no-fund
+      - name: Validate deployment configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$SHARE_ADMIN_TOKEN"
+          test -n "$SHARE_ENCRYPTION_KEY"
+          case "$PUBLIC_BASE_URL" in
+            https://*) ;;
+            *) echo "CLOUDFLARE_WORKER_BASE_URL must be an HTTPS URL"; exit 1 ;;
+          esac
+          node -e 'const k=Buffer.from(process.env.SHARE_ENCRYPTION_KEY,"base64"); if(k.length!==32) process.exit(1)'
+      - name: Ensure R2 bucket exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! npx wrangler r2 bucket list | grep -Fq 'eclipse-shares'; then
+            npx wrangler r2 bucket create eclipse-shares
+          fi
+      - name: Upload Worker secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "$SHARE_ADMIN_TOKEN" | npx wrangler secret put SHARE_ADMIN_TOKEN
+          printf '%s' "$SHARE_ENCRYPTION_KEY" | npx wrangler secret put SHARE_ENCRYPTION_KEY
+      - name: Deploy Worker
+        shell: bash
+        run: npx wrangler deploy --var "PUBLIC_BASE_URL:$PUBLIC_BASE_URL"
+      - name: Verify public health endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error "$PUBLIC_BASE_URL/health"

@@ -244,14 +244,11 @@ struct DiscoverDetailView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: TMDBContentFilter.catalogFiltersDidChangeNotification)) { _ in
-            let snapshot = items
+            // Metadata notifications mean the cache already changed. Re-running
+            // all metadata resolvers for every accumulated page here repeated work
+            // as individual titles resolved. Refresh only the filter projection;
+            // the page loader owns metadata resolution.
             Task { @MainActor in
-                await contentFilter.resolveBrowseFilterMetadata(
-                    for: snapshot
-                )
-                // Keep the original page snapshot stable. Replacing the
-                // backing array here invalidates LazyVGrid's scroll layout,
-                // causing flashing and jumps back to the top.
                 filterRefreshRevision &+= 1
                 if filteredItems.isEmpty && paginationCursor.hasMorePages && paginationError == nil {
                     loadNextPage()
@@ -518,26 +515,25 @@ struct DiscoverDetailView: View {
                     let unique = newItems.filter { seenIDs.insert($0.stableIdentity).inserted }
 
                     if !unique.isEmpty {
-                        // Resolve metadata while retaining the raw provider
-                        // results. A dub/age lookup may complete after this page
-                        // arrives; keeping the rows lets the filter notification
-                        // reveal them later instead of losing the page forever.
+                        // Publish the raw page before waiting on provider metadata.
+                        // This keeps Browse responsive when strict age, production,
+                        // runtime or dub filters need network lookups; the filter
+                        // refresh below reveals eligible rows as soon as metadata lands.
+                        items.append(contentsOf: unique)
+                        paginationCursor.didLoadPage(hasUniqueItems: true)
                         await contentFilter.resolveBrowseFilterMetadata(for: unique)
                         guard generation == loadGeneration else { return }
+                        filterRefreshRevision &+= 1
                         let visibleIDs = Set(
                             contentFilter.filterSearchResults(
                                 unique,
                                 allowUpcomingContent: allowsUpcomingContent
                             ).map { $0.stableIdentity }
                         )
-                        items.append(contentsOf: unique)
                         let addedVisibleItems = unique.contains { visibleIDs.contains($0.stableIdentity) }
-                        // Empty-page detection must describe provider output,
-                        // not the current filter result. A valid page containing
-                        // titles that are still resolving dub/age metadata (or
-                        // are excluded by the active filters) is not an empty
-                        // provider page and must not consume the retry budget.
-                        paginationCursor.didLoadPage(hasUniqueItems: true)
+                        // Empty-page detection describes provider output, not the
+                        // current filter result. Metadata can arrive after this page
+                        // is published, so retain every unique row for re-filtering.
                         if addedVisibleItems { break }
                     } else {
                         paginationCursor.didLoadPage(hasUniqueItems: false)

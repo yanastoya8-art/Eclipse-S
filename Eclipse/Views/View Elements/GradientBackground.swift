@@ -443,7 +443,7 @@ struct SettingsGradientBackground: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @ObservedObject private var theme = EclipseTheme.shared
-    @AppStorage(HomeAnimatedBackgroundSettings.enabledKey) private var animatedBackgroundEnabled = HomeAnimatedBackgroundSettings.defaultEnabled
+    @AppStorage(HomeAnimatedBackgroundSettings.enabledKey, store: ProfileSettingsStore.active) private var animatedBackgroundEnabled = HomeAnimatedBackgroundSettings.defaultEnabled
     var allowsAnimatedBackground: Bool = true
     var allowsAnimatedShape: Bool = true
 
@@ -862,60 +862,34 @@ private struct HomeAnimatedCreatureMotif: View {
     let colorMode: HomeAnimatedCreatureColorMode
 
     var body: some View {
-        Canvas { context, canvasSize in
-            var drawing = context
-            draw(in: &drawing, canvasSize: canvasSize)
-        }
-        .frame(width: size.width, height: size.height)
-        .accessibilityHidden(true)
+        creatureImage
+            .resizable()
+            .interpolation(.high)
+            .scaledToFit()
+            .saturation(colorMode == .silver ? 0 : 1)
+            .colorMultiply(
+                colorMode == .custom
+                    ? color
+                    : (colorMode == .silver ? Color(red: 0.78, green: 0.83, blue: 0.90) : .white)
+            )
+            .frame(width: size.width, height: size.height)
+            .background(Color.clear)
+            .opacity(min(1, opacity * brightness))
+            .rotationEffect(.degrees(sin(phase * 0.55) * 1.1))
+            .scaleEffect(1.0 + sin(phase * 1.1) * 0.008)
+            .accessibilityHidden(true)
     }
 
-    /// Draw the creature directly into an existing Canvas context. This keeps
-    /// the artwork reusable for both its normal pass and the blurred glow pass.
-    func draw(in context: inout GraphicsContext, canvasSize: CGSize) {
-        // Render the nine approved creature illustrations as vector-backed
-        // asset-catalog images. Their original transparent cut-outs are kept;
-        // no generated frame, eye overlay, or rectangular tile is introduced.
-        let assetName: String
+    private var creatureImage: Image {
         switch shape {
-        case .toothless: assetName = "HomeCreatureDragon"
-        case .phoenix: assetName = "HomeCreaturePhoenix"
-        case .wolf: assetName = "HomeCreatureWolf"
-        case .kitsune: assetName = "HomeCreatureFox"
-        case .paw: assetName = "HomeCreaturePaw"
-        case .siren: assetName = "HomeCreatureMermaid"
-        default: return
+        case .toothless: return Image("HomeCreatureDragon")
+        case .phoenix: return Image("HomeCreaturePhoenix")
+        case .wolf: return Image("HomeCreatureWolf")
+        case .kitsune: return Image("HomeCreatureFox")
+        case .paw: return Image("HomeCreaturePaw")
+        case .siren: return Image("HomeCreatureMermaid")
+        default: return Image("HomeCreatureWolf")
         }
-
-        // All six approved source illustrations use a square 512 × 512
-        // viewBox. Fit that square into the available canvas without stretching
-        // the creature horizontally or vertically.
-        let artworkSide = min(canvasSize.width, canvasSize.height)
-        let artworkRect = CGRect(
-            x: (canvasSize.width - artworkSide) / 2,
-            y: (canvasSize.height - artworkSide) / 2,
-            width: artworkSide,
-            height: artworkSide
-        )
-
-        var drawing = context
-        drawing.translateBy(x: canvasSize.width / 2, y: canvasSize.height / 2)
-        drawing.rotate(by: .degrees(sin(phase * 0.55) * 1.1))
-        let breathing = CGFloat(1.0 + sin(phase * 1.1) * 0.008)
-        drawing.scaleBy(x: breathing, y: breathing)
-        drawing.translateBy(x: -canvasSize.width / 2, y: -canvasSize.height / 2)
-        switch colorMode {
-        case .original:
-            break
-        case .custom:
-            drawing.addFilter(.colorMultiply(color))
-        case .silver:
-            drawing.addFilter(.saturation(0))
-            drawing.addFilter(.colorMultiply(Color(red: 0.78, green: 0.83, blue: 0.90)))
-        }
-        drawing.opacity = min(1, opacity * brightness)
-        let illustration = drawing.resolve(Image(assetName).interpolation(.high))
-        drawing.draw(illustration, in: artworkRect)
     }
 }
 
@@ -925,17 +899,18 @@ struct EclipseAmbientMotionBackground: View {
     let accentColor: Color
     let motionEnabled: Bool
     var allowsAnimatedShape: Bool = true
-    @AppStorage(HomeAnimatedBackgroundQuality.storageKey) private var qualityRawValue = HomeAnimatedBackgroundQuality.defaultValue.rawValue
-    @AppStorage(HomeAnimatedBackgroundFrameRate.storageKey) private var frameRateRawValue = HomeAnimatedBackgroundFrameRate.defaultValue.rawValue
-    @AppStorage(HomeAnimatedBackgroundParticleColor.storageKey) private var particleColorRawValue = HomeAnimatedBackgroundParticleColor.defaultValue.rawValue
-    @AppStorage(HomeAnimatedBackgroundShape.storageKey) private var shapeRawValue = HomeAnimatedBackgroundShape.defaultValue.rawValue
-    @AppStorage(HomeAnimatedCreatureColorMode.storageKey) private var creatureColorModeRawValue = HomeAnimatedCreatureColorMode.defaultValue.rawValue
-    @AppStorage(HomeAnimatedBackgroundSettings.shapeEnabledKey) private var shapeEnabled = HomeAnimatedBackgroundSettings.defaultShapeEnabled
-    @AppStorage(HomeAnimatedBackgroundSettings.shapeOpacityKey) private var shapeOpacity = HomeAnimatedBackgroundSettings.defaultShapeOpacity
-    @AppStorage(HomeAnimatedBackgroundSettings.shapeSizeKey) private var shapeSize = HomeAnimatedBackgroundSettings.defaultShapeSize
-    @AppStorage(HomeAnimatedBackgroundSettings.shapeGlowKey) private var shapeGlow = HomeAnimatedBackgroundSettings.defaultShapeGlow
-    @AppStorage(HomeAnimatedBackgroundSettings.shapeBrightnessKey) private var shapeBrightness = HomeAnimatedBackgroundSettings.defaultShapeBrightness
-    @AppStorage(HomeAnimatedBackgroundParticleColor.customColorDataKey) private var customParticleColorData = Data()
+    @ObservedObject private var theme = EclipseTheme.shared
+    @AppStorage(HomeAnimatedBackgroundQuality.storageKey, store: ProfileSettingsStore.active) private var qualityRawValue = HomeAnimatedBackgroundQuality.defaultValue.rawValue
+    @AppStorage(HomeAnimatedBackgroundFrameRate.storageKey, store: ProfileSettingsStore.active) private var frameRateRawValue = HomeAnimatedBackgroundFrameRate.defaultValue.rawValue
+    @AppStorage(HomeAnimatedBackgroundParticleColor.storageKey, store: ProfileSettingsStore.active) private var particleColorRawValue = HomeAnimatedBackgroundParticleColor.defaultValue.rawValue
+    @AppStorage(HomeAnimatedBackgroundShape.storageKey, store: ProfileSettingsStore.active) private var shapeRawValue = HomeAnimatedBackgroundShape.defaultValue.rawValue
+    @AppStorage(HomeAnimatedCreatureColorMode.storageKey, store: ProfileSettingsStore.active) private var creatureColorModeRawValue = HomeAnimatedCreatureColorMode.defaultValue.rawValue
+    @AppStorage(HomeAnimatedBackgroundSettings.shapeEnabledKey, store: ProfileSettingsStore.active) private var shapeEnabled = HomeAnimatedBackgroundSettings.defaultShapeEnabled
+    @AppStorage(HomeAnimatedBackgroundSettings.shapeOpacityKey, store: ProfileSettingsStore.active) private var shapeOpacity = HomeAnimatedBackgroundSettings.defaultShapeOpacity
+    @AppStorage(HomeAnimatedBackgroundSettings.shapeSizeKey, store: ProfileSettingsStore.active) private var shapeSize = HomeAnimatedBackgroundSettings.defaultShapeSize
+    @AppStorage(HomeAnimatedBackgroundSettings.shapeGlowKey, store: ProfileSettingsStore.active) private var shapeGlow = HomeAnimatedBackgroundSettings.defaultShapeGlow
+    @AppStorage(HomeAnimatedBackgroundSettings.shapeBrightnessKey, store: ProfileSettingsStore.active) private var shapeBrightness = HomeAnimatedBackgroundSettings.defaultShapeBrightness
+    @AppStorage(HomeAnimatedBackgroundParticleColor.customColorDataKey, store: ProfileSettingsStore.active) private var customParticleColorData = Data()
 
     private let particles: [(x: CGFloat, y: CGFloat, size: CGFloat, drift: CGFloat, opacity: Double)] = [
         (0.25, 0.24, 2.8, 15, 0.34),
@@ -972,8 +947,12 @@ struct EclipseAmbientMotionBackground: View {
     }
 
     private var primaryColor: Color {
+        // The ambient creature is one persistent app-wide motif. Do not tint
+        // it from a page's dominant/accent colour: Browse cards and detail
+        // heroes can change that value during navigation, making the same
+        // selected creature appear to switch colour between sections.
         HomeAnimatedBackgroundParticleColor.resolved(particleColorRawValue)
-            .color(accent: accentColor, custom: customParticleColor)
+            .color(accent: theme.settingsGradientColor, custom: customParticleColor)
     }
 
     private var quality: HomeAnimatedBackgroundQuality {
@@ -1043,20 +1022,65 @@ struct EclipseAmbientMotionBackground: View {
 
     private func ambientLayer(size: CGSize, motionEnabled: Bool) -> some View {
         TimelineView(.animation(minimumInterval: frameInterval, paused: !motionEnabled)) { timeline in
-            Canvas(opaque: false, colorMode: .linear) { context, canvasSize in
-                var drawingContext = context
-                drawAmbientLayer(
-                    context: &drawingContext,
-                    size: canvasSize,
-                    date: motionEnabled ? timeline.date : Date(timeIntervalSinceReferenceDate: 0),
-                    motionEnabled: motionEnabled,
-                    quality: quality
-                )
+            GeometryReader { geometry in
+                let canvasSize = geometry.size
+                let date = motionEnabled ? timeline.date : Date(timeIntervalSinceReferenceDate: 0)
+                ZStack {
+                    Canvas(opaque: false, colorMode: .linear) { context, drawingSize in
+                        var drawingContext = context
+                        drawAmbientLayer(
+                            context: &drawingContext,
+                            size: drawingSize,
+                            date: date,
+                            motionEnabled: motionEnabled,
+                            quality: quality
+                        )
+                    }
+                    creatureOverlay(size: canvasSize, date: date, motionEnabled: motionEnabled)
+                }
+                .frame(width: canvasSize.width, height: canvasSize.height)
             }
         }
         .blendMode(.screen)
         .opacity(quality.layerOpacity)
         .compositingGroup()
+    }
+
+    @ViewBuilder
+    private func creatureOverlay(size: CGSize, date: Date, motionEnabled: Bool) -> some View {
+        if shapeEnabled && allowsAnimatedShape && shapeOpacity > 0 {
+            let width = max(size.width, 1)
+            let height = max(size.height, 1)
+            let seconds = date.timeIntervalSinceReferenceDate
+            let drift = motionEnabled ? wave(seconds: seconds, period: 19.0) : 0.5
+            let pulse = motionEnabled ? wave(seconds: seconds, period: 9.6) : 0.5
+            let center = CGPoint(x: width * 0.5, y: height * 0.5)
+            let driftX = lerp(-width * 0.018, width * 0.018, drift)
+            let driftY = lerp(height * 0.012, -height * 0.012, drift)
+            let shapeCenter = CGPoint(x: center.x + driftX * 0.55, y: center.y + driftY * 0.55)
+            let shapePulse = lerp(0.94, 1.06, pulse)
+            let safeShapeScale = min(max(shapeSize, 0.5), 1.8)
+            let motifSize = min(max(min(width, height) * 0.34, 112), 270) * shapePulse * safeShapeScale
+            let colorMode = HomeAnimatedCreatureColorMode(rawValue: creatureColorModeRawValue) ?? .original
+            let motif = HomeAnimatedCreatureMotif(
+                shape: selectedShape,
+                color: colorMode == .custom ? customParticleColor : primaryColor,
+                opacity: shapeOpacity,
+                brightness: shapeBrightness,
+                size: CGSize(width: motifSize * 4 / 3, height: motifSize),
+                phase: seconds,
+                colorMode: colorMode
+            )
+            ZStack {
+                motif
+                    .blur(radius: 13)
+                    .opacity(shapeGlow)
+                motif
+            }
+            .frame(width: motifSize * 4 / 3, height: motifSize)
+            .position(shapeCenter)
+            .allowsHitTesting(false)
+        }
     }
 
     private func drawAmbientLayer(
@@ -1197,37 +1221,7 @@ struct EclipseAmbientMotionBackground: View {
             )
         }
 
-        if shapeEnabled && allowsAnimatedShape && shapeOpacity > 0 {
-            let shapePulse = lerp(0.94, 1.06, pulse)
-            let shapeCenter = CGPoint(
-                x: center.x + driftX * 0.55,
-                y: center.y + driftY * 0.55
-            )
-            let safeShapeScale = min(max(shapeSize, 0.5), 1.8)
-            let motifSize = min(max(min(width, height) * 0.34, 112), 270) * shapePulse * safeShapeScale
-            let motif = HomeAnimatedCreatureMotif(
-                shape: selectedShape,
-                color: HomeAnimatedCreatureColorMode(rawValue: creatureColorModeRawValue) == .custom ? customParticleColor : primaryColor,
-                opacity: shapeOpacity,
-                brightness: shapeBrightness,
-                size: CGSize(width: motifSize * 4 / 3, height: motifSize),
-                phase: seconds,
-                colorMode: HomeAnimatedCreatureColorMode(rawValue: creatureColorModeRawValue) ?? .original
-            )
-            let motifOrigin = CGPoint(
-                x: shapeCenter.x - motifSize * 2 / 3,
-                y: shapeCenter.y - motifSize / 2
-            )
-            var motifGlow = context
-            motifGlow.addFilter(.blur(radius: 13))
-            motifGlow.opacity = shapeGlow
-            motifGlow.translateBy(x: motifOrigin.x, y: motifOrigin.y)
-            motif.draw(in: &motifGlow, canvasSize: motif.size)
 
-            var motifContext = context
-            motifContext.translateBy(x: motifOrigin.x, y: motifOrigin.y)
-            motif.draw(in: &motifContext, canvasSize: motif.size)
-        }
 
         guard quality != .low else { return }
 
@@ -1804,7 +1798,7 @@ struct GlobalGradientBackground: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @ObservedObject private var theme = EclipseTheme.shared
-    @AppStorage(HomeAnimatedBackgroundSettings.enabledKey) private var animatedBackgroundEnabled = HomeAnimatedBackgroundSettings.defaultEnabled
+    @AppStorage(HomeAnimatedBackgroundSettings.enabledKey, store: ProfileSettingsStore.active) private var animatedBackgroundEnabled = HomeAnimatedBackgroundSettings.defaultEnabled
     @State private var isVisible = false
     var overrideColor: Color? = nil
     var scrollOffset: CGFloat = 0

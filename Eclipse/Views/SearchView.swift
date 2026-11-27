@@ -705,7 +705,7 @@ struct SearchView: View {
     }
 
     private var contentFilterSettingsSignature: String {
-        let defaults = UserDefaults.standard
+        let defaults = ProfileSettingsStore.active
         let keys = defaults.dictionaryRepresentation().keys
             .filter { $0.hasPrefix("catalog") || $0 == "filterHorror" }
             .sorted()
@@ -915,63 +915,62 @@ struct SearchView: View {
         activeSearchTask?.cancel()
         activeSearchTask = Task {
             do {
-                // Search multiple TMDB pages so less popular series and
-                // titles ranked below unrelated matches are not silently omitted.
-                // A transient failure of TMDB's multi-search endpoint must
-                // not abort the whole query. The dedicated TV endpoint below
-                // is an independent fallback for series and anime titles.
-                var results = (try? await tmdbService.searchMulti(query: query, maxPages: 10)) ?? []
+                // Search localized and English TMDB indexes concurrently.
+                // Structured child tasks are cancelled with this query when the
+                // user changes text, and five pages keep the result window broad
+                // without the old four ten-page serial wait.
+                let shouldSearchTVEndpoint = searchFilter != .movies
+                let shouldSearchEnglish = selectedLanguage.caseInsensitiveCompare("en-US") != .orderedSame
+                async let localizedMultiResult: [TMDBSearchResult]? = try? await tmdbService.searchMulti(
+                    query: query,
+                    maxPages: 5
+                )
+                async let englishMultiResult: [TMDBSearchResult]? = shouldSearchEnglish
+                    ? (try? await tmdbService.searchMulti(
+                        query: query,
+                        languageOverride: "en-US",
+                        maxPages: 5
+                    ))
+                    : nil
+                async let localizedTVResult: [TMDBTVShow]? = shouldSearchTVEndpoint
+                    ? (try? await tmdbService.searchTVShows(query: query, maxPages: 5))
+                    : nil
+                async let englishTVResult: [TMDBTVShow]? = shouldSearchTVEndpoint && shouldSearchEnglish
+                    ? (try? await tmdbService.searchTVShows(
+                        query: query,
+                        languageOverride: "en-US",
+                        maxPages: 5
+                    ))
+                    : nil
+
+                let (localizedMulti, englishMulti, localizedTV, englishTV) = await (
+                    localizedMultiResult,
+                    englishMultiResult,
+                    localizedTVResult,
+                    englishTVResult
+                )
+                var results = localizedMulti ?? []
                 try Task.checkCancellation()
-                try Task.checkCancellation()
-                // Search in English as well as the selected UI language. TMDB's
-                // localized multi-search can omit original-language titles
-                // even when the dedicated TV index finds them.
-                if selectedLanguage.caseInsensitiveCompare("en-US") != .orderedSame,
-                   let englishResults = try? await tmdbService.searchMulti(
-                       query: query,
-                       languageOverride: "en-US",
-                       maxPages: 10
-                   ) {
-                    try Task.checkCancellation()
+                if let englishMulti {
                     var seen = Set(results.map(\.stableIdentity))
-                    results.append(contentsOf: englishResults.filter {
+                    results.append(contentsOf: englishMulti.filter {
                         seen.insert($0.stableIdentity).inserted
                     })
                 }
                 let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
-                let requiresGlobalAnimeAgeRating = UserDefaults.standard.bool(forKey: "catalogHideBelowPG13Anime")
-                    || UserDefaults.standard.bool(forKey: "catalogHideAllAgesAnime")
-                // TMDB's multi-search endpoint is not a complete TV index:
-                // it can rank movies above shows or omit a show for a query
-                // that the dedicated /search/tv endpoint does return. Always
-                // supplement All, TV Shows and Anime searches with the TV
-                // endpoint; only the Movies filter can safely skip it.
-                let shouldSearchTVEndpoint = searchFilter != .movies
+                let requiresGlobalAnimeAgeRating = ProfileSettingsStore.active.bool(forKey: "catalogHideBelowPG13Anime")
+                    || ProfileSettingsStore.active.bool(forKey: "catalogHideAllAgesAnime")
                 if shouldSearchTVEndpoint {
                     var seen = Set(results.map(\.stableIdentity))
-                    if let tvResults = try? await tmdbService.searchTVShows(query: query, maxPages: 10) {
+                    if let localizedTV {
                         try Task.checkCancellation()
-                        results.append(contentsOf: tvResults
-                            .map(\.asSearchResult)
+                        results.append(contentsOf: localizedTV.map(\.asSearchResult)
                             .filter { seen.insert($0.stableIdentity).inserted })
                     }
-
-                    // TMDB applies the selected display language to search
-                    // ranking. A localized search can omit an English-original
-                    // series even though the dedicated TV index finds it in
-                    // English. Merge an English index pass instead of allowing
-                    // "All" or "TV Shows" to report a false empty result.
-                    if selectedLanguage.caseInsensitiveCompare("en-US") != .orderedSame {
-                        if let englishTVResults = try? await tmdbService.searchTVShows(
-                            query: query,
-                            languageOverride: "en-US",
-                            maxPages: 10
-                        ) {
-                            try Task.checkCancellation()
-                            results.append(contentsOf: englishTVResults
-                                .map(\.asSearchResult)
-                                .filter { seen.insert($0.stableIdentity).inserted })
-                        }
+                    if let englishTV {
+                        try Task.checkCancellation()
+                        results.append(contentsOf: englishTV.map(\.asSearchResult)
+                            .filter { seen.insert($0.stableIdentity).inserted })
                     }
 
                     // If the full phrase is absent from both TV indexes, try
@@ -2873,7 +2872,7 @@ private struct BrowseMediaView: View {
         // reliably than it does in title/overview text. Exclude those at the
         // discovery query as well as in TMDBContentFilter so Upcoming-only
         // results cannot reintroduce tagged fan productions.
-        let unofficialKeywordNames = UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent")
+        let unofficialKeywordNames = ProfileSettingsStore.active.bool(forKey: "catalogHideUnofficialContent")
             ? ["fan film", "fan-made", "fan made", "fan fiction", "fanfiction", "unofficial"]
             : []
         let allKeywordNames = Array(Set(selectedKeywordNames + excludedKeywordNames + unofficialKeywordNames)).sorted()
@@ -3059,10 +3058,10 @@ private struct BrowseMediaView: View {
         let selectedDubLanguageCodes = Set(MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement.compactMap {
             MyDubListLanguage(rawValue: $0)?.taizenLanguageCode
         })
-        let originalAudioFilterEnabled = UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
+        let originalAudioFilterEnabled = ProfileSettingsStore.active.bool(forKey: "catalogRequireEnglishSpanishAudio")
         let globalAnimeAgeFilterEnabled =
-            UserDefaults.standard.bool(forKey: "catalogHideBelowPG13Anime")
-            || UserDefaults.standard.bool(forKey: "catalogHideAllAgesAnime")
+            ProfileSettingsStore.active.bool(forKey: "catalogHideBelowPG13Anime")
+            || ProfileSettingsStore.active.bool(forKey: "catalogHideAllAgesAnime")
 
         let candidates = results.enumerated().compactMap { index, result -> (Int, TMDBSearchResult, Bool)? in
             let hasTaizenPoster = result.animeArtworkURL?.contains("taizen.moe") == true
@@ -3390,8 +3389,8 @@ private struct BrowseMediaView: View {
         // languages. The global English/Spanish audio requirement implicitly
         // selects both languages and must warm the same dub index on cold Browse.
         let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
-        let requiresGlobalAnimeAgeRating = UserDefaults.standard.bool(forKey: "catalogHideBelowPG13Anime")
-            || UserDefaults.standard.bool(forKey: "catalogHideAllAgesAnime")
+        let requiresGlobalAnimeAgeRating = ProfileSettingsStore.active.bool(forKey: "catalogHideBelowPG13Anime")
+            || ProfileSettingsStore.active.bool(forKey: "catalogHideAllAgesAnime")
         let requiresAnimeIdentity = mediaType.isAnime
             && (!selectedDubLanguages.isEmpty || requiresGlobalAnimeAgeRating)
 
@@ -3415,7 +3414,7 @@ private struct BrowseMediaView: View {
             }
             guard !Task.isCancelled else { return [] }
         }
-        let defaults = UserDefaults.standard
+        let defaults = ProfileSettingsStore.active
         let requiresBrowseMetadata = defaults.bool(forKey: "catalogHideUnder20MinuteContent")
             || defaults.bool(forKey: "catalogHideUnofficialContent")
             || defaults.bool(forKey: "catalogHideBelowPG13Movies")
@@ -3489,17 +3488,35 @@ private struct BrowseMediaView: View {
         let identifiers = Array(Set(identities.map(\.anilistId)))
         guard !identifiers.isEmpty, !Task.isCancelled else { return [:] }
         var ratings = (try? await TaizenAnimeAgeRatingService.shared.ratings(anilistIDs: identifiers)) ?? [:]
-        guard MALMetadataService.shared.isConfigured, !Task.isCancelled else { return ratings }
-
         let missing = identities.filter { identity in
             identity.malId != nil
                 && (ratings[identity.anilistId] == nil || ratings[identity.anilistId] == .unknown)
         }
-        for identity in missing {
-            guard !Task.isCancelled, let malID = identity.malId, malID > 0 else { continue }
-            if let fallback = await MALMetadataService.shared.fetchMaturityRating(malID: malID),
-               fallback != .unknown {
-                ratings[identity.anilistId] = fallback
+        if MALMetadataService.shared.isConfigured {
+            for identity in missing {
+                guard !Task.isCancelled, let malID = identity.malId, malID > 0 else { continue }
+                if let fallback = await MALMetadataService.shared.fetchMaturityRating(malID: malID),
+                   fallback != .unknown {
+                    ratings[identity.anilistId] = fallback
+                }
+            }
+        }
+
+        // Keep Browse's explicit age-rating gate on the same provider chain as
+        // the shared content filter. Batch Jikan requests so larger pages do not
+        // wait for one network round-trip per title.
+        let jikanIdentities = missing.compactMap { identity -> (animeID: Int, malID: Int)? in
+            guard (ratings[identity.anilistId] == nil || ratings[identity.anilistId] == .unknown),
+                  let malID = identity.malId, malID > 0 else { return nil }
+            return (identity.anilistId, malID)
+        }
+        let jikanRatings = await JikanAnimeAgeRatingService.shared.ratings(
+            malIDs: Array(Set(jikanIdentities.map(\.malID)))
+        )
+        guard !Task.isCancelled else { return ratings }
+        for identity in jikanIdentities {
+            if let fallback = jikanRatings[identity.malID], fallback != .unknown {
+                ratings[identity.animeID] = fallback
             }
         }
         return ratings

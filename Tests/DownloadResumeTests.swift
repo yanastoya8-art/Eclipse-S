@@ -135,10 +135,25 @@ final class DownloadResumeTests: XCTestCase {
         }
     }
 
+    func testManagedProxyHLSBackgroundTransportSupportsHTTPAndHTTPS() {
+        XCTAssertTrue(HLSManagedProxyTransportPolicy.canUnwrapForBackground(
+            URL(string: "http://cdn.example/playlist.m3u8")!
+        ))
+        XCTAssertTrue(HLSManagedProxyTransportPolicy.canUnwrapForBackground(
+            URL(string: "https://cdn.example/playlist.m3u8")!
+        ))
+        XCTAssertFalse(HLSManagedProxyTransportPolicy.canUnwrapForBackground(
+            URL(string: "file:///tmp/playlist.m3u8")!
+        ))
+        XCTAssertFalse(HLSManagedProxyTransportPolicy.canUnwrapForBackground(
+            URL(string: "https://user:pass@cdn.example/playlist.m3u8")!
+        ))
+    }
+
     func testDownloadSourceLinkPolicyRejectsUnsafeOrInvalidLinks() {
         for value in ["", "not a URL", "file:///private/video.mp4", "javascript:alert(1)",
                       "https://user:password@cdn.example/video.mp4", "https:///missing-host.mp4"] {
-            XCTAssertNil(DownloadSourceLinkPolicy.copyableURL(value), "Unexpectedly accepted: \\(value)")
+            XCTAssertNil(DownloadSourceLinkPolicy.copyableURL(value), "Unexpectedly accepted: \(value)")
         }
     }
 
@@ -879,35 +894,84 @@ final class DownloadResumeTests: XCTestCase {
     }
 
     @MainActor
-    func testHLSUnsupportedRangesPreservePartialAndNeverFetchWholeResource() async throws {
+    func testHLSByteRangeRequestsAreSentAndOnlyRequestedBytesArePackaged() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
-        let output = directory.appendingPathComponent("movie.ts")
-        let partial = directory.appendingPathComponent(".movie.ts.partial")
-        let bytes = Data("saved partial".utf8)
-        try bytes.write(to: partial)
+        let output = directory.appendingPathComponent("ranged.ts")
         let base = try XCTUnwrap(URL(string: "https://hls-resume.example/playlist.m3u8"))
-        for layout in ["#EXT-X-BYTERANGE:4@0", "#EXT-X-MAP:URI=\"init.mp4\",BYTERANGE=\"4@0\""] {
-            DownloadResumeURLProtocol.configure(playlist: "#EXTM3U\n\(layout)\n#EXTINF:1,\nfirst.ts\n#EXT-X-ENDLIST", holdsLastSegment: false)
-            let configuration = URLSessionConfiguration.ephemeral
-            configuration.protocolClasses = [DownloadResumeURLProtocol.self]
-            let stopped = expectation(description: "Unsupported range is refused before media transfer")
-            let downloader = HLSDownloader(streamURL: base, headers: [:], destinationURL: output, downloadId: UUID().uuidString, resumeFromSegment: 1, resumeByteCount: Int64(bytes.count), pinnedVariantURL: base, minimumRequestStartInterval: 0, sessionConfiguration: configuration)
-            downloader.onCompletion = { result in
-                guard case .failure(let error) = result, case .unsupportedLayout = error as? HLSError else {
-                    XCTFail("Expected a visible unsupported-layout error")
-                    stopped.fulfill()
-                    return
-                }
-                stopped.fulfill()
-            }
-            downloader.start()
-            await fulfillment(of: [stopped], timeout: 5)
-            XCTAssertFalse(FileManager.default.fileExists(atPath: output.path))
-            XCTAssertEqual(try Data(contentsOf: partial), bytes)
-            XCTAssertTrue(DownloadResumeURLProtocol.requestedPaths().allSatisfy { $0 == "/playlist.m3u8" })
+        DownloadResumeURLProtocol.configure(
+            playlist: "#EXTM3U\n#EXT-X-BYTERANGE:4@2\nrange.bin\n#EXT-X-ENDLIST",
+            holdsLastSegment: false
+        )
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [DownloadResumeURLProtocol.self]
+        let finished = expectation(description: "Byte-range HLS download completes")
+        let downloader = HLSDownloader(
+            streamURL: base, headers: [:], destinationURL: output,
+            downloadId: UUID().uuidString, minimumRequestStartInterval: 0,
+            sessionConfiguration: configuration
+        )
+        downloader.onCompletion = { result in
+            if case .failure(let error) = result { XCTFail("Byte-range download failed: \(error)") }
+            finished.fulfill()
         }
+        downloader.start()
+        await fulfillment(of: [finished], timeout: 5)
+        XCTAssertEqual(try Data(contentsOf: output), Data("2345".utf8))
+        XCTAssertEqual(DownloadResumeURLProtocol.requestedRangeHeaders().last!, "bytes=2-5")
+    }
+
+    func testHLSParsesExplicitAndImplicitByteRangesForSharedResource() throws {
+        let base = try XCTUnwrap(URL(string: "https://hls-resume.example/playlist.m3u8"))
+        let downloader = HLSDownloader(
+            streamURL: base,
+            headers: [:],
+            destinationURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString),
+            downloadId: UUID().uuidString
+        )
+        let playlist = """
+        #EXTM3U
+        #EXT-X-BYTERANGE:4@0
+        shared.ts
+        #EXT-X-BYTERANGE:3
+        shared.ts
+        #EXT-X-BYTERANGE:2@10
+        shared.ts
+        #EXT-X-ENDLIST
+        """
+        let resources = try downloader.parseMediaResources(playlist, baseURL: base)
+        XCTAssertEqual(resources.count, 3)
+        XCTAssertEqual(resources.map(\.url.lastPathComponent), ["shared.ts", "shared.ts", "shared.ts"])
+        XCTAssertEqual(resources.map { $0.byteRange?.headerValue }, [
+            "bytes=0-3", "bytes=4-6", "bytes=10-11"
+        ])
+    }
+
+    func testHLSParsesInitializationByteRangeAndRejectsMalformedRanges() throws {
+        let base = try XCTUnwrap(URL(string: "https://hls-resume.example/playlist.m3u8"))
+        let downloader = HLSDownloader(
+            streamURL: base,
+            headers: [:],
+            destinationURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString),
+            downloadId: UUID().uuidString
+        )
+        let playlist = """
+        #EXTM3U
+        #EXT-X-MAP:URI="init.mp4",BYTERANGE="8@16"
+        #EXTINF:1,
+        segment.m4s
+        """
+        let initialization = try XCTUnwrap(downloader.parseInitSegmentResource(from: playlist, baseURL: base))
+        XCTAssertEqual(initialization.url.lastPathComponent, "init.mp4")
+        XCTAssertEqual(initialization.byteRange?.headerValue, "bytes=16-23")
+        for invalid in ["0@0", "-1@0", "4@-1", "4@9223372036854775807", "4@0@1"] {
+            XCTAssertNil(HLSByteRange.parse(invalid), invalid)
+        }
+        XCTAssertThrowsError(try downloader.parseMediaResources(
+            "#EXTM3U\n#EXT-X-BYTERANGE:4\nfirst.ts",
+            baseURL: base
+        ))
     }
 
     @MainActor
@@ -1281,6 +1345,7 @@ private final class DownloadResumeURLProtocol: URLProtocol {
     private static var playlist = ""
     private static var holdsLastSegment = false
     private static var paths: [String] = []
+    private static var rangeHeaders: [String?] = []
     private static var onHeldSegmentStart: (() -> Void)?
     private static var onHeldSegmentStop: (() -> Void)?
     private var heldSegmentStop: (() -> Void)?
@@ -1297,6 +1362,7 @@ private final class DownloadResumeURLProtocol: URLProtocol {
         self.onHeldSegmentStart = onHeldSegmentStart
         self.onHeldSegmentStop = onHeldSegmentStop
         paths = []
+        rangeHeaders = []
         lock.unlock()
     }
 
@@ -1306,6 +1372,12 @@ private final class DownloadResumeURLProtocol: URLProtocol {
         return paths
     }
 
+    static func requestedRangeHeaders() -> [String?] {
+        lock.lock()
+        defer { lock.unlock() }
+        return rangeHeaders
+    }
+
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
@@ -1313,24 +1385,45 @@ private final class DownloadResumeURLProtocol: URLProtocol {
         guard let url = request.url else { return }
         Self.lock.lock()
         Self.paths.append(url.path)
+        Self.rangeHeaders.append(request.value(forHTTPHeaderField: "Range"))
         let held = Self.holdsLastSegment && url.lastPathComponent == "third.ts"
         let heldSegmentStart = held ? Self.onHeldSegmentStart : nil
         heldSegmentStop = held ? Self.onHeldSegmentStop : nil
-        let payload: String
-        switch url.lastPathComponent {
-        case "playlist.m3u8": payload = Self.playlist
-        case "first.ts": payload = "AA"
-        case "second.ts": payload = "BB"
-        default: payload = "CC"
-        }
+        let playlist = Self.playlist
         Self.lock.unlock()
         if held {
             heldSegmentStart?()
             return
         }
-        guard let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: [:]) else { return }
+
+        var statusCode = 200
+        var headers: [String: String] = [:]
+        let payload: Data
+        switch url.lastPathComponent {
+        case "playlist.m3u8":
+            payload = Data(playlist.utf8)
+        case "first.ts":
+            payload = Data("AA".utf8)
+        case "second.ts":
+            payload = Data("BB".utf8)
+        case "range.bin":
+            let full = Data("0123456789".utf8)
+            if let rawRange = request.value(forHTTPHeaderField: "Range"),
+               let match = rawRange.range(of: #"^bytes=(\d+)-(\d+)$"#, options: .regularExpression) {
+                let values = rawRange[match].dropFirst(6).split(separator: "-").compactMap { Int($0) }
+                guard values.count == 2, values[0] >= 0, values[1] >= values[0], values[1] < full.count else { return }
+                payload = full.subdata(in: values[0]..<(values[1] + 1))
+                statusCode = 206
+                headers["Content-Range"] = "bytes \(values[0])-\(values[1])/\(full.count)"
+            } else {
+                payload = full
+            }
+        default:
+            payload = Data("CC".utf8)
+        }
+        guard let response = HTTPURLResponse(url: url, statusCode: statusCode, httpVersion: "HTTP/1.1", headerFields: headers) else { return }
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: Data(payload.utf8))
+        client?.urlProtocol(self, didLoad: payload)
         client?.urlProtocolDidFinishLoading(self)
     }
 

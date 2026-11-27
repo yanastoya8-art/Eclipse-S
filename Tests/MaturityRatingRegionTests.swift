@@ -58,6 +58,44 @@ final class MaturityRatingRegionTests: XCTestCase {
         XCTAssertEqual(ratings[105], .age17)
     }
 
+    func testJikanAnimeRatingParserMapsAllOfficialMALAgeLabels() throws {
+        let cases: [(String, MaturityRating)] = [
+            ("G - All Ages", .general),
+            ("PG - Children", .age10),
+            ("PG-13 - Teens 13 or older", .teen),
+            ("R - 17+ (violence & profanity)", .age17),
+            ("R+ - Mild Nudity", .age17),
+            ("Rx - Hentai", .adult)
+        ]
+        for (label, expected) in cases {
+            let data = try JSONSerialization.data(withJSONObject: [
+                "data": ["rating": label]
+            ])
+            XCTAssertEqual(
+                JikanAnimeAgeRatingService.parseRating(from: data),
+                expected,
+                "Unexpected Jikan classification for \(label)"
+            )
+        }
+    }
+
+    func testJikanAnimeMetadataParserReturnsNormalizedStudioNames() throws {
+        let data = try JSONSerialization.data(withJSONObject: [
+            "data": [
+                "studios": [
+                    ["name": "Toei Animation"],
+                    ["name": " Madhouse "],
+                    ["name": "Toei Animation"],
+                    ["name": ""]
+                ]
+            ]
+        ])
+        XCTAssertEqual(
+            JikanAnimeAgeRatingService.parseStudioNames(from: data),
+            ["Madhouse", "Toei Animation"]
+        )
+    }
+
     func testMALAnimeRatingParserKeepsPGSeparateFromAllAges() {
         XCTAssertEqual(MALMetadataService.parseMaturityRating("G - All Ages"), .general)
         XCTAssertEqual(MALMetadataService.parseMaturityRating("PG - Children"), .age10)

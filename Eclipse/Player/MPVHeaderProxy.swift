@@ -1009,6 +1009,13 @@ private final class MPVHeaderProxyCore {
         )
     }
 
+    /// Publish an already-downloaded local media file over the LAN so the
+    /// copied download URL serves the completed file, not its expired source
+    /// manifest or signed provider URL.
+    func makeLocalFileDownloadURL(for fileURL: URL) -> URL? {
+        LocalFileHTTPServer.shared.publish(fileURL, asDownload: true)
+    }
+
     func makeLocalManifestURL(body: Data, contentType: String, fileExtension: String, compositeVideoURL: URL? = nil, compositePreferredLanguage: String? = nil) -> URL? {
         guard body.count <= 128 * 1024,
               ["m3u8", "edl"].contains(fileExtension),
@@ -2951,10 +2958,16 @@ private final class MPVHeaderProxyCore {
         let encoded = encodeTargetURL(targetURL)
         var components = URLComponents()
         components.scheme = "http"
-        // Prefer a reachable LAN address for other devices. If the device has
-        // no active IPv4 LAN interface (for example, cellular-only use), keep
-        // same-device download links usable through the loopback listener.
-        components.host = listenOnLocalNetwork ? (Self.localIPv4Address() ?? "127.0.0.1") : "127.0.0.1"
+        // A URL published by the LAN proxy is intended to be opened by a
+        // different device. Never silently fall back to 127.0.0.1: that address
+        // would point at the receiving device, not this iPhone/iPad, and would
+        // make the copied link look valid while being unusable off-device.
+        if listenOnLocalNetwork {
+            guard let address = Self.localIPv4Address() else { return nil }
+            components.host = address
+        } else {
+            components.host = "127.0.0.1"
+        }
         components.port = Int(port)
         components.path = "/proxy/\(sessionId)"
         components.queryItems = [
@@ -6131,6 +6144,10 @@ final class MPVHeaderProxy {
         set { proxy.flowControlCreatedForTesting = newValue }
     }
 #endif
+
+    func makeLocalFileDownloadURL(for fileURL: URL) -> URL? {
+        proxy.makeLocalFileDownloadURL(for: fileURL)
+    }
 
     func makeLocalManifestURL(body: Data, contentType: String, fileExtension: String, compositeVideoURL: URL? = nil, compositePreferredLanguage: String? = nil) -> URL? {
         proxy.makeLocalManifestURL(body: body, contentType: contentType, fileExtension: fileExtension, compositeVideoURL: compositeVideoURL, compositePreferredLanguage: compositePreferredLanguage)

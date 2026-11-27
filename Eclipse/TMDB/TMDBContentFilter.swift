@@ -242,7 +242,7 @@ final class MyDubListDubFilter: @unchecked Sendable {
     var selectedLanguagesIncludingCatalogAudioRequirement: Set<String> {
         DubLanguageSelectionPolicy.effectiveLanguages(
             selectedLanguages: selectedLanguages,
-            requiresEnglishSpanishAudio: UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
+            requiresEnglishSpanishAudio: ProfileSettingsStore.active.bool(forKey: "catalogRequireEnglishSpanishAudio")
         )
     }
 
@@ -690,7 +690,7 @@ class TMDBContentFilter: ObservableObject {
     ]
 
     private init() {
-        UserDefaults.standard.register(defaults: [
+        ProfileSettingsStore.active.register(defaults: [
             "catalogHideBelowPG13Movies": true,
             "catalogHideBelowTV14Shows": true,
             "catalogHideBelowPG13Anime": true,
@@ -756,7 +756,7 @@ class TMDBContentFilter: ObservableObject {
     private var kidsModeEnabled: Bool { ProfileManager.shared.isKidsModeActive }
 
     func prepareMaturityRatings(for results: [TMDBSearchResult]) async {
-        let defaults = UserDefaults.standard
+        let defaults = ProfileSettingsStore.active
         if defaults.bool(forKey: "catalogHideUnder20MinuteContent") {
             Task(priority: .utility) { await self.resolveRuntimeMetadata(for: results) }
         }
@@ -822,7 +822,7 @@ class TMDBContentFilter: ObservableObject {
     }
 
     func prepareScheduleAgeRatings(for entries: [ScheduleEntry]) async {
-        let defaults = UserDefaults.standard
+        let defaults = ProfileSettingsStore.active
         let hideBelowAnime = defaults.bool(forKey: "catalogHideBelowPG13Anime")
         let hideAllAgesAnime = defaults.bool(forKey: "catalogHideAllAgesAnime")
         let animeEntries = (hideBelowAnime || hideAllAgesAnime)
@@ -962,7 +962,7 @@ class TMDBContentFilter: ObservableObject {
     }
 
     func scheduleEntryIsAllAges(_ entry: ScheduleEntry) -> Bool {
-        let defaults = UserDefaults.standard
+        let defaults = ProfileSettingsStore.active
         if entry.source == .anime {
             guard defaults.bool(forKey: "catalogHideAllAgesAnime") else { return false }
             let id = entry.sourceMediaId
@@ -988,7 +988,7 @@ class TMDBContentFilter: ObservableObject {
     }
 
     func scheduleEntryIsBlockedByConfiguredAgeFilter(_ entry: ScheduleEntry) -> Bool {
-        let defaults = UserDefaults.standard
+        let defaults = ProfileSettingsStore.active
         if entry.source == .anime {
             let hideBelowMinimum = defaults.bool(forKey: "catalogHideBelowPG13Anime")
             let hideAllAges = defaults.bool(forKey: "catalogHideAllAgesAnime")
@@ -1048,7 +1048,7 @@ class TMDBContentFilter: ObservableObject {
         for results: [TMDBSearchResult],
         requiresAnimeAgeRating: Bool = false
     ) async {
-        let defaults = UserDefaults.standard
+        let defaults = ProfileSettingsStore.active
         let animeResults = results.filter { Self.isAnimeResult($0) }
         let nonAnimeResults = results.filter { !Self.isAnimeResult($0) }
         let dubFilter = MyDubListDubFilter.shared
@@ -1152,8 +1152,25 @@ class TMDBContentFilter: ObservableObject {
                     }
                 }
                 while let (id, rating) = await group.next() {
-                    if let rating { ratings[id] = rating }
+                    if let rating, rating != .unknown { ratings[id] = rating }
                 }
+            }
+        }
+
+        // Jikan exposes MyAnimeList's official age classification without
+        // requiring a user-supplied MAL client ID. Resolve missing titles as a
+        // rate-limited concurrent batch instead of serial network round-trips.
+        let jikanIDs = missingIDs.compactMap { id -> (animeID: Int, malID: Int)? in
+            guard (ratings[id] == nil || ratings[id] == .unknown),
+                  let malID = malIDsByAnimeID[id], malID > 0 else { return nil }
+            return (id, malID)
+        }
+        let jikanRatings = await JikanAnimeAgeRatingService.shared.ratings(
+            malIDs: Array(Set(jikanIDs.map(\.malID)))
+        )
+        for entry in jikanIDs {
+            if let rating = jikanRatings[entry.malID], rating != .unknown {
+                ratings[entry.animeID] = rating
             }
         }
 
@@ -1165,7 +1182,7 @@ class TMDBContentFilter: ObservableObject {
             } else {
                 animeEligibilityLock.lock()
                 animeAgeLoadingIDs.remove(id)
-                animeAgeRetryAfterByID[id] = Date().addingTimeInterval(2 * 60 * 60)
+                animeAgeRetryAfterByID[id] = Date().addingTimeInterval(15 * 60)
                 animeEligibilityLock.unlock()
             }
         }
@@ -1343,10 +1360,10 @@ class TMDBContentFilter: ObservableObject {
         // lookups again here created duplicate per-page work and amplified
         // latency while users paged or changed filters.
         if resolveMetadataInBackground {
-            if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
+            if ProfileSettingsStore.active.bool(forKey: "catalogHideUnder20MinuteContent") {
                 Task(priority: .utility) { await self.resolveRuntimeMetadata(for: results) }
             }
-            if UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent") {
+            if ProfileSettingsStore.active.bool(forKey: "catalogHideUnofficialContent") {
                 Task(priority: .utility) { await self.resolveProductionMetadata(for: results) }
             }
             scheduleAnimeAudioMetadataResolutionIfNeeded(for: results)
@@ -1368,10 +1385,10 @@ class TMDBContentFilter: ObservableObject {
 
     func filterFastAnimeSearchResults(_ results: [TMDBSearchResult]) -> [TMDBSearchResult] {
         let animeResults = results.map { $0.withAnimeHint(true) }
-        if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
+        if ProfileSettingsStore.active.bool(forKey: "catalogHideUnder20MinuteContent") {
             Task(priority: .utility) { await self.resolveRuntimeMetadata(for: animeResults) }
         }
-        if UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent") {
+        if ProfileSettingsStore.active.bool(forKey: "catalogHideUnofficialContent") {
             Task(priority: .utility) { await self.resolveProductionMetadata(for: animeResults) }
         }
         scheduleAnimeAudioMetadataResolutionIfNeeded(for: animeResults)
@@ -1409,10 +1426,10 @@ class TMDBContentFilter: ObservableObject {
     func filterMovies(_ movies: [TMDBMovie]) -> [TMDBMovie] {
         let searchResults = movies.map(\.asSearchResult)
         Task(priority: .utility) { await self.prepareMaturityRatings(for: searchResults) }
-        if UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent") {
+        if ProfileSettingsStore.active.bool(forKey: "catalogHideUnofficialContent") {
             Task(priority: .utility) { await self.resolveProductionMetadata(for: searchResults) }
         }
-        if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
+        if ProfileSettingsStore.active.bool(forKey: "catalogRequireEnglishSpanishAudio") {
             scheduleAnimeAudioMetadataResolutionIfNeeded(for: movies.map(\.asSearchResult))
         }
         return movies.filter { movie in
@@ -1426,9 +1443,9 @@ class TMDBContentFilter: ObservableObject {
             let movieResult = movie.asSearchResult
             let movieAnime = Self.isAnimeResult(movieResult)
             guard !shouldExcludeAnimeSpecialOrOVA(movieResult) else { return false }
-            if UserDefaults.standard.bool(forKey: "catalogHideAnime"), movieAnime { return false }
+            if ProfileSettingsStore.active.bool(forKey: "catalogHideAnime"), movieAnime { return false }
             if movieAnime, !shouldIncludeAnimeCategoryFilters(movie.asSearchResult) { return false }
-            if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
+            if ProfileSettingsStore.active.bool(forKey: "catalogHideUnder20MinuteContent") {
                 guard CatalogRuntimeFilterPolicy.shouldInclude(
                     runtimeMinutes: cachedRuntimeMinutes(for: "movie-\(movie.id)")
                 ) else { return false }
@@ -1437,9 +1454,9 @@ class TMDBContentFilter: ObservableObject {
                 rawDate: movie.releaseDate,
                 isAnime: false,
                 isMovie: true,
-                defaults: .standard
+                defaults: ProfileSettingsStore.active
             ) else { return false }
-            if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
+            if ProfileSettingsStore.active.bool(forKey: "catalogRequireEnglishSpanishAudio") {
                 // Native audio only qualifies when it matches the user's selected
                 // language(s); English must not satisfy a Spanish-only selection.
                 guard shouldIncludeForConfiguredAgeAndAudio(movieResult) else { return false }
@@ -1467,10 +1484,10 @@ class TMDBContentFilter: ObservableObject {
     func filterTVShows(_ tvShows: [TMDBTVShow]) -> [TMDBTVShow] {
         let searchResults = tvShows.map(\.asSearchResult)
         Task(priority: .utility) { await self.prepareMaturityRatings(for: searchResults) }
-        if UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent") {
+        if ProfileSettingsStore.active.bool(forKey: "catalogHideUnofficialContent") {
             Task(priority: .utility) { await self.resolveProductionMetadata(for: searchResults) }
         }
-        if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
+        if ProfileSettingsStore.active.bool(forKey: "catalogRequireEnglishSpanishAudio") {
             scheduleAnimeAudioMetadataResolutionIfNeeded(for: tvShows.map(\.asSearchResult))
         }
         return tvShows.filter { tvShow in
@@ -1488,9 +1505,9 @@ class TMDBContentFilter: ObservableObject {
             let isAnime = tvShow.genreIds?.contains(16) == true
                 && (animeLanguages.contains(tvShow.originalLanguage?.lowercased() ?? "")
                     || tvShow.originCountry?.contains(where: { animeCountries.contains($0) }) == true)
-            if UserDefaults.standard.bool(forKey: "catalogHideAnime"), isAnime { return false }
+            if ProfileSettingsStore.active.bool(forKey: "catalogHideAnime"), isAnime { return false }
             if isAnime, !shouldIncludeAnimeCategoryFilters(tvShow.asSearchResult) { return false }
-            if UserDefaults.standard.bool(forKey: "catalogHideUnder20MinuteContent") {
+            if ProfileSettingsStore.active.bool(forKey: "catalogHideUnder20MinuteContent") {
                 guard CatalogRuntimeFilterPolicy.shouldInclude(
                     runtimeMinutes: cachedRuntimeMinutes(for: "tv-\(tvShow.id)")
                 ) else { return false }
@@ -1499,9 +1516,9 @@ class TMDBContentFilter: ObservableObject {
                 rawDate: tvShow.firstAirDate,
                 isAnime: isAnime,
                 isMovie: false,
-                defaults: .standard
+                defaults: ProfileSettingsStore.active
             ) else { return false }
-            if UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") {
+            if ProfileSettingsStore.active.bool(forKey: "catalogRequireEnglishSpanishAudio") {
                 // Apply the same selected-language check to native-language
                 // titles and titles that need verified dub metadata.
                 guard shouldIncludeForConfiguredAgeAndAudio(tvResult) else { return false }
@@ -1779,7 +1796,7 @@ class TMDBContentFilter: ObservableObject {
     }
 
     private func scheduleCatalogAudioAvailabilityResolutionIfNeeded(for results: [TMDBSearchResult]) {
-        guard UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") else { return }
+        guard ProfileSettingsStore.active.bool(forKey: "catalogRequireEnglishSpanishAudio") else { return }
         Task(priority: .utility) {
             await self.resolveCatalogAudioAvailability(for: results)
         }
@@ -1792,7 +1809,7 @@ class TMDBContentFilter: ObservableObject {
     /// every non-native-language movie/TV result was rejected before its dub
     /// availability could ever be checked.
     private func resolveCatalogAudioAvailability(for results: [TMDBSearchResult]) async {
-        guard UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") else { return }
+        guard ProfileSettingsStore.active.bool(forKey: "catalogRequireEnglishSpanishAudio") else { return }
         let candidates = results.filter { result in
             guard !Self.isAnimeResult(result),
                   (result.isMovie || result.isTVShow),
@@ -1938,7 +1955,7 @@ class TMDBContentFilter: ObservableObject {
     }
 
     private func shouldIncludeTMDBAgeRating(isMovie: Bool, id: Int, enabled: Bool) -> Bool {
-        let hideAllAges = UserDefaults.standard.bool(
+        let hideAllAges = ProfileSettingsStore.active.bool(
             forKey: isMovie ? "catalogHideAllAgesMovies" : "catalogHideAllAgesSeries"
         )
         guard enabled || hideAllAges else { return true }
@@ -1963,7 +1980,7 @@ class TMDBContentFilter: ObservableObject {
         result: TMDBSearchResult,
         allowUnresolvedMetadata: Bool = false
     ) -> Bool {
-        guard UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent") else { return true }
+        guard ProfileSettingsStore.active.bool(forKey: "catalogHideUnofficialContent") else { return true }
         if Self.isUnofficialCreatorContent(title: title, overview: overview) { return false }
 
         let key = Self.runtimeCacheKey(for: result)
@@ -1982,6 +1999,48 @@ class TMDBContentFilter: ObservableObject {
             overview: overview,
             productionCompanies: companyNames
         )
+    }
+
+    private static func fetchTMDBProductionNames(for result: TMDBSearchResult) async throws -> [String] {
+        if result.isMovie {
+            let detail = try await TMDBService.shared.getMovieDetails(id: result.id)
+            return detail.productionCompanies?.map(\.name) ?? []
+        }
+        let detail = try await TMDBService.shared.getTVShowDetails(id: result.id)
+        return (detail.productionCompanies ?? []).map(\.name)
+            + (detail.networks ?? []).map(\.name)
+            + (detail.createdBy ?? []).map(\.name)
+    }
+
+    private static func fetchAniListStudioNames(for result: TMDBSearchResult) async -> [String]? {
+        guard Self.isAnimeResult(result),
+              let anilistID = result.animeIdentitySeed?.anilistId else { return nil }
+        return await AniListService.shared.fetchAnimeStudioNames(anilistID: anilistID)
+    }
+
+    /// Combine independent production sources concurrently. Anime studio data
+    /// falls back from AniList to Jikan/MyAnimeList, so a temporary failure in
+    /// one catalogue does not silently mark the title as fully checked.
+    private static func fetchProductionMetadata(for result: TMDBSearchResult) async throws -> (names: [String], complete: Bool) {
+        async let tmdbNamesTask = Self.fetchTMDBProductionNames(for: result)
+        async let aniListNamesTask = Self.fetchAniListStudioNames(for: result)
+        var names = try await tmdbNamesTask
+        var animeStudioMetadataResolved = false
+
+        if let studios = await aniListNamesTask, !studios.isEmpty {
+            names.append(contentsOf: studios)
+            animeStudioMetadataResolved = true
+        } else if Self.isAnimeResult(result),
+                  let malID = result.animeIdentitySeed?.malId,
+                  malID > 0,
+                  let studios = await JikanAnimeAgeRatingService.shared.studioNames(malID: malID),
+                  !studios.isEmpty {
+            names.append(contentsOf: studios)
+            animeStudioMetadataResolved = true
+        }
+
+        let complete = !Self.isAnimeResult(result) || animeStudioMetadataResolved
+        return (Array(Set(names)).sorted(), complete)
     }
 
     private func resolveProductionMetadata(for results: [TMDBSearchResult]) async {
@@ -2009,17 +2068,8 @@ class TMDBContentFilter: ObservableObject {
                 group.addTask {
                     let key = Self.runtimeCacheKey(for: result)
                     do {
-                        let names: [String]
-                        if result.isMovie {
-                            let detail = try await TMDBService.shared.getMovieDetails(id: result.id)
-                            names = detail.productionCompanies?.map(\.name) ?? []
-                        } else {
-                            let detail = try await TMDBService.shared.getTVShowDetails(id: result.id)
-                            names = (detail.productionCompanies ?? []).map(\.name)
-                                + (detail.networks ?? []).map(\.name)
-                                + (detail.createdBy ?? []).map(\.name)
-                        }
-                        return (key, names, true)
+                        let metadata = try await Self.fetchProductionMetadata(for: result)
+                        return (key, metadata.names, metadata.complete)
                     } catch {
                         return (key, nil, false)
                     }
@@ -2044,17 +2094,8 @@ class TMDBContentFilter: ObservableObject {
                     group.addTask {
                         let nextKey = Self.runtimeCacheKey(for: result)
                         do {
-                            let names: [String]
-                            if result.isMovie {
-                                let detail = try await TMDBService.shared.getMovieDetails(id: result.id)
-                                names = detail.productionCompanies?.map(\.name) ?? []
-                            } else {
-                                let detail = try await TMDBService.shared.getTVShowDetails(id: result.id)
-                                names = (detail.productionCompanies ?? []).map(\.name)
-                                    + (detail.networks ?? []).map(\.name)
-                                    + (detail.createdBy ?? []).map(\.name)
-                            }
-                            return (nextKey, names, true)
+                            let metadata = try await Self.fetchProductionMetadata(for: result)
+                            return (nextKey, metadata.names, metadata.complete)
                         } catch {
                             return (nextKey, nil, false)
                         }
@@ -2162,7 +2203,7 @@ class TMDBContentFilter: ObservableObject {
         allowUpcomingContent: Bool = false,
         allowUnresolvedOptionalMetadata: Bool = false
     ) -> Bool {
-        let defaults = UserDefaults.standard
+        let defaults = ProfileSettingsStore.active
         let isAnime = Self.isAnimeResult(result)
         if defaults.bool(forKey: "catalogHideAnime"), isAnime { return false }
         if defaults.bool(forKey: "catalogHideUnder20MinuteContent") {
@@ -3239,6 +3280,128 @@ actor TaizenAnimeAgeRatingService {
                 resolved[id] = rating
             }
         }
+        return resolved
+    }
+}
+
+
+/// Public Jikan fallback for MyAnimeList age classifications. Unlike the
+/// authenticated MAL client this endpoint does not require an app client ID.
+actor JikanAnimeAgeRatingService {
+    static let shared = JikanAnimeAgeRatingService()
+
+    private struct CachedRating {
+        let fetchedAt: Date
+        let rating: MaturityRating
+        let studioNames: [String]?
+    }
+
+    private var cache: [Int: CachedRating] = [:]
+    private var nextRequestAt = Date.distantPast
+    private let cacheLifetime: TimeInterval = 24 * 60 * 60
+    private let unknownCacheLifetime: TimeInterval = 15 * 60
+
+    static func parseRating(from data: Data) -> MaturityRating {
+        guard data.count <= 512 * 1_024,
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let payload = root["data"] as? [String: Any],
+              let rawRating = payload["rating"] as? String else {
+            return .unknown
+        }
+        let classification = rawRating
+            .components(separatedBy: " - ")
+            .first?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? rawRating
+        switch classification.uppercased() {
+        case "R", "R+": return .age17
+        case "RX": return .adult
+        default: return MaturityRating.ratingForFiltering(certification: classification)
+        }
+    }
+
+    static func parseStudioNames(from data: Data) -> [String]? {
+        guard data.count <= 512 * 1_024,
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let payload = root["data"] as? [String: Any],
+              let studios = payload["studios"] as? [[String: Any]] else {
+            return nil
+        }
+        let names = Array(Set(studios.compactMap { studio -> String? in
+            guard let rawName = studio["name"] as? String else { return nil }
+            let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+            return name.isEmpty ? nil : name
+        })).sorted()
+        return names.isEmpty ? nil : names
+    }
+
+    func studioNames(malID: Int) async -> [String]? {
+        if let cached = cache[malID], let names = cached.studioNames, !names.isEmpty {
+            return names
+        }
+        _ = try? await rating(malID: malID)
+        return cache[malID]?.studioNames
+    }
+
+    func ratings(malIDs: [Int]) async -> [Int: MaturityRating] {
+        let identifiers = Array(Set(malIDs.filter { (1...1_000_000_000).contains($0) }))
+        guard !identifiers.isEmpty else { return [:] }
+        return await withTaskGroup(of: (Int, MaturityRating?).self) { group in
+            for malID in identifiers {
+                group.addTask {
+                    do {
+                        return (malID, try await self.rating(malID: malID))
+                    } catch {
+                        return (malID, nil)
+                    }
+                }
+            }
+            var resolved: [Int: MaturityRating] = [:]
+            for await (malID, rating) in group {
+                if let rating, rating != .unknown {
+                    resolved[malID] = rating
+                }
+            }
+            return resolved
+        }
+    }
+
+    func rating(malID: Int) async throws -> MaturityRating {
+        guard (1...1_000_000_000).contains(malID) else { return .unknown }
+        if let cached = cache[malID] {
+            let lifetime = cached.rating == .unknown ? unknownCacheLifetime : cacheLifetime
+            if Date().timeIntervalSince(cached.fetchedAt) < lifetime {
+                return cached.rating
+            }
+        }
+
+        let now = Date()
+        let scheduled = max(now, nextRequestAt)
+        nextRequestAt = scheduled.addingTimeInterval(0.4)
+        if scheduled > now {
+            try await Task.sleep(nanoseconds: UInt64(scheduled.timeIntervalSince(now) * 1_000_000_000))
+        }
+        try Task.checkCancellation()
+
+        guard let url = URL(string: "https://api.jikan.moe/v4/anime/\(malID)") else {
+            return .unknown
+        }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 12
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try Task.checkCancellation()
+        guard data.count <= 512 * 1_024,
+              let http = response as? HTTPURLResponse,
+              http.statusCode == 200 else {
+            return .unknown
+        }
+        let resolved = Self.parseRating(from: data)
+        let studios = Self.parseStudioNames(from: data)
+        cache[malID] = CachedRating(
+            fetchedAt: Date(),
+            rating: resolved,
+            studioNames: studios
+        )
         return resolved
     }
 }
