@@ -958,7 +958,7 @@ struct EclipseAmbientMotionBackground: View {
 
     private var primaryColor: Color {
         HomeAnimatedBackgroundParticleColor.resolved(particleColorRawValue)
-            .color(accent: ambientColor ?? accentColor, custom: customParticleColor)
+            .color(accent: accentColor, custom: customParticleColor)
     }
 
     private var quality: HomeAnimatedBackgroundQuality {

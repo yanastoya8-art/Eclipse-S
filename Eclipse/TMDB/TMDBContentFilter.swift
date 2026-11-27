@@ -1335,7 +1335,8 @@ class TMDBContentFilter: ObservableObject {
     func filterSearchResults(
         _ results: [TMDBSearchResult],
         allowUpcomingContent: Bool = false,
-        resolveMetadataInBackground: Bool = true
+        resolveMetadataInBackground: Bool = true,
+        allowUnresolvedOptionalMetadata: Bool = false
     ) -> [TMDBSearchResult] {
         // Browse explicitly awaits resolveBrowseFilterMetadata before applying
         // its predicate. Scheduling the same runtime, production and audio
@@ -1350,9 +1351,18 @@ class TMDBContentFilter: ObservableObject {
             }
             scheduleAnimeAudioMetadataResolutionIfNeeded(for: results)
             scheduleCatalogAudioAvailabilityResolutionIfNeeded(for: results)
+        } else if allowUnresolvedOptionalMetadata {
+            // Search keeps titles visible while canonical audio metadata is
+            // resolved, then applies the strict language gate on refresh.
+            scheduleAnimeAudioMetadataResolutionIfNeeded(for: results)
+            scheduleCatalogAudioAvailabilityResolutionIfNeeded(for: results)
         }
         return results.filter { result in
-            shouldIncludeCatalogResult(result, allowUpcomingContent: allowUpcomingContent)
+            shouldIncludeCatalogResult(
+                result,
+                allowUpcomingContent: allowUpcomingContent,
+                allowUnresolvedOptionalMetadata: allowUnresolvedOptionalMetadata
+            )
         }
     }
 
@@ -1527,37 +1537,52 @@ class TMDBContentFilter: ObservableObject {
         )
     }
 
-    private func shouldIncludeSelectedAnimeDub(_ result: TMDBSearchResult) -> Bool {
-        // Dub-language requirements apply only to anime. Returning false for
-        // ordinary TV/movie records without an AniList identity emptied their
-        // Browse grids whenever a dub language was selected.
+    private func shouldIncludeSelectedAnimeDub(
+        _ result: TMDBSearchResult,
+        allowUnresolvedOptionalMetadata: Bool = false
+    ) -> Bool {
+        // Dub-language requirements apply only to anime.
         guard Self.isAnimeResult(result) else { return true }
         if MyDubListDubFilter.shared.shouldInclude(result) { return true }
         guard let anilistID = result.animeIdentitySeed?.anilistId, anilistID > 0 else { return false }
         let selectedLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
         guard !selectedLanguages.isEmpty else { return true }
+
         animeEligibilityLock.lock()
         defer { animeEligibilityLock.unlock() }
-        return animeAudioEligibilityLanguages == selectedLanguages
-            && animeAudioEligibleIDs.contains(anilistID)
+        guard animeAudioEligibilityLanguages == selectedLanguages,
+              animeAudioCheckedIDs.contains(anilistID) else {
+            // Search may display a title while its verified dub lookup is
+            // pending. The resolver posts a filter-refresh notification when
+            // it completes, at which point confirmed non-matches are removed.
+            // Browse passes false and remains strict before publishing a page.
+            return allowUnresolvedOptionalMetadata
+        }
+        return animeAudioEligibleIDs.contains(anilistID)
     }
 
     private func shouldIncludeCatalogResult(
         _ result: TMDBSearchResult,
-        allowUpcomingContent: Bool = false
+        allowUpcomingContent: Bool = false,
+        allowUnresolvedOptionalMetadata: Bool = false
     ) -> Bool {
         guard !shouldExcludeAnimeSpecialOrOVA(result) else { return false }
         guard shouldIncludeUnofficialProduction(
             title: result.displayTitle,
             overview: result.overview,
-            result: result
+            result: result,
+            allowUnresolvedMetadata: allowUnresolvedOptionalMetadata
         ) else { return false }
-        guard shouldIncludeSelectedAnimeDub(result) else { return false }
+        guard shouldIncludeSelectedAnimeDub(
+            result,
+            allowUnresolvedOptionalMetadata: allowUnresolvedOptionalMetadata
+        ) else { return false }
         guard result.adult != true else { return false }
         if Self.isAnimeResult(result), !shouldIncludeAnimeCategoryFilters(result) { return false }
         guard shouldIncludeForConfiguredAgeAndAudio(
             result,
-            allowUpcomingContent: allowUpcomingContent
+            allowUpcomingContent: allowUpcomingContent,
+            allowUnresolvedOptionalMetadata: allowUnresolvedOptionalMetadata
         ) else { return false }
         guard shouldIncludeCatalogTitle(result.displayTitle) else { return false }
         guard shouldIncludeForKids(
@@ -1746,6 +1771,13 @@ class TMDBContentFilter: ObservableObject {
         return catalogAudioEligibleKeys.contains(key)
     }
 
+    private func hasResolvedCatalogAudio(for result: TMDBSearchResult) -> Bool {
+        let key = catalogAudioAvailabilityKey(for: result)
+        animeEligibilityLock.lock()
+        defer { animeEligibilityLock.unlock() }
+        return catalogAudioCheckedKeys.contains(key)
+    }
+
     private func scheduleCatalogAudioAvailabilityResolutionIfNeeded(for results: [TMDBSearchResult]) {
         guard UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio") else { return }
         Task(priority: .utility) {
@@ -1928,7 +1960,8 @@ class TMDBContentFilter: ObservableObject {
     private func shouldIncludeUnofficialProduction(
         title: String,
         overview: String?,
-        result: TMDBSearchResult
+        result: TMDBSearchResult,
+        allowUnresolvedMetadata: Bool = false
     ) -> Bool {
         guard UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent") else { return true }
         if Self.isUnofficialCreatorContent(title: title, overview: overview) { return false }
@@ -1939,9 +1972,11 @@ class TMDBContentFilter: ObservableObject {
         let companyNames = productionCompaniesByKey[key] ?? []
         runtimeMetadataLock.unlock()
 
-        // Wait for TMDB production-company metadata instead of allowing
-        // unknown entries to bypass an enabled app-wide exclusion.
-        guard isChecked else { return false }
+        // Browse waits for production-company metadata before admitting an
+        // unknown item. Search is different: an optional metadata timeout must
+        // not make a valid title disappear permanently from the user's query.
+        // Once details resolve, the retained search snapshot is re-filtered.
+        guard isChecked else { return allowUnresolvedMetadata }
         return !Self.isUnofficialCreatorContent(
             title: title,
             overview: overview,
@@ -2124,7 +2159,8 @@ class TMDBContentFilter: ObservableObject {
 
     private func shouldIncludeForConfiguredAgeAndAudio(
         _ result: TMDBSearchResult,
-        allowUpcomingContent: Bool = false
+        allowUpcomingContent: Bool = false,
+        allowUnresolvedOptionalMetadata: Bool = false
     ) -> Bool {
         let defaults = UserDefaults.standard
         let isAnime = Self.isAnimeResult(result)
@@ -2133,9 +2169,12 @@ class TMDBContentFilter: ObservableObject {
             // Do not show an item while its runtime is unknown. The async
             // metadata resolver will publish a filter-change notification
             // when the runtime is available, and the catalog will re-evaluate.
-            guard CatalogRuntimeFilterPolicy.shouldInclude(
-                    runtimeMinutes: cachedRuntimeMinutes(for: Self.runtimeCacheKey(for: result))
-                  ) else {
+            let runtime = cachedRuntimeMinutes(for: Self.runtimeCacheKey(for: result))
+            if let runtime {
+                guard CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: runtime) else {
+                    return false
+                }
+            } else if !allowUnresolvedOptionalMetadata {
                 return false
             }
         }
@@ -2186,8 +2225,13 @@ class TMDBContentFilter: ObservableObject {
                     animeEligibilityLock.unlock()
                     // Fail closed while anime dub metadata is loading or unavailable.
                     guard hasVerifiedDub else { return false }
-                } else {
-                    guard hasVerifiedCatalogAudio(for: result) else { return false }
+                } else if !hasVerifiedCatalogAudio(for: result) {
+                    // Preserve Search discoverability while canonical language
+                    // metadata is being fetched or is temporarily unavailable.
+                    // A confirmed negative result remains excluded.
+                    guard allowUnresolvedOptionalMetadata && !hasResolvedCatalogAudio(for: result) else {
+                        return false
+                    }
                 }
             }
         }

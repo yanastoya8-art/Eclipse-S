@@ -7014,45 +7014,61 @@ final class AniListService {
             return []
         }
 
-        func normalized(_ value: String) -> String {
+        func foldedTokens(_ value: String) -> [String] {
             value.folding(
                 options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
                 locale: Locale(identifier: "en_US_POSIX")
             )
             .lowercased()
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .joined()
+            .filter { !$0.isEmpty }
+        }
+
+        func normalized(_ value: String) -> String {
+            foldedTokens(value).joined()
         }
 
         let queryKey = normalized(trimmed)
-        let queryTokens = Set(
-            trimmed.folding(
-                options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
-                locale: Locale(identifier: "en_US_POSIX")
-            )
-            .lowercased()
-            .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { !$0.isEmpty }
-        )
+        let queryTokens = Set(foldedTokens(trimmed))
         guard queryKey.count >= 2, !queryTokens.isEmpty else { return [] }
-        let nodes = await supplementalStructureNodeLookup(title: trimmed, token: nil)
-        let candidates = nodes.values
-            .filter { anime in
+        func matchingCandidates(in nodes: [Int: AniListAnime]) -> [AniListAnime] {
+            nodes.values.filter { anime in
                 guard anime.isAdult != true else { return false }
                 let titleCandidates = AniListTitlePicker.titleCandidates(from: anime.title)
                 return titleCandidates.contains { candidate in
                     let titleKey = normalized(candidate)
-                    let titleTokens = Set(
-                        candidate.lowercased()
-                            .components(separatedBy: CharacterSet.alphanumerics.inverted)
-                            .filter { !$0.isEmpty }
-                    )
+                    let titleTokens = Set(foldedTokens(candidate))
                     return titleKey == queryKey
                         || titleKey.contains(queryKey)
                         || queryKey.contains(titleKey)
                         || queryTokens.isSubset(of: titleTokens)
                 }
             }
+        }
+
+        var nodes = await supplementalStructureNodeLookup(title: trimmed, token: nil)
+        var matched = matchingCandidates(in: nodes)
+
+        // AniList's search matcher can return no rows for a perfectly valid
+        // multi-word query (for example, a shortened translated title). Retry
+        // a few meaningful tokens independently, then apply the complete
+        // original query's title-token check above. This broadens discovery
+        // without accepting unrelated results or weakening the dub filter.
+        if matched.isEmpty {
+            let fallbackTokens = trimmed
+                .components(separatedBy: CharacterSet.alphanumerics.inverted)
+                .filter { $0.count >= 3 }
+                .prefix(3)
+            for token in fallbackTokens {
+                if Task.isCancelled { break }
+                let tokenNodes = await supplementalStructureNodeLookup(title: token, token: nil)
+                nodes.merge(tokenNodes) { current, _ in current }
+                matched = matchingCandidates(in: nodes)
+                if !matched.isEmpty { break }
+            }
+        }
+
+        let candidates = matched
             .sorted { lhs, rhs in
                 let lhsExact = AniListTitlePicker.titleCandidates(from: lhs.title).contains {
                     normalized($0) == queryKey
@@ -7069,7 +7085,14 @@ final class AniListService {
             .prefix(20)
 
         guard !candidates.isEmpty, !Task.isCancelled else { return [] }
-        return await mapAniListCatalogToTMDB(Array(candidates), tmdbService: tmdbService)
+        // Search is a direct user query, so search deeper than the small
+        // catalogue-enrichment window. Less popular titles can fall below the
+        // first two TMDB pages even when AniList has already identified them.
+        return await mapAniListCatalogToTMDB(
+            Array(candidates),
+            tmdbService: tmdbService,
+            maxTMDBPages: 10
+        )
     }
 
     /// Resolves a TMDB animation result that has no AniMap entry using an exact
@@ -9972,7 +9995,11 @@ final class AniListService {
         _ = try await executeGraphQLQuery(mutation, token: token)
     }
 
-    private func mapAniListCatalogToTMDB(_ animeList: [AniListAnime], tmdbService: TMDBService) async -> [TMDBSearchResult] {
+    private func mapAniListCatalogToTMDB(
+        _ animeList: [AniListAnime],
+        tmdbService: TMDBService,
+        maxTMDBPages: Int = 2
+    ) async -> [TMDBSearchResult] {
         func normalized(_ value: String) -> String {
             return value.lowercased().components(separatedBy: CharacterSet.alphanumerics.inverted).joined()
         }
@@ -9989,7 +10016,7 @@ final class AniListService {
 
                     for candidate in titleCandidates where !candidate.isEmpty {
                         let candidateKey = normalized(candidate)
-                        var results = (try? await tmdbService.searchTVShows(query: candidate, maxPages: 2)) ?? []
+                        var results = (try? await tmdbService.searchTVShows(query: candidate, maxPages: maxTMDBPages)) ?? []
 
                         // Only query TMDB's English index when the localized
                         // index did not return an exact title. This keeps
@@ -10000,7 +10027,7 @@ final class AniListService {
                             let englishResults = (try? await tmdbService.searchTVShows(
                                 query: candidate,
                                 languageOverride: "en-US",
-                                maxPages: 2
+                                maxPages: maxTMDBPages
                             )) ?? []
                             var seenIDs = Set(results.map(\.id))
                             results.append(contentsOf: englishResults.filter {
@@ -10280,7 +10307,12 @@ final class AniListService {
         var dict: [Int: TMDBSearchResult] = [:]
         var cacheRecords: [AnimeTMDBMatchCacheRecord] = []
         for (anilistId, match, cacheRecord) in matches {
-            if let match = match, MyDubListDubFilter.shared.shouldInclude(match) {
+            // Do not gate Browse's AniList-to-TMDB mapping on the MyDubList
+            // snapshot alone. Titles absent from that index can still have a
+            // verified selected-language dub in the Taizen/Anidub fallback;
+            // TMDBContentFilter performs that full eligibility check before
+            // the result is published.
+            if let match {
                 dict[anilistId] = match
             }
             if let cacheRecord {

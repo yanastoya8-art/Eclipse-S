@@ -26,17 +26,23 @@ private func copyProviderDownloadURL(_ rawURL: String, headers: [String: String]
           sourceURL.user == nil,
           sourceURL.password == nil else { return }
 
+    // MKV files are already directly downloadable media resources. Preserve
+    // the provider URL exactly as requested instead of wrapping it in a proxy.
+    if sourceURL.pathExtension.lowercased() == "mkv" {
+        ProviderExternalApplication.copy(sourceURL.absoluteString)
+        return
+    }
+
     let sanitizedHeaders = AVPlayerResourceLoader.sanitizedHTTPHeaders(headers ?? [:])
 
     // Safari recognizes raw media URLs as playable resources and opens
-    // them inline. Always use the LAN download route so the response includes
-    // Content-Disposition: attachment, including for providers with no headers.
+    // them inline. Use the same-device proxy so the response includes
+    // Content-Disposition: attachment without requiring LAN discovery or Wi-Fi.
     // Required provider headers remain scoped to the source origin by the proxy.
-    guard let downloadURL = MPVHeaderProxy.shared.makeLANProxyURL(
+    guard let downloadURL = MPVHeaderProxy.shared.makeProxyURL(
         for: sourceURL,
         headers: sanitizedHeaders,
-        logType: "Download",
-        asDownload: true
+        logType: "Download"
     ) else {
         Logger.shared.log(
             "Could not create an authenticated download URL for host \(sourceURL.host ?? "unknown")",

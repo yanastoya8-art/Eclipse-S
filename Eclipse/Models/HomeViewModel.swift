@@ -155,10 +155,10 @@ enum HomeCatalogFailurePresentation {
             return "Eclipse could not reach TMDB. Check your internet connection, then tap Retry."
         }
 
-        let message = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
-        return message.isEmpty
-            ? "TMDB did not return Home catalog data. Check the API configuration and tap Retry."
-            : "TMDB request failed: \(message.prefix(180))"
+        // Do not echo arbitrary transport descriptions into the Home error UI:
+        // URLSession descriptions can contain the full request URL, including
+        // query-string credentials from third-party providers.
+        return "A Home catalog request failed. Check the connection and API configuration, then tap Retry."
     }
 
     private static let missingAPIKeyMessage =
@@ -182,20 +182,57 @@ enum HomeCatalogFailurePresentation {
     }
 }
 
-private actor HomeCatalogFailureRecorder {
-    private var firstFailure: String?
+enum HomeCatalogFailureSummary {
+    static func message(from failures: [String: String]) -> String? {
+        let ordered = failures.sorted { lhs, rhs in
+            let lhsPriority = priority(for: lhs.value)
+            let rhsPriority = priority(for: rhs.value)
+            if lhsPriority != rhsPriority {
+                return lhsPriority < rhsPriority
+            }
+            return lhs.key < rhs.key
+        }
+        guard !ordered.isEmpty else { return nil }
+
+        // Show the most actionable failure first, then include a small,
+        // stable sample of the other affected shelves. Completion order of
+        // concurrent requests must never decide the Home error shown.
+        let details = ordered.prefix(3).map { "\($0.key): \($0.value)" }
+        let remainingCount = max(0, ordered.count - details.count)
+        var summary = details.joined(separator: " ")
+        if remainingCount > 0 {
+            summary += " \(remainingCount) additional catalog(s) also failed."
+        }
+        return String(summary.prefix(900))
+    }
+
+    private static func priority(for message: String) -> Int {
+        let normalized = message.lowercased()
+        if normalized.contains("api key is missing") { return 0 }
+        if normalized.contains("rejected the api key") { return 1 }
+        if normalized.contains("internet connection") || normalized.contains("could not reach tmdb") {
+            return 2
+        }
+        if normalized.contains("rate-limited") { return 3 }
+        if normalized.contains("temporarily unavailable") { return 4 }
+        if normalized.contains("could not read") { return 5 }
+        return 6
+    }
+}
+
+actor HomeCatalogFailureRecorder {
+    private var failures: [String: String] = [:]
 
     func reset() {
-        firstFailure = nil
+        failures.removeAll(keepingCapacity: true)
     }
 
-    func record(_ message: String) {
-        guard firstFailure == nil else { return }
-        firstFailure = String(message.prefix(240))
+    func record(catalogID: String, message: String) {
+        failures[catalogID] = String(message.prefix(240))
     }
 
-    func firstFailureMessage() -> String? {
-        firstFailure
+    func summaryMessage() -> String? {
+        HomeCatalogFailureSummary.message(from: failures)
     }
 }
 
@@ -727,7 +764,7 @@ final class HomeViewModel: ObservableObject {
             _ = await widgetsLoaded
             _ = await recommendationsLoaded
             guard !Task.isCancelled else { return }
-            let firstCatalogFailure = await catalogFailureRecorder.firstFailureMessage()
+            let catalogFailureSummary = await catalogFailureRecorder.summaryMessage()
 
             await MainActor.run {
 
@@ -801,8 +838,8 @@ final class HomeViewModel: ObservableObject {
                 self.hasCompletedInitialLoad = true
                 self.hasRenderableStartupContent = finalLoadedCount > 0
                 if finalLoadedCount == 0 && !permitsEmptyResults {
-                    if let firstCatalogFailure {
-                        self.errorMessage = "Home data could not be loaded. \(firstCatalogFailure)"
+                    if let catalogFailureSummary {
+                        self.errorMessage = "Home data could not be loaded. \(catalogFailureSummary)"
                     } else {
                         self.errorMessage = "No results were returned by the enabled catalogs. Check your content filters and catalog selections."
                     }
@@ -885,7 +922,8 @@ final class HomeViewModel: ObservableObject {
                         return (kind.catalogID, items)
                     } catch {
                         await self.catalogFailureRecorder.record(
-                            "Catalog \(kind.catalogID): \(HomeCatalogFailurePresentation.message(for: error))"
+                            catalogID: kind.catalogID,
+                            message: HomeCatalogFailurePresentation.message(for: error)
                         )
                         return (kind.catalogID, [])
                     }
@@ -917,14 +955,13 @@ final class HomeViewModel: ObservableObject {
                 return items
             } catch {
                 lastError = error
-                await catalogFailureRecorder.record("Catalog \(id): \(HomeCatalogFailurePresentation.message(for: error))")
                 guard attempt < retryDelays.count,
                       Self.shouldRetryHomeCatalogRequest(after: error),
                       !Task.isCancelled else {
                     break
                 }
                 Logger.shared.log(
-                    "HomeViewModel: catalog \(id) transient failure on attempt \(attempt + 1); retrying: \(error.localizedDescription)",
+                    "HomeViewModel: catalog \(id) transient failure on attempt \(attempt + 1); retrying",
                     type: "TMDB"
                 )
                 do {
@@ -935,8 +972,14 @@ final class HomeViewModel: ObservableObject {
             }
         }
 
+        if let lastError {
+            await catalogFailureRecorder.record(
+                catalogID: id,
+                message: HomeCatalogFailurePresentation.message(for: lastError)
+            )
+        }
         Logger.shared.log(
-            "HomeViewModel: catalog \(id) failed after retries: \(lastError?.localizedDescription ?? "unknown error")",
+            "HomeViewModel: catalog \(id) failed after retries",
             type: "Error"
         )
         return []
