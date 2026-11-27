@@ -2001,7 +2001,7 @@ class TMDBContentFilter: ObservableObject {
         )
     }
 
-    private func fetchTMDBProductionNames(for result: TMDBSearchResult) async throws -> [String] {
+    private static func fetchTMDBProductionNames(for result: TMDBSearchResult) async throws -> [String] {
         if result.isMovie {
             let detail = try await TMDBService.shared.getMovieDetails(id: result.id)
             return detail.productionCompanies?.map(\.name) ?? []
@@ -2012,7 +2012,7 @@ class TMDBContentFilter: ObservableObject {
             + (detail.createdBy ?? []).map(\.name)
     }
 
-    private func fetchAniListStudioNames(for result: TMDBSearchResult) async -> [String]? {
+    private static func fetchAniListStudioNames(for result: TMDBSearchResult) async -> [String]? {
         guard Self.isAnimeResult(result),
               let anilistID = result.animeIdentitySeed?.anilistId else { return nil }
         return await AniListService.shared.fetchAnimeStudioNames(anilistID: anilistID)
@@ -2021,9 +2021,9 @@ class TMDBContentFilter: ObservableObject {
     /// Combine independent production sources concurrently. Anime studio data
     /// falls back from AniList to Jikan/MyAnimeList, so a temporary failure in
     /// one catalogue does not silently mark the title as fully checked.
-    private func fetchProductionMetadata(for result: TMDBSearchResult) async throws -> (names: [String], complete: Bool) {
-        async let tmdbNamesTask = fetchTMDBProductionNames(for: result)
-        async let aniListNamesTask = fetchAniListStudioNames(for: result)
+    private static func fetchProductionMetadata(for result: TMDBSearchResult) async throws -> (names: [String], complete: Bool) {
+        async let tmdbNamesTask = Self.fetchTMDBProductionNames(for: result)
+        async let aniListNamesTask = Self.fetchAniListStudioNames(for: result)
         var names = try await tmdbNamesTask
         var animeStudioMetadataResolved = false
 
@@ -2068,7 +2068,7 @@ class TMDBContentFilter: ObservableObject {
                 group.addTask {
                     let key = Self.runtimeCacheKey(for: result)
                     do {
-                        let metadata = try await self.fetchProductionMetadata(for: result)
+                        let metadata = try await Self.fetchProductionMetadata(for: result)
                         return (key, metadata.names, metadata.complete)
                     } catch {
                         return (key, nil, false)
