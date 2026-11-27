@@ -4667,22 +4667,24 @@ final class DownloadManager: NSObject, ObservableObject {
         let activeRequestURL = activeTasks[item.id]?.currentRequest?.url
             ?? activeTasks[item.id]?.originalRequest?.url
         let storedSourceURL = DownloadSourceLinkPolicy.copyableURL(item.streamURL)
-        let managedProxySession = storedSourceURL.flatMap {
+        let activeSourceURL = activeRequestURL.flatMap {
+            DownloadSourceLinkPolicy.copyableURL($0.absoluteString)
+        }
+        // Resolve the authoritative candidate first, then unwrap it regardless
+        // of whether it came from persisted metadata, a protected-provider
+        // attempt, or the live URLSession request. Protected attempts can also
+        // hold a managed loopback proxy URL; treating that as an upstream made
+        // copied HLS playlists point back into this device's 127.0.0.1 listener.
+        let candidateSourceURL = protectedAttempt.flatMap {
+            DownloadSourceLinkPolicy.copyableURL($0.authorityURL)
+        } ?? storedSourceURL ?? activeSourceURL
+        let managedProxySession = candidateSourceURL.flatMap {
             MPVHeaderProxy.shared.upstreamProbeTarget(for: $0)
         }
-        let managedProxyTarget = storedSourceURL.flatMap {
+        let managedProxyTarget = candidateSourceURL.flatMap {
             MPVHeaderProxy.shared.recoverableTargetURL(for: $0) ?? managedProxySession?.url
         }
-        // Never publish a loopback playback proxy as a copied URL. Resolve the
-        // authenticated remote target and carry its scoped headers into the
-        // LAN playlist proxy so another device can fetch the HLS resources.
-        let sourceURL = protectedAttempt.flatMap {
-            DownloadSourceLinkPolicy.copyableURL($0.authorityURL)
-        } ?? managedProxyTarget
-            ?? storedSourceURL
-            ?? activeRequestURL.flatMap {
-                DownloadSourceLinkPolicy.copyableURL($0.absoluteString)
-            }
+        let sourceURL = managedProxyTarget ?? candidateSourceURL
         guard let sourceURL else { return nil }
 
         // MKV is a stream container in Eclipse, not a browser download target.
@@ -4692,7 +4694,7 @@ final class DownloadManager: NSObject, ObservableObject {
             return sourceURL
         }
 
-        let headers = protectedAttempt?.authorityHeaders ?? managedProxySession?.headers ?? item.headers
+        let headers = managedProxySession?.headers ?? protectedAttempt?.authorityHeaders ?? item.headers
         if item.isHLS || sourceURL.pathExtension.caseInsensitiveCompare("m3u8") == .orderedSame {
             // An HLS manifest is not a single video file. Do not force Safari
             // to save only the .m3u8 text as an attachment; expose a rewritten

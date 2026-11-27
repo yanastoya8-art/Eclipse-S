@@ -915,25 +915,28 @@ struct SearchView: View {
         activeSearchTask?.cancel()
         activeSearchTask = Task {
             do {
-                // Search multiple TMDB pages so less popular series and
-                // titles ranked below unrelated matches are not silently omitted.
-                // A transient failure of TMDB's multi-search endpoint must
-                // not abort the whole query. The dedicated TV endpoint below
-                // is an independent fallback for series and anime titles.
-                var results = (try? await tmdbService.searchMulti(query: query, maxPages: 10)) ?? []
+                // Search localized and English TMDB indexes concurrently.
+                // Five pages keep a broad title window while avoiding the long
+                // sequential wait from running four ten-page queries per search.
+                let shouldSearchTVEndpoint = searchFilter != .movies
+                let shouldSearchEnglish = selectedLanguage.caseInsensitiveCompare("en-US") != .orderedSame
+                let localizedMultiTask: Task<[TMDBSearchResult]?, Never> = Task {
+                    try? await tmdbService.searchMulti(query: query, maxPages: 5)
+                }
+                let englishMultiTask: Task<[TMDBSearchResult]?, Never>? = shouldSearchEnglish ? Task {
+                    try? await tmdbService.searchMulti(query: query, languageOverride: "en-US", maxPages: 5)
+                } : nil
+                let localizedTVTask: Task<[TMDBTVShow]?, Never>? = shouldSearchTVEndpoint ? Task {
+                    try? await tmdbService.searchTVShows(query: query, maxPages: 5)
+                } : nil
+                let englishTVTask: Task<[TMDBTVShow]?, Never>? = shouldSearchTVEndpoint && shouldSearchEnglish ? Task {
+                    try? await tmdbService.searchTVShows(query: query, languageOverride: "en-US", maxPages: 5)
+                } : nil
+
+                var results = await localizedMultiTask.value ?? []
                 try Task.checkCancellation()
-                try Task.checkCancellation()
-                // Search in English as well as the selected UI language. TMDB's
-                // localized multi-search can omit original-language titles
-                // even when the dedicated TV index finds them.
-                if selectedLanguage.caseInsensitiveCompare("en-US") != .orderedSame,
-                   let englishResults = try? await tmdbService.searchMulti(
-                       query: query,
-                       languageOverride: "en-US",
-                       maxPages: 10
-                   ) {
-                    try Task.checkCancellation()
-                    var seen = Set(results.map(\.stableIdentity))
+                if let englishMultiTask, let englishResults = await englishMultiTask.value {
+                    var seen = Set(results.map(\\.stableIdentity))
                     results.append(contentsOf: englishResults.filter {
                         seen.insert($0.stableIdentity).inserted
                     })
@@ -941,37 +944,17 @@ struct SearchView: View {
                 let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
                 let requiresGlobalAnimeAgeRating = ProfileSettingsStore.active.bool(forKey: "catalogHideBelowPG13Anime")
                     || ProfileSettingsStore.active.bool(forKey: "catalogHideAllAgesAnime")
-                // TMDB's multi-search endpoint is not a complete TV index:
-                // it can rank movies above shows or omit a show for a query
-                // that the dedicated /search/tv endpoint does return. Always
-                // supplement All, TV Shows and Anime searches with the TV
-                // endpoint; only the Movies filter can safely skip it.
-                let shouldSearchTVEndpoint = searchFilter != .movies
                 if shouldSearchTVEndpoint {
-                    var seen = Set(results.map(\.stableIdentity))
-                    if let tvResults = try? await tmdbService.searchTVShows(query: query, maxPages: 10) {
+                    var seen = Set(results.map(\\.stableIdentity))
+                    if let localizedTVTask, let tvResults = await localizedTVTask.value {
                         try Task.checkCancellation()
-                        results.append(contentsOf: tvResults
-                            .map(\.asSearchResult)
+                        results.append(contentsOf: tvResults.map(\\.asSearchResult)
                             .filter { seen.insert($0.stableIdentity).inserted })
                     }
-
-                    // TMDB applies the selected display language to search
-                    // ranking. A localized search can omit an English-original
-                    // series even though the dedicated TV index finds it in
-                    // English. Merge an English index pass instead of allowing
-                    // "All" or "TV Shows" to report a false empty result.
-                    if selectedLanguage.caseInsensitiveCompare("en-US") != .orderedSame {
-                        if let englishTVResults = try? await tmdbService.searchTVShows(
-                            query: query,
-                            languageOverride: "en-US",
-                            maxPages: 10
-                        ) {
-                            try Task.checkCancellation()
-                            results.append(contentsOf: englishTVResults
-                                .map(\.asSearchResult)
-                                .filter { seen.insert($0.stableIdentity).inserted })
-                        }
+                    if let englishTVTask, let englishTVResults = await englishTVTask.value {
+                        try Task.checkCancellation()
+                        results.append(contentsOf: englishTVResults.map(\\.asSearchResult)
+                            .filter { seen.insert($0.stableIdentity).inserted })
                     }
 
                     // If the full phrase is absent from both TV indexes, try
