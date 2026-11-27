@@ -205,6 +205,11 @@ struct StorageView: View {
 
     @AppStorage("autoClearCacheEnabled", store: .standard) private var autoClearCacheEnabled = true
     @AppStorage("autoClearCacheThresholdMB", store: .standard) private var autoClearCacheThresholdMB: Double = 2000
+#if os(iOS) && !targetEnvironment(macCatalyst)
+    @AppStorage("eclipseCloudShareBaseURL", store: .standard) private var cloudShareBaseURL = ""
+    @State private var cloudShareAdminToken = ""
+    @State private var cloudShareSaveMessage: String?
+#endif
 
     @StateObject private var accentColorManager = AccentColorManager.shared
 
@@ -376,6 +381,9 @@ struct StorageView: View {
                 Logger.shared.log("Auto-clear cache enabled with threshold: \(formatThreshold(sanitizedAutoClearCacheThresholdMB))", type: "Storage")
             }
         }
+#if os(iOS) && !targetEnvironment(macCatalyst)
+        .onAppear { cloudShareAdminToken = EclipseShareCredentialStore.loadAdminToken() }
+#endif
         .alert("Clear Cache?", isPresented: $showConfirmClear) {
             Button("Cancel", role: .cancel) {}
             Button("Clear", role: .destructive) { clearCache() }

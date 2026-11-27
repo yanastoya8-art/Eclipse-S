@@ -43,6 +43,10 @@ struct DownloadsView: View {
 
     @ObservedObject private var contentFilter = TMDBContentFilter.shared
     @State private var showingDeleteAllConfirmation = false
+#if os(iOS) && !targetEnvironment(macCatalyst)
+    @State private var internetShareError: String?
+    @State private var isCreatingInternetShareLink = false
+#endif
     @State private var showingDeleteCompletedConfirmation = false
     @State private var showingDeleteSeriesConfirmation = false
     @State private var seriesToDelete: (tmdbId: Int, title: String)? = nil
@@ -184,6 +188,16 @@ struct DownloadsView: View {
                 }
             }
         }
+#if os(iOS) && !targetEnvironment(macCatalyst)
+        .alert("Internet Share Link", isPresented: Binding(
+            get: { internetShareError != nil },
+            set: { if !$0 { internetShareError = nil } }
+        )) {
+            Button("OK", role: .cancel) { internetShareError = nil }
+        } message: {
+            Text(internetShareError ?? "")
+        }
+#endif
         .navigationTitle("Downloads")
         .background(SettingsGradientBackground(
             allowsAnimatedBackground: ProfileSettingsStore.active.object(forKey: HomeAnimatedBackgroundSettings.downloadsBackgroundKey) == nil ? true : ProfileSettingsStore.active.bool(forKey: HomeAnimatedBackgroundSettings.downloadsBackgroundKey),
@@ -599,6 +613,24 @@ struct DownloadsView: View {
                 }
             }
 #if os(iOS) && !targetEnvironment(macCatalyst)
+            if EclipseShareCredentialStore.isConfigured(baseURL: UserDefaults.standard.string(forKey: "eclipseCloudShareBaseURL")) {
+                Button {
+                    guard !isCreatingInternetShareLink else { return }
+                    isCreatingInternetShareLink = true
+                    Task { @MainActor in
+                        defer { isCreatingInternetShareLink = false }
+                        do {
+                            let shareURL = try await downloadManager.createInternetShareURL(for: item)
+                            UIPasteboard.general.url = shareURL
+                        } catch {
+                            internetShareError = error.localizedDescription
+                        }
+                    }
+                } label: {
+                    Label(isCreatingInternetShareLink ? "Creating Link…" : "Copy Internet Link", systemImage: "globe")
+                }
+                .disabled(isCreatingInternetShareLink)
+            }
             if downloadManager.hasCopyableDownloadURL(for: item) {
                 Button {
                     // Publishing a LAN URL starts a listener session, so do it
