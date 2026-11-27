@@ -248,7 +248,9 @@ async function cleanupExpiredShares(env: Env): Promise<void> {
       cursor = page.truncated ? page.cursor : undefined;
     } while (cursor);
   }
-}\nasync function route(request: Request, env: Env): Promise<Response> {
+}
+
+async function route(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: {
@@ -270,7 +272,9 @@ async function cleanupExpiredShares(env: Env): Promise<void> {
     const id = crypto.randomUUID();
     const exp = expiry(body.expiresInSeconds);
     const descriptor: ShareDescriptor = { sourceURL: source.toString(), headers, expiresAt: exp };
-    await env.SHARES.put(`shares/${id}.json`, await seal(env, descriptor), {\n      customMetadata: { expiresAt: String(exp) },\n    });
+    await env.SHARES.put(`shares/${id}.json`, await seal(env, descriptor), {
+      customMetadata: { expiresAt: String(exp) },
+    });
     const shareUrl = await capabilityURL(env, "/v1/r", {
       kind: "source", id, url: source.toString(), exp,
     });
