@@ -426,12 +426,21 @@ struct SearchView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: TMDBContentFilter.catalogFiltersDidChangeNotification)) { _ in
             guard !searchResults.isEmpty else { return }
+            // Apply all already-known rules immediately. Previously Search left
+            // its old grid on screen while the asynchronous metadata pass ran,
+            // making disabled titles appear to ignore changed content filters.
+            cachedCatalogResults = contentFilter.filterSearchResults(
+                searchResults,
+                resolveMetadataInBackground: false
+            )
+            filterRefreshRevision &+= 1
             let snapshot = searchResults
+            let requestSerial = searchRequestSerial
             Task { @MainActor in
                 await contentFilter.resolveBrowseFilterMetadata(for: snapshot)
-                // Re-apply the complete, strict content policy after metadata
-                // changes. Unresolved optional metadata must never bypass a
-                // user's enabled filters in Search.
+                guard requestSerial == searchRequestSerial else { return }
+                // Re-apply the complete policy after the required metadata is
+                // ready. A stale notification must not overwrite a newer query.
                 filterRefreshRevision &+= 1
                 cachedCatalogResults = contentFilter.filterSearchResults(
                     searchResults,
@@ -780,11 +789,11 @@ struct SearchView: View {
     private func resolveSearchAnimeIdentities(_ results: [TMDBSearchResult]) async -> [TMDBSearchResult] {
         let candidates = results.enumerated().filter { _, result in
             guard result.animeIdentitySeed == nil else { return false }
-            let language = result.originalLanguage?.lowercased() ?? ""
-            let countryMatch = result.originCountry?.contains(where: { ["JP", "CN", "KR", "TW"].contains($0) }) == true
-            let languageMatch = ["ja", "zh", "ko"].contains(language)
-            return result.isAnimeHint == true
-                || (result.genreIds?.contains(16) == true && (countryMatch || languageMatch))
+            // TMDB's country/original-language fields are incomplete on some
+            // localized TV search payloads. Animation genre is therefore the
+            // candidate signal; AniList's exact-title matcher below is the
+            // authority that decides whether the result is actually anime.
+            return result.isAnimeHint == true || result.genreIds?.contains(16) == true
         }
         guard !candidates.isEmpty else { return results }
 
@@ -1046,16 +1055,6 @@ struct SearchView: View {
                     self.cachedCatalogResults = filteredResults
                     self.isLoading = false
                     self.activeSearchTask = nil
-                    // Resolve expensive runtime/production/audio metadata once
-                    // per completed query, not every time SwiftUI recomputes
-                    // filteredResults while the user scrolls the grid.
-                    let metadataSnapshot = identityResolvedResults
-                    Task(priority: .utility) {
-                        await contentFilter.resolveBrowseFilterMetadata(
-                            for: metadataSnapshot,
-                            requiresAnimeAgeRating: requiresGlobalAnimeAgeRating
-                        )
-                    }
 #if os(tvOS)
                     if let restoredFocus {
                         DispatchQueue.main.async {
