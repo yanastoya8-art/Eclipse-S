@@ -15,23 +15,41 @@ final class SettingsScopeTests: XCTestCase {
         XCTAssertEqual(AppearancePalettes.base(for: .ember).displayName, "Ember")
     }
 
+    func testApprovedCreatureVectorAssetsAreBundled() {
+        let assetNames = [
+            "HomeCreatureDragon",
+            "HomeCreaturePhoenix",
+            "HomeCreatureWolf",
+            "HomeCreatureFox",
+            "HomeCreaturePaw",
+            "HomeCreatureMermaid"
+        ]
+        for name in assetNames {
+            let image = UIImage(named: name)
+            XCTAssertNotNil(image, "Missing approved creature vector asset: \\(name)")
+            XCTAssertGreaterThan(image?.size.width ?? 0, 0)
+            XCTAssertGreaterThan(image?.size.height ?? 0, 0)
+        }
+    }
+
     func testAnimatedMotifPickerContainsAllApprovedIllustrations() {
         let expected: [HomeAnimatedBackgroundShape] = [
-            .dragon, .bird, .snake, .wolf, .fox, .phoenix, .cat, .mermaid, .paw
+            .toothless, .phoenix, .wolf, .kitsune, .paw, .siren
         ]
         XCTAssertEqual(HomeAnimatedBackgroundShape.allCases, expected)
         for shape in expected {
             XCTAssertEqual(HomeAnimatedBackgroundShape.resolved(shape.rawValue), shape)
         }
-        for retiredShape in [
-            HomeAnimatedBackgroundShape.stars,
-            .crescentMoon,
-            .spiral,
-            .sun
-        ] {
-            XCTAssertEqual(HomeAnimatedBackgroundShape.resolved(retiredShape.rawValue), .dragon)
+
+        // Preserve old saved Dragon/Fox/Mermaid preferences while removing
+        // retired motifs from the picker.
+        XCTAssertEqual(HomeAnimatedBackgroundShape.resolved("dragon"), .toothless)
+        XCTAssertEqual(HomeAnimatedBackgroundShape.resolved("fox"), .kitsune)
+        XCTAssertEqual(HomeAnimatedBackgroundShape.resolved("mermaid"), .siren)
+        for retiredValue in ["cat", "bird", "snake", "stars", "crescentMoon", "sun", "spiral"] {
+            XCTAssertEqual(HomeAnimatedBackgroundShape.resolved(retiredValue), .toothless)
         }
-        XCTAssertEqual(HomeAnimatedBackgroundShape.resolved(nil), .dragon)
+        XCTAssertEqual(HomeAnimatedBackgroundShape.resolved(nil), .toothless)
     }
 
     func testUnofficialYouTubeFilteringUsesProducerMetadataNotSynopsisMentions() {
