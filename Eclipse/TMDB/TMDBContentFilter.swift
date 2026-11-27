@@ -2001,6 +2001,48 @@ class TMDBContentFilter: ObservableObject {
         )
     }
 
+    private func fetchTMDBProductionNames(for result: TMDBSearchResult) async throws -> [String] {
+        if result.isMovie {
+            let detail = try await TMDBService.shared.getMovieDetails(id: result.id)
+            return detail.productionCompanies?.map(\.name) ?? []
+        }
+        let detail = try await TMDBService.shared.getTVShowDetails(id: result.id)
+        return (detail.productionCompanies ?? []).map(\.name)
+            + (detail.networks ?? []).map(\.name)
+            + (detail.createdBy ?? []).map(\.name)
+    }
+
+    private func fetchAniListStudioNames(for result: TMDBSearchResult) async -> [String]? {
+        guard Self.isAnimeResult(result),
+              let anilistID = result.animeIdentitySeed?.anilistId else { return nil }
+        return await AniListService.shared.fetchAnimeStudioNames(anilistID: anilistID)
+    }
+
+    /// Combine independent production sources concurrently. Anime studio data
+    /// falls back from AniList to Jikan/MyAnimeList, so a temporary failure in
+    /// one catalogue does not silently mark the title as fully checked.
+    private func fetchProductionMetadata(for result: TMDBSearchResult) async throws -> (names: [String], complete: Bool) {
+        async let tmdbNamesTask = fetchTMDBProductionNames(for: result)
+        async let aniListNamesTask = fetchAniListStudioNames(for: result)
+        var names = try await tmdbNamesTask
+        var animeStudioMetadataResolved = false
+
+        if let studios = await aniListNamesTask, !studios.isEmpty {
+            names.append(contentsOf: studios)
+            animeStudioMetadataResolved = true
+        } else if Self.isAnimeResult(result),
+                  let malID = result.animeIdentitySeed?.malId,
+                  malID > 0,
+                  let studios = await JikanAnimeAgeRatingService.shared.studioNames(malID: malID),
+                  !studios.isEmpty {
+            names.append(contentsOf: studios)
+            animeStudioMetadataResolved = true
+        }
+
+        let complete = !Self.isAnimeResult(result) || animeStudioMetadataResolved
+        return (Array(Set(names)).sorted(), complete)
+    }
+
     private func resolveProductionMetadata(for results: [TMDBSearchResult]) async {
         let candidates = results.filter { $0.id > 0 && ($0.isMovie || $0.isTVShow) }
         var pending: [TMDBSearchResult] = []
@@ -2026,22 +2068,8 @@ class TMDBContentFilter: ObservableObject {
                 group.addTask {
                     let key = Self.runtimeCacheKey(for: result)
                     do {
-                        var names: [String]
-                        if result.isMovie {
-                            let detail = try await TMDBService.shared.getMovieDetails(id: result.id)
-                            names = detail.productionCompanies?.map(\.name) ?? []
-                        } else {
-                            let detail = try await TMDBService.shared.getTVShowDetails(id: result.id)
-                            names = (detail.productionCompanies ?? []).map(\.name)
-                                + (detail.networks ?? []).map(\.name)
-                                + (detail.createdBy ?? []).map(\.name)
-                        }
-                        if Self.isAnimeResult(result),
-                           let anilistID = result.animeIdentitySeed?.anilistId,
-                           let studios = await AniListService.shared.fetchAnimeStudioNames(anilistID: anilistID) {
-                            names.append(contentsOf: studios)
-                        }
-                        return (key, Array(Set(names)).sorted(), true)
+                        let metadata = try await self.fetchProductionMetadata(for: result)
+                        return (key, metadata.names, metadata.complete)
                     } catch {
                         return (key, nil, false)
                     }
@@ -2066,22 +2094,8 @@ class TMDBContentFilter: ObservableObject {
                     group.addTask {
                         let nextKey = Self.runtimeCacheKey(for: result)
                         do {
-                            var names: [String]
-                            if result.isMovie {
-                                let detail = try await TMDBService.shared.getMovieDetails(id: result.id)
-                                names = detail.productionCompanies?.map(\.name) ?? []
-                            } else {
-                                let detail = try await TMDBService.shared.getTVShowDetails(id: result.id)
-                                names = (detail.productionCompanies ?? []).map(\.name)
-                                    + (detail.networks ?? []).map(\.name)
-                                    + (detail.createdBy ?? []).map(\.name)
-                            }
-                            if Self.isAnimeResult(result),
-                               let anilistID = result.animeIdentitySeed?.anilistId,
-                               let studios = await AniListService.shared.fetchAnimeStudioNames(anilistID: anilistID) {
-                                names.append(contentsOf: studios)
-                            }
-                            return (nextKey, Array(Set(names)).sorted(), true)
+                            let metadata = try await self.fetchProductionMetadata(for: result)
+                            return (nextKey, metadata.names, metadata.complete)
                         } catch {
                             return (nextKey, nil, false)
                         }
