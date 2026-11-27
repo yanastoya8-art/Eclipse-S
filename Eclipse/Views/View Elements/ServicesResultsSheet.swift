@@ -35,14 +35,15 @@ private func copyProviderDownloadURL(_ rawURL: String, headers: [String: String]
 
     let sanitizedHeaders = AVPlayerResourceLoader.sanitizedHTTPHeaders(headers ?? [:])
 
-    // Safari recognizes raw media URLs as playable resources and opens
-    // them inline. Use the same-device proxy so the response includes
-    // Content-Disposition: attachment without requiring LAN discovery or Wi-Fi.
-    // Required provider headers remain scoped to the source origin by the proxy.
+    // A playlist is not a single downloadable video file. Keep HLS manifests
+    // as playable, rewritten playlists so Safari or another HLS client can fetch
+    // the authenticated segments; forcing attachment here only saves the .m3u8
+    // text file. Direct media files still receive Content-Disposition: attachment.
+    let isHLSManifest = sourceURL.pathExtension.caseInsensitiveCompare("m3u8") == .orderedSame
     guard let downloadURL = MPVHeaderProxy.shared.makeProxyURL(
         for: sourceURL,
         headers: sanitizedHeaders,
-        logType: "Download"
+        logType: isHLSManifest ? "Stream" : "Download"
     ) else {
         Logger.shared.log(
             "Could not create an authenticated download URL for host \(sourceURL.host ?? "unknown")",
