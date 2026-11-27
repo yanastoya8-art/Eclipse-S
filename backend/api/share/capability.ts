@@ -36,7 +36,10 @@ function isPrivateAddress(address: string): boolean {
     const value = address.toLowerCase();
     if (value.startsWith("::ffff:")) {
       const mapped = value.slice(7);
+      // Dotted IPv4-mapped addresses can be classified precisely. Reject
+      // hexadecimal mapped forms conservatively to avoid IPv4-mapped SSRF.
       if (isIP(mapped) === 4) return isPrivateIPv4(mapped);
+      return true;
     }
     return value === "::" || value === "::1" ||
       value.startsWith("fc") || value.startsWith("fd") ||
