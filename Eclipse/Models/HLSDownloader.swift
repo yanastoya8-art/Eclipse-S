@@ -222,10 +222,6 @@ enum HLSDownloadCompatibility {
         var initializationURI: String?
         for line in playlist.components(separatedBy: .newlines) {
             let line = line.trimmingCharacters(in: .whitespacesAndNewlines)
-            if line.hasPrefix("#EXT-X-BYTERANGE:"),
-               HLSByteRange.parse(String(line.dropFirst("#EXT-X-BYTERANGE:".count))) == nil {
-                return "This HLS stream contains an invalid byte-range declaration and cannot be packaged safely for offline playback."
-            }
             if line.hasPrefix("#EXT-X-MAP:") {
                 let values = attributes(String(line.dropFirst("#EXT-X-MAP:".count)))
                 if let range = values["BYTERANGE"],
@@ -1790,7 +1786,13 @@ final class HLSDownloader: @unchecked Sendable {
             }
             var byteRange: HLSByteRange?
             if let pendingRange {
-                let implicitOffset = previousRangeURL == segmentURL ? previousRangeEnd.map { $0 + 1 } : nil
+                let implicitOffset: Int64?
+                if previousRangeURL == segmentURL, let previousRangeEnd {
+                    let (nextOffset, overflow) = previousRangeEnd.addingReportingOverflow(1)
+                    implicitOffset = overflow ? nil : nextOffset
+                } else {
+                    implicitOffset = nil
+                }
                 guard let parsed = HLSByteRange.parse(pendingRange, implicitOffset: implicitOffset),
                       let end = parsed.upperBound else {
                     throw HLSError.unsupportedLayout(reason: "This HLS playlist contains an invalid or ambiguous byte range.")
@@ -1854,7 +1856,7 @@ final class HLSDownloader: @unchecked Sendable {
         return lastKey
     }
 
-    private func parseInitSegmentResource(from content: String, baseURL: URL) throws -> HLSMediaResource? {
+    func parseInitSegmentResource(from content: String, baseURL: URL) throws -> HLSMediaResource? {
         for line in content.components(separatedBy: .newlines) {
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
             guard trimmed.hasPrefix("#EXT-X-MAP:") else { continue }
