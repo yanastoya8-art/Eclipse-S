@@ -78,7 +78,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
     });
 
-    return res.status(200).json(result);
+    if (!("clientToken" in result)) return res.status(400).json({ error: "invalid_upload_event" });
+    const tokenBody = result.clientToken.slice("vercel_blob_client_".length);
+    const tokenSeparator = tokenBody.lastIndexOf("_");
+    if (tokenSeparator <= 0) return res.status(500).json({ error: "invalid_blob_token" });
+    return res.status(200).json({
+      type: result.type,
+      clientToken: result.clientToken,
+      storeId: tokenBody.slice(0, tokenSeparator),
+    });
   } catch {
     return res.status(400).json({ error: "upload_token_rejected" });
   }
