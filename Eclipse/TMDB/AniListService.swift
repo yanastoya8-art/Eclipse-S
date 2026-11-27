@@ -7014,26 +7014,22 @@ final class AniListService {
             return []
         }
 
-        func normalized(_ value: String) -> String {
+        func foldedTokens(_ value: String) -> [String] {
             value.folding(
                 options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
                 locale: Locale(identifier: "en_US_POSIX")
             )
             .lowercased()
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .joined()
+            .filter { !$0.isEmpty }
+        }
+
+        func normalized(_ value: String) -> String {
+            foldedTokens(value).joined()
         }
 
         let queryKey = normalized(trimmed)
-        let queryTokens = Set(
-            trimmed.folding(
-                options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
-                locale: Locale(identifier: "en_US_POSIX")
-            )
-            .lowercased()
-            .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { !$0.isEmpty }
-        )
+        let queryTokens = Set(foldedTokens(trimmed))
         guard queryKey.count >= 2, !queryTokens.isEmpty else { return [] }
         func matchingCandidates(in nodes: [Int: AniListAnime]) -> [AniListAnime] {
             nodes.values.filter { anime in
@@ -7041,11 +7037,7 @@ final class AniListService {
                 let titleCandidates = AniListTitlePicker.titleCandidates(from: anime.title)
                 return titleCandidates.contains { candidate in
                     let titleKey = normalized(candidate)
-                    let titleTokens = Set(
-                        candidate.lowercased()
-                            .components(separatedBy: CharacterSet.alphanumerics.inverted)
-                            .filter { !$0.isEmpty }
-                    )
+                    let titleTokens = Set(foldedTokens(candidate))
                     return titleKey == queryKey
                         || titleKey.contains(queryKey)
                         || queryKey.contains(titleKey)
@@ -7093,7 +7085,14 @@ final class AniListService {
             .prefix(20)
 
         guard !candidates.isEmpty, !Task.isCancelled else { return [] }
-        return await mapAniListCatalogToTMDB(Array(candidates), tmdbService: tmdbService)
+        // Search is a direct user query, so search deeper than the small
+        // catalogue-enrichment window. Less popular titles can fall below the
+        // first two TMDB pages even when AniList has already identified them.
+        return await mapAniListCatalogToTMDB(
+            Array(candidates),
+            tmdbService: tmdbService,
+            maxTMDBPages: 10
+        )
     }
 
     /// Resolves a TMDB animation result that has no AniMap entry using an exact
@@ -9996,7 +9995,11 @@ final class AniListService {
         _ = try await executeGraphQLQuery(mutation, token: token)
     }
 
-    private func mapAniListCatalogToTMDB(_ animeList: [AniListAnime], tmdbService: TMDBService) async -> [TMDBSearchResult] {
+    private func mapAniListCatalogToTMDB(
+        _ animeList: [AniListAnime],
+        tmdbService: TMDBService,
+        maxTMDBPages: Int = 2
+    ) async -> [TMDBSearchResult] {
         func normalized(_ value: String) -> String {
             return value.lowercased().components(separatedBy: CharacterSet.alphanumerics.inverted).joined()
         }
@@ -10013,7 +10016,7 @@ final class AniListService {
 
                     for candidate in titleCandidates where !candidate.isEmpty {
                         let candidateKey = normalized(candidate)
-                        var results = (try? await tmdbService.searchTVShows(query: candidate, maxPages: 2)) ?? []
+                        var results = (try? await tmdbService.searchTVShows(query: candidate, maxPages: maxTMDBPages)) ?? []
 
                         // Only query TMDB's English index when the localized
                         // index did not return an exact title. This keeps
@@ -10024,7 +10027,7 @@ final class AniListService {
                             let englishResults = (try? await tmdbService.searchTVShows(
                                 query: candidate,
                                 languageOverride: "en-US",
-                                maxPages: 2
+                                maxPages: maxTMDBPages
                             )) ?? []
                             var seenIDs = Set(results.map(\.id))
                             results.append(contentsOf: englishResults.filter {
