@@ -1,3 +1,25 @@
+interface R2ObjectBody {
+  body: ReadableStream<Uint8Array>;
+  range?: { offset: number; length: number };
+  size: number;
+  httpEtag: string;
+  customMetadata?: Record<string, string>;
+  writeHttpMetadata(headers: Headers): void;
+}
+
+interface R2Bucket {
+  put(
+    key: string,
+    value: ReadableStream<Uint8Array> | null,
+    options?: {
+      httpMetadata?: { contentType?: string; contentDisposition?: string };
+      customMetadata?: Record<string, string>;
+    },
+  ): Promise<unknown>;
+  get(key: string, options?: { range?: Headers }): Promise<R2ObjectBody | null>;
+  delete(key: string): Promise<void>;
+}
+
 export interface Env {
   SHARES: R2Bucket;
   SHARE_ADMIN_TOKEN: string;
