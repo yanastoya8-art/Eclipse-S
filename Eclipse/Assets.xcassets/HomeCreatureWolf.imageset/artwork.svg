@@ -1,55 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="443" height="394" viewBox="0 0 443 394">
- <g stroke="#17191d" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-  <!-- Full bushy tail, with layered fur planes -->
-  <path fill="#30343a" d="M302 220 C344 191 382 174 422 179 C408 199 395 209 378 216 C405 218 425 231 438 250 C398 248 369 244 340 254 L309 268 Z"/>
-  <path fill="#69727d" d="M323 224 Q365 196 407 190 Q381 217 350 232 Q389 227 418 243 Q374 238 339 250 Z"/>
-  <path fill="#a4adb7" d="M367 209 Q392 195 419 190 Q399 213 379 221 Z M379 235 Q405 237 422 246 Q399 243 383 244 Z"/>
-  <!-- Torso and shoulder -->
-  <path fill="#252a30" d="M143 173 C174 143 229 139 276 160 C310 176 332 209 328 245 C325 280 297 305 258 312 L164 304 C126 289 105 259 112 222 C116 202 126 185 143 173 Z"/>
-  <path fill="#626b75" d="M160 185 C193 160 239 164 270 180 C295 194 312 220 306 246 C289 267 263 282 230 284 C191 284 161 258 151 228 Z"/>
-  <path fill="#a3acb6" d="M178 211 Q195 197 213 201 Q198 217 188 238 Q181 226 178 211 Z M221 190 Q240 190 255 203 L239 216 Z M270 214 Q288 226 291 245 L272 239 Z"/>
-  <!-- Chest ruff, shoulder fur and belly -->
-  <path fill="#30343a" d="M150 176 C127 191 111 216 108 244 L127 255 L140 240 L143 265 L160 250 L169 272 L184 250 L191 270 L207 247 L204 218 Z"/>
-  <path fill="#858e98" d="M145 199 L127 226 L143 219 L132 246 L153 231 L150 254 L169 236 L171 259 L188 238 L191 258 L202 237 L183 211 Z"/>
-  <path fill="#555e68" d="M185 267 C216 282 257 282 291 261 L280 290 C251 309 207 311 175 294 Z"/>
-  <!-- Four legs: forelegs separated, rear legs with hocks and paws -->
-  <path fill="#252a30" d="M151 258 C143 282 142 313 148 343 L132 365 L157 371 L177 354 L175 302 L187 278 Z"/>
-  <path fill="#30343a" d="M185 270 C177 295 179 325 190 348 L177 370 L201 375 L220 355 L213 299 L220 280 Z"/>
-  <path fill="#252a30" d="M264 274 C260 300 265 327 280 349 L273 371 L299 374 L316 353 L299 301 L291 275 Z"/>
-  <path fill="#30343a" d="M294 255 C294 283 305 307 323 326 L322 351 L345 355 L359 334 L329 286 L316 254 Z"/>
-  <g fill="#8b949e" stroke="none">
-   <path d="M132 361 L158 359 L166 372 L154 380 L128 374 Z M177 365 L202 364 L212 377 L198 384 L173 377 Z M274 365 L300 364 L308 377 L295 384 L269 377 Z M322 345 L346 345 L354 357 L340 366 L318 359 Z"/>
-  </g>
-  <g fill="none" stroke="#c0c8d0" stroke-width="2">
-   <path d="M137 366 L144 373 M149 365 L154 373 M183 370 L190 378 M196 369 L202 378 M280 371 L287 379 M294 369 L300 378 M328 352 L335 360 M340 351 L345 359"/>
-  </g>
-  <!-- Neck, head and unmistakable wolf muzzle -->
-  <path fill="#252a30" d="M128 188 C103 174 87 151 82 126 C75 100 84 77 102 61 C115 74 125 89 131 106 C144 91 162 84 180 92 C203 103 213 128 202 151 C190 176 162 194 128 188 Z"/>
-  <path fill="#30343a" d="M96 126 C110 142 129 153 151 154 C171 153 187 140 195 122 C203 142 192 166 171 179 L137 183 L111 164 Z"/>
-  <path fill="#30343a" d="M101 67 C101 42 108 20 122 4 C135 30 139 54 135 85 Z"/>
-  <path fill="#30343a" d="M153 91 C166 64 184 45 209 34 C204 63 193 88 174 109 Z"/>
-  <path fill="#89939e" d="M110 58 Q119 32 122 18 Q132 44 130 71 Z M169 89 Q184 59 199 47 Q190 76 176 96 Z"/>
-  <path fill="#69727d" d="M105 130 Q127 145 152 143 Q171 140 185 125 Q180 156 153 164 Q126 161 105 130 Z"/>
-  <!-- Eyes, brow, nose, mouth and whisker dots -->
-  <path fill="#17191d" d="M131 118 Q146 105 161 117 Q148 130 134 127 Z"/>
-  <path fill="#d0d8df" stroke="none" d="M136 118 Q147 112 156 118 Q147 125 136 118 Z"/>
-  <path fill="#17191d" d="M87 143 Q101 134 114 143 L104 155 L91 154 Z"/>
-  <path fill="#858e98" d="M111 149 Q130 162 151 157 Q140 177 120 169 Z"/>
-  <path fill="none" stroke="#c3cbd4" stroke-width="2" d="M111 158 Q127 174 146 171 M145 151 Q155 156 166 151"/>
-  <path fill="#17191d" d="M82 140 Q88 134 96 139 L94 147 L84 148 Z"/>
-  <g fill="#b8c1cb" stroke="none"><circle cx="105" cy="159" r="2"/><circle cx="113" cy="163" r="1.7"/><circle cx="122" cy="165" r="1.6"/></g>
-  <!-- Fine fur direction and anatomy detail -->
-  <g fill="none" stroke="#aab3bd" stroke-width="2" opacity=".9">
-   <path d="M105 178 L118 188 L109 194 M119 182 L132 192 L126 200 M139 182 L150 191 L145 200"/>
-   <path d="M169 190 Q183 200 191 213 M185 205 L198 218 M205 188 Q220 197 229 211"/>
-   <path d="M229 222 Q249 233 266 229 M216 242 Q239 253 261 246 M178 248 Q192 259 208 259"/>
-   <path d="M156 283 L163 313 M194 292 L202 326 M278 291 L291 322 M315 282 L335 315"/>
-   <path d="M341 218 Q369 201 393 199 M352 235 Q378 229 401 238"/>
-  </g>
-  <g fill="#aab3bd" stroke="none">
-   <path d="M112 96 L120 108 L111 112 Z M124 89 L133 101 L125 105 Z M158 108 L169 114 L160 119 Z"/>
-   <circle cx="179" cy="190" r="1.8"/><circle cx="188" cy="197" r="1.6"/><circle cx="198" cy="204" r="1.6"/>
-   <circle cx="250" cy="184" r="1.7"/><circle cx="260" cy="190" r="1.6"/><circle cx="270" cy="198" r="1.5"/>
-  </g>
- </g>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 900"><defs><linearGradient id="coat" x2="1" y2="1"><stop stop-color="#eef3f6"/><stop offset=".35" stop-color="#9aaab7"/><stop offset=".7" stop-color="#536575"/><stop offset="1" stop-color="#202e3b"/></linearGradient><linearGradient id="dark" x2="0" y2="1"><stop stop-color="#526678"/><stop offset="1" stop-color="#172430"/></linearGradient></defs><g stroke="#1b2936" stroke-width="11" stroke-linejoin="round" stroke-linecap="round">
+<!-- tail --> <path fill="url(#dark)" d="M565 535q160-35 220 95 30 75 90 65-20 105-130 70-115-40-150-145Z"/>
+<!-- body --> <path fill="url(#coat)" d="M270 420q75-110 210-80 110 20 160 130l-55 160q-115 80-260 10-100-55-55-220Z"/>
+<!-- legs --> <path fill="url(#dark)" d="M330 565q-30 105-15 185l-35 55 95 5 45-65 35-130m105-45q30 110 80 175l10 60-90 0-45-75-45-115"/>
+<!-- mane layers --> <path fill="#52697b" d="M265 440q-95 70-80 180 45-35 70-40-25 65 5 115 55-70 70-140m250-105q95 70 80 180-45-35-70-40 25 65-5 115-55-70-70-140"/>
+<!-- head ears --> <path fill="url(#coat)" d="M300 355 250 145l150 105q80-45 155 0l135-110-35 220q20 110-70 170-110 60-220 0-90-60-65-175Z"/>
+<path fill="url(#dark)" d="M300 350 250 145l115 125-10 95m285-15 35-220-115 125 5 95"/>
+<!-- face mask --> <path fill="#eaf0f3" d="M330 390q75-90 155-35 80-55 155 35-30 105-155 130-125-25-155-130Z"/>
+<path fill="#536a7b" d="M355 420q55 25 130 0 75 25 130 0-20 85-130 110-110-25-130-110Z"/>
+<!-- eyes --> <path fill="#f3f6f7" d="M355 375q35-35 75 0l-10 35q-40 15-65-35m110 0q40-35 75 0-25 50-65 35Z"/><path fill="#17232e" d="M392 382l10 25-10 5Zm110 0 10 25-10 5Z"/>
+<path fill="#101a24" d="M460 480q25-20 50 0l-25 28Z"/>
+<!-- muzzle fur and whisker etch --> <path fill="none" stroke="#f4f7f9" stroke-width="7" d="M355 475l-55 15m355-15 55 15M390 525l-30 35m200-35 30 35M300 580l60 20m180-20 60-20"/>
+<path fill="none" stroke="#dce5eb" stroke-width="7" d="M285 300l45 45m-20-95 50 65m250-15 45-45m-25 95-50 65"/>
+</g></svg>
