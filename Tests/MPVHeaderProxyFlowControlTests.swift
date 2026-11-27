@@ -912,7 +912,7 @@ final class MPVHeaderProxyFlowControlTests: XCTestCase {
         let recovered = try XCTUnwrap(proxy.recoverableTargetURL(for: proxyURL))
         XCTAssertEqual(recovered.scheme, "http")
         XCTAssertEqual(recovered.host, "127.0.0.1")
-        XCTAssertEqual(recovered.path, "/media")
+        XCTAssertEqual(recovered.path, ProxyFlowFixtureBody.media.path)
 
         proxy.invalidateSession(for: proxyURL)
         XCTAssertNil(proxy.upstreamProbeTarget(for: proxyURL))
