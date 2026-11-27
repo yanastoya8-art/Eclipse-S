@@ -143,6 +143,7 @@ struct AlternativeUIView: View {
     @AppStorage(HomeAnimatedBackgroundFrameRate.storageKey) private var homeAnimatedBackgroundFrameRate = HomeAnimatedBackgroundFrameRate.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundParticleColor.storageKey) private var homeAnimatedBackgroundParticleColor = HomeAnimatedBackgroundParticleColor.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundShape.storageKey) private var homeAnimatedBackgroundShape = HomeAnimatedBackgroundShape.defaultValue.rawValue
+    @AppStorage(HomeAnimatedCreatureColorMode.storageKey) private var homeAnimatedCreatureColorMode = HomeAnimatedCreatureColorMode.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundSettings.shapeEnabledKey) private var homeAnimatedBackgroundShapeEnabled = HomeAnimatedBackgroundSettings.defaultShapeEnabled
     @AppStorage(HomeAnimatedBackgroundSettings.shapeOpacityKey) private var homeAnimatedBackgroundShapeOpacity = HomeAnimatedBackgroundSettings.defaultShapeOpacity
     @AppStorage(HomeAnimatedBackgroundSettings.shapeSizeKey) private var homeAnimatedBackgroundShapeSize = HomeAnimatedBackgroundSettings.defaultShapeSize
@@ -612,6 +613,31 @@ struct AlternativeUIView: View {
                 toggleRow(title: "Downloads Animation Shape", description: "Show the selected floating shape on Downloads and downloaded-show pages.", isOn: $downloadsAnimatedShapeEnabled)
             } header: {
                 Text("Page Appearance")
+            }
+
+            settingRow(
+                title: "Animation Shape Colour Mode",
+                description: "Keep each creature's original colours, apply your selected custom tint, or use a metallic silver finish."
+            ) {
+                Picker("", selection: $homeAnimatedCreatureColorMode) {
+                    ForEach(HomeAnimatedCreatureColorMode.allCases) { mode in
+                        Text(mode.displayName).tag(mode.rawValue)
+                    }
+                }
+                .pickerStyle(.menu)
+                .accessibilityLabel("Animation Shape Colour Mode")
+                .accessibilityIdentifier("settings.appearance.animationCreatureColorMode")
+            }
+            .id(AppearanceSettingsSearchTarget.animationCreatureColorMode.anchorID)
+
+            if HomeAnimatedCreatureColorMode(rawValue: homeAnimatedCreatureColorMode) == .custom {
+                settingRow(
+                    title: "Custom Creature Colour",
+                    description: "Uses the custom animation colour selected below."
+                ) {
+                    ColorPicker("Custom Creature Colour", selection: customAnimationParticleColorBinding)
+                        .labelsHidden()
+                }
             }
 
             settingRow(
