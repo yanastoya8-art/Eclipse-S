@@ -6943,15 +6943,17 @@ final class DownloadManager: NSObject, ObservableObject {
         protectedNuvioAttemptID: UUID? = nil
     ) {
         // A managed local proxy cannot be handed to a background URLSession.
-        // Validate an HTTP upstream against the public-address policy first,
-        // then re-enter with the validated remote URL so the background
-        // session never receives an untrusted loopback/proxy destination.
+        // Validate either HTTP or HTTPS upstreams first, then re-enter with the
+        // validated remote URL so the OS session never receives a loopback URL.
+        // The previous HTTP-only check silently forced HTTPS proxy-backed HLS
+        // streams onto a foreground-only transport and left them queued when
+        // the app entered the background.
         if streamURLOverride == nil,
            protectedNuvioAttemptID == nil,
            protectedProviderAttempts[item.id]?.mainProxyURL == nil,
            let proxyURL = URL(string: item.streamURL),
            let target = MPVHeaderProxy.shared.recoverableTargetURL(for: proxyURL),
-           target.scheme?.lowercased() == "http" {
+           ["http", "https"].contains(target.scheme?.lowercased() ?? "") {
             let proxyHeaders = MPVHeaderProxy.shared.upstreamProbeTarget(for: proxyURL)?.headers ?? item.headers
             Task { [weak self] in
                 do {
@@ -6973,7 +6975,7 @@ final class DownloadManager: NSObject, ObservableObject {
                     await MainActor.run {
                         self?.markFailed(
                             id: item.id,
-                            error: "This HTTP stream does not resolve to a safe public address."
+                            error: "This HLS stream does not resolve to a safe public address."
                         )
                     }
                 }
