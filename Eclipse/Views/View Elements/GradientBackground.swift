@@ -914,7 +914,7 @@ private struct HomeAnimatedCreatureMotif: View {
             drawing.addFilter(.colorMultiply(Color(red: 0.78, green: 0.83, blue: 0.90)))
         }
         drawing.opacity = min(1, opacity * brightness)
-        let illustration = drawing.resolve(Image(assetName))
+        let illustration = drawing.resolve(Image(assetName).interpolation(.high))
         drawing.draw(illustration, in: artworkRect)
     }
 }
