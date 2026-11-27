@@ -617,8 +617,8 @@ struct AlternativeUIView: View {
             }
 
             settingRow(
-                title: "Animation Shape Colour Mode",
-                description: "Keep each creature's original colours, apply your selected custom tint, or use a metallic silver finish."
+                title: "Animation Shape Color Mode",
+                description: "Keep each creature's original colors, apply your selected custom tint, or use a metallic silver finish."
             ) {
                 Picker("", selection: $homeAnimatedCreatureColorMode) {
                     ForEach(HomeAnimatedCreatureColorMode.allCases) { mode in
@@ -626,17 +626,17 @@ struct AlternativeUIView: View {
                     }
                 }
                 .pickerStyle(.menu)
-                .accessibilityLabel("Animation Shape Colour Mode")
+                .accessibilityLabel("Animation Shape Color Mode")
                 .accessibilityIdentifier("settings.appearance.animationCreatureColorMode")
             }
             .id(AppearanceSettingsSearchTarget.animationCreatureColorMode.anchorID)
 
             if HomeAnimatedCreatureColorMode(rawValue: homeAnimatedCreatureColorMode) == .custom {
                 settingRow(
-                    title: "Custom Creature Colour",
+                    title: "Custom Creature Color",
                     description: "Uses the custom animation colour selected below."
                 ) {
-                    ColorPicker("Custom Creature Colour", selection: customAnimationParticleColorBinding)
+                    ColorPicker("Custom Creature Color", selection: customAnimationParticleColorBinding)
                         .labelsHidden()
                 }
             }
