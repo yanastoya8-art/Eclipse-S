@@ -1599,21 +1599,15 @@ private struct BrowseMediaView: View {
             selectedGenres = ["tmdb-14"] // Fantasy
             excludedGenres = ["tmdb-99", "tmdb-10402", "tmdb-37"] // Documentary, Music, Western
         case .tv:
-            // Select both required genres in the filter UI. The query
-            // combines them as an AND group while both remain selected.
-            selectedGenres = ["tmdb-14", "tmdb-878"] // Fantasy + Science Fiction
-            excludedGenres = [
-                "tmdb-99", "tmdb-10762", "tmdb-10763"
-            ] // Documentary, Kids, News
-        case .anime:
+            // Keep Browse broad by default. Genre constraints are user-selected
+            // refinements, not mandatory defaults that hide most TMDB series.
             selectedGenres = []
-            excludedGenres = [
-                "tmdb-10762", // Kids
-                "keyword-isekai",
-                "keyword-slice of life",
-                "keyword-harem",
-                "keyword-music"
-            ]
+            excludedGenres = []
+        case .anime:
+            // Do not silently hide whole anime genres in the default view.
+            // Users can add genre/keyword exclusions from the Browse filters.
+            selectedGenres = []
+            excludedGenres = []
         }
 
         let defaultMinimumRating: Double
@@ -1638,7 +1632,8 @@ private struct BrowseMediaView: View {
         _ configuration: BrowseFilterConfiguration,
         for mediaType: BrowseMediaType
     ) -> BrowseFilterConfiguration {
-        var previousDefault = defaultConfiguration(for: mediaType)
+        let broadDefault = defaultConfiguration(for: mediaType)
+        var previousDefault = broadDefault
         previousDefault.minimumRating = 6
         if mediaType == .tv {
             previousDefault.selectedGenreKeys = ["tmdb-10765"]
@@ -1647,9 +1642,26 @@ private struct BrowseMediaView: View {
                 "tmdb-10764", "tmdb-10767", "tmdb-37"
             ]
         }
-        return configuration == previousDefault
-            ? defaultConfiguration(for: mediaType)
-            : configuration
+        if configuration == previousDefault { return broadDefault }
+
+        // Migrate the restrictive defaults used by the previous Browse build.
+        // They were automatically selected, not a user request to limit every
+        // TV shelf to Fantasy+Sci-Fi or to hide Isekai/Slice-of-Life/Harem/Music.
+        var restrictiveTVDefault = broadDefault
+        if mediaType == .tv {
+            restrictiveTVDefault.selectedGenreKeys = ["tmdb-14", "tmdb-878"]
+            restrictiveTVDefault.excludedGenreKeys = ["tmdb-99", "tmdb-10762", "tmdb-10763"]
+            if configuration == restrictiveTVDefault { return broadDefault }
+        }
+        var restrictiveAnimeDefault = broadDefault
+        if mediaType == .anime {
+            restrictiveAnimeDefault.excludedGenreKeys = [
+                "tmdb-10762", "keyword-isekai", "keyword-slice of life",
+                "keyword-harem", "keyword-music"
+            ]
+            if configuration == restrictiveAnimeDefault { return broadDefault }
+        }
+        return configuration
     }
 
     private static func sanitizedConfiguration(
