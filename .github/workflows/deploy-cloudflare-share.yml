@@ -53,7 +53,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if ! npx wrangler r2 bucket list | grep -Fq '"eclipse-shares"'; then
+          if ! npx wrangler r2 bucket list | grep -Fq 'eclipse-shares'; then
             npx wrangler r2 bucket create eclipse-shares
           fi
       - name: Upload Worker secrets

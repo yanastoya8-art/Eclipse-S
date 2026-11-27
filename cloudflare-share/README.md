@@ -16,7 +16,7 @@ This service provides internet-accessible, expiring links for Eclipse media. It 
 The repository includes `.github/workflows/deploy-cloudflare-share.yml`. After this PR is merged, add the following under **GitHub → Settings → Secrets and variables → Actions**:
 
 **Repository secrets**
-- `CLOUDFLARE_API_TOKEN`: Cloudflare API token scoped to the target account with Workers Scripts: Edit and R2 Storage: Edit permissions.
+- `CLOUDFLARE_API_TOKEN`: Cloudflare API token for the target account. For this first deployment it needs Account Settings: Read, Workers: Admin (to create the Worker), and Workers R2 Storage: Admin (to create the bucket). After the first deployment, permissions can be narrowed to the existing Worker’s Editor role and the required R2 access.
 - `CLOUDFLARE_ACCOUNT_ID`: the Cloudflare account ID.
 - `SHARE_ADMIN_TOKEN`: a long random secret used by Eclipse to create share links.
 - `SHARE_ENCRYPTION_KEY`: a 32-byte key, base64 encoded. Generate with `openssl rand -base64 32`.
