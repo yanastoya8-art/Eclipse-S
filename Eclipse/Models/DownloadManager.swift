@@ -11570,20 +11570,17 @@ enum EclipseShareError: LocalizedError {
     case invalidResponse
     case server(String)
     case fileTooLarge
-    case completedDownloadRequired
 
     var errorDescription: String? {
         switch self {
         case .notConfigured:
             return "Set the Vercel backend URL in Settings → Storage → Internet Share Links and configure Vercel Blob storage."
         case .invalidResponse:
-            return "Vercel Blob returned an invalid upload response."
+            return "The Vercel share service returned an invalid response."
         case .server(let message):
             return message
         case .fileTooLarge:
             return "This file exceeds the 95 MiB internet-sharing limit."
-        case .completedDownloadRequired:
-            return "Internet sharing currently requires a completed download. Use Copy Stream URL for an active stream."
         }
     }
 }
@@ -11599,78 +11596,121 @@ extension DownloadManager {
               baseURL.host?.isEmpty == false else {
             throw EclipseShareError.notConfigured
         }
-        guard item.status == .completed, let localURL = localFileURL(for: item) else {
-            throw EclipseShareError.completedDownloadRequired
+
+        if item.status == .completed, let localURL = localFileURL(for: item) {
+            let attributes = try FileManager.default.attributesOfItem(atPath: localURL.path)
+            let fileSize = (attributes[.size] as? NSNumber)?.int64Value ?? 0
+            guard fileSize > 0, fileSize <= 95 * 1_024 * 1_024 else {
+                throw EclipseShareError.fileTooLarge
+            }
+
+            let filename = localURL.lastPathComponent
+                .replacingOccurrences(of: "[^A-Za-z0-9._-]", with: "_", options: .regularExpression)
+            let mime = Self.shareMimeType(for: localURL.pathExtension)
+            let tokenEndpoint = baseURL.appendingPathComponent("api/share/upload-token")
+            var tokenRequest = URLRequest(url: tokenEndpoint)
+            tokenRequest.httpMethod = "POST"
+            tokenRequest.timeoutInterval = 30
+            tokenRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            tokenRequest.httpBody = try JSONSerialization.data(withJSONObject: [
+                "type": "blob.generate-client-token",
+                "payload": [
+                    "pathname": filename,
+                    "clientPayload": NSNull(),
+                    "multipart": false
+                ]
+            ])
+
+            let (tokenData, tokenResponse) = try await URLSession.shared.data(for: tokenRequest)
+            guard let tokenHTTP = tokenResponse as? HTTPURLResponse else {
+                throw EclipseShareError.invalidResponse
+            }
+            let tokenObject = (try? JSONSerialization.jsonObject(with: tokenData)) as? [String: Any]
+            guard (200..<300).contains(tokenHTTP.statusCode) else {
+                throw EclipseShareError.server(tokenObject?["error"] as? String ?? "Could not authorize the Vercel Blob upload (HTTP \(tokenHTTP.statusCode)).")
+            }
+            guard let clientToken = tokenObject?["clientToken"] as? String,
+                  let storeID = tokenObject?["storeId"] as? String,
+                  clientToken.hasPrefix("vercel_blob_client_"),
+                  !storeID.isEmpty else {
+                throw EclipseShareError.invalidResponse
+            }
+
+            var components = URLComponents(string: "https://vercel.com/api/blob/")
+            components?.queryItems = [URLQueryItem(name: "pathname", value: filename)]
+            guard let blobURL = components?.url else { throw EclipseShareError.invalidResponse }
+            var uploadRequest = URLRequest(url: blobURL)
+            uploadRequest.httpMethod = "PUT"
+            uploadRequest.timeoutInterval = 600
+            uploadRequest.setValue("Bearer \(clientToken)", forHTTPHeaderField: "Authorization")
+            uploadRequest.setValue(storeID, forHTTPHeaderField: "x-vercel-blob-store-id")
+            uploadRequest.setValue("13", forHTTPHeaderField: "x-api-version")
+            uploadRequest.setValue(UUID().uuidString, forHTTPHeaderField: "x-api-blob-request-id")
+            uploadRequest.setValue("0", forHTTPHeaderField: "x-api-blob-request-attempt")
+            uploadRequest.setValue(String(fileSize), forHTTPHeaderField: "x-content-length")
+            uploadRequest.setValue("public", forHTTPHeaderField: "x-vercel-blob-access")
+            uploadRequest.setValue(mime, forHTTPHeaderField: "x-content-type")
+            uploadRequest.setValue("1", forHTTPHeaderField: "x-add-random-suffix")
+            uploadRequest.setValue("1", forHTTPHeaderField: "x-ttl-days")
+            uploadRequest.setValue("60", forHTTPHeaderField: "x-cache-control-max-age")
+
+            let (uploadData, uploadResponse) = try await URLSession.shared.upload(for: uploadRequest, fromFile: localURL)
+            guard let uploadHTTP = uploadResponse as? HTTPURLResponse else {
+                throw EclipseShareError.invalidResponse
+            }
+            let uploadObject = (try? JSONSerialization.jsonObject(with: uploadData)) as? [String: Any]
+            guard (200..<300).contains(uploadHTTP.statusCode) else {
+                let error = (uploadObject?["error"] as? [String: Any])?["message"] as? String
+                    ?? uploadObject?["error"] as? String
+                    ?? "Vercel Blob upload failed (HTTP \(uploadHTTP.statusCode))."
+                throw EclipseShareError.server(error)
+            }
+            guard let sharedURL = uploadObject?["url"] as? String,
+                  let url = URL(string: sharedURL),
+                  url.scheme?.lowercased() == "https" else {
+                throw EclipseShareError.invalidResponse
+            }
+            return url
         }
 
-        let attributes = try FileManager.default.attributesOfItem(atPath: localURL.path)
-        let fileSize = (attributes[.size] as? NSNumber)?.int64Value ?? 0
-        guard fileSize > 0, fileSize <= 95 * 1_024 * 1_024 else {
-            throw EclipseShareError.fileTooLarge
+        let protectedAttempt = protectedProviderAttempts[item.id]
+        let activeRequestURL = activeTasks[item.id]?.currentRequest?.url
+            ?? activeTasks[item.id]?.originalRequest?.url
+        let storedSourceURL = DownloadSourceLinkPolicy.copyableURL(item.streamURL)
+        let activeSourceURL = activeRequestURL.flatMap {
+            DownloadSourceLinkPolicy.copyableURL($0.absoluteString)
+        }
+        let candidate = protectedAttempt.flatMap {
+            DownloadSourceLinkPolicy.copyableURL($0.authorityURL)
+        } ?? storedSourceURL ?? activeSourceURL
+        let managedSession = candidate.flatMap { MPVHeaderProxy.shared.upstreamProbeTarget(for: $0) }
+        let managedTarget = candidate.flatMap {
+            MPVHeaderProxy.shared.recoverableTargetURL(for: $0) ?? managedSession?.url
+        }
+        guard let source = managedTarget ?? candidate else {
+            throw EclipseShareError.server("The original stream URL is no longer available. Re-select the stream and try again.")
         }
 
-        let filename = localURL.lastPathComponent
-            .replacingOccurrences(of: "[^A-Za-z0-9._-]", with: "_", options: .regularExpression)
-        let mime = Self.shareMimeType(for: localURL.pathExtension)
-        let tokenEndpoint = baseURL.appendingPathComponent("api/share/upload-token")
-        var tokenRequest = URLRequest(url: tokenEndpoint)
-        tokenRequest.httpMethod = "POST"
-        tokenRequest.timeoutInterval = 30
-        tokenRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        tokenRequest.httpBody = try JSONSerialization.data(withJSONObject: [
-            "type": "blob.generate-client-token",
-            "payload": [
-                "pathname": filename,
-                "clientPayload": NSNull(),
-                "multipart": false
-            ]
+        let providerHeaders = managedSession?.headers ?? protectedAttempt?.authorityHeaders ?? item.headers
+        let endpoint = baseURL.appendingPathComponent("api/share/create")
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 30
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "url": source.absoluteString,
+            "headers": providerHeaders,
+            "expiresInSeconds": 86_400
         ])
-
-        let (tokenData, tokenResponse) = try await URLSession.shared.data(for: tokenRequest)
-        guard let tokenHTTP = tokenResponse as? HTTPURLResponse else {
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
             throw EclipseShareError.invalidResponse
         }
-        let tokenObject = (try? JSONSerialization.jsonObject(with: tokenData)) as? [String: Any]
-        guard (200..<300).contains(tokenHTTP.statusCode) else {
-            throw EclipseShareError.server(tokenObject?["error"] as? String ?? "Could not authorize the Vercel Blob upload (HTTP \(tokenHTTP.statusCode)).")
+        let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        guard (200..<300).contains(http.statusCode) else {
+            throw EclipseShareError.server(object?["error"] as? String ?? "Could not create an internet stream link (HTTP \(http.statusCode)).")
         }
-        guard let clientToken = tokenObject?["clientToken"] as? String,
-              let storeID = tokenObject?["storeId"] as? String,
-              clientToken.hasPrefix("vercel_blob_client_"),
-              !storeID.isEmpty else {
-            throw EclipseShareError.invalidResponse
-        }
-
-        var components = URLComponents(string: "https://vercel.com/api/blob/")
-        components?.queryItems = [URLQueryItem(name: "pathname", value: filename)]
-        guard let blobURL = components?.url else { throw EclipseShareError.invalidResponse }
-        var uploadRequest = URLRequest(url: blobURL)
-        uploadRequest.httpMethod = "PUT"
-        uploadRequest.timeoutInterval = 600
-        uploadRequest.setValue("Bearer \(clientToken)", forHTTPHeaderField: "Authorization")
-        uploadRequest.setValue(storeID, forHTTPHeaderField: "x-vercel-blob-store-id")
-        uploadRequest.setValue("13", forHTTPHeaderField: "x-api-version")
-        uploadRequest.setValue(UUID().uuidString, forHTTPHeaderField: "x-api-blob-request-id")
-        uploadRequest.setValue("0", forHTTPHeaderField: "x-api-blob-request-attempt")
-        uploadRequest.setValue(String(fileSize), forHTTPHeaderField: "x-content-length")
-        uploadRequest.setValue("public", forHTTPHeaderField: "x-vercel-blob-access")
-        uploadRequest.setValue(mime, forHTTPHeaderField: "x-content-type")
-        uploadRequest.setValue("1", forHTTPHeaderField: "x-add-random-suffix")
-        uploadRequest.setValue("1", forHTTPHeaderField: "x-ttl-days")
-        uploadRequest.setValue("60", forHTTPHeaderField: "x-cache-control-max-age")
-
-        let (uploadData, uploadResponse) = try await URLSession.shared.upload(for: uploadRequest, fromFile: localURL)
-        guard let uploadHTTP = uploadResponse as? HTTPURLResponse else {
-            throw EclipseShareError.invalidResponse
-        }
-        let uploadObject = (try? JSONSerialization.jsonObject(with: uploadData)) as? [String: Any]
-        guard (200..<300).contains(uploadHTTP.statusCode) else {
-            let error = (uploadObject?["error"] as? [String: Any])?["message"] as? String
-                ?? uploadObject?["error"] as? String
-                ?? "Vercel Blob upload failed (HTTP \(uploadHTTP.statusCode))."
-            throw EclipseShareError.server(error)
-        }
-        guard let sharedURL = uploadObject?["url"] as? String,
+        guard let sharedURL = object?["url"] as? String,
               let url = URL(string: sharedURL),
               url.scheme?.lowercased() == "https" else {
             throw EclipseShareError.invalidResponse
