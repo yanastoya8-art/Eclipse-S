@@ -2022,7 +2022,7 @@ class TMDBContentFilter: ObservableObject {
                 group.addTask {
                     let key = Self.runtimeCacheKey(for: result)
                     do {
-                        let names: [String]
+                        var names: [String]
                         if result.isMovie {
                             let detail = try await TMDBService.shared.getMovieDetails(id: result.id)
                             names = detail.productionCompanies?.map(\.name) ?? []
@@ -2032,7 +2032,12 @@ class TMDBContentFilter: ObservableObject {
                                 + (detail.networks ?? []).map(\.name)
                                 + (detail.createdBy ?? []).map(\.name)
                         }
-                        return (key, names, true)
+                        if Self.isAnimeResult(result),
+                           let anilistID = result.animeIdentitySeed?.anilistId,
+                           let studios = await AniListService.shared.fetchAnimeStudioNames(anilistID: anilistID) {
+                            names.append(contentsOf: studios)
+                        }
+                        return (key, Array(Set(names)).sorted(), true)
                     } catch {
                         return (key, nil, false)
                     }
@@ -2057,7 +2062,7 @@ class TMDBContentFilter: ObservableObject {
                     group.addTask {
                         let nextKey = Self.runtimeCacheKey(for: result)
                         do {
-                            let names: [String]
+                            var names: [String]
                             if result.isMovie {
                                 let detail = try await TMDBService.shared.getMovieDetails(id: result.id)
                                 names = detail.productionCompanies?.map(\.name) ?? []
@@ -2067,7 +2072,12 @@ class TMDBContentFilter: ObservableObject {
                                     + (detail.networks ?? []).map(\.name)
                                     + (detail.createdBy ?? []).map(\.name)
                             }
-                            return (nextKey, names, true)
+                            if Self.isAnimeResult(result),
+                               let anilistID = result.animeIdentitySeed?.anilistId,
+                               let studios = await AniListService.shared.fetchAnimeStudioNames(anilistID: anilistID) {
+                                names.append(contentsOf: studios)
+                            }
+                            return (nextKey, Array(Set(names)).sorted(), true)
                         } catch {
                             return (nextKey, nil, false)
                         }
