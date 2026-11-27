@@ -7142,8 +7142,8 @@ final class AniListService {
     func fetchAnimeStudioNames(anilistID: Int) async -> [String]? {
         guard (1...1_000_000_000).contains(anilistID) else { return nil }
         let query = """
-        query ($id: Int) {
-            Media(id: $id, type: ANIME) {
+        query {
+            Media(id: \\(anilistID), type: ANIME) {
                 studios {
                     nodes { name isAnimationStudio }
                 }
@@ -7151,11 +7151,7 @@ final class AniListService {
         }
         """
         do {
-            let data = try await executeGraphQLQuery(
-                query,
-                token: nil,
-                variables: ["id": String(anilistID)]
-            )
+            let data = try await executeGraphQLQuery(query, token: nil)
             guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                   (root["errors"] as? [Any])?.isEmpty != false,
                   let payload = root["data"] as? [String: Any],
