@@ -916,28 +916,44 @@ struct SearchView: View {
         activeSearchTask = Task {
             do {
                 // Search localized and English TMDB indexes concurrently.
-                // Five pages keep a broad title window while avoiding the long
-                // sequential wait from running four ten-page queries per search.
+                // Structured child tasks are cancelled with this query when the
+                // user changes text, and five pages keep the result window broad
+                // without the old four ten-page serial wait.
                 let shouldSearchTVEndpoint = searchFilter != .movies
                 let shouldSearchEnglish = selectedLanguage.caseInsensitiveCompare("en-US") != .orderedSame
-                let localizedMultiTask: Task<[TMDBSearchResult]?, Never> = Task {
-                    try? await tmdbService.searchMulti(query: query, maxPages: 5)
-                }
-                let englishMultiTask: Task<[TMDBSearchResult]?, Never>? = shouldSearchEnglish ? Task {
-                    try? await tmdbService.searchMulti(query: query, languageOverride: "en-US", maxPages: 5)
-                } : nil
-                let localizedTVTask: Task<[TMDBTVShow]?, Never>? = shouldSearchTVEndpoint ? Task {
-                    try? await tmdbService.searchTVShows(query: query, maxPages: 5)
-                } : nil
-                let englishTVTask: Task<[TMDBTVShow]?, Never>? = shouldSearchTVEndpoint && shouldSearchEnglish ? Task {
-                    try? await tmdbService.searchTVShows(query: query, languageOverride: "en-US", maxPages: 5)
-                } : nil
+                async let localizedMultiResult: [TMDBSearchResult]? = try? await tmdbService.searchMulti(
+                    query: query,
+                    maxPages: 5
+                )
+                async let englishMultiResult: [TMDBSearchResult]? = shouldSearchEnglish
+                    ? (try? await tmdbService.searchMulti(
+                        query: query,
+                        languageOverride: "en-US",
+                        maxPages: 5
+                    ))
+                    : nil
+                async let localizedTVResult: [TMDBTVShow]? = shouldSearchTVEndpoint
+                    ? (try? await tmdbService.searchTVShows(query: query, maxPages: 5))
+                    : nil
+                async let englishTVResult: [TMDBTVShow]? = shouldSearchTVEndpoint && shouldSearchEnglish
+                    ? (try? await tmdbService.searchTVShows(
+                        query: query,
+                        languageOverride: "en-US",
+                        maxPages: 5
+                    ))
+                    : nil
 
-                var results = await localizedMultiTask.value ?? []
+                let (localizedMulti, englishMulti, localizedTV, englishTV) = await (
+                    localizedMultiResult,
+                    englishMultiResult,
+                    localizedTVResult,
+                    englishTVResult
+                )
+                var results = localizedMulti ?? []
                 try Task.checkCancellation()
-                if let englishMultiTask, let englishResults = await englishMultiTask.value {
-                    var seen = Set(results.map(\\.stableIdentity))
-                    results.append(contentsOf: englishResults.filter {
+                if let englishMulti {
+                    var seen = Set(results.map(\.stableIdentity))
+                    results.append(contentsOf: englishMulti.filter {
                         seen.insert($0.stableIdentity).inserted
                     })
                 }
@@ -945,15 +961,15 @@ struct SearchView: View {
                 let requiresGlobalAnimeAgeRating = ProfileSettingsStore.active.bool(forKey: "catalogHideBelowPG13Anime")
                     || ProfileSettingsStore.active.bool(forKey: "catalogHideAllAgesAnime")
                 if shouldSearchTVEndpoint {
-                    var seen = Set(results.map(\\.stableIdentity))
-                    if let localizedTVTask, let tvResults = await localizedTVTask.value {
+                    var seen = Set(results.map(\.stableIdentity))
+                    if let localizedTV {
                         try Task.checkCancellation()
-                        results.append(contentsOf: tvResults.map(\\.asSearchResult)
+                        results.append(contentsOf: localizedTV.map(\.asSearchResult)
                             .filter { seen.insert($0.stableIdentity).inserted })
                     }
-                    if let englishTVTask, let englishTVResults = await englishTVTask.value {
+                    if let englishTV {
                         try Task.checkCancellation()
-                        results.append(contentsOf: englishTVResults.map(\\.asSearchResult)
+                        results.append(contentsOf: englishTV.map(\.asSearchResult)
                             .filter { seen.insert($0.stableIdentity).inserted })
                     }
 
