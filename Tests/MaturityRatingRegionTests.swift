@@ -79,6 +79,23 @@ final class MaturityRatingRegionTests: XCTestCase {
         }
     }
 
+    func testJikanAnimeMetadataParserReturnsNormalizedStudioNames() throws {
+        let data = try JSONSerialization.data(withJSONObject: [
+            "data": [
+                "studios": [
+                    ["name": "Toei Animation"],
+                    ["name": " Madhouse "],
+                    ["name": "Toei Animation"],
+                    ["name": ""]
+                ]
+            ]
+        ])
+        XCTAssertEqual(
+            JikanAnimeAgeRatingService.parseStudioNames(from: data),
+            ["Madhouse", "Toei Animation"]
+        )
+    }
+
     func testMALAnimeRatingParserKeepsPGSeparateFromAllAges() {
         XCTAssertEqual(MALMetadataService.parseMaturityRating("G - All Ages"), .general)
         XCTAssertEqual(MALMetadataService.parseMaturityRating("PG - Children"), .age10)
