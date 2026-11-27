@@ -1152,8 +1152,21 @@ class TMDBContentFilter: ObservableObject {
                     }
                 }
                 while let (id, rating) = await group.next() {
-                    if let rating { ratings[id] = rating }
+                    if let rating, rating != .unknown { ratings[id] = rating }
                 }
+            }
+        }
+
+        // Jikan exposes MyAnimeList's official age classification without
+        // requiring a user-supplied MAL client ID. Use it as the final fallback
+        // for titles where Taizen and the optional authenticated MAL route have
+        // no usable rating. The service serializes requests to respect Jikan's
+        // public rate limit and caches successful classifications.
+        for id in missingIDs where ratings[id] == nil || ratings[id] == .unknown {
+            guard let malID = malIDsByAnimeID[id], malID > 0 else { continue }
+            if let rating = try? await JikanAnimeAgeRatingService.shared.rating(malID: malID),
+               rating != .unknown {
+                ratings[id] = rating
             }
         }
 
@@ -3239,6 +3252,72 @@ actor TaizenAnimeAgeRatingService {
                 resolved[id] = rating
             }
         }
+        return resolved
+    }
+}
+
+
+/// Public Jikan fallback for MyAnimeList age classifications. Unlike the
+/// authenticated MAL client this endpoint does not require an app client ID.
+actor JikanAnimeAgeRatingService {
+    static let shared = JikanAnimeAgeRatingService()
+
+    private struct CachedRating {
+        let fetchedAt: Date
+        let rating: MaturityRating
+    }
+
+    private var cache: [Int: CachedRating] = [:]
+    private var nextRequestAt = Date.distantPast
+    private let cacheLifetime: TimeInterval = 24 * 60 * 60
+    private let unknownCacheLifetime: TimeInterval = 15 * 60
+
+    static func parseRating(from data: Data) -> MaturityRating {
+        guard data.count <= 512 * 1_024,
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let payload = root["data"] as? [String: Any],
+              let rawRating = payload["rating"] as? String else {
+            return .unknown
+        }
+        let classification = rawRating
+            .components(separatedBy: " - ")
+            .first?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? rawRating
+        return MaturityRating.ratingForFiltering(certification: classification)
+    }
+
+    func rating(malID: Int) async throws -> MaturityRating {
+        guard (1...1_000_000_000).contains(malID) else { return .unknown }
+        if let cached = cache[malID] {
+            let lifetime = cached.rating == .unknown ? unknownCacheLifetime : cacheLifetime
+            if Date().timeIntervalSince(cached.fetchedAt) < lifetime {
+                return cached.rating
+            }
+        }
+
+        let now = Date()
+        let scheduled = max(now, nextRequestAt)
+        nextRequestAt = scheduled.addingTimeInterval(0.4)
+        if scheduled > now {
+            try await Task.sleep(nanoseconds: UInt64(scheduled.timeIntervalSince(now) * 1_000_000_000))
+        }
+        try Task.checkCancellation()
+
+        guard let url = URL(string: "https://api.jikan.moe/v4/anime/\(malID)") else {
+            return .unknown
+        }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 12
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try Task.checkCancellation()
+        guard data.count <= 512 * 1_024,
+              let http = response as? HTTPURLResponse,
+              http.statusCode == 200 else {
+            return .unknown
+        }
+        let resolved = Self.parseRating(from: data)
+        cache[malID] = CachedRating(fetchedAt: Date(), rating: resolved)
         return resolved
     }
 }
