@@ -1,75 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="443" height="394" viewBox="0 0 443 394">
-  <g stroke="#17191d" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round">
-    <!-- Complete spread wings: two distinct membranes and visible finger bones -->
-    <path fill="#30343a" d="M190 150 C158 122 118 79 66 52 C79 82 90 104 99 123 C72 104 43 93 12 89 C35 119 54 143 73 164 C49 157 29 158 9 167 C39 190 66 207 98 218 C112 231 130 237 151 233 L191 202 Z"/>
-    <path fill="#30343a" d="M253 150 C285 122 325 79 377 52 C364 82 353 104 344 123 C371 104 400 93 431 89 C408 119 389 143 370 164 C394 157 414 158 434 167 C404 190 377 207 345 218 C331 231 313 237 292 233 L252 202 Z"/>
-    <path fill="#626a73" d="M177 157 C139 125 105 96 67 70 C85 108 111 143 143 172 C108 151 72 137 31 124 C65 160 101 187 143 205 C119 198 94 195 67 197 C104 221 138 233 171 225 Z"/>
-    <path fill="#626a73" d="M266 157 C304 125 338 96 376 70 C358 108 332 143 300 172 C335 151 371 137 412 124 C378 160 342 187 300 205 C324 198 349 195 376 197 C339 221 305 233 272 225 Z"/>
-    <g fill="none" stroke="#a2aab3" stroke-width="3">
-      <path d="M190 164 Q131 120 67 70 M177 181 Q107 154 31 124 M167 201 Q115 199 67 197"/>
-      <path d="M253 164 Q312 120 376 70 M266 181 Q336 154 412 124 M276 201 Q328 199 376 197"/>
-    </g>
-    <g fill="#858e98" stroke-width="1.5">
-      <path d="M117 118 Q130 128 144 146 L129 140 Z M91 153 Q112 160 132 176 L111 171 Z M71 184 Q99 188 121 201 L93 196 Z"/>
-      <path d="M326 118 Q313 128 299 146 L314 140 Z M352 153 Q331 160 311 176 L332 171 Z M372 184 Q344 188 322 201 L350 196 Z"/>
-    </g>
-    <!-- Tail curls behind the body into the split, recognizable fin -->
-    <path fill="#252a30" d="M240 267 C276 284 307 306 323 329 C337 349 331 367 311 371 C294 374 277 364 269 351 C283 358 296 355 299 345 C303 332 281 314 251 301 Z"/>
-    <path fill="#6c7580" d="M300 346 C316 343 326 330 325 315 C342 322 355 336 367 352 C349 354 338 364 331 382 C321 366 310 356 300 346 Z"/>
-    <path fill="#929ba5" d="M326 348 C340 339 351 338 367 352 C350 354 338 364 331 382 C331 368 329 357 326 348 Z"/>
-    <path fill="#252a30" d="M315 352 C301 368 284 380 263 384 C273 366 276 350 270 336 C288 343 302 348 315 352 Z"/>
-    <path fill="#8d96a0" d="M296 359 Q282 370 269 380 Q278 361 276 348 Z"/>
-    <!-- Rear legs and feet -->
-    <path fill="#30343a" d="M184 258 C169 279 161 302 164 327 L151 350 L179 355 L197 337 L207 297 Z"/>
-    <path fill="#30343a" d="M259 258 C274 279 282 302 279 327 L292 350 L264 355 L246 337 L236 297 Z"/>
-    <path fill="#8a939d" d="M163 325 L181 331 L194 346 L180 354 L151 350 Z M280 325 L262 331 L249 346 L263 354 L292 350 Z"/>
-    <path fill="#17191d" d="M151 349 L180 353 L188 364 L170 367 L162 361 L153 364 Z M292 349 L263 353 L255 364 L273 367 L281 361 L290 364 Z"/>
-    <g fill="none" stroke="#c1c8d0" stroke-width="2">
-      <path d="M160 351 L168 358 M174 353 L178 360 M283 351 L275 358 M269 353 L265 360"/>
-    </g>
-    <!-- Body and chest plates -->
-    <path fill="#252a30" d="M181 169 C195 153 212 147 221 147 C230 147 247 153 261 169 C278 191 276 230 263 264 C254 286 240 302 221 306 C202 302 188 286 179 264 C166 230 164 191 181 169 Z"/>
-    <path fill="#555e68" d="M195 189 C203 177 214 171 221 171 C228 171 239 177 247 189 C257 208 252 245 239 270 C233 282 226 289 221 291 C216 289 209 282 203 270 C190 245 185 208 195 189 Z"/>
-    <g fill="#a2abb5" stroke="none" opacity=".85">
-      <path d="M221 181 L229 198 L221 211 L213 198 Z M202 205 L215 217 L207 229 L195 218 Z M240 205 L247 218 L235 229 L227 217 Z"/>
-      <path d="M208 237 L221 248 L234 237 L230 258 L221 267 L212 258 Z"/>
-    </g>
-    <!-- Neck, shoulders and forelegs -->
-    <path fill="#30343a" d="M188 168 C174 180 162 197 158 217 L145 239 L158 251 L178 229 L195 211 Z"/>
-    <path fill="#30343a" d="M254 168 C268 180 280 197 284 217 L297 239 L284 251 L264 229 L247 211 Z"/>
-    <path fill="#69727d" d="M151 237 L163 243 L175 226 L165 252 L153 260 L143 248 Z M291 237 L279 243 L267 226 L277 252 L289 260 L299 248 Z"/>
-    <path fill="#252a30" d="M181 208 C167 225 166 248 178 265 L195 273 L201 259 L192 235 Z M261 208 C275 225 276 248 264 265 L247 273 L241 259 L250 235 Z"/>
-    <path fill="#a0a9b3" d="M177 254 L190 260 L194 274 L180 272 Z M265 254 L252 260 L248 274 L262 272 Z"/>
-    <g fill="none" stroke="#c5ccd3" stroke-width="2">
-      <path d="M179 262 L185 269 M187 265 L191 272 M264 262 L258 269 M256 265 L252 272"/>
-    </g>
-    <!-- Large rounded Night-Fury head with cheek contours -->
-    <path fill="#252a30" d="M172 92 C181 72 199 59 221 59 C243 59 261 72 270 92 L278 119 C280 143 263 166 245 177 C237 182 229 185 221 185 C213 185 205 182 197 177 C179 166 162 143 164 119 Z"/>
-    <path fill="#59626c" d="M180 113 C184 88 201 75 221 75 C241 75 258 88 262 113 C265 139 247 159 231 166 L221 170 L211 166 C195 159 177 139 180 113 Z"/>
-    <!-- Signature wide ear-fins and swept-back horns -->
-    <path fill="#252a30" d="M184 91 C163 77 145 61 128 38 C155 42 178 51 198 69 L204 91 Z"/>
-    <path fill="#252a30" d="M258 91 C279 77 297 61 314 38 C287 42 264 51 244 69 L238 91 Z"/>
-    <path fill="#7d8792" d="M181 83 Q160 64 143 51 Q169 57 191 76 Z M261 83 Q282 64 299 51 Q273 57 251 76 Z"/>
-    <path fill="#30343a" d="M197 72 Q186 51 187 28 Q205 43 214 67 Z M245 72 Q256 51 255 28 Q237 43 228 67 Z"/>
-    <path fill="#8d97a2" d="M194 59 L202 68 L197 77 Z M248 59 L240 68 L245 77 Z"/>
-    <!-- Eyes, brow ridges, nose and friendly muzzle -->
-    <path fill="#17191d" d="M178 119 Q198 103 214 119 Q200 135 182 132 Z M264 119 Q244 103 228 119 Q242 135 260 132 Z"/>
-    <path fill="#c5d0a4" stroke="none" d="M184 120 Q198 111 209 120 Q198 128 184 120 Z M258 120 Q244 111 233 120 Q244 128 258 120 Z"/>
-    <path fill="#17191d" stroke="none" d="M194 117 Q198 116 201 120 Q198 124 194 120 Z M242 117 Q246 116 249 120 Q246 124 242 120 Z"/>
-    <path fill="#252a30" d="M192 139 Q221 126 250 139 Q247 160 221 165 Q195 160 192 139 Z"/>
-    <path fill="#858e98" d="M203 143 Q221 137 239 143 Q232 154 221 155 Q210 154 203 143 Z"/>
-    <path fill="#17191d" d="M215 139 Q221 135 227 139 L221 146 Z"/>
-    <path fill="none" stroke="#c2c9d1" stroke-width="2" d="M221 146 L221 154 M205 157 Q221 164 237 157"/>
-    <!-- Fine scales and facial/limb detail -->
-    <g fill="none" stroke="#a0a9b3" stroke-width="1.5" opacity=".8">
-      <path d="M188 96 Q196 90 204 96 M238 96 Q246 90 254 96 M186 105 Q194 100 202 105 M240 105 Q248 100 256 105"/>
-      <path d="M193 174 Q201 181 209 182 M233 182 Q241 181 249 174"/>
-      <path d="M196 192 L204 198 M246 192 L238 198 M191 222 L199 228 M251 222 L243 228"/>
-      <path d="M202 278 Q211 285 221 287 Q231 285 240 278"/>
-    </g>
-    <g fill="#aab2bb" stroke="none">
-      <circle cx="188" cy="146" r="2"/><circle cx="196" cy="157" r="1.7"/><circle cx="254" cy="146" r="2"/><circle cx="246" cy="157" r="1.7"/>
-      <circle cx="184" cy="184" r="1.8"/><circle cx="258" cy="184" r="1.8"/><circle cx="177" cy="205" r="1.7"/><circle cx="265" cy="205" r="1.7"/>
-    </g>
-  </g>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 900"><defs><linearGradient id="armor" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#647887"/><stop offset=".28" stop-color="#263746"/><stop offset=".68" stop-color="#101923"/><stop offset="1" stop-color="#03070c"/></linearGradient><linearGradient id="mem" x2="0" y2="1"><stop stop-color="#536879"/><stop offset="1" stop-color="#111c28"/></linearGradient><radialGradient id="eye"><stop stop-color="#f8ffae"/><stop offset=".4" stop-color="#b5f34b"/><stop offset="1" stop-color="#398526"/></radialGradient></defs>
+<g stroke="#050a10" stroke-width="12" stroke-linejoin="round" stroke-linecap="round">
+<!-- tail and body --> <path fill="url(#armor)" d="M470 558 Q620 590 680 690 Q720 760 820 730 Q790 825 690 805 Q590 790 535 690 L430 635Z"/><path fill="#d9474a" d="M785 718l78-30-10 83-75 44-42-34Z"/>
+<!-- far wing --> <path fill="url(#mem)" d="M405 350 Q280 220 70 115 L135 265 40 245 170 440 250 390 315 520 425 465Z"/>
+<!-- near wing --> <path fill="url(#mem)" d="M500 350 Q620 205 835 115 L765 265 860 245 730 440 650 390 585 520 475 465Z"/>
+<path fill="none" stroke="#718493" stroke-width="7" d="M420 390 145 185m280 240L100 280m360 180L205 400m270-10L755 185m-280 240L800 280m-360 180L695 400"/>
+<!-- legs --> <path fill="url(#armor)" d="M365 570q-40 95-95 165l-10 60 75 4 60-80 42-100m110-45q25 100 90 155l28 60-75 15-75-73-50-90"/>
+<!-- head and neck --> <path fill="url(#armor)" d="M330 430q-30-100 35-165 60-60 160-30 100 30 100 130 0 85-65 140l-25 110q-80 70-170 0l-30-105Z"/>
+<!-- head fins --> <path fill="url(#armor)" d="M365 310Q260 260 270 145q75 40 130 100m175 65q100-65 155-150-2 125-105 180"/>
+<!-- cheek plates --> <path fill="#243746" d="M320 425q-80-15-120 40 75 20 130 5m260-45q80-15 120 40-75 20-130 5"/>
+<!-- muzzle --> <path fill="#8294a0" d="M360 420q100-80 205 0l-20 100q-80 65-165 0Z"/>
+<path fill="#071018" d="M420 495q45-20 90 0l-45 38Z"/>
+<ellipse cx="382" cy="370" rx="25" ry="34" fill="url(#eye)"/><ellipse cx="538" cy="370" rx="25" ry="34" fill="url(#eye)"/>
+<path fill="none" stroke="#a9bac5" stroke-width="6" d="M350 470l-60 20m260-20 60 20M390 545q65 28 130 0M360 590l-35 45m215-45 35 45"/>
+<!-- dorsal spikes --> <path fill="#718391" d="M410 270l-20-70 58 48 30-88 30 90 65-44-35 83Z"/>
+</g></svg>
