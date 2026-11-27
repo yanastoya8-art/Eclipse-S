@@ -423,14 +423,24 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
             queue.async {
                 self.session.getAllTasks { tasks in
                     self.queue.async {
-                        var existing = Set(tasks.compactMap(\\.taskDescription))
-                        for (request, description) in entries where !existing.contains(description) {
+                        var existingTasks: [String: URLSessionDownloadTask] = [:]
+                        for task in tasks {
+                            guard let description = task.taskDescription,
+                                  let downloadTask = task as? URLSessionDownloadTask else { continue }
+                            existingTasks[description] = downloadTask
+                        }
+                        for (request, description) in entries {
+                            if let existing = existingTasks[description] {
+                                self.activeTasks[description] = existing
+                                if existing.state == .suspended { existing.resume() }
+                                continue
+                            }
                             var backgroundRequest = request
                             backgroundRequest.timeoutInterval = max(backgroundRequest.timeoutInterval, 600)
                             let task = self.session.downloadTask(with: backgroundRequest)
                             task.taskDescription = description
                             self.activeTasks[description] = task
-                            existing.insert(description)
+                            existingTasks[description] = task
                             task.resume()
                         }
                         continuation.resume()
