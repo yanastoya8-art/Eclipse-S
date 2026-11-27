@@ -754,6 +754,17 @@ enum DownloadSourceLinkPolicy {
     }
 }
 
+enum HLSManagedProxyTransportPolicy {
+    static func canUnwrapForBackground(_ url: URL) -> Bool {
+        guard let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              url.host?.isEmpty == false,
+              url.user == nil,
+              url.password == nil else { return false }
+        return true
+    }
+}
+
 enum DirectDownloadResumeDisposition: Equatable {
     case waitForPauseCompletion
     case continueSavedProgress
@@ -6953,7 +6964,7 @@ final class DownloadManager: NSObject, ObservableObject {
            protectedProviderAttempts[item.id]?.mainProxyURL == nil,
            let proxyURL = URL(string: item.streamURL),
            let target = MPVHeaderProxy.shared.recoverableTargetURL(for: proxyURL),
-           ["http", "https"].contains(target.scheme?.lowercased() ?? "") {
+           HLSManagedProxyTransportPolicy.canUnwrapForBackground(target) {
             let proxyHeaders = MPVHeaderProxy.shared.upstreamProbeTarget(for: proxyURL)?.headers ?? item.headers
             Task { [weak self] in
                 do {
