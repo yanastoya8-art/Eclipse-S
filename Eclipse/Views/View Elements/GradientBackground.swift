@@ -887,13 +887,15 @@ private struct HomeAnimatedCreatureMotif: View {
         default: return
         }
 
-        let scale = min(canvasSize.width / 443, canvasSize.height / 394)
-        let artworkSize = CGSize(width: 443 * scale, height: 394 * scale)
+        // All six approved source illustrations use a square 512 × 512
+        // viewBox. Fit that square into the available canvas without stretching
+        // the creature horizontally or vertically.
+        let artworkSide = min(canvasSize.width, canvasSize.height)
         let artworkRect = CGRect(
-            x: (canvasSize.width - artworkSize.width) / 2,
-            y: (canvasSize.height - artworkSize.height) / 2,
-            width: artworkSize.width,
-            height: artworkSize.height
+            x: (canvasSize.width - artworkSide) / 2,
+            y: (canvasSize.height - artworkSide) / 2,
+            width: artworkSide,
+            height: artworkSide
         )
 
         var drawing = context
