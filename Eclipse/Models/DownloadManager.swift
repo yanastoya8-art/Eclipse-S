@@ -6963,7 +6963,8 @@ final class DownloadManager: NSObject, ObservableObject {
            protectedNuvioAttemptID == nil,
            protectedProviderAttempts[item.id]?.mainProxyURL == nil,
            let proxyURL = URL(string: item.streamURL),
-           let target = MPVHeaderProxy.shared.recoverableTargetURL(for: proxyURL),
+           let target = MPVHeaderProxy.shared.recoverableTargetURL(for: proxyURL)
+                ?? MPVHeaderProxy.shared.upstreamProbeTarget(for: proxyURL)?.url,
            HLSManagedProxyTransportPolicy.canUnwrapForBackground(target) {
             let proxyHeaders = MPVHeaderProxy.shared.upstreamProbeTarget(for: proxyURL)?.headers ?? item.headers
             Task { [weak self] in
