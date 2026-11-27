@@ -26,7 +26,7 @@ The iOS client requests a short-lived Vercel Blob client upload token from `POST
 - Uploaded objects are configured to expire after one day.
 - The current app upload limit is 95 MiB per file.
 - This storage-based implementation shares completed downloaded files. It does not relay active provider streams or rewrite HLS playlists; use the existing Copy Stream URL action for those sources.
-- The upload-token endpoint has a best-effort per-instance IP throttle. Configure a Vercel Firewall rate-limit rule for `/api/share/upload-token` before production use; serverless instances do not share the in-memory counter.
+- The upload-token endpoint has a best-effort per-instance IP throttle. Serverless instances do not share the in-memory counter. The current Vercel Hobby plan rejects Firewall rate-limit rules, so this is not a global abuse-control boundary; use a plan with Firewall rate limiting or add a shared rate-limit store before opening uploads to broad public use.
 - Public Blob storage and transfer may incur Vercel usage charges. Review Blob usage and billing limits.
 
 ## AI research proxy
