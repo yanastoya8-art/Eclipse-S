@@ -1,22 +1,18 @@
-# Eclipse creature artwork — approval set
+# Eclipse creature artwork — redesign v2
 
-These are concept vectors for review only. They are deliberately not connected to the app yet; the existing in-app artwork and selector remain unchanged until the designs are approved.
+A complete second visual direction for review. These are standalone vector concepts, not yet installed in the app. Existing app art and selector are unchanged pending approval.
 
-## Included concepts
-- Toothless — full-body Night Fury silhouette, wings, tail fins and green eyes
-- Phoenix — full-body firebird with layered wings, crest, talons and flame feathers
-- Wolf — full-body athletic wolf with detailed fur, tail and paws
-- Kitsune — nine flowing tails, fox mask markings and flame ornament
-- Paw — dimensional paw emblem with engraved detail
-- Siren — full-body sea siren with flowing hair, scaled tail and water ribbons
+## Design direction
+- Toothless: larger wing silhouette, clear head and muzzle, layered wing membranes, visible legs, articulated tail and tail fin.
+- Phoenix: wide feathered wings, long flame tail plumes, detailed crest, beak and talons.
+- Wolf: four-legged, forward-facing stance, layered mane, pointed ears, sculpted muzzle and fur markings.
+- Kitsune: fox-like head and body, distinct nine-tail fan, mask markings, and warm ivory/copper palette.
+- Paw: sculpted emblem, asymmetrical raised toes, dimensional central pad and engraved highlights.
+- Siren: full figure, flowing hair, defined torso, scaled tail, split fin and water details.
 
-## Quality and colour plan
-SVG paths are resolution-independent. They can be rendered at 4K (3840×2160 output canvas) or larger without pixelation. The artwork uses its own original gradient palette and can be adapted to three app modes after approval:
-1. Original — preserve each design's authored colours.
-2. Custom — apply the user's selected colour while retaining the shape's highlights and shadows.
-3. Silver — use a metallic silver gradient with light/dark bevel shading.
+## Colour modes planned for the app
+Original preserves each vector's authored gradients. Custom applies the selected colour as a tint while preserving luminance and highlights. Silver uses a dedicated metallic gradient and bevel treatment.
 
-The 4K setting should apply to the export/rendering pipeline, not force a 4K bitmap to be decoded for every small on-screen animation. The app should use the vector source at device scale for smooth, sharp rendering and export at 4K when a 4K output is requested.
+SVG vectors are resolution-independent. Render at device scale for performance and allow a 3840×2160 4K output target; do not decode huge 4K bitmaps for small on-screen motifs.
 
-## Review
-Open approval-board.svg or inspect the individual SVGs in this folder. Please approve or request changes before these are installed into the app asset catalog or exposed in the app selector.
+Approve or request another revision before app integration.
