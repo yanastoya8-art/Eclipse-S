@@ -1,6 +1,6 @@
 # Eclipse backend
 
-This is the Vercel Functions project used by Eclipse. It provides the Spanish-language anime dub research proxy and internet sharing for completed downloads.
+This is the Vercel Functions project used by Eclipse. It provides the Spanish-language anime dub research proxy, public links for completed downloads, and expiring direct/HLS stream links.
 
 ## Deploy
 
@@ -20,14 +20,16 @@ No Cloudflare account, Worker, R2 bucket, Cloudflare API token, admin token, or 
 
 ## Internet download sharing
 
-The iOS client requests a short-lived Vercel Blob client upload token from `POST /api/share/upload-token`, then uploads the completed local file directly to Vercel Blob. The Vercel read/write token remains server-side and is never embedded in the app.
+Completed downloads use a short-lived Vercel Blob client upload token from `POST /api/share/upload-token`; the iOS app uploads the local file directly to Vercel Blob. Direct and HLS stream links use `POST /api/share/create` and an AES-GCM encrypted capability. The capability is encrypted with a key derived from the server-side `BLOB_READ_WRITE_TOKEN`; provider headers and upstream URLs are never exposed in the share URL. The Vercel read/write token remains server-side and is never embedded in the app.
 
 - Links are public HTTPS URLs and can be opened on devices that do not have Eclipse installed.
-- Uploaded objects are configured to expire after one day.
-- The current app upload limit is 95 MiB per file.
-- This storage-based implementation shares completed downloaded files. It does not relay active provider streams or rewrite HLS playlists; use the existing Copy Stream URL action for those sources.
-- The upload-token endpoint has a best-effort per-instance IP throttle. Serverless instances do not share the in-memory counter. The current Vercel Hobby plan rejects Firewall rate-limit rules, so this is not a global abuse-control boundary; use a plan with Firewall rate limiting or add a shared rate-limit store before opening uploads to broad public use.
-- Public Blob storage and transfer may incur Vercel usage charges. Review Blob usage and billing limits.
+- Uploaded objects and stream capabilities expire after one day.
+- The current completed-file upload limit is 95 MiB per file.
+- The stream endpoint forwards byte-range requests and rewrites HLS master/media playlists, including variant playlists, segments, initialization maps, and URI-based keys.
+- The stream endpoint accepts only HTTPS hosts that resolve to public IP addresses, revalidates redirects, and strips authorization/cookie/API-key headers on cross-origin redirects and HLS references.
+- The share-creation and upload-token endpoints have best-effort per-instance IP throttling. Serverless instances do not share the in-memory counter. The current Vercel Hobby plan rejects Firewall rate-limit rules, so this is not a global abuse-control boundary; use a plan with Firewall rate limiting or add a shared rate-limit store before opening uploads and stream-link creation to broad public use.
+- Public Blob storage, function execution, and transfer may incur Vercel usage charges. Review usage and billing limits.
+- HLS is proxied one playlist/segment request at a time; it is not downloaded or repackaged into a standalone MP4.
 
 ## AI research proxy
 
