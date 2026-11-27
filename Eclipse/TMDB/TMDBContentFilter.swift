@@ -1930,11 +1930,8 @@ class TMDBContentFilter: ObservableObject {
         guard hideBelowPG13 || hideAllAges else { return true }
         // Anime uses its own AniList/Taizen age classification, never TMDB.
         guard let rating = cachedAnimeAgeRating(for: result), rating != .unknown else {
-            // When either anime age restriction is enabled, unknown is not a
-            // safe certificate. Do not let an unresolved title bypass the
-            // configured filter; the metadata resolver will re-publish it once
-            // a verified rating is available.
-            return false
+            // The existing minimum-age filter fails closed for missing ratings.
+            return !hideBelowPG13
         }
         if hideAllAges && rating == .general { return false }
         return !hideBelowPG13 || rating >= .teen
@@ -2191,18 +2188,13 @@ class TMDBContentFilter: ObservableObject {
             let hideAllAges = result.isMovie
                 ? defaults.bool(forKey: "catalogHideAllAgesMovies")
                 : defaults.bool(forKey: "catalogHideAllAgesSeries")
-            if hideBelowMinimum || hideAllAges {
-                // Both age filters are strict: an unresolved or unknown
-                // certificate cannot be treated as evidence that the title is
-                // safe. TMDBMaturityRatingStore resolves this metadata before
-                // Search publishes its filtered snapshot.
-                guard let rating = TMDBMaturityRatingStore.shared.rating(
-                    isMovie: result.isMovie,
-                    id: result.id
-                ), rating != .unknown else { return false }
+            if let rating = TMDBMaturityRatingStore.shared.rating(isMovie: result.isMovie, id: result.id) {
                 if hideAllAges && rating == .general { return false }
                 let minimum = result.isMovie ? MaturityRating.teen : .age14
-                if hideBelowMinimum, rating < minimum { return false }
+                // A missing/unknown certificate is not proof that a title is
+                // below the configured minimum. Keep it visible and let a later
+                // verified certification refine the decision.
+                if hideBelowMinimum, rating != .unknown, rating < minimum { return false }
             }
         }
 
