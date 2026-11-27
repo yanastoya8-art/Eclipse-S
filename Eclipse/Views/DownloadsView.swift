@@ -638,7 +638,7 @@ struct DownloadsView: View {
                     guard let sourceURL = downloadManager.copyableDownloadURL(for: item) else { return }
                     UIPasteboard.general.url = sourceURL
                 } label: {
-                    Label("Copy Download Link", systemImage: "link")
+                    Label("Copy Local Network Link", systemImage: "link")
                 }
             }
 #endif
