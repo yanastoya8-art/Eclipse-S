@@ -862,30 +862,22 @@ private struct HomeAnimatedCreatureMotif: View {
     let colorMode: HomeAnimatedCreatureColorMode
 
     var body: some View {
-        coloredCreatureImage
+        creatureImage
             .resizable()
             .interpolation(.high)
             .scaledToFit()
+            .saturation(colorMode == .silver ? 0 : 1)
+            .colorMultiply(
+                colorMode == .custom
+                    ? color
+                    : (colorMode == .silver ? Color(red: 0.78, green: 0.83, blue: 0.90) : .white)
+            )
             .frame(width: size.width, height: size.height)
             .background(Color.clear)
             .opacity(min(1, opacity * brightness))
             .rotationEffect(.degrees(sin(phase * 0.55) * 1.1))
             .scaleEffect(1.0 + sin(phase * 1.1) * 0.008)
             .accessibilityHidden(true)
-    }
-
-    @ViewBuilder
-    private var coloredCreatureImage: some View {
-        switch colorMode {
-        case .original:
-            creatureImage
-        case .custom:
-            creatureImage.colorMultiply(color)
-        case .silver:
-            creatureImage
-                .saturation(0)
-                .colorMultiply(Color(red: 0.78, green: 0.83, blue: 0.90))
-        }
     }
 
     private var creatureImage: Image {
