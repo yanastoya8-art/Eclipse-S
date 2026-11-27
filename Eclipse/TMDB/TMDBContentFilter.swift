@@ -3303,7 +3303,7 @@ actor JikanAnimeAgeRatingService {
         }
         try Task.checkCancellation()
 
-        guard let url = URL(string: "https://api.jikan.moe/v4/anime/\\(malID)") else {
+        guard let url = URL(string: "https://api.jikan.moe/v4/anime/\(malID)") else {
             return .unknown
         }
         var request = URLRequest(url: url)
