@@ -559,67 +559,73 @@ enum HomeAnimatedBackgroundParticleColor: String, CaseIterable, Identifiable {
 }
 
 enum HomeAnimatedBackgroundShape: String, CaseIterable, Identifiable {
-    // Keep the nine approved illustrated motifs as the only selectable shapes.
-    // The four original geometric symbols remain decodable below solely so old
-    // switch branches stay source-compatible; they are never selectable or
-    // resolved from persisted preferences.
-    case wolf, fox, phoenix, paw, stars, crescentMoon, sun, spiral, cat, mermaid, bird, snake, dragon
+    case toothless, phoenix, wolf, kitsune, paw, siren
+    // Legacy values remain decodable for preference migration, but are never selectable.
+    case dragon, fox, mermaid, cat, bird, snake, stars, crescentMoon, sun, spiral
 
     static let storageKey = "homeAnimatedBackgroundShape"
-    static let defaultValue: HomeAnimatedBackgroundShape = .dragon
-    static let allCases: [HomeAnimatedBackgroundShape] = [
-        .dragon, .bird, .snake, .wolf, .fox, .phoenix, .cat, .mermaid, .paw
-    ]
-
+    static let defaultValue: HomeAnimatedBackgroundShape = .toothless
+    static let allCases: [HomeAnimatedBackgroundShape] = [.toothless, .phoenix, .wolf, .kitsune, .paw, .siren]
     var id: String { rawValue }
+
     var displayName: String {
         switch self {
-        case .wolf: return "Wolf"
-        case .fox: return "Nine-Tailed Fox"
+        case .toothless, .dragon: return "Toothless"
         case .phoenix: return "Phoenix"
+        case .wolf: return "Wolf"
+        case .kitsune, .fox: return "Kitsune"
         case .paw: return "Paw"
+        case .siren, .mermaid: return "Siren"
+        case .cat: return "Cat"
+        case .bird: return "Hawk"
+        case .snake: return "Cobra"
         case .stars: return "Star"
         case .crescentMoon: return "Moon"
         case .sun: return "Sun"
         case .spiral: return "Spiral Sun"
-        case .cat: return "Cat"
-        case .mermaid: return "Mermaid"
-        case .bird: return "Hawk"
-        case .snake: return "Cobra"
-        case .dragon: return "Toothless"
         }
     }
 
     var glyph: String {
         switch self {
-        case .wolf: return "\u{1F43A}\u{FE0E}"
-        case .fox: return "\u{1F98A}\u{FE0E}"
-        case .phoenix: return "\u{1F525}\u{FE0E}"
-        case .paw: return "\u{1F43E}\u{FE0E}"
+        case .toothless, .dragon: return "🐉︎"
+        case .phoenix: return "🔥︎"
+        case .wolf: return "🐺︎"
+        case .kitsune, .fox: return "🦊︎"
+        case .paw: return "🐾︎"
+        case .siren, .mermaid: return "🧜︎"
+        case .cat: return "🐈︎"
+        case .bird: return "🦅︎"
+        case .snake: return "🐍︎"
         case .stars: return "✦"
         case .crescentMoon: return "☾"
         case .sun: return "☀"
         case .spiral: return "✺"
-        // Text-presentation glyphs honour foregroundColor, unlike multicolour emoji.
-        case .cat: return "\u{1F408}\u{FE0E}"       // seated cat
-        case .mermaid: return "\u{1F9DC}\u{FE0E}"
-        case .bird: return "\u{1F985}\u{FE0E}"      // hawk/eagle
-        case .snake: return "\u{1F40D}\u{FE0E}"     // cobra-like snake
-        case .dragon: return "\u{1F409}\u{FE0E}"    // full dragon glyph
         }
     }
 
     static func resolved(_ rawValue: String?) -> HomeAnimatedBackgroundShape {
         guard let rawValue, let shape = Self(rawValue: rawValue) else { return defaultValue }
-        // These four cases are retained only to decode legacy preferences and
-        // keep old drawing switches source-compatible. They are retired and
-        // must not reappear as simplified geometric substitutes for the nine
-        // approved transparent creature illustrations.
         switch shape {
-        case .stars, .crescentMoon, .spiral, .sun:
-            return defaultValue
-        default:
-            return shape
+        case .dragon: return .toothless
+        case .fox: return .kitsune
+        case .mermaid: return .siren
+        case .cat, .bird, .snake, .stars, .crescentMoon, .sun, .spiral: return defaultValue
+        default: return shape
+        }
+    }
+}
+
+enum HomeAnimatedCreatureColorMode: String, CaseIterable, Identifiable {
+    case original, custom, silver
+    static let storageKey = "homeAnimatedBackgroundCreatureColorMode"
+    static let defaultValue: HomeAnimatedCreatureColorMode = .original
+    var id: String { rawValue }
+    var displayName: String {
+        switch self {
+        case .original: return "Original"
+        case .custom: return "Custom"
+        case .silver: return "Silver"
         }
     }
 }
@@ -853,6 +859,7 @@ private struct HomeAnimatedCreatureMotif: View {
     let brightness: Double
     let size: CGSize
     let phase: Double
+    let colorMode: HomeAnimatedCreatureColorMode
 
     var body: some View {
         Canvas { context, canvasSize in
@@ -871,15 +878,12 @@ private struct HomeAnimatedCreatureMotif: View {
         // no generated frame, eye overlay, or rectangular tile is introduced.
         let assetName: String
         switch shape {
-        case .dragon: assetName = "HomeCreatureDragon"
-        case .bird: assetName = "HomeCreatureHawk"
-        case .snake: assetName = "HomeCreatureCobra"
-        case .wolf: assetName = "HomeCreatureWolf"
-        case .fox: assetName = "HomeCreatureFox"
+        case .toothless: assetName = "HomeCreatureDragon"
         case .phoenix: assetName = "HomeCreaturePhoenix"
-        case .cat: assetName = "HomeCreatureCat"
-        case .mermaid: assetName = "HomeCreatureMermaid"
+        case .wolf: assetName = "HomeCreatureWolf"
+        case .kitsune: assetName = "HomeCreatureFox"
         case .paw: assetName = "HomeCreaturePaw"
+        case .siren: assetName = "HomeCreatureMermaid"
         default: return
         }
 
@@ -898,7 +902,15 @@ private struct HomeAnimatedCreatureMotif: View {
         let breathing = CGFloat(1.0 + sin(phase * 1.1) * 0.008)
         drawing.scaleBy(x: breathing, y: breathing)
         drawing.translateBy(x: -canvasSize.width / 2, y: -canvasSize.height / 2)
-        drawing.addFilter(.colorMultiply(color))
+        switch colorMode {
+        case .original:
+            break
+        case .custom:
+            drawing.addFilter(.colorMultiply(color))
+        case .silver:
+            drawing.addFilter(.saturation(0))
+            drawing.addFilter(.colorMultiply(Color(red: 0.78, green: 0.83, blue: 0.90)))
+        }
         drawing.opacity = min(1, opacity * brightness)
         let illustration = drawing.resolve(Image(assetName))
         drawing.draw(illustration, in: artworkRect)
@@ -915,6 +927,7 @@ struct EclipseAmbientMotionBackground: View {
     @AppStorage(HomeAnimatedBackgroundFrameRate.storageKey) private var frameRateRawValue = HomeAnimatedBackgroundFrameRate.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundParticleColor.storageKey) private var particleColorRawValue = HomeAnimatedBackgroundParticleColor.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundShape.storageKey) private var shapeRawValue = HomeAnimatedBackgroundShape.defaultValue.rawValue
+    @AppStorage(HomeAnimatedCreatureColorMode.storageKey) private var creatureColorModeRawValue = HomeAnimatedCreatureColorMode.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundSettings.shapeEnabledKey) private var shapeEnabled = HomeAnimatedBackgroundSettings.defaultShapeEnabled
     @AppStorage(HomeAnimatedBackgroundSettings.shapeOpacityKey) private var shapeOpacity = HomeAnimatedBackgroundSettings.defaultShapeOpacity
     @AppStorage(HomeAnimatedBackgroundSettings.shapeSizeKey) private var shapeSize = HomeAnimatedBackgroundSettings.defaultShapeSize
@@ -1197,7 +1210,8 @@ struct EclipseAmbientMotionBackground: View {
                 opacity: shapeOpacity,
                 brightness: shapeBrightness,
                 size: CGSize(width: motifSize * 4 / 3, height: motifSize),
-                phase: seconds
+                phase: seconds,
+                colorMode: HomeAnimatedCreatureColorMode(rawValue: creatureColorModeRawValue) ?? .original
             )
             let motifOrigin = CGPoint(
                 x: shapeCenter.x - motifSize * 2 / 3,
