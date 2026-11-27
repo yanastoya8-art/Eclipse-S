@@ -4648,6 +4648,27 @@ final class DownloadManager: NSObject, ObservableObject {
     }
 
 #if os(iOS) && !targetEnvironment(macCatalyst)
+    /// Checks availability without creating a LAN proxy session. This is used
+    /// while SwiftUI builds the context menu; URL publication must happen only
+    /// after the user taps Copy, otherwise each view refresh leaks a new session.
+    func hasCopyableDownloadURL(for item: DownloadItem) -> Bool {
+        if item.status == .completed, localFileURL(for: item) != nil {
+            return true
+        }
+        if let attempt = protectedProviderAttempts[item.id],
+           DownloadSourceLinkPolicy.copyableURL(attempt.authorityURL) != nil {
+            return true
+        }
+        if DownloadSourceLinkPolicy.copyableURL(item.streamURL) != nil {
+            return true
+        }
+        let activeURL = activeTasks[item.id]?.currentRequest?.url
+            ?? activeTasks[item.id]?.originalRequest?.url
+        return activeURL.flatMap {
+            DownloadSourceLinkPolicy.copyableURL($0.absoluteString)
+        } != nil
+    }
+
     /// Returns the currently authoritative source link for a download. Protected
     /// providers intentionally scrub signed URLs from persisted metadata, so
     /// prefer the live URLSession request / protected attempt while it exists.

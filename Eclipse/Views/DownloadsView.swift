@@ -599,8 +599,10 @@ struct DownloadsView: View {
                 }
             }
 #if os(iOS) && !targetEnvironment(macCatalyst)
-            if downloadManager.copyableDownloadURL(for: item) != nil {
+            if downloadManager.hasCopyableDownloadURL(for: item) {
                 Button {
+                    // Publishing a LAN URL starts a listener session, so do it
+                    // once on explicit user action rather than during menu layout.
                     guard let sourceURL = downloadManager.copyableDownloadURL(for: item) else { return }
                     UIPasteboard.general.url = sourceURL
                 } label: {
