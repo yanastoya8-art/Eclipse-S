@@ -2,6 +2,24 @@
   "functions": {
     "api/ai-research/[provider].ts": {
       "maxDuration": 30
+    },
+    "api/share/upload-token.ts": {
+      "maxDuration": 30
     }
-  }
+  },
+  "headers": [
+    {
+      "source": "/api/share/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
+      ]
+    }
+  ]
 }
