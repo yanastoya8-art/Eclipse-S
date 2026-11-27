@@ -6366,10 +6366,27 @@ final class DownloadManager: NSObject, ObservableObject {
 
         let reservedValidations = nuvioDispatchValidationPendingIDs.union(sourceRefreshes.ids).count
         var slotsAvailable = maxConcurrentDownloads - currentlyDownloading - reservedValidations
-
-        guard slotsAvailable > 0, !restoringBackgroundTasks else { return }
-
         let now = Date()
+
+        // Never leave a queued row without explaining why admission has not
+        // started. The Downloads screen renders this field directly below the
+        // Queued badge, so a silent early return looks like a stuck download.
+        if restoringBackgroundTasks {
+            for item in downloads where item.status == .queued
+                && (item.retryNotBefore.map { $0 <= now } ?? true) {
+                setQueuedMessage(id: item.id, message: "Restoring background downloads")
+            }
+            return
+        }
+
+        guard slotsAvailable > 0 else {
+            let reason = "Waiting for an available download slot (\\(currentlyDownloading) active, \\(reservedValidations) validating)"
+            for item in downloads where item.status == .queued
+                && (item.retryNotBefore.map { $0 <= now } ?? true) {
+                setQueuedMessage(id: item.id, message: reason)
+            }
+            return
+        }
         let delayedRetryDates = downloads.compactMap { item -> Date? in
             guard item.status == .queued,
                   let retryDate = item.retryNotBefore,
