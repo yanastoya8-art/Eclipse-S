@@ -1558,10 +1558,14 @@ final class HLSDownloader: @unchecked Sendable {
                       Int64(data.count) == byteRange.length {
                 // A few CDNs ignore Range for a complete resource that is
                 // already exactly the requested size. This is safe only at 0.
-            } else if httpResponse.statusCode == 200,
+            } else if httpResponse.statusCode == 200 {
+                let (exclusiveUpper, overflow) = expectedEnd.addingReportingOverflow(1)
+                guard !overflow,
                       let lower = Int(exactly: byteRange.offset),
-                      let upper = Int(exactly: expectedEnd + 1),
-                      data.count > upper {
+                      let upper = Int(exactly: exclusiveUpper),
+                      data.count > upper else {
+                    throw HLSError.unsupportedLayout(reason: "The HLS server ignored or rejected a required byte-range request.")
+                }
                 return data.subdata(in: lower..<upper)
             } else {
                 throw HLSError.unsupportedLayout(reason: "The HLS server ignored or rejected a required byte-range request.")
