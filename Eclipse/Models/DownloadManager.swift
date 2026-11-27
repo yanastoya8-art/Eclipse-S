@@ -6777,6 +6777,10 @@ final class DownloadManager: NSObject, ObservableObject {
         }
 #endif
         guard nuvioDispatchValidationPendingIDs.insert(item.id).inserted else { return }
+        // Provider-backed rows remain in the Queued state while their URL is
+        // checked against the public-network policy. Publish that state so the
+        // UI never shows a silent Queued row during this asynchronous phase.
+        setQueuedMessage(id: item.id, message: "Checking provider download access")
         nuvioDirectBackgroundApprovedIDs.remove(item.id)
         let validationToken = UUID()
         nuvioDispatchValidationTokens[item.id] = validationToken
