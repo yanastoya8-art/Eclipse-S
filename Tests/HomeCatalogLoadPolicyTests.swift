@@ -564,3 +564,21 @@ final class HomeCatalogFailureRecorderTests: XCTestCase {
         XCTAssertNil(summary)
     }
 }
+
+final class HomeCatalogFailureRedactionTests: XCTestCase {
+    func testUnknownTransportErrorDoesNotEchoRequestURLOrCredential() {
+        let secret = "eclipse-test-secret"
+        let error = NSError(
+            domain: "HomeTransportFixture",
+            code: 1,
+            userInfo: [
+                NSLocalizedDescriptionKey: "Request failed at https://api.example.test/trending?api_key=\(secret)"
+            ]
+        )
+
+        let message = HomeCatalogFailurePresentation.message(for: error)
+        XCTAssertFalse(message.contains(secret))
+        XCTAssertFalse(message.contains("api_key="))
+        XCTAssertTrue(message.contains("tap Retry"))
+    }
+}
