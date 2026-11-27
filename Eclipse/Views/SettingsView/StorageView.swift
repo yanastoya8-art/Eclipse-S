@@ -206,9 +206,8 @@ struct StorageView: View {
     @AppStorage("autoClearCacheEnabled", store: .standard) private var autoClearCacheEnabled = true
     @AppStorage("autoClearCacheThresholdMB", store: .standard) private var autoClearCacheThresholdMB: Double = 2000
 #if os(iOS) && !targetEnvironment(macCatalyst)
-    @AppStorage("eclipseCloudShareBaseURL", store: .standard) private var cloudShareBaseURL = ""
-    @State private var cloudShareAdminToken = ""
-    @State private var cloudShareSaveMessage: String?
+    @AppStorage("eclipseShareAPIBaseURL", store: .standard) private var shareAPIBaseURL = ""
+    @State private var shareServiceSaveMessage: String?
 #endif
 
     @StateObject private var accentColorManager = AccentColorManager.shared
@@ -236,41 +235,31 @@ struct StorageView: View {
 #if os(iOS) && !targetEnvironment(macCatalyst)
                 GlassSection(header: "Internet Share Links") {
                     VStack(alignment: .leading, spacing: 12) {
-                        TextField("https://your-worker.workers.dev", text: $cloudShareBaseURL)
+                        TextField("https://your-eclipse-backend.vercel.app", text: $shareAPIBaseURL)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                             .keyboardType(.URL)
                             .foregroundColor(.white)
-                        SecureField("Cloudflare admin token", text: $cloudShareAdminToken)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .foregroundColor(.white)
-                        Button("Save Share Service") {
-                            let normalized = cloudShareBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+                        Button("Save Share Backend") {
+                            let normalized = shareAPIBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
                             guard let url = URL(string: normalized), url.scheme?.lowercased() == "https",
-                                  url.host?.isEmpty == false,
-                                  !cloudShareAdminToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                                cloudShareSaveMessage = "Enter a valid HTTPS Worker URL and admin token."
+                                  url.host?.isEmpty == false else {
+                                shareServiceSaveMessage = "Enter a valid HTTPS Vercel backend URL."
                                 return
                             }
-                            do {
-                                try EclipseShareCredentialStore.saveAdminToken(cloudShareAdminToken)
-                                cloudShareBaseURL = normalized
-                                cloudShareSaveMessage = "Share service settings saved securely."
-                            } catch {
-                                cloudShareSaveMessage = "Could not save the admin token to Keychain: \(error.localizedDescription)"
-                            }
+                            shareAPIBaseURL = normalized
+                            shareServiceSaveMessage = "Vercel share backend URL saved."
                         }
                         .buttonStyle(.borderedProminent)
-                        if let cloudShareSaveMessage {
-                            Text(cloudShareSaveMessage)
+                        if let shareServiceSaveMessage {
+                            Text(shareServiceSaveMessage)
                                 .font(.caption)
                                 .foregroundColor(.white.opacity(0.7))
                         }
                     }
                     .padding(.vertical, 6)
                 }
-                GlassSectionFooter("Internet links open outside Eclipse and expire after 24 hours. The admin token is stored in iOS Keychain, not in the app bundle or UserDefaults. Deploy the Worker first. Completed-file sharing currently supports files up to 95 MiB.")
+                GlassSectionFooter("Completed downloads can be uploaded to Vercel Blob and shared using a public link that expires after 24 hours. Configure BLOB_READ_WRITE_TOKEN in the Vercel backend. Active HLS stream relaying is not included in this storage-based share mode.")
 #endif
                 GlassSection(header: "App Cache") {
                     VStack(spacing: 0) {
