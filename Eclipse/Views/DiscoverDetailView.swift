@@ -248,9 +248,11 @@ struct DiscoverDetailView: View {
             // all metadata resolvers for every accumulated page here repeated work
             // as individual titles resolved. Refresh only the filter projection;
             // the page loader owns metadata resolution.
-            filterRefreshRevision &+= 1
-            if filteredItems.isEmpty && paginationCursor.hasMorePages && paginationError == nil {
-                loadNextPage()
+            Task { @MainActor in
+                filterRefreshRevision &+= 1
+                if filteredItems.isEmpty && paginationCursor.hasMorePages && paginationError == nil {
+                    loadNextPage()
+                }
             }
         }
     }
