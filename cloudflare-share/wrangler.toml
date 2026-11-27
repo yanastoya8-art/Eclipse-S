@@ -9,3 +9,6 @@ bucket_name = "eclipse-shares"
 
 [vars]
 PUBLIC_BASE_URL = "https://eclipse-share.YOUR_SUBDOMAIN.workers.dev"
+
+[triggers]
+crons = ["0 * * * *"]

@@ -18,6 +18,16 @@ interface R2Bucket {
   ): Promise<unknown>;
   get(key: string, options?: { range?: Headers }): Promise<R2ObjectBody | null>;
   delete(key: string): Promise<void>;
+  list(options?: {
+    prefix?: string;
+    cursor?: string;
+    limit?: number;
+    include?: Array<"customMetadata">;
+  }): Promise<{
+    objects: Array<{ key: string; customMetadata?: Record<string, string> }>;
+    truncated: boolean;
+    cursor?: string;
+  }>;
 }
 
 export interface Env {
@@ -216,7 +226,35 @@ async function rewriteManifest(env: Env, text: string, id: string, exp: number, 
   return output.join("\n");
 }
 
-async function route(request: Request, env: Env): Promise<Response> {
+
+async function cleanupExpiredShares(env: Env): Promise<void> {
+  for (const prefix of ["shares/", "files/"]) {
+    let cursor: string | undefined;
+    do {
+      const page = await env.SHARES.list({
+        prefix,
+        cursor,
+        limit: 500,
+        include: ["customMetadata"],
+      });
+      const expired: string[] = [];
+      for (const object of page.objects) {
+        let expiresAt = Number(object.customMetadata?.expiresAt ?? "0");
+        if (prefix === "shares/") {
+          const stored = await env.SHARES.get(object.key);
+          if (stored) {
+            const descriptor = await unseal<ShareDescriptor>(env, await stored.text());
+            expiresAt = descriptor?.expiresAt ?? 0;
+          }
+        }
+        if (expiresAt > 0 && expiresAt < Date.now()) expired.push(object.key);
+      }
+      await Promise.all(expired.map((key) => env.SHARES.delete(key)));
+      cursor = page.truncated ? page.cursor : undefined;
+    } while (cursor);
+  }
+}
+\nasync function route(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: {
@@ -350,5 +388,9 @@ export default {
     } catch {
       return json({ error: "Share service error" }, 500);
     }
+  },
+
+  async scheduled(_controller: { scheduledTime: number; cron: string }, env: Env): Promise<void> {
+    await cleanupExpiredShares(env);
   },
 };
