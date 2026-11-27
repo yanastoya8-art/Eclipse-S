@@ -10307,7 +10307,12 @@ final class AniListService {
         var dict: [Int: TMDBSearchResult] = [:]
         var cacheRecords: [AnimeTMDBMatchCacheRecord] = []
         for (anilistId, match, cacheRecord) in matches {
-            if let match = match, MyDubListDubFilter.shared.shouldInclude(match) {
+            // Do not gate Browse's AniList-to-TMDB mapping on the MyDubList
+            // snapshot alone. Titles absent from that index can still have a
+            // verified selected-language dub in the Taizen/Anidub fallback;
+            // TMDBContentFilter performs that full eligibility check before
+            // the result is published.
+            if let match {
                 dict[anilistId] = match
             }
             if let cacheRecord {
