@@ -233,6 +233,45 @@ struct StorageView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 22) {
+#if os(iOS) && !targetEnvironment(macCatalyst)
+                GlassSection(header: "Internet Share Links") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        TextField("https://your-worker.workers.dev", text: $cloudShareBaseURL)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .keyboardType(.URL)
+                            .foregroundColor(.white)
+                        SecureField("Cloudflare admin token", text: $cloudShareAdminToken)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .foregroundColor(.white)
+                        Button("Save Share Service") {
+                            let normalized = cloudShareBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+                            guard let url = URL(string: normalized), url.scheme?.lowercased() == "https",
+                                  url.host?.isEmpty == false,
+                                  !cloudShareAdminToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                                cloudShareSaveMessage = "Enter a valid HTTPS Worker URL and admin token."
+                                return
+                            }
+                            do {
+                                try EclipseShareCredentialStore.saveAdminToken(cloudShareAdminToken)
+                                cloudShareBaseURL = normalized
+                                cloudShareSaveMessage = "Share service settings saved securely."
+                            } catch {
+                                cloudShareSaveMessage = "Could not save the admin token to Keychain: \(error.localizedDescription)"
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        if let cloudShareSaveMessage {
+                            Text(cloudShareSaveMessage)
+                                .font(.caption)
+                                .foregroundColor(.white.opacity(0.7))
+                        }
+                    }
+                    .padding(.vertical, 6)
+                }
+                GlassSectionFooter("Internet links open outside Eclipse and expire after 24 hours. The admin token is stored in iOS Keychain, not in the app bundle or UserDefaults. Deploy the Worker first. Completed-file sharing currently supports files up to 95 MiB.")
+#endif
                 GlassSection(header: "App Cache") {
                     VStack(spacing: 0) {
                         GlassDetailRow(icon: "externaldrive.fill", iconColor: .gray, title: "Cache Size") {
