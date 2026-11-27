@@ -153,7 +153,7 @@ final class DownloadResumeTests: XCTestCase {
     func testDownloadSourceLinkPolicyRejectsUnsafeOrInvalidLinks() {
         for value in ["", "not a URL", "file:///private/video.mp4", "javascript:alert(1)",
                       "https://user:password@cdn.example/video.mp4", "https:///missing-host.mp4"] {
-            XCTAssertNil(DownloadSourceLinkPolicy.copyableURL(value), "Unexpectedly accepted: \\(value)")
+            XCTAssertNil(DownloadSourceLinkPolicy.copyableURL(value), "Unexpectedly accepted: \(value)")
         }
     }
 
@@ -901,7 +901,7 @@ final class DownloadResumeTests: XCTestCase {
         let output = directory.appendingPathComponent("ranged.ts")
         let base = try XCTUnwrap(URL(string: "https://hls-resume.example/playlist.m3u8"))
         DownloadResumeURLProtocol.configure(
-            playlist: "#EXTM3U\\n#EXT-X-BYTERANGE:4@2\\nrange.bin\\n#EXT-X-ENDLIST",
+            playlist: "#EXTM3U\n#EXT-X-BYTERANGE:4@2\nrange.bin\n#EXT-X-ENDLIST",
             holdsLastSegment: false
         )
         let configuration = URLSessionConfiguration.ephemeral
@@ -913,7 +913,7 @@ final class DownloadResumeTests: XCTestCase {
             sessionConfiguration: configuration
         )
         downloader.onCompletion = { result in
-            if case .failure(let error) = result { XCTFail("Byte-range download failed: \\(error)") }
+            if case .failure(let error) = result { XCTFail("Byte-range download failed: \(error)") }
             finished.fulfill()
         }
         downloader.start()
@@ -969,7 +969,7 @@ final class DownloadResumeTests: XCTestCase {
             XCTAssertNil(HLSByteRange.parse(invalid), invalid)
         }
         XCTAssertThrowsError(try downloader.parseMediaResources(
-            "#EXTM3U\\n#EXT-X-BYTERANGE:4\\nfirst.ts",
+            "#EXTM3U\n#EXT-X-BYTERANGE:4\nfirst.ts",
             baseURL: base
         ))
     }
@@ -1409,12 +1409,12 @@ private final class DownloadResumeURLProtocol: URLProtocol {
         case "range.bin":
             let full = Data("0123456789".utf8)
             if let rawRange = request.value(forHTTPHeaderField: "Range"),
-               let match = rawRange.range(of: #"^bytes=(\\d+)-(\\d+)$"#, options: .regularExpression) {
+               let match = rawRange.range(of: #"^bytes=(\d+)-(\d+)$"#, options: .regularExpression) {
                 let values = rawRange[match].dropFirst(6).split(separator: "-").compactMap { Int($0) }
                 guard values.count == 2, values[0] >= 0, values[1] >= values[0], values[1] < full.count else { return }
                 payload = full.subdata(in: values[0]..<(values[1] + 1))
                 statusCode = 206
-                headers["Content-Range"] = "bytes \\(values[0])-\\(values[1])/\\(full.count)"
+                headers["Content-Range"] = "bytes \(values[0])-\(values[1])/\(full.count)"
             } else {
                 payload = full
             }
