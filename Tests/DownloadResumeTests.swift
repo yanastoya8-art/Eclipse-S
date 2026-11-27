@@ -135,6 +135,21 @@ final class DownloadResumeTests: XCTestCase {
         }
     }
 
+    func testManagedProxyHLSBackgroundTransportSupportsHTTPAndHTTPS() {
+        XCTAssertTrue(HLSManagedProxyTransportPolicy.canUnwrapForBackground(
+            URL(string: "http://cdn.example/playlist.m3u8")!
+        ))
+        XCTAssertTrue(HLSManagedProxyTransportPolicy.canUnwrapForBackground(
+            URL(string: "https://cdn.example/playlist.m3u8")!
+        ))
+        XCTAssertFalse(HLSManagedProxyTransportPolicy.canUnwrapForBackground(
+            URL(string: "file:///tmp/playlist.m3u8")!
+        ))
+        XCTAssertFalse(HLSManagedProxyTransportPolicy.canUnwrapForBackground(
+            URL(string: "https://user:pass@cdn.example/playlist.m3u8")!
+        ))
+    }
+
     func testDownloadSourceLinkPolicyRejectsUnsafeOrInvalidLinks() {
         for value in ["", "not a URL", "file:///private/video.mp4", "javascript:alert(1)",
                       "https://user:password@cdn.example/video.mp4", "https:///missing-host.mp4"] {
