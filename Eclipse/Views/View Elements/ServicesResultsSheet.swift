@@ -39,11 +39,10 @@ private func copyProviderDownloadURL(_ rawURL: String, headers: [String: String]
     // them inline. Always use the LAN download route so the response includes
     // Content-Disposition: attachment, including for providers with no headers.
     // Required provider headers remain scoped to the source origin by the proxy.
-    guard let downloadURL = MPVHeaderProxy.shared.makeLANProxyURL(
+    guard let downloadURL = MPVHeaderProxy.shared.makeProxyURL(
         for: sourceURL,
         headers: sanitizedHeaders,
-        logType: "Download",
-        asDownload: true
+        logType: "Download"
     ) else {
         Logger.shared.log(
             "Could not create an authenticated download URL for host \(sourceURL.host ?? "unknown")",
