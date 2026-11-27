@@ -11708,7 +11708,7 @@ extension DownloadManager {
                       confirmedNumber == partNumber else { throw EclipseShareError.invalidResponse }
                 uploadedParts.append(["partNumber": partNumber, "etag": etag])
             }
-            guard let completeURL = URL(string: "complete", relativeTo: uploadURL)?.absoluteURL else {
+            guard let completeURL = uploadURL.appendingPathComponent("complete") else {
                 throw EclipseShareError.invalidResponse
             }
             var completeRequest = URLRequest(url: completeURL)
