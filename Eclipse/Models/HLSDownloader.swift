@@ -679,10 +679,6 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
         let requiresPublicRedirectValidation = task.taskDescription.map {
             requiresPublicValidation(for: $0)
         } ?? false
-        if requiresPublicRedirectValidation, destination.scheme?.lowercased() != "https" {
-            completionHandler(nil)
-            return
-        }
         let originalHeaders = task.originalRequest?.allHTTPHeaderFields ?? [:]
         let safeHeaders = MPVHeaderProxy.shared.directTransportHeaders(
             originalHeaders,
@@ -706,8 +702,9 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
         }
         Task {
             do {
-                _ = try await SkyStreamRemoteURLPolicy.shared.validateForNetworkDispatch(
-                    destination.absoluteString,
+                _ = try await SkyStreamRemoteURLPolicy.shared.validateRedirectForNetworkDispatch(
+                    from: origin,
+                    to: destination,
                     purpose: .mediaSegment
                 )
                 completionHandler(redirected)
