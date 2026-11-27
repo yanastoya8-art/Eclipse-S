@@ -248,6 +248,23 @@ struct HLSBackgroundDownloadResult {
     let response: URLResponse?
 }
 
+/// Background URLSession can fetch both HTTP and HTTPS media. The separate
+/// network-dispatch validator still rejects private, loopback, and unsafe
+/// destinations; requiring HTTPS here incorrectly rejected otherwise valid
+/// HTTP HLS playlists and segments before that validation could run.
+enum HLSBackgroundNetworkValidationPolicy {
+    static func permits(_ url: URL) -> Bool {
+        guard let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              url.host?.isEmpty == false,
+              url.user == nil,
+              url.password == nil else {
+            return false
+        }
+        return true
+    }
+}
+
 enum HLSBackgroundPlaylistResourcePlan {
     static let maximumResourceCount = 20_000
 
@@ -1314,8 +1331,8 @@ final class HLSDownloader: @unchecked Sendable {
         for url in resourceURLs {
             try checkCancelled()
             if requiresPublicNetworkValidationForBackgroundURLSession {
-                guard url.scheme?.lowercased() == "https" else {
-                    throw HLSError.unsupportedLayout(reason: "This protected HLS source requires HTTPS for background transfer.")
+                guard HLSBackgroundNetworkValidationPolicy.permits(url) else {
+                    throw HLSError.unsupportedLayout(reason: "This protected HLS resource has an unsupported network URL.")
                 }
                 do {
                     _ = try await SkyStreamRemoteURLPolicy.shared.validateForNetworkDispatch(
@@ -1372,8 +1389,8 @@ final class HLSDownloader: @unchecked Sendable {
 #if os(iOS) && !targetEnvironment(macCatalyst)
         if usesBackgroundURLSession {
             if requiresPublicNetworkValidationForBackgroundURLSession {
-                guard url.scheme?.lowercased() == "https" else {
-                    throw HLSError.unsupportedLayout(reason: "This protected HLS source requires HTTPS for background transfer.")
+                guard HLSBackgroundNetworkValidationPolicy.permits(url) else {
+                    throw HLSError.unsupportedLayout(reason: "This protected HLS resource has an unsupported network URL.")
                 }
                 do {
                     _ = try await SkyStreamRemoteURLPolicy.shared.validateForNetworkDispatch(
