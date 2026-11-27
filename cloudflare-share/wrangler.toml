@@ -1,0 +1,11 @@
+name = "eclipse-share"
+main = "src/index.ts"
+compatibility_date = "2026-11-28"
+workers_dev = true
+
+[[r2_buckets]]
+binding = "SHARES"
+bucket_name = "eclipse-shares"
+
+[vars]
+PUBLIC_BASE_URL = "https://eclipse-share.YOUR_SUBDOMAIN.workers.dev"
