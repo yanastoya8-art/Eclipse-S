@@ -380,17 +380,6 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
                 self.session.getAllTasks { tasks in
                     self.queue.async {
                         guard self.pending[description] != nil else { return }
-
-                        // A download consists of many distinct HLS resources
-                        // (playlist, key, init section and media segments).
-                        // A task from the previous worker may still be owned by
-                        // background URLSession after iOS suspends Eclipse.
-                        // Never cancel a different resource just because it
-                        // belongs to the same download ID: the resumed worker
-                        // will reach that exact URL and reattach to its task.
-                        // Likewise, keep completed resource files until their
-                        // matching request consumes them. Explicit Cancel/Delete
-                        // still removes every task and cache entry for the ID.
                         if let existing = tasks.first(where: { $0.taskDescription == description }) as? URLSessionDownloadTask {
                             self.activeTasks[description] = existing
                             if existing.state == .suspended { existing.resume() }
@@ -403,6 +392,48 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
                         task.taskDescription = description
                         self.activeTasks[description] = task
                         task.resume()
+                    }
+                }
+            }
+        }
+    }
+
+    /// Enqueue every resource in a finite media playlist before the app can be
+    /// suspended. A sequential async worker cannot create segment N+1 while
+    /// iOS has suspended the process after segment N; pre-enqueuing lets the
+    /// OS-owned background session continue the whole VOD playlist on its own.
+    func schedule(
+        _ requests: [URLRequest],
+        downloadID: String,
+        maximumResponseBytes: Int,
+        requiresPublicNetworkValidation: Bool
+    ) async {
+        let entries = requests.compactMap { request -> (URLRequest, String)? in
+            guard let url = request.url else { return nil }
+            return (request, taskDescription(
+                downloadID: downloadID,
+                url: url,
+                maximumResponseBytes: maximumResponseBytes,
+                requiresPublicNetworkValidation: requiresPublicNetworkValidation
+            ))
+        }
+        guard !entries.isEmpty else { return }
+
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            queue.async {
+                self.session.getAllTasks { tasks in
+                    self.queue.async {
+                        var existing = Set(tasks.compactMap(\\.taskDescription))
+                        for (request, description) in entries where !existing.contains(description) {
+                            var backgroundRequest = request
+                            backgroundRequest.timeoutInterval = max(backgroundRequest.timeoutInterval, 600)
+                            let task = self.session.downloadTask(with: backgroundRequest)
+                            task.taskDescription = description
+                            self.activeTasks[description] = task
+                            existing.insert(description)
+                            task.resume()
+                        }
+                        continuation.resume()
                     }
                 }
             }
@@ -1145,14 +1176,7 @@ final class HLSDownloader: @unchecked Sendable {
         return content
     }
 
-    private func fetchData(
-        url: URL,
-        maximumResponseBytes: Int = HLSDownloader.maximumMediaObjectBytes
-    ) async throws -> Data {
-        try checkCancelled()
-        try await waitForRequestStartSlot(for: url)
-        publishStage("Downloading HLS data")
-
+    private func makeTransportRequest(for url: URL) -> (URLRequest, [String: String]) {
         let effectiveHeaders = CloudflareBypassManager.shared.headersByApplyingCachedBypass(headers, for: url)
         let transportHeaders = MPVHeaderProxy.shared.directTransportHeaders(
             effectiveHeaders,
@@ -1163,6 +1187,64 @@ final class HLSDownloader: @unchecked Sendable {
         for (key, value) in transportHeaders {
             request.setValue(value, forHTTPHeaderField: key)
         }
+        return (request, effectiveHeaders)
+    }
+
+    private func scheduleBackgroundPlaylistResources(
+        segments: [URL],
+        startingAt startIndex: Int,
+        initializationSegmentURL: URL?
+    ) async throws {
+#if os(iOS) && !targetEnvironment(macCatalyst)
+        guard usesBackgroundURLSession else { return }
+        let resourceURLs = (initializationSegmentURL.map { [$0] } ?? [])
+            + Array(segments.dropFirst(startIndex))
+        guard resourceURLs.count <= 20_000 else {
+            throw HLSError.unsupportedLayout(
+                reason: "This HLS playlist contains too many segments to queue safely for background downloading. Choose a shorter or pre-packaged stream."
+            )
+        }
+        var requests: [URLRequest] = []
+        requests.reserveCapacity(resourceURLs.count)
+        for url in resourceURLs {
+            try checkCancelled()
+            if requiresPublicNetworkValidationForBackgroundURLSession {
+                guard url.scheme?.lowercased() == "https" else {
+                    throw HLSError.unsupportedLayout(reason: "This protected HLS source requires HTTPS for background transfer.")
+                }
+                do {
+                    _ = try await SkyStreamRemoteURLPolicy.shared.validateForNetworkDispatch(
+                        url.absoluteString,
+                        purpose: .mediaSegment
+                    )
+                } catch {
+                    throw HLSError.unsupportedLayout(
+                        reason: "An HLS resource was rejected by the protected-source network policy."
+                    )
+                }
+            }
+            var request = makeTransportRequest(for: url).0
+            request.timeoutInterval = 600
+            requests.append(request)
+        }
+        await HLSBackgroundURLSessionCoordinator.shared.schedule(
+            requests,
+            downloadID: downloadId,
+            maximumResponseBytes: Self.maximumMediaObjectBytes,
+            requiresPublicNetworkValidation: requiresPublicNetworkValidationForBackgroundURLSession
+        )
+#endif
+    }
+
+    private func fetchData(
+        url: URL,
+        maximumResponseBytes: Int = HLSDownloader.maximumMediaObjectBytes
+    ) async throws -> Data {
+        try checkCancelled()
+        try await waitForRequestStartSlot(for: url)
+        publishStage("Downloading HLS data")
+
+        let (request, effectiveHeaders) = makeTransportRequest(for: url)
 
         #if DEBUG
         onBeforeRequestStartForTesting?(url)
@@ -1596,6 +1678,21 @@ final class HLSDownloader: @unchecked Sendable {
         do {
             try ensureDiskCapacity()
 
+            let totalSegments = segments.count
+            let startIndex = isResuming ? resumeFromSegment : 0
+
+            // Create OS-owned download tasks for the complete remaining
+            // playlist before awaiting any one segment. This is the key
+            // background-continuation requirement: iOS may suspend the Swift
+            // worker between segment requests, but URLSession keeps every
+            // already-enqueued transfer alive and delivers completed files
+            // when Eclipse is relaunched or foregrounded.
+            try await scheduleBackgroundPlaylistResources(
+                segments: segments,
+                startingAt: startIndex,
+                initializationSegmentURL: isResuming ? nil : initSegmentURL
+            )
+
             if !isResuming, let initURL = initSegmentURL {
                 publishStage("Downloading initialization segment")
                 try checkSystemBackoff()
@@ -1612,9 +1709,6 @@ final class HLSDownloader: @unchecked Sendable {
                 try ensureDiskCapacity(additionalBytes: Int64(decrypted.count))
                 try fileHandle.write(contentsOf: decrypted)
             }
-
-            let totalSegments = segments.count
-            let startIndex = isResuming ? resumeFromSegment : 0
 
             for index in startIndex..<totalSegments {
                 publishStage("Downloading video segment")
