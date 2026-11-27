@@ -429,7 +429,10 @@ private final class ProxyFlowFixtureClient {
     }
 
     func cancel() {
-        queue.async { self.finish(error: "cancelled") }
+        // Close the client socket before the test starts waiting for the proxy
+        // to observe downstream cancellation. An asynchronous enqueue here
+        // allowed the test thread to race its own cancellation assertion.
+        queue.sync { self.finish(error: "cancelled") }
     }
 
     private func receiveNext() {
