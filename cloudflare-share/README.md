@@ -11,18 +11,31 @@ This service provides internet-accessible, expiring links for Eclipse media. It 
 
 ## Deploy
 
+### GitHub Actions deployment (recommended)
+
+The repository includes `.github/workflows/deploy-cloudflare-share.yml`. After this PR is merged, add the following under **GitHub → Settings → Secrets and variables → Actions**:
+
+**Repository secrets**
+- `CLOUDFLARE_API_TOKEN`: Cloudflare API token scoped to the target account with Workers Scripts: Edit and R2 Storage: Edit permissions.
+- `CLOUDFLARE_ACCOUNT_ID`: the Cloudflare account ID.
+- `SHARE_ADMIN_TOKEN`: a long random secret used by Eclipse to create share links.
+- `SHARE_ENCRYPTION_KEY`: a 32-byte key, base64 encoded. Generate with `openssl rand -base64 32`.
+
+**Repository variable**
+- `CLOUDFLARE_WORKER_BASE_URL`: the exact public URL for the Worker, e.g. `https://eclipse-share.<your-account-subdomain>.workers.dev` (or your configured custom domain).
+
+Then merge the PR and run **Actions → Deploy Cloudflare Share Worker → Run workflow**. The workflow creates the `eclipse-shares` R2 bucket if it does not exist, uploads both secrets directly to Cloudflare, and deploys the Worker. It never prints secret values. The workflow can also redeploy automatically when `cloudflare-share/**` changes on `main`.
+
+### Manual local deployment
+
 1. Create a Cloudflare R2 bucket named `eclipse-shares`.
 2. Install Wrangler in this directory and run `npx wrangler login`.
-3. Generate a 32-byte encryption key and base64 encode it:
-   `openssl rand -base64 32`.
-4. Set secrets:
-   - `npx wrangler secret put SHARE_ADMIN_TOKEN` — use a long random value.
-   - `npx wrangler secret put SHARE_ENCRYPTION_KEY` — paste the base64 key.
-5. Edit `PUBLIC_BASE_URL` in `wrangler.toml` to the actual Worker URL (or your own domain).
-6. Deploy with `npx wrangler deploy`.
-7. Verify `GET /health`.
+3. Generate the 32-byte encryption key with `openssl rand -base64 32`.
+4. Set `SHARE_ADMIN_TOKEN` and `SHARE_ENCRYPTION_KEY` with `wrangler secret put`.
+5. Set the Worker public URL in `wrangler.toml`.
+6. Run `npx wrangler deploy` and verify `GET /health`.
 
-Do not put either secret in source control, the iOS app bundle, GitHub Actions logs, or a public issue.
+Never commit secrets or put them in the iOS app bundle or workflow logs.
 
 ## API
 
@@ -63,7 +76,7 @@ Returns `uploadUrl`, `fileUrl`, and `partSizeBytes`. The iOS app reads the compl
 - The current Worker blocks obvious private/local IP ranges and validates redirect targets. Before production, add a strict provider/CDN hostname allowlist appropriate to the user's configured stream providers; DNS-level rebinding defenses should also be reviewed.
 - R2 storage and egress may incur charges. Set Cloudflare spending limits and an R2 lifecycle rule for expired objects. The Worker checks expiration at read time; lifecycle cleanup is also recommended.
 - HLS playlists larger than 2 MiB are rejected rather than buffered without a bound.
-- The Worker has not been deployed because no Cloudflare account credentials or bucket are connected to this repository workflow.
+- The Worker is not deployed until the repository owner configures the Cloudflare Actions secrets and variable listed above and runs the deployment workflow.
 
 ## Local checks
 
