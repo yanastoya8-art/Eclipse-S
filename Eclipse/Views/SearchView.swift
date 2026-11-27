@@ -434,7 +434,8 @@ struct SearchView: View {
                 filterRefreshRevision &+= 1
                 cachedCatalogResults = contentFilter.filterSearchResults(
                     searchResults,
-                    resolveMetadataInBackground: false
+                    resolveMetadataInBackground: false,
+                    allowUnresolvedOptionalMetadata: true
                 )
             }
         }
@@ -974,7 +975,8 @@ struct SearchView: View {
                     }
                     let filteredResults = contentFilter.filterSearchResults(
                         identityResolvedResults,
-                        resolveMetadataInBackground: false
+                        resolveMetadataInBackground: false,
+                        allowUnresolvedOptionalMetadata: true
                     )
 #if os(tvOS)
                     let restoredFocus = restoredTVResultFocus(
