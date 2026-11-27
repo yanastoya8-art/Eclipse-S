@@ -407,7 +407,7 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
             if let http = response as? HTTPURLResponse {
                 statusCode = http.statusCode
                 let safeNames: Set<String> = [
-                    "content-type", "content-length", "content-encoding",
+                    "content-type", "content-length", "content-encoding", "content-range",
                     "retry-after", "server", "cf-ray", "cf-mitigated"
                 ]
                 headers = http.allHeaderFields.reduce(into: [:]) { result, pair in
