@@ -248,6 +248,31 @@ struct HLSBackgroundDownloadResult {
     let response: URLResponse?
 }
 
+enum HLSBackgroundPlaylistResourcePlan {
+    static let maximumResourceCount = 20_000
+
+    static func resources(
+        segments: [URL],
+        startingAt startIndex: Int,
+        initializationSegmentURL: URL?
+    ) throws -> [URL] {
+        guard startIndex >= 0, startIndex <= segments.count else {
+            throw HLSError.unsupportedLayout(
+                reason: "This HLS resume checkpoint points outside the media playlist. Restart the download."
+            )
+        }
+
+        let resources = (initializationSegmentURL.map { [$0] } ?? [])
+            + Array(segments.dropFirst(startIndex))
+        guard resources.count <= maximumResourceCount else {
+            throw HLSError.unsupportedLayout(
+                reason: "This HLS playlist contains too many segments to queue safely for background downloading. Choose a shorter or pre-packaged stream."
+            )
+        }
+        return resources
+    }
+}
+
 /// Downloads each HLS resource as an OS-managed background URLSession task.
 /// Stable task descriptions and a small completed-file cache let a new
 /// HLSDownloader reattach after iOS relaunches Eclipse for background events.
@@ -1259,13 +1284,11 @@ final class HLSDownloader: @unchecked Sendable {
     ) async throws {
 #if os(iOS) && !targetEnvironment(macCatalyst)
         guard usesBackgroundURLSession else { return }
-        let resourceURLs = (initializationSegmentURL.map { [$0] } ?? [])
-            + Array(segments.dropFirst(startIndex))
-        guard resourceURLs.count <= 20_000 else {
-            throw HLSError.unsupportedLayout(
-                reason: "This HLS playlist contains too many segments to queue safely for background downloading. Choose a shorter or pre-packaged stream."
-            )
-        }
+        let resourceURLs = try HLSBackgroundPlaylistResourcePlan.resources(
+            segments: segments,
+            startingAt: startIndex,
+            initializationSegmentURL: initializationSegmentURL
+        )
         var requests: [URLRequest] = []
         requests.reserveCapacity(resourceURLs.count)
         for url in resourceURLs {
