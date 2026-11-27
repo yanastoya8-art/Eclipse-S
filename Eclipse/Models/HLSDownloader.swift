@@ -805,7 +805,7 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
     }
 
     private func taskPrefix(downloadID: String) -> String {
-        "eclipse-hls-v2-\(digest(downloadID))-"
+        "eclipse-hls-v1-\(digest(downloadID))-"
     }
 
     private func taskDescription(
@@ -815,7 +815,8 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
         maximumResponseBytes: Int,
         requiresPublicNetworkValidation: Bool
     ) -> String {
-        let urlValue = (url?.absoluteString ?? "missing-url") + "\nrange:" + (rangeHeader ?? "none")
+        var urlValue = url?.absoluteString ?? "missing-url"
+        if let rangeHeader { urlValue += "\nrange:\(rangeHeader)" }
         let boundedMaximum = min(max(maximumResponseBytes, 1), 128 * 1_024 * 1_024)
         let validationMode = requiresPublicNetworkValidation ? "public" : "user"
         return taskPrefix(downloadID: downloadID)
@@ -1541,9 +1542,14 @@ final class HLSDownloader: @unchecked Sendable {
                 throw HLSError.unsupportedLayout(reason: "The HLS server did not return a verifiable byte-range response.")
             }
             if httpResponse.statusCode == 206 {
-                let expected = "bytes \(byteRange.offset)-\(expectedEnd)/"
-                guard let contentRange = httpResponse.value(forHTTPHeaderField: "Content-Range"),
-                      contentRange.hasPrefix(expected),
+                let expectedRange = "bytes \(byteRange.offset)-\(expectedEnd)"
+                guard let contentRange = httpResponse.value(forHTTPHeaderField: "Content-Range") else {
+                    throw HLSError.unsupportedLayout(reason: "The HLS server returned an unexpected byte range.")
+                }
+                let contentRangeParts = contentRange.split(separator: "/", maxSplits: 1)
+                guard contentRangeParts.count == 2,
+                      contentRangeParts[0] == Substring(expectedRange),
+                      contentRangeParts[1] == "*" || Int64(contentRangeParts[1]).map({ $0 > expectedEnd }) == true,
                       Int64(data.count) == byteRange.length else {
                     throw HLSError.unsupportedLayout(reason: "The HLS server returned an unexpected byte range.")
                 }
@@ -1553,9 +1559,9 @@ final class HLSDownloader: @unchecked Sendable {
                 // A few CDNs ignore Range for a complete resource that is
                 // already exactly the requested size. This is safe only at 0.
             } else if httpResponse.statusCode == 200,
-                      Int64(data.count) > expectedEnd {
-                let lower = Int(byteRange.offset)
-                let upper = Int(expectedEnd + 1)
+                      let lower = Int(exactly: byteRange.offset),
+                      let upper = Int(exactly: expectedEnd + 1),
+                      data.count > upper {
                 return data.subdata(in: lower..<upper)
             } else {
                 throw HLSError.unsupportedLayout(reason: "The HLS server ignored or rejected a required byte-range request.")
