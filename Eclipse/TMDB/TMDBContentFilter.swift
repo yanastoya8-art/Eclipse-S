@@ -1537,19 +1537,28 @@ class TMDBContentFilter: ObservableObject {
         )
     }
 
-    private func shouldIncludeSelectedAnimeDub(_ result: TMDBSearchResult) -> Bool {
-        // Dub-language requirements apply only to anime. Returning false for
-        // ordinary TV/movie records without an AniList identity emptied their
-        // Browse grids whenever a dub language was selected.
+    private func shouldIncludeSelectedAnimeDub(
+        _ result: TMDBSearchResult,
+        allowUnresolvedOptionalMetadata: Bool = false
+    ) -> Bool {
+        // Dub-language requirements apply only to anime.
         guard Self.isAnimeResult(result) else { return true }
         if MyDubListDubFilter.shared.shouldInclude(result) { return true }
         guard let anilistID = result.animeIdentitySeed?.anilistId, anilistID > 0 else { return false }
         let selectedLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
         guard !selectedLanguages.isEmpty else { return true }
+
         animeEligibilityLock.lock()
         defer { animeEligibilityLock.unlock() }
-        return animeAudioEligibilityLanguages == selectedLanguages
-            && animeAudioEligibleIDs.contains(anilistID)
+        guard animeAudioEligibilityLanguages == selectedLanguages,
+              animeAudioCheckedIDs.contains(anilistID) else {
+            // Search may display a title while its verified dub lookup is
+            // pending. The resolver posts a filter-refresh notification when
+            // it completes, at which point confirmed non-matches are removed.
+            // Browse passes false and remains strict before publishing a page.
+            return allowUnresolvedOptionalMetadata
+        }
+        return animeAudioEligibleIDs.contains(anilistID)
     }
 
     private func shouldIncludeCatalogResult(
@@ -1564,7 +1573,10 @@ class TMDBContentFilter: ObservableObject {
             result: result,
             allowUnresolvedMetadata: allowUnresolvedOptionalMetadata
         ) else { return false }
-        guard shouldIncludeSelectedAnimeDub(result) else { return false }
+        guard shouldIncludeSelectedAnimeDub(
+            result,
+            allowUnresolvedOptionalMetadata: allowUnresolvedOptionalMetadata
+        ) else { return false }
         guard result.adult != true else { return false }
         if Self.isAnimeResult(result), !shouldIncludeAnimeCategoryFilters(result) { return false }
         guard shouldIncludeForConfiguredAgeAndAudio(
