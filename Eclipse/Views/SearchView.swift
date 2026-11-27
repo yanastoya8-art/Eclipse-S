@@ -705,7 +705,7 @@ struct SearchView: View {
     }
 
     private var contentFilterSettingsSignature: String {
-        let defaults = UserDefaults.standard
+        let defaults = ProfileSettingsStore.active
         let keys = defaults.dictionaryRepresentation().keys
             .filter { $0.hasPrefix("catalog") || $0 == "filterHorror" }
             .sorted()
@@ -939,8 +939,8 @@ struct SearchView: View {
                     })
                 }
                 let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
-                let requiresGlobalAnimeAgeRating = UserDefaults.standard.bool(forKey: "catalogHideBelowPG13Anime")
-                    || UserDefaults.standard.bool(forKey: "catalogHideAllAgesAnime")
+                let requiresGlobalAnimeAgeRating = ProfileSettingsStore.active.bool(forKey: "catalogHideBelowPG13Anime")
+                    || ProfileSettingsStore.active.bool(forKey: "catalogHideAllAgesAnime")
                 // TMDB's multi-search endpoint is not a complete TV index:
                 // it can rank movies above shows or omit a show for a query
                 // that the dedicated /search/tv endpoint does return. Always
@@ -2873,7 +2873,7 @@ private struct BrowseMediaView: View {
         // reliably than it does in title/overview text. Exclude those at the
         // discovery query as well as in TMDBContentFilter so Upcoming-only
         // results cannot reintroduce tagged fan productions.
-        let unofficialKeywordNames = UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent")
+        let unofficialKeywordNames = ProfileSettingsStore.active.bool(forKey: "catalogHideUnofficialContent")
             ? ["fan film", "fan-made", "fan made", "fan fiction", "fanfiction", "unofficial"]
             : []
         let allKeywordNames = Array(Set(selectedKeywordNames + excludedKeywordNames + unofficialKeywordNames)).sorted()
@@ -3059,10 +3059,10 @@ private struct BrowseMediaView: View {
         let selectedDubLanguageCodes = Set(MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement.compactMap {
             MyDubListLanguage(rawValue: $0)?.taizenLanguageCode
         })
-        let originalAudioFilterEnabled = UserDefaults.standard.bool(forKey: "catalogRequireEnglishSpanishAudio")
+        let originalAudioFilterEnabled = ProfileSettingsStore.active.bool(forKey: "catalogRequireEnglishSpanishAudio")
         let globalAnimeAgeFilterEnabled =
-            UserDefaults.standard.bool(forKey: "catalogHideBelowPG13Anime")
-            || UserDefaults.standard.bool(forKey: "catalogHideAllAgesAnime")
+            ProfileSettingsStore.active.bool(forKey: "catalogHideBelowPG13Anime")
+            || ProfileSettingsStore.active.bool(forKey: "catalogHideAllAgesAnime")
 
         let candidates = results.enumerated().compactMap { index, result -> (Int, TMDBSearchResult, Bool)? in
             let hasTaizenPoster = result.animeArtworkURL?.contains("taizen.moe") == true
@@ -3390,8 +3390,8 @@ private struct BrowseMediaView: View {
         // languages. The global English/Spanish audio requirement implicitly
         // selects both languages and must warm the same dub index on cold Browse.
         let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
-        let requiresGlobalAnimeAgeRating = UserDefaults.standard.bool(forKey: "catalogHideBelowPG13Anime")
-            || UserDefaults.standard.bool(forKey: "catalogHideAllAgesAnime")
+        let requiresGlobalAnimeAgeRating = ProfileSettingsStore.active.bool(forKey: "catalogHideBelowPG13Anime")
+            || ProfileSettingsStore.active.bool(forKey: "catalogHideAllAgesAnime")
         let requiresAnimeIdentity = mediaType.isAnime
             && (!selectedDubLanguages.isEmpty || requiresGlobalAnimeAgeRating)
 
@@ -3415,7 +3415,7 @@ private struct BrowseMediaView: View {
             }
             guard !Task.isCancelled else { return [] }
         }
-        let defaults = UserDefaults.standard
+        let defaults = ProfileSettingsStore.active
         let requiresBrowseMetadata = defaults.bool(forKey: "catalogHideUnder20MinuteContent")
             || defaults.bool(forKey: "catalogHideUnofficialContent")
             || defaults.bool(forKey: "catalogHideBelowPG13Movies")
