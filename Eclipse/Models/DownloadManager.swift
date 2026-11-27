@@ -4655,9 +4655,20 @@ final class DownloadManager: NSObject, ObservableObject {
         let protectedAttempt = protectedProviderAttempts[item.id]
         let activeRequestURL = activeTasks[item.id]?.currentRequest?.url
             ?? activeTasks[item.id]?.originalRequest?.url
+        let storedSourceURL = DownloadSourceLinkPolicy.copyableURL(item.streamURL)
+        let managedProxySession = storedSourceURL.flatMap {
+            MPVHeaderProxy.shared.upstreamProbeTarget(for: $0)
+        }
+        let managedProxyTarget = storedSourceURL.flatMap {
+            MPVHeaderProxy.shared.recoverableTargetURL(for: $0) ?? managedProxySession?.url
+        }
+        // Never publish a loopback playback proxy as a copied URL. Resolve the
+        // authenticated remote target and carry its scoped headers into the
+        // LAN playlist proxy so another device can fetch the HLS resources.
         let sourceURL = protectedAttempt.flatMap {
             DownloadSourceLinkPolicy.copyableURL($0.authorityURL)
-        } ?? DownloadSourceLinkPolicy.copyableURL(item.streamURL)
+        } ?? managedProxyTarget
+            ?? storedSourceURL
             ?? activeRequestURL.flatMap {
                 DownloadSourceLinkPolicy.copyableURL($0.absoluteString)
             }
@@ -4670,7 +4681,7 @@ final class DownloadManager: NSObject, ObservableObject {
             return sourceURL
         }
 
-        let headers = protectedAttempt?.authorityHeaders ?? item.headers
+        let headers = protectedAttempt?.authorityHeaders ?? managedProxySession?.headers ?? item.headers
         if item.isHLS || sourceURL.pathExtension.caseInsensitiveCompare("m3u8") == .orderedSame {
             // An HLS manifest is not a single video file. Do not force Safari
             // to save only the .m3u8 text as an attachment; expose a rewritten
