@@ -1647,21 +1647,26 @@ private struct BrowseMediaView: View {
         // Migrate the restrictive defaults used by the previous Browse build.
         // They were automatically selected, not a user request to limit every
         // TV shelf to Fantasy+Sci-Fi or to hide Isekai/Slice-of-Life/Harem/Music.
-        var restrictiveTVDefault = broadDefault
-        if mediaType == .tv {
-            restrictiveTVDefault.selectedGenreKeys = ["tmdb-14", "tmdb-878"]
-            restrictiveTVDefault.excludedGenreKeys = ["tmdb-99", "tmdb-10762", "tmdb-10763"]
-            if configuration == restrictiveTVDefault { return broadDefault }
+        var migrated = configuration
+        if mediaType == .tv,
+           Set(configuration.selectedGenreKeys) == Set(["tmdb-14", "tmdb-878"]),
+           Set(configuration.excludedGenreKeys) == Set(["tmdb-99", "tmdb-10762", "tmdb-10763"]) {
+            // Preserve a user's year/country/rating/sort choices while removing
+            // the old automatically-selected genre gates that hid most series.
+            migrated.selectedGenreKeys = []
+            migrated.excludedGenreKeys = []
         }
-        var restrictiveAnimeDefault = broadDefault
-        if mediaType == .anime {
-            restrictiveAnimeDefault.excludedGenreKeys = [
-                "tmdb-10762", "keyword-isekai", "keyword-slice of life",
-                "keyword-harem", "keyword-music"
-            ]
-            if configuration == restrictiveAnimeDefault { return broadDefault }
+        if mediaType == .anime,
+           configuration.selectedGenreKeys.isEmpty,
+           Set(configuration.excludedGenreKeys) == Set([
+               "tmdb-10762", "keyword-isekai", "keyword-slice of life",
+               "keyword-harem", "keyword-music"
+           ]) {
+            // Remove the previous app-imposed exclusions without resetting
+            // unrelated user filter choices.
+            migrated.excludedGenreKeys = []
         }
-        return configuration
+        return migrated
     }
 
     private static func sanitizedConfiguration(
