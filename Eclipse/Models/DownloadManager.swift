@@ -11565,71 +11565,25 @@ extension DownloadManager: URLSessionDownloadDelegate {
 
 
 #if os(iOS) && !targetEnvironment(macCatalyst)
-enum EclipseShareCredentialStore {
-    private static let service = "com.eclipse.app.cloud-share"
-    private static let account = "share-admin-token"
-
-    static func loadAdminToken() -> String {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-        var result: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let data = result as? Data,
-              let token = String(data: data, encoding: .utf8) else { return "" }
-        return token
-    }
-
-    static func saveAdminToken(_ token: String) throws {
-        let data = Data(token.trimmingCharacters(in: .whitespacesAndNewlines).utf8)
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account
-        ]
-        let update: [String: Any] = [kSecValueData as String: data]
-        let status = SecItemUpdate(query as CFDictionary, update as CFDictionary)
-        if status == errSecItemNotFound {
-            var insert = query
-            insert[kSecValueData as String] = data
-            let addStatus = SecItemAdd(insert as CFDictionary, nil)
-            guard addStatus == errSecSuccess else {
-                throw NSError(domain: NSOSStatusErrorDomain, code: Int(addStatus))
-            }
-        } else if status != errSecSuccess {
-            throw NSError(domain: NSOSStatusErrorDomain, code: Int(status))
-        }
-    }
-
-    static func isConfigured(baseURL: String?) -> Bool {
-        guard let baseURL,
-              let url = URL(string: baseURL.trimmingCharacters(in: .whitespacesAndNewlines)),
-              url.scheme?.lowercased() == "https",
-              url.host?.isEmpty == false else { return false }
-        return !loadAdminToken().isEmpty
-    }
-}
-
 enum EclipseShareError: LocalizedError {
     case notConfigured
     case invalidResponse
     case server(String)
     case fileTooLarge
+    case completedDownloadRequired
 
     var errorDescription: String? {
         switch self {
         case .notConfigured:
-            return "Set the Cloudflare Worker URL and admin token in Settings → Downloads → Internet Share Links."
+            return "Set the Vercel backend URL in Settings → Storage → Internet Share Links and configure Vercel Blob storage."
         case .invalidResponse:
-            return "The share service returned an invalid response."
+            return "Vercel Blob returned an invalid upload response."
         case .server(let message):
             return message
         case .fileTooLarge:
-            return "This file exceeds the current R2 multipart limit (about 80 GiB)."
+            return "This file exceeds the 95 MiB internet-sharing limit."
+        case .completedDownloadRequired:
+            return "Internet sharing currently requires a completed download. Use Copy Stream URL for an active stream."
         }
     }
 }
@@ -11637,117 +11591,91 @@ enum EclipseShareError: LocalizedError {
 @MainActor
 extension DownloadManager {
     func createInternetShareURL(for item: DownloadItem) async throws -> URL {
-        let base = (UserDefaults.standard.string(forKey: "eclipseCloudShareBaseURL") ?? "")
+        let base = (UserDefaults.standard.string(forKey: "eclipseShareAPIBaseURL") ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        let adminToken = EclipseShareCredentialStore.loadAdminToken()
         guard let baseURL = URL(string: base),
               baseURL.scheme?.lowercased() == "https",
-              baseURL.host?.isEmpty == false,
-              !adminToken.isEmpty else { throw EclipseShareError.notConfigured }
-
-        func authorizedRequest(path: String, payload: [String: Any]) throws -> URLRequest {
-            guard let endpoint = URL(string: path, relativeTo: baseURL)?.absoluteURL else {
-                throw EclipseShareError.invalidResponse
-            }
-            var request = URLRequest(url: endpoint)
-            request.httpMethod = "POST"
-            request.timeoutInterval = 45
-            request.setValue("Bearer \(adminToken)", forHTTPHeaderField: "Authorization")
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-            return request
+              baseURL.host?.isEmpty == false else {
+            throw EclipseShareError.notConfigured
+        }
+        guard item.status == .completed, let localURL = localFileURL(for: item) else {
+            throw EclipseShareError.completedDownloadRequired
         }
 
-        func responseDictionary(_ data: Data, _ response: URLResponse) throws -> [String: Any] {
-            guard let http = response as? HTTPURLResponse else { throw EclipseShareError.invalidResponse }
-            let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
-            guard (200..<300).contains(http.statusCode) else {
-                throw EclipseShareError.server(object?["error"] as? String ?? "Share service request failed (HTTP \(http.statusCode)).")
-            }
-            guard let object else { throw EclipseShareError.invalidResponse }
-            return object
+        let attributes = try FileManager.default.attributesOfItem(atPath: localURL.path)
+        let fileSize = (attributes[.size] as? NSNumber)?.int64Value ?? 0
+        guard fileSize > 0, fileSize <= 95 * 1_024 * 1_024 else {
+            throw EclipseShareError.fileTooLarge
         }
 
-        if item.status == .completed, let localURL = localFileURL(for: item) {
-            let attributes = try FileManager.default.attributesOfItem(atPath: localURL.path)
-            let fileSize = (attributes[.size] as? NSNumber)?.int64Value ?? 0
-            guard fileSize > 0, fileSize <= 95 * 1_024 * 1_024 else { throw EclipseShareError.fileTooLarge }
-            let filename = localURL.lastPathComponent
-            let mime = Self.shareMimeType(for: localURL.pathExtension)
-            let create = try authorizedRequest(path: "/v1/uploads", payload: [
-                "filename": filename,
-                "mimeType": mime,
-                "expiresInSeconds": 86_400
-            ])
-            let (createData, createResponse) = try await URLSession.shared.data(for: create)
-            let created = try responseDictionary(createData, createResponse)
-            guard let uploadString = created["uploadUrl"] as? String,
-                  let fileString = created["fileUrl"] as? String,
-                  let uploadURL = URL(string: uploadString),
-                  let fileURL = URL(string: fileString),
-                  let partSize = created["partSizeBytes"] as? Int,
-                  partSize >= 5 * 1_024 * 1_024 else { throw EclipseShareError.invalidResponse }
-            let partCount = Int((fileSize + Int64(partSize) - 1) / Int64(partSize))
-            guard partCount > 0, partCount <= 10_000 else { throw EclipseShareError.fileTooLarge }
-            let handle = try FileHandle(forReadingFrom: localURL)
-            defer { try? handle.close() }
-            var uploadedParts: [[String: Any]] = []
-            uploadedParts.reserveCapacity(partCount)
-            for partNumber in 1...partCount {
-                let chunk = try handle.read(upToCount: partSize) ?? Data()
-                guard !chunk.isEmpty else { throw EclipseShareError.invalidResponse }
-                let partURL = uploadURL.appendingPathComponent("parts").appendingPathComponent(String(partNumber))
-                var partRequest = URLRequest(url: partURL)
-                partRequest.httpMethod = "PUT"
-                partRequest.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
-                let (partData, partResponse) = try await URLSession.shared.upload(for: partRequest, from: chunk)
-                let partResult = try responseDictionary(partData, partResponse)
-                guard let etag = partResult["etag"] as? String,
-                      let confirmedNumber = partResult["partNumber"] as? Int,
-                      confirmedNumber == partNumber else { throw EclipseShareError.invalidResponse }
-                uploadedParts.append(["partNumber": partNumber, "etag": etag])
-            }
-            guard let completeURL = uploadURL.appendingPathComponent("complete") else {
-                throw EclipseShareError.invalidResponse
-            }
-            var completeRequest = URLRequest(url: completeURL)
-            completeRequest.httpMethod = "POST"
-            completeRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            completeRequest.httpBody = try JSONSerialization.data(withJSONObject: ["parts": uploadedParts])
-            let (completeData, completeResponse) = try await URLSession.shared.data(for: completeRequest)
-            _ = try responseDictionary(completeData, completeResponse)
-            return fileURL
-        }
-
-        let protectedAttempt = protectedProviderAttempts[item.id]
-        let activeRequestURL = activeTasks[item.id]?.currentRequest?.url
-            ?? activeTasks[item.id]?.originalRequest?.url
-        let storedSourceURL = DownloadSourceLinkPolicy.copyableURL(item.streamURL)
-        let activeSourceURL = activeRequestURL.flatMap {
-            DownloadSourceLinkPolicy.copyableURL($0.absoluteString)
-        }
-        let candidate = protectedAttempt.flatMap {
-            DownloadSourceLinkPolicy.copyableURL($0.authorityURL)
-        } ?? storedSourceURL ?? activeSourceURL
-        let managedSession = candidate.flatMap { MPVHeaderProxy.shared.upstreamProbeTarget(for: $0) }
-        let managedTarget = candidate.flatMap {
-            MPVHeaderProxy.shared.recoverableTargetURL(for: $0) ?? managedSession?.url
-        }
-        guard let source = managedTarget ?? candidate else {
-            throw EclipseShareError.server("The original stream URL is no longer available. Re-select the stream and try again.")
-        }
-        let headers = managedSession?.headers ?? protectedAttempt?.authorityHeaders ?? item.headers
-        let create = try authorizedRequest(path: "/v1/shares", payload: [
-            "url": source.absoluteString,
-            "headers": headers,
-            "expiresInSeconds": 86_400
+        let filename = localURL.lastPathComponent
+            .replacingOccurrences(of: "[^A-Za-z0-9._-]", with: "_", options: .regularExpression)
+        let mime = Self.shareMimeType(for: localURL.pathExtension)
+        let tokenEndpoint = baseURL.appendingPathComponent("api/share/upload-token")
+        var tokenRequest = URLRequest(url: tokenEndpoint)
+        tokenRequest.httpMethod = "POST"
+        tokenRequest.timeoutInterval = 30
+        tokenRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        tokenRequest.httpBody = try JSONSerialization.data(withJSONObject: [
+            "type": "blob.generate-client-token",
+            "payload": [
+                "pathname": filename,
+                "clientPayload": NSNull(),
+                "multipart": false
+            ]
         ])
-        let (data, response) = try await URLSession.shared.data(for: create)
-        let result = try responseDictionary(data, response)
-        guard let shareString = result["url"] as? String,
-              let shareURL = URL(string: shareString) else { throw EclipseShareError.invalidResponse }
-        return shareURL
+
+        let (tokenData, tokenResponse) = try await URLSession.shared.data(for: tokenRequest)
+        guard let tokenHTTP = tokenResponse as? HTTPURLResponse else {
+            throw EclipseShareError.invalidResponse
+        }
+        let tokenObject = (try? JSONSerialization.jsonObject(with: tokenData)) as? [String: Any]
+        guard (200..<300).contains(tokenHTTP.statusCode) else {
+            throw EclipseShareError.server(tokenObject?["error"] as? String ?? "Could not authorize the Vercel Blob upload (HTTP \(tokenHTTP.statusCode)).")
+        }
+        guard let clientToken = tokenObject?["clientToken"] as? String,
+              let storeID = tokenObject?["storeId"] as? String,
+              clientToken.hasPrefix("vercel_blob_client_"),
+              !storeID.isEmpty else {
+            throw EclipseShareError.invalidResponse
+        }
+
+        var components = URLComponents(string: "https://vercel.com/api/blob/")
+        components?.queryItems = [URLQueryItem(name: "pathname", value: filename)]
+        guard let blobURL = components?.url else { throw EclipseShareError.invalidResponse }
+        var uploadRequest = URLRequest(url: blobURL)
+        uploadRequest.httpMethod = "PUT"
+        uploadRequest.timeoutInterval = 600
+        uploadRequest.setValue("Bearer \(clientToken)", forHTTPHeaderField: "Authorization")
+        uploadRequest.setValue(storeID, forHTTPHeaderField: "x-vercel-blob-store-id")
+        uploadRequest.setValue("13", forHTTPHeaderField: "x-api-version")
+        uploadRequest.setValue(UUID().uuidString, forHTTPHeaderField: "x-api-blob-request-id")
+        uploadRequest.setValue("0", forHTTPHeaderField: "x-api-blob-request-attempt")
+        uploadRequest.setValue(String(fileSize), forHTTPHeaderField: "x-content-length")
+        uploadRequest.setValue("public", forHTTPHeaderField: "x-vercel-blob-access")
+        uploadRequest.setValue(mime, forHTTPHeaderField: "x-content-type")
+        uploadRequest.setValue("1", forHTTPHeaderField: "x-add-random-suffix")
+        uploadRequest.setValue("1", forHTTPHeaderField: "x-ttl-days")
+        uploadRequest.setValue("60", forHTTPHeaderField: "x-cache-control-max-age")
+
+        let (uploadData, uploadResponse) = try await URLSession.shared.upload(for: uploadRequest, fromFile: localURL)
+        guard let uploadHTTP = uploadResponse as? HTTPURLResponse else {
+            throw EclipseShareError.invalidResponse
+        }
+        let uploadObject = (try? JSONSerialization.jsonObject(with: uploadData)) as? [String: Any]
+        guard (200..<300).contains(uploadHTTP.statusCode) else {
+            let error = (uploadObject?["error"] as? [String: Any])?["message"] as? String
+                ?? uploadObject?["error"] as? String
+                ?? "Vercel Blob upload failed (HTTP \(uploadHTTP.statusCode))."
+            throw EclipseShareError.server(error)
+        }
+        guard let sharedURL = uploadObject?["url"] as? String,
+              let url = URL(string: sharedURL),
+              url.scheme?.lowercased() == "https" else {
+            throw EclipseShareError.invalidResponse
+        }
+        return url
     }
 
     private static func shareMimeType(for extensionName: String) -> String {
