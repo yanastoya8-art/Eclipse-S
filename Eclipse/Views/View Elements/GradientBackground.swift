@@ -1094,7 +1094,7 @@ struct EclipseAmbientMotionBackground: View {
             radius: largeRingDiameter * 0.5 * lerp(0.992, 1.018, pulse),
             startDegrees: ringRotation + 18,
             endDegrees: ringRotation + 128,
-            color: accentColor.opacity(0.30),
+            color: primaryColor.opacity(0.30),
             lineWidth: 1.45
         )
         drawArc(
@@ -1131,7 +1131,7 @@ struct EclipseAmbientMotionBackground: View {
             radius: smallRingDiameter * 0.5 * lerp(1.02, 0.98, pulse),
             startDegrees: counterRingRotation + 132,
             endDegrees: counterRingRotation + 224,
-            color: accentColor.opacity(0.20),
+            color: primaryColor.opacity(0.20),
             lineWidth: 1.6
         )
         drawArc(
@@ -1149,7 +1149,7 @@ struct EclipseAmbientMotionBackground: View {
             radius: smallRingDiameter * 0.58,
             startDegrees: counterRingRotation + 160,
             endDegrees: counterRingRotation + 210,
-            color: accentColor.opacity(lerpDouble(0.48, 0.74, pulse)),
+            color: primaryColor.opacity(lerpDouble(0.48, 0.74, pulse)),
             lineWidth: 2.1
         )
 
