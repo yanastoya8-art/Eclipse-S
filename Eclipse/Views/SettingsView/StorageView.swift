@@ -206,7 +206,7 @@ struct StorageView: View {
     @AppStorage("autoClearCacheEnabled", store: .standard) private var autoClearCacheEnabled = true
     @AppStorage("autoClearCacheThresholdMB", store: .standard) private var autoClearCacheThresholdMB: Double = 2000
 #if os(iOS) && !targetEnvironment(macCatalyst)
-    @AppStorage("eclipseShareAPIBaseURL", store: .standard) private var shareAPIBaseURL = ""
+    @AppStorage("eclipseShareAPIBaseURL", store: .standard) private var shareAPIBaseURL = "https://eclipse-spanish-dub-research.vercel.app"
     @State private var shareServiceSaveMessage: String?
 #endif
 
