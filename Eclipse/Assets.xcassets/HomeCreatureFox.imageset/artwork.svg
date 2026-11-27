@@ -1,63 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="444" height="394" viewBox="0 0 444 394">
- <g stroke="#17191d" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round">
-  <!-- Nine individually outlined tails fan from one rump; narrow gaps keep each countable -->
-  <g>
-   <path fill="#30343a" d="M267 228 C216 181 163 105 105 37 C127 116 194 194 278 247 Z"/>
-   <path fill="#30343a" d="M276 224 C257 155 245 82 266 12 C294 89 301 164 290 237 Z"/>
-   <path fill="#30343a" d="M286 226 C311 151 356 91 420 54 C388 132 339 198 298 247 Z"/>
-   <path fill="#30343a" d="M296 232 C350 199 400 178 440 181 C405 224 355 252 303 260 Z"/>
-   <path fill="#30343a" d="M301 240 C358 241 405 263 432 306 C379 294 334 273 301 259 Z"/>
-   <path fill="#30343a" d="M298 248 C334 289 354 339 346 387 C311 345 292 296 288 253 Z"/>
-   <path fill="#30343a" d="M287 251 C285 314 263 366 230 392 C237 333 254 282 278 247 Z"/>
-   <path fill="#30343a" d="M278 250 C231 290 194 339 174 387 C230 350 264 301 284 250 Z"/>
-   <path fill="#30343a" d="M268 242 C209 235 152 250 103 286 C157 300 222 276 281 250 Z"/>
-  </g>
-  <!-- Highlighted tail tips keep all nine readable at small scale -->
-  <g fill="#8c96a1" stroke="none">
-   <path d="M132 82 Q177 105 216 153 Q178 120 149 105 Z"/>
-   <path d="M258 30 Q281 89 287 155 Q271 101 264 70 Z"/>
-   <path d="M391 52 Q362 117 321 175 Q352 103 374 73 Z"/>
-   <path d="M438 176 Q389 220 331 241 Q392 204 419 190 Z"/>
-   <path d="M425 204 Q378 240 330 250 Q382 215 405 212 Z"/>
-   <path d="M418 244 Q367 262 326 259 Q379 245 399 250 Z"/>
-   <path d="M405 318 Q355 301 324 273 Q377 292 391 304 Z"/>
-   <path d="M352 370 Q316 328 306 276 Q335 323 343 349 Z"/>
-   <path d="M226 386 Q229 328 274 263 Q243 329 238 367 Z"/>
-  </g>
-  <!-- Full fox body -->
-  <path fill="#252a30" d="M139 194 C161 165 201 156 243 171 C274 183 297 207 305 237 C308 267 286 290 250 298 L164 297 C132 284 115 255 119 225 Z"/>
-  <path fill="#69727d" d="M160 205 C183 180 219 177 247 190 C272 201 287 222 288 244 C275 259 252 271 225 273 C190 273 165 251 160 205 Z"/>
-  <!-- Neck and head, alert fox profile -->
-  <path fill="#252a30" d="M133 209 C116 193 102 176 91 151 C79 132 69 111 67 82 C88 91 107 107 119 127 C137 116 159 117 174 131 C191 147 188 174 171 193 L157 221 Z"/>
-  <path fill="#30343a" d="M83 125 C91 143 107 156 128 163 C146 168 164 161 173 147 C176 168 162 187 143 194 L116 183 Z"/>
-  <path fill="#30343a" d="M71 87 C83 104 97 118 114 129 L99 137 C86 124 76 107 71 87 Z"/>
-  <path fill="#30343a" d="M132 128 C137 104 151 81 174 61 C179 90 175 118 162 143 Z"/>
-  <path fill="#858e98" d="M141 119 Q154 91 168 78 Q164 110 153 133 Z"/>
-  <path fill="#858e98" d="M75 91 Q93 110 107 129 Q91 119 82 106 Z"/>
-  <path fill="#17191d" d="M103 157 Q121 146 137 156 Q125 170 109 167 Z"/>
-  <path fill="#c2cbd4" stroke="none" d="M109 157 Q121 152 131 157 Q121 164 109 157 Z"/>
-  <path fill="#17191d" d="M67 164 Q80 157 92 165 L82 176 L69 174 Z"/>
-  <path fill="#8b949e" d="M98 175 Q119 183 140 176 Q126 196 108 190 Z"/>
-  <path fill="none" stroke="#b9c1ca" stroke-width="2" d="M96 181 Q111 198 133 193 M112 141 Q126 133 139 141"/>
-  <!-- Four visible legs and paw pads -->
-  <path fill="#252a30" d="M151 270 L164 270 L162 340 L148 359 L129 359 L140 341 Z"/>
-  <path fill="#30343a" d="M185 278 L201 278 L205 344 L193 367 L175 367 L184 344 Z"/>
-  <path fill="#252a30" d="M250 273 L266 270 L281 338 L276 359 L256 359 L260 338 Z"/>
-  <path fill="#30343a" d="M277 260 L291 251 L315 323 L310 346 L292 347 L296 325 Z"/>
-  <g fill="#8f99a3" stroke="none">
-   <path d="M129 355 L151 354 L157 364 L147 370 L126 367 Z M175 362 L197 361 L204 371 L193 377 L172 374 Z M255 354 L277 354 L282 365 L270 371 L251 366 Z M291 341 L311 340 L318 351 L307 359 L289 355 Z"/>
-  </g>
-  <!-- Fur tufts, cheek markings, chest and tail-base texture -->
-  <path fill="#a2abb5" stroke="none" d="M112 187 Q124 196 140 194 L129 210 L120 202 L111 215 L105 200 Z M166 195 Q183 202 195 215 L178 213 L171 225 L159 211 Z M213 192 Q229 199 241 213 L222 208 L215 221 L203 208 Z"/>
-  <g fill="none" stroke="#aab3bd" stroke-width="2" opacity=".9">
-   <path d="M177 224 Q193 235 207 236 M190 244 Q204 252 219 252 M231 226 Q247 236 261 237 M243 250 Q258 256 271 252"/>
-   <path d="M142 217 L153 226 M151 232 L160 241 M172 267 L183 277 M199 268 L209 278"/>
-   <path d="M101 145 Q111 150 119 148 M121 176 Q135 181 146 174"/>
-   <path d="M167 300 L165 333 M190 304 L193 338 M262 297 L273 332 M289 284 L305 320"/>
-  </g>
-  <g fill="#b6bec7" stroke="none">
-   <circle cx="178" cy="209" r="2"/><circle cx="187" cy="216" r="1.7"/><circle cx="196" cy="222" r="1.6"/>
-   <circle cx="240" cy="204" r="1.7"/><circle cx="250" cy="211" r="1.7"/><circle cx="260" cy="218" r="1.5"/>
-  </g>
- </g>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 900"><defs><linearGradient id="fur" x2="1" y2="1"><stop stop-color="#fff8ec"/><stop offset=".42" stop-color="#f5b16c"/><stop offset="1" stop-color="#b94b3e"/></linearGradient><linearGradient id="tails" x2="0" y2="1"><stop stop-color="#fff8eb"/><stop offset=".55" stop-color="#f3a55d"/><stop offset="1" stop-color="#a93f43"/></linearGradient></defs><g stroke="#743a37" stroke-width="9" stroke-linejoin="round" stroke-linecap="round">
+<!-- nine individually separated tails --> <g fill="url(#tails)"><path d="M430 610Q170 590 75 335q125 90 245 115Q115 335 175 110q75 155 205 235Q235 170 320 45q35 165 130 275Q400 135 500 35q-5 170-25 285Q590 130 735 85q-60 165-190 270 145-75 280-45-105 150-245 210 125-15 245 65-165 85-360 65Z"/><path fill="#fff0dc" d="M435 600Q210 555 125 370q120 85 220 100Q180 360 215 195q85 135 185 190Q320 245 355 125q45 140 95 230Q455 230 570 130q-35 130-105 230 120-75 205-55-100 115-210 155 105-25 190 20-115 70-260 65Z"/></g>
+<!-- full fox torso --> <path fill="url(#fur)" d="M370 440q80-75 160 0 60 75 20 205l-100 115-100-115q-40-130 20-205Z"/>
+<!-- head and tall ears --> <path fill="url(#fur)" d="M345 395 285 190l145 105q55-30 110 0l135-105-45 205q-10 105-140 120-130-15-145-120Z"/>
+<!-- red mask marking --> <path fill="#bd5144" d="M350 390q85-70 150-15 65-55 150 15-20 80-150 105-130-25-150-105Z"/>
+<path fill="#fff7eb" d="M380 395q45-28 85 5l-10 35q-40 12-75-40m95 5q40-33 85-5-35 52-75 40Z"/>
+<path fill="#4a2830" d="M435 465q25-18 50 0l-25 25Z"/>
+<!-- legs --> <path fill="#fff0dd" d="M390 620q-35 85-15 155l-45 55h105l35-100 35 100h105l-45-55q20-70-15-155Z"/>
+<!-- tail flame line accents --> <path fill="none" stroke="#ffe0a6" stroke-width="8" d="M170 395q75 70 160 75M245 220q50 80 110 110M365 105q25 80 70 125m145-70q-45 75-95 120m190-70q-60 65-115 95"/>
+<!-- eye highlights --> <path fill="#fff0c8" d="M395 410q30-18 55 0l-5 20q-30 10-50-20m75 0q25-18 55 0-20 30-50 20Z"/>
+</g></svg>
