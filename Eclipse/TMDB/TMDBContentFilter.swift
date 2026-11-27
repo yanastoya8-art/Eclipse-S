@@ -1351,6 +1351,11 @@ class TMDBContentFilter: ObservableObject {
             }
             scheduleAnimeAudioMetadataResolutionIfNeeded(for: results)
             scheduleCatalogAudioAvailabilityResolutionIfNeeded(for: results)
+        } else if allowUnresolvedOptionalMetadata {
+            // Search keeps titles visible while canonical audio metadata is
+            // resolved, then applies the strict language gate on refresh.
+            scheduleAnimeAudioMetadataResolutionIfNeeded(for: results)
+            scheduleCatalogAudioAvailabilityResolutionIfNeeded(for: results)
         }
         return results.filter { result in
             shouldIncludeCatalogResult(
@@ -1752,6 +1757,13 @@ class TMDBContentFilter: ObservableObject {
         animeEligibilityLock.lock()
         defer { animeEligibilityLock.unlock() }
         return catalogAudioEligibleKeys.contains(key)
+    }
+
+    private func hasResolvedCatalogAudio(for result: TMDBSearchResult) -> Bool {
+        let key = catalogAudioAvailabilityKey(for: result)
+        animeEligibilityLock.lock()
+        defer { animeEligibilityLock.unlock() }
+        return catalogAudioCheckedKeys.contains(key)
     }
 
     private func scheduleCatalogAudioAvailabilityResolutionIfNeeded(for results: [TMDBSearchResult]) {
@@ -2201,8 +2213,13 @@ class TMDBContentFilter: ObservableObject {
                     animeEligibilityLock.unlock()
                     // Fail closed while anime dub metadata is loading or unavailable.
                     guard hasVerifiedDub else { return false }
-                } else {
-                    guard hasVerifiedCatalogAudio(for: result) else { return false }
+                } else if !hasVerifiedCatalogAudio(for: result) {
+                    // Preserve Search discoverability while canonical language
+                    // metadata is being fetched or is temporarily unavailable.
+                    // A confirmed negative result remains excluded.
+                    guard allowUnresolvedRuntime && !hasResolvedCatalogAudio(for: result) else {
+                        return false
+                    }
                 }
             }
         }
