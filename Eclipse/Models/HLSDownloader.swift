@@ -1115,7 +1115,7 @@ final class HLSDownloader: @unchecked Sendable {
                 guard let mediaSequenceNumber = HLSDownloadCompatibility.mediaSequenceNumber(in: mediaPlaylistContent) else {
                     throw HLSError.unsupportedLayout(reason: "This HLS playlist has an invalid media sequence number and cannot be packaged safely for offline playback.")
                 }
-                let segments = try self.parseMediaPlaylist(mediaPlaylistContent, baseURL: mediaPlaylistURL)
+                let segments = try self.parseMediaResources(mediaPlaylistContent, baseURL: mediaPlaylistURL)
                 guard !segments.isEmpty else {
                     throw HLSError.noSegmentsFound
                 }
@@ -1149,7 +1149,7 @@ final class HLSDownloader: @unchecked Sendable {
                     Logger.shared.log("HLS: Downloaded AES-128 encryption key", type: "Download")
                 }
 
-                let initSegmentURL = try self.parseInitSegment(from: mediaPlaylistContent, baseURL: mediaPlaylistURL)
+                let initSegment = try self.parseInitSegmentResource(from: mediaPlaylistContent, baseURL: mediaPlaylistURL)
                 let manifestSHA256 = Self.resumeManifestFingerprint(
                     mediaPlaylistContent,
                     playlistURL: mediaPlaylistURL,
@@ -1169,7 +1169,7 @@ final class HLSDownloader: @unchecked Sendable {
                 try await self.downloadAndConcatenateSegments(
                     segments: segments,
                     mediaSequenceNumber: mediaSequenceNumber,
-                    initSegmentURL: initSegmentURL,
+                    initSegment: initSegment,
                     encryptionKey: encryptionKey,
                     keyData: keyData,
                     to: self.destinationURL,
@@ -1394,21 +1394,22 @@ final class HLSDownloader: @unchecked Sendable {
     }
 
     private func scheduleBackgroundPlaylistResources(
-        segments: [URL],
+        segments: [HLSMediaResource],
         startingAt startIndex: Int,
-        initializationSegmentURL: URL?
+        initializationSegment: HLSMediaResource?
     ) async throws {
 #if os(iOS) && !targetEnvironment(macCatalyst)
         guard usesBackgroundURLSession else { return }
-        let resourceURLs = try HLSBackgroundPlaylistResourcePlan.resources(
+        let resources = try HLSBackgroundPlaylistResourcePlan.resources(
             segments: segments,
             startingAt: startIndex,
-            initializationSegmentURL: initializationSegmentURL
+            initializationSegment: initializationSegment
         )
         var requests: [URLRequest] = []
-        requests.reserveCapacity(resourceURLs.count)
-        for url in resourceURLs {
+        requests.reserveCapacity(resources.count)
+        for resource in resources {
             try checkCancelled()
+            let url = resource.url
             if requiresPublicNetworkValidationForBackgroundURLSession {
                 guard HLSBackgroundNetworkValidationPolicy.permits(url) else {
                     throw HLSError.unsupportedLayout(reason: "This protected HLS resource has an unsupported network URL.")
@@ -1425,6 +1426,7 @@ final class HLSDownloader: @unchecked Sendable {
                 }
             }
             var request = makeTransportRequest(for: url).0
+            resource.apply(to: &request)
             request.timeoutInterval = 600
             requests.append(request)
         }
@@ -1452,13 +1454,20 @@ final class HLSDownloader: @unchecked Sendable {
 
     private func fetchData(
         url: URL,
+        byteRange: HLSByteRange? = nil,
         maximumResponseBytes: Int = HLSDownloader.maximumMediaObjectBytes
     ) async throws -> Data {
         try checkCancelled()
         try await waitForRequestStartSlot(for: url)
         publishStage("Downloading HLS data")
 
-        let (request, effectiveHeaders) = makeTransportRequest(for: url)
+        var (request, effectiveHeaders) = makeTransportRequest(for: url)
+        if let byteRange {
+            guard byteRange.headerValue != nil else {
+                throw HLSError.unsupportedLayout(reason: "This HLS byte range is invalid.")
+            }
+            request.setValue(byteRange.headerValue, forHTTPHeaderField: "Range")
+        }
 
         #if DEBUG
         onBeforeRequestStartForTesting?(url)
@@ -1530,11 +1539,38 @@ final class HLSDownloader: @unchecked Sendable {
             clearRateLimitState(for: url)
         }
 
+        if let byteRange {
+            guard let httpResponse = response as? HTTPURLResponse,
+                  let expectedEnd = byteRange.upperBound else {
+                throw HLSError.unsupportedLayout(reason: "The HLS server did not return a verifiable byte-range response.")
+            }
+            if httpResponse.statusCode == 206 {
+                let expected = "bytes \(byteRange.offset)-\(expectedEnd)/"
+                guard let contentRange = httpResponse.value(forHTTPHeaderField: "Content-Range"),
+                      contentRange.hasPrefix(expected),
+                      Int64(data.count) == byteRange.length else {
+                    throw HLSError.unsupportedLayout(reason: "The HLS server returned an unexpected byte range.")
+                }
+            } else if httpResponse.statusCode == 200,
+                      byteRange.offset == 0,
+                      Int64(data.count) == byteRange.length {
+                // A few CDNs ignore Range for a complete resource that is
+                // already exactly the requested size. This is safe only at 0.
+            } else if httpResponse.statusCode == 200,
+                      Int64(data.count) > expectedEnd {
+                let lower = Int(byteRange.offset)
+                let upper = Int(expectedEnd + 1)
+                return data.subdata(in: lower..<upper)
+            } else {
+                throw HLSError.unsupportedLayout(reason: "The HLS server ignored or rejected a required byte-range request.")
+            }
+        }
         return data
     }
 
     private func fetchDataWithRetry(
         url: URL,
+        byteRange: HLSByteRange? = nil,
         maximumResponseBytes: Int = HLSDownloader.maximumMediaObjectBytes,
         maxRetries: Int = 3
     ) async throws -> Data {
@@ -1543,7 +1579,7 @@ final class HLSDownloader: @unchecked Sendable {
 
         for attempt in 0..<attemptCount {
             do {
-                return try await fetchData(url: url, maximumResponseBytes: maximumResponseBytes)
+                return try await fetchData(url: url, byteRange: byteRange, maximumResponseBytes: maximumResponseBytes)
             } catch {
                 lastError = error
                 if isCancellationError(error) { throw currentCancellationError() }
@@ -1730,20 +1766,48 @@ final class HLSDownloader: @unchecked Sendable {
     }
 
     func parseMediaPlaylist(_ content: String, baseURL: URL) throws -> [URL] {
-        var segments: [URL] = []
-        let lines = content.components(separatedBy: .newlines)
+        try parseMediaResources(content, baseURL: baseURL).map(\.url)
+    }
 
-        for line in lines {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-
-            if trimmed.isEmpty || trimmed.hasPrefix("#") { continue }
-
+    func parseMediaResources(_ content: String, baseURL: URL) throws -> [HLSMediaResource] {
+        var segments: [HLSMediaResource] = []
+        var pendingRange: String?
+        var previousRangeURL: URL?
+        var previousRangeEnd: Int64?
+        for line in content.components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty { continue }
+            if trimmed.hasPrefix("#EXT-X-BYTERANGE:") {
+                guard pendingRange == nil else {
+                    throw HLSError.unsupportedLayout(reason: "This HLS playlist contains multiple byte ranges for one segment.")
+                }
+                pendingRange = String(trimmed.dropFirst("#EXT-X-BYTERANGE:".count))
+                continue
+            }
+            if trimmed.hasPrefix("#") { continue }
             guard let segmentURL = resolveURL(trimmed, baseURL: baseURL) else {
                 throw HLSError.unsupportedLayout(reason: "This HLS playlist contains an invalid segment URL and cannot be packaged safely for offline playback. Choose another stream.")
             }
-            segments.append(segmentURL)
+            var byteRange: HLSByteRange?
+            if let pendingRange {
+                let implicitOffset = previousRangeURL == segmentURL ? previousRangeEnd.map { $0 + 1 } : nil
+                guard let parsed = HLSByteRange.parse(pendingRange, implicitOffset: implicitOffset),
+                      let end = parsed.upperBound else {
+                    throw HLSError.unsupportedLayout(reason: "This HLS playlist contains an invalid or ambiguous byte range.")
+                }
+                byteRange = parsed
+                previousRangeURL = segmentURL
+                previousRangeEnd = end
+            } else {
+                previousRangeURL = nil
+                previousRangeEnd = nil
+            }
+            segments.append(HLSMediaResource(url: segmentURL, byteRange: byteRange))
+            pendingRange = nil
         }
-
+        guard pendingRange == nil else {
+            throw HLSError.unsupportedLayout(reason: "This HLS playlist ends with a byte range that has no media segment.")
+        }
         return segments
     }
 
@@ -1790,28 +1854,31 @@ final class HLSDownloader: @unchecked Sendable {
         return lastKey
     }
 
-    private func parseInitSegment(from content: String, baseURL: URL) throws -> URL? {
-        let lines = content.components(separatedBy: .newlines)
-
-        for line in lines {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
+    private func parseInitSegmentResource(from content: String, baseURL: URL) throws -> HLSMediaResource? {
+        for line in content.components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
             guard trimmed.hasPrefix("#EXT-X-MAP:") else { continue }
-
-            let attributes = trimmed.replacingOccurrences(of: "#EXT-X-MAP:", with: "")
+            let attributes = String(trimmed.dropFirst("#EXT-X-MAP:".count))
             guard let uriString = parseAttribute(attributes, key: "URI"),
                   let initURL = resolveURL(uriString, baseURL: baseURL) else {
                 throw HLSError.unsupportedLayout(reason: "This HLS stream has an invalid initialization segment URL and cannot be packaged safely for offline playback. Choose another stream.")
             }
-            return initURL
+            var range: HLSByteRange?
+            if let value = parseAttribute(attributes, key: "BYTERANGE") {
+                guard let parsed = HLSByteRange.parse(value) else {
+                    throw HLSError.unsupportedLayout(reason: "This HLS stream has an invalid initialization byte range.")
+                }
+                range = parsed
+            }
+            return HLSMediaResource(url: initURL, byteRange: range)
         }
-
         return nil
     }
 
     private func downloadAndConcatenateSegments(
-        segments: [URL],
+        segments: [HLSMediaResource],
         mediaSequenceNumber: UInt64,
-        initSegmentURL: URL?,
+        initSegment: HLSMediaResource?,
         encryptionKey: HLSEncryptionKey?,
         keyData: Data?,
         to outputURL: URL,
@@ -1904,14 +1971,14 @@ final class HLSDownloader: @unchecked Sendable {
             try await scheduleBackgroundPlaylistResources(
                 segments: segments,
                 startingAt: startIndex,
-                initializationSegmentURL: isResuming ? nil : initSegmentURL
+                initializationSegment: isResuming ? nil : initSegment
             )
 
-            if !isResuming, let initURL = initSegmentURL {
+            if !isResuming, let initSegment {
                 publishStage("Downloading initialization segment")
                 try checkSystemBackoff()
                 try ensureDiskCapacity()
-                let initData = try await fetchDataWithRetry(url: initURL)
+                let initData = try await fetchDataWithRetry(url: initSegment.url, byteRange: initSegment.byteRange)
                 try checkCancelled()
                 // Encrypted EXT-X-MAP sections require an explicit IV.
                 let decrypted = try decryptIfNeeded(
@@ -1930,7 +1997,7 @@ final class HLSDownloader: @unchecked Sendable {
                 try checkSystemBackoff()
                 try ensureDiskCapacity()
 
-                let segmentData = try await fetchSegmentWithRetry(url: segments[index], maxRetries: 3)
+                let segmentData = try await fetchSegmentWithRetry(resource: segments[index], maxRetries: 3)
                 try checkCancelled()
                 guard let sequenceNumber = HLSDownloadCompatibility.sequenceNumber(
                     base: mediaSequenceNumber,
@@ -2032,8 +2099,8 @@ final class HLSDownloader: @unchecked Sendable {
         return size == exactSize
     }
 
-    private func fetchSegmentWithRetry(url: URL, maxRetries: Int) async throws -> Data {
-        try await fetchDataWithRetry(url: url, maxRetries: maxRetries)
+    private func fetchSegmentWithRetry(resource: HLSMediaResource, maxRetries: Int) async throws -> Data {
+        try await fetchDataWithRetry(url: resource.url, byteRange: resource.byteRange, maxRetries: maxRetries)
     }
 
     private func decryptIfNeeded(
