@@ -7135,6 +7135,52 @@ final class AniListService {
     }
 
 
+    /// Returns official animation studios for production filtering. AniList's
+    /// studio graph is an independent source from TMDB production companies,
+    /// which are frequently absent on anime titles discovered directly by
+    /// AniList.
+    func fetchAnimeStudioNames(anilistID: Int) async -> [String]? {
+        guard (1...1_000_000_000).contains(anilistID) else { return nil }
+        let query = """
+        query ($id: Int) {
+            Media(id: $id, type: ANIME) {
+                studios {
+                    nodes { name isAnimationStudio }
+                }
+            }
+        }
+        """
+        do {
+            let data = try await executeGraphQLQuery(
+                query,
+                token: nil,
+                variables: ["id": String(anilistID)]
+            )
+            guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  (root["errors"] as? [Any])?.isEmpty != false,
+                  let payload = root["data"] as? [String: Any],
+                  let media = payload["Media"] as? [String: Any],
+                  let studios = media["studios"] as? [String: Any],
+                  let nodes = studios["nodes"] as? [[String: Any]] else {
+                return nil
+            }
+            let names = nodes.compactMap { node -> String? in
+                guard node["isAnimationStudio"] as? Bool == true,
+                      let name = node["name"] as? String else { return nil }
+                let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                return normalized.isEmpty ? nil : normalized
+            }
+            return Array(Set(names)).sorted()
+        } catch {
+            Logger.shared.log(
+                "AnimeMetadata: AniList studio lookup failed for \\(anilistID): \\(error.localizedDescription)",
+                type: "AniList"
+            )
+            return nil
+        }
+    }
+
+
     fileprivate func mappedSupplementalEpisodePlacements(
         candidates: [AnimeStructureCourPlacementCandidate],
         aniListIDs: [Int: Int],
