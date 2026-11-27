@@ -1335,7 +1335,8 @@ class TMDBContentFilter: ObservableObject {
     func filterSearchResults(
         _ results: [TMDBSearchResult],
         allowUpcomingContent: Bool = false,
-        resolveMetadataInBackground: Bool = true
+        resolveMetadataInBackground: Bool = true,
+        allowUnresolvedOptionalMetadata: Bool = false
     ) -> [TMDBSearchResult] {
         // Browse explicitly awaits resolveBrowseFilterMetadata before applying
         // its predicate. Scheduling the same runtime, production and audio
@@ -1352,7 +1353,11 @@ class TMDBContentFilter: ObservableObject {
             scheduleCatalogAudioAvailabilityResolutionIfNeeded(for: results)
         }
         return results.filter { result in
-            shouldIncludeCatalogResult(result, allowUpcomingContent: allowUpcomingContent)
+            shouldIncludeCatalogResult(
+                result,
+                allowUpcomingContent: allowUpcomingContent,
+                allowUnresolvedOptionalMetadata: allowUnresolvedOptionalMetadata
+            )
         }
     }
 
@@ -1544,20 +1549,23 @@ class TMDBContentFilter: ObservableObject {
 
     private func shouldIncludeCatalogResult(
         _ result: TMDBSearchResult,
-        allowUpcomingContent: Bool = false
+        allowUpcomingContent: Bool = false,
+        allowUnresolvedOptionalMetadata: Bool = false
     ) -> Bool {
         guard !shouldExcludeAnimeSpecialOrOVA(result) else { return false }
         guard shouldIncludeUnofficialProduction(
             title: result.displayTitle,
             overview: result.overview,
-            result: result
+            result: result,
+            allowUnresolvedMetadata: allowUnresolvedOptionalMetadata
         ) else { return false }
         guard shouldIncludeSelectedAnimeDub(result) else { return false }
         guard result.adult != true else { return false }
         if Self.isAnimeResult(result), !shouldIncludeAnimeCategoryFilters(result) { return false }
         guard shouldIncludeForConfiguredAgeAndAudio(
             result,
-            allowUpcomingContent: allowUpcomingContent
+            allowUpcomingContent: allowUpcomingContent,
+            allowUnresolvedRuntime: allowUnresolvedOptionalMetadata
         ) else { return false }
         guard shouldIncludeCatalogTitle(result.displayTitle) else { return false }
         guard shouldIncludeForKids(
@@ -1928,7 +1936,8 @@ class TMDBContentFilter: ObservableObject {
     private func shouldIncludeUnofficialProduction(
         title: String,
         overview: String?,
-        result: TMDBSearchResult
+        result: TMDBSearchResult,
+        allowUnresolvedMetadata: Bool = false
     ) -> Bool {
         guard UserDefaults.standard.bool(forKey: "catalogHideUnofficialContent") else { return true }
         if Self.isUnofficialCreatorContent(title: title, overview: overview) { return false }
@@ -1939,9 +1948,11 @@ class TMDBContentFilter: ObservableObject {
         let companyNames = productionCompaniesByKey[key] ?? []
         runtimeMetadataLock.unlock()
 
-        // Wait for TMDB production-company metadata instead of allowing
-        // unknown entries to bypass an enabled app-wide exclusion.
-        guard isChecked else { return false }
+        // Browse waits for production-company metadata before admitting an
+        // unknown item. Search is different: an optional metadata timeout must
+        // not make a valid title disappear permanently from the user's query.
+        // Once details resolve, the retained search snapshot is re-filtered.
+        guard isChecked else { return allowUnresolvedMetadata }
         return !Self.isUnofficialCreatorContent(
             title: title,
             overview: overview,
@@ -2124,7 +2135,8 @@ class TMDBContentFilter: ObservableObject {
 
     private func shouldIncludeForConfiguredAgeAndAudio(
         _ result: TMDBSearchResult,
-        allowUpcomingContent: Bool = false
+        allowUpcomingContent: Bool = false,
+        allowUnresolvedRuntime: Bool = false
     ) -> Bool {
         let defaults = UserDefaults.standard
         let isAnime = Self.isAnimeResult(result)
@@ -2133,9 +2145,12 @@ class TMDBContentFilter: ObservableObject {
             // Do not show an item while its runtime is unknown. The async
             // metadata resolver will publish a filter-change notification
             // when the runtime is available, and the catalog will re-evaluate.
-            guard CatalogRuntimeFilterPolicy.shouldInclude(
-                    runtimeMinutes: cachedRuntimeMinutes(for: Self.runtimeCacheKey(for: result))
-                  ) else {
+            let runtime = cachedRuntimeMinutes(for: Self.runtimeCacheKey(for: result))
+            if let runtime {
+                guard CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: runtime) else {
+                    return false
+                }
+            } else if !allowUnresolvedRuntime {
                 return false
             }
         }
