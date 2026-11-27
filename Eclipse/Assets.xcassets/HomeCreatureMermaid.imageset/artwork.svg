@@ -1,43 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="444" height="394" viewBox="0 0 444 394">
- <g stroke="#17191d" stroke-width="2.1" stroke-linejoin="round" stroke-linecap="round">
-  <!-- Long flowing hair, with individual locks -->
-  <path fill="#30343a" d="M215 45 C170 39 133 62 119 104 C104 151 127 193 109 232 C96 260 69 275 44 281 C77 296 119 287 142 261 C165 235 166 203 155 178 C183 197 198 221 194 250 C223 225 226 187 208 158 C245 136 253 91 232 62 Z"/>
-  <path fill="#69727d" d="M201 52 C163 58 141 91 144 129 C147 161 167 181 168 210 C169 230 159 247 142 261 C179 247 196 216 189 184 C183 154 164 133 173 103 C179 79 197 67 218 63 Z"/>
-  <path fill="#858e98" d="M126 108 Q118 156 143 192 Q155 213 143 244 Q169 219 158 188 Q142 153 151 118 Z M193 68 Q224 94 211 132 Q204 151 214 174 Q240 137 228 102 Q219 77 193 68 Z"/>
-  <!-- Face, neck and shoulders -->
-  <path fill="#30343a" d="M204 68 C230 68 249 87 250 112 C252 140 236 159 215 166 C193 158 179 139 181 112 C182 87 190 73 204 68 Z"/>
-  <path fill="#a2abb5" d="M188 112 Q201 102 213 111 Q201 119 189 117 Z"/>
-  <path fill="#17191d" d="M190 112 Q199 106 207 112 L199 119 Z"/>
-  <path fill="#252a30" d="M197 154 L229 154 L241 185 L185 185 Z"/>
-  <!-- Torso and graceful arms -->
-  <path fill="#252a30" d="M184 176 C164 179 148 192 143 209 L165 228 L187 212 L200 242 L219 242 L234 211 L258 226 L275 208 C268 190 248 178 229 176 Z"/>
-  <path fill="#69727d" d="M190 182 Q205 173 221 183 L238 210 L220 230 L204 214 Z"/>
-  <path fill="#30343a" d="M153 198 C134 202 117 218 106 241 L93 257 L105 268 L125 250 L158 224 Z"/>
-  <path fill="#30343a" d="M255 196 C275 201 291 217 304 238 L322 251 L313 265 L290 251 L251 224 Z"/>
-  <path fill="#8c96a1" d="M101 254 Q119 246 132 229 L141 238 L119 261 L106 268 Z M312 250 Q295 242 280 225 L271 235 L294 258 L307 265 Z"/>
-  <path fill="none" stroke="#c4ccd4" stroke-width="2" d="M109 257 L93 278 M314 254 L329 274 M160 204 Q174 210 184 222 M246 204 Q261 211 271 223"/>
-  <!-- Waist, hips and long fish tail -->
-  <path fill="#252a30" d="M190 229 C199 239 211 245 222 245 C234 245 246 239 255 229 L268 264 C265 288 246 306 230 323 C214 339 207 357 216 374 C187 364 168 341 169 314 C169 283 182 257 190 229 Z"/>
-  <path fill="#626b75" d="M199 245 Q221 255 244 245 L250 272 Q238 293 222 305 Q201 288 190 269 Z"/>
-  <!-- Scale rows along tail -->
-  <g fill="none" stroke="#aab3bd" stroke-width="1.7">
-   <path d="M193 260 Q201 269 209 260 M211 260 Q220 270 229 260 M231 260 Q240 270 249 260"/>
-   <path d="M187 276 Q196 286 205 276 M206 277 Q216 288 226 277 M227 277 Q237 288 247 277"/>
-   <path d="M181 293 Q191 304 201 293 M203 294 Q214 306 225 294 M227 294 Q238 306 249 294"/>
-   <path d="M177 311 Q188 322 199 311 M201 312 Q213 324 225 312 M227 312 Q239 324 251 312"/>
-   <path d="M180 330 Q190 341 201 330 M204 331 Q216 343 228 331 M229 330 Q240 342 250 330"/>
-   <path d="M191 349 Q201 359 211 349 M214 350 Q224 361 234 350"/>
-  </g>
-  <!-- Large split tail fin with layered lobes -->
-  <path fill="#30343a" d="M216 370 C193 367 167 377 145 393 C175 394 202 389 221 379 C239 390 269 395 301 392 C280 374 254 365 232 370 L222 382 Z"/>
-  <path fill="#69727d" d="M215 375 Q182 378 157 390 Q193 388 220 379 Q250 390 287 390 Q257 378 231 375 Z"/>
-  <path fill="#a0a9b3" d="M157 391 Q185 380 212 379 L194 389 Z M235 379 Q264 381 288 391 L252 388 Z"/>
-  <!-- Jewelry and subtle fin details -->
-  <path fill="none" stroke="#c5cdd5" stroke-width="2" d="M187 181 Q220 192 253 181 M207 166 L220 177 L233 166"/>
-  <path fill="#aab3bd" d="M220 178 L225 187 L220 195 L215 187 Z"/>
-  <g fill="none" stroke="#b7c0ca" stroke-width="1.8">
-   <path d="M117 235 Q133 222 144 206 M124 250 Q142 238 151 222 M294 234 Q280 220 268 207 M303 250 Q286 237 277 221"/>
-   <path d="M205 198 Q220 205 235 198 M199 212 Q220 221 241 212"/>
-  </g>
- </g>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 900"><defs><linearGradient id="tail" x2="1" y2="1"><stop stop-color="#d5fff2"/><stop offset=".35" stop-color="#55d0c2"/><stop offset=".72" stop-color="#227f91"/><stop offset="1" stop-color="#153d63"/></linearGradient><linearGradient id="hair" x2="0" y2="1"><stop stop-color="#142d50"/><stop offset=".5" stop-color="#236b83"/><stop offset="1" stop-color="#63c6bb"/></linearGradient><linearGradient id="skin" x2="1" y2="1"><stop stop-color="#ffe4cf"/><stop offset="1" stop-color="#bd8f88"/></linearGradient></defs><g stroke="#123b56" stroke-width="11" stroke-linejoin="round" stroke-linecap="round">
+<!-- hair streamers --> <path fill="url(#hair)" d="M360 180Q210 105 205 300q-5 125 85 190-70 155 5 290 35-115 85-160-5 145 75 225 15-140 65-205 70 105 95 205 60-165 5-280 110-95 45-245-35-120-145-140Z"/>
+<!-- torso --> <path fill="url(#skin)" d="M365 250q85-70 170 0 55 65 20 155l-45 85h-120l-45-85q-35-90 20-155Z"/>
+<!-- hair crown and face --> <path fill="url(#hair)" d="M350 205q-5-110 100-125 115 0 125 120-15 110-115 125-100-15-110-120Z"/>
+<path fill="url(#skin)" d="M375 180q75-65 150 0 35 55 0 115-35 50-75 50t-75-50q-35-60 0-115Z"/>
+<!-- hair side locks --> <path fill="url(#hair)" d="M365 180q-100 60-60 190l45 80-5-150m165-120q105 60 65 190l-45 80 5-150"/>
+<!-- scaled tail --> <path fill="url(#tail)" d="M380 455q70 40 140 0 75 100 25 205-35 80-95 115-60-35-95-115-50-105 25-205Z"/>
+<!-- tail fin --> <path fill="url(#tail)" d="M450 760q-135 5-205 95 115 25 205-35 90 60 205 35-70-90-205-95Z"/>
+<!-- side fins --> <path fill="#2b8fa0" d="M380 525q-110-55-145 45 80 0 125 55m190-100q110-55 145 45-80 0-125 55"/>
+<!-- scales --> <g fill="none" stroke="#c2fff0" stroke-width="7"><path d="M390 500l30 20 30-20m30 0 30 20 30-20m-150 55 30 20 30-20m30 0 30 20 30-20m-120 55 30 20 30-20m30 0 30 20 30-20m-90 55 30 20 30-20"/></g>
+<!-- face --> <path fill="#fff4e8" stroke-width="5" d="M390 220q25-22 50 0l-5 25q-30 10-45-25m70 0q25-22 50 0-15 35-45 25Z"/><path fill="#15354b" stroke-width="4" d="M435 265q15-10 30 0l-15 15Z"/>
+<!-- water ornaments --> <path fill="none" stroke="#8ce9df" stroke-width="12" d="M255 410q-100 40-90 145 55-55 105-45m375-100q100 40 90 145-55-55-105-45"/>
+</g></svg>
