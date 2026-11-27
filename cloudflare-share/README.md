@@ -55,7 +55,7 @@ The generated link can be opened by Safari or an HLS-capable player from another
 { "filename": "episode.mp4", "mimeType": "video/mp4", "expiresInSeconds": 86400 }
 ```
 
-Returns `uploadUrl` and `fileUrl`. Upload the file bytes with a `PUT` to `uploadUrl`, including an accurate `Content-Length`. The current single-request upload limit is 95 MiB. Larger files need the multipart uploader before the iOS app can publish them; do not try to upload them through this endpoint.
+Returns `uploadUrl`, `fileUrl`, and `partSizeBytes`. The iOS app reads the completed file in 8 MiB chunks, sends each chunk to `PUT uploadUrl/parts/{partNumber}`, then posts the ordered part/ETag list to `POST uploadUrl/complete`. This avoids the Worker request-body ceiling for large media files. The current client cap is 10,000 parts (about 80 GiB).
 
 ## Important deployment/security notes
 

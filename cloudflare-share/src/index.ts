@@ -8,7 +8,25 @@ interface R2ObjectBody {
   writeHttpMetadata(headers: Headers): void;
 }
 
+interface R2UploadedPart {
+  partNumber: number;
+  etag: string;
+}
+
+interface R2MultipartUpload {
+  key: string;
+  uploadId: string;
+  uploadPart(partNumber: number, value: ReadableStream<Uint8Array>): Promise<R2UploadedPart>;
+  complete(parts: R2UploadedPart[]): Promise<{ httpEtag: string }>;
+  abort(): Promise<void>;
+}
+
 interface R2Bucket {
+  createMultipartUpload(key: string, options?: {
+    httpMetadata?: { contentType?: string; contentDisposition?: string };
+    customMetadata?: Record<string, string>;
+  }): Promise<R2MultipartUpload>;
+  resumeMultipartUpload(key: string, uploadId: string): R2MultipartUpload;
   put(
     key: string,
     value: ReadableStream<Uint8Array> | string | null,
@@ -44,6 +62,15 @@ type ShareDescriptor = {
   expiresAt: number;
 };
 
+type UploadDescriptor = {
+  id: string;
+  key: string;
+  uploadId: string;
+  filename: string;
+  mime: string;
+  exp: number;
+};
+
 type Capability =
   | { kind: "source"; id: string; url: string; exp: number }
   | { kind: "file"; key: string; filename: string; mime: string; exp: number }
@@ -51,7 +78,7 @@ type Capability =
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
-const MAX_UPLOAD_BYTES = 95 * 1024 * 1024;
+const UPLOAD_PART_BYTES = 8 * 1024 * 1024;
 const MAX_MANIFEST_BYTES = 2 * 1024 * 1024;
 const MAX_LIFETIME_SECONDS = 7 * 24 * 60 * 60;
 
@@ -229,7 +256,7 @@ async function rewriteManifest(env: Env, text: string, id: string, exp: number, 
 
 
 async function cleanupExpiredShares(env: Env): Promise<void> {
-  for (const prefix of ["shares/", "files/"]) {
+  for (const prefix of ["shares/", "files/", "uploads/"]) {
     let cursor: string | undefined;
     do {
       const page = await env.SHARES.list({
@@ -238,13 +265,26 @@ async function cleanupExpiredShares(env: Env): Promise<void> {
         limit: 500,
         include: ["customMetadata"],
       });
-      const expired = page.objects
-        .filter((object) => {
-          const expiresAt = Number(object.customMetadata?.expiresAt ?? "0");
-          return expiresAt > 0 && expiresAt < Date.now();
-        })
-        .map((object) => object.key);
-      await Promise.all(expired.map((key) => env.SHARES.delete(key)));
+      const expired = page.objects.filter((object) => {
+        const expiresAt = Number(object.customMetadata?.expiresAt ?? "0");
+        return expiresAt > 0 && expiresAt < Date.now();
+      });
+      for (const object of expired) {
+        if (prefix === "uploads/") {
+          const stored = await env.SHARES.get(object.key);
+          if (stored) {
+            const descriptor = await unseal<UploadDescriptor>(env, await stored.text());
+            if (descriptor) {
+              try {
+                await env.SHARES.resumeMultipartUpload(descriptor.key, descriptor.uploadId).abort();
+              } catch {
+                // R2 automatically aborts abandoned multipart sessions after seven days.
+              }
+            }
+          }
+        }
+        await env.SHARES.delete(object.key);
+      }
       cursor = page.truncated ? page.cursor : undefined;
     } while (cursor);
   }
@@ -292,26 +332,68 @@ async function route(request: Request, env: Env): Promise<Response> {
     const mime = typeof body.mimeType === "string" && body.mimeType.length < 128
       ? body.mimeType : "application/octet-stream";
     const key = `files/${id}`;
+    const filename = body.filename.replace(/[\\/\r\n]/g, "_");
+    const multipart = await env.SHARES.createMultipartUpload(key, {
+      httpMetadata: {
+        contentType: mime,
+        contentDisposition: `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`,
+      },
+      customMetadata: { expiresAt: String(exp), shareId: id },
+    });
+    const descriptor: UploadDescriptor = { id, key, uploadId: multipart.uploadId, filename, mime, exp };
+    await env.SHARES.put(`uploads/${id}.json`, await seal(env, descriptor), {
+      customMetadata: { expiresAt: String(exp) },
+    });
     const uploadUrl = await capabilityURL(env, "/v1/u", {
-      kind: "upload", id, key, filename: body.filename.replace(/[\\/\r\n]/g, "_"), mime, exp,
+      kind: "upload", id, key, filename, mime, exp,
     });
     const fileUrl = await capabilityURL(env, "/v1/f", {
-      kind: "file", key, filename: body.filename.replace(/[\\/\r\n]/g, "_"), mime, exp,
+      kind: "file", key, filename, mime, exp,
     });
-    return json({ uploadUrl, fileUrl, expiresAt: new Date(exp).toISOString(), maximumBytes: MAX_UPLOAD_BYTES }, 201);
+    return json({ uploadUrl, fileUrl, partSizeBytes: UPLOAD_PART_BYTES, expiresAt: new Date(exp).toISOString() }, 201);
   }
 
-  if (url.pathname.startsWith("/v1/u/") && request.method === "PUT") {
-    const token = url.pathname.slice("/v1/u/".length);
+  if (url.pathname.startsWith("/v1/u/")) {
+    const segments = url.pathname.slice("/v1/u/".length).split("/");
+    const token = segments[0];
+    const action = segments[1];
     const cap = await unseal<Capability>(env, token);
     if (!cap || cap.kind !== "upload" || cap.exp < Date.now()) return json({ error: "Invalid or expired upload link" }, 403);
-    const length = Number(request.headers.get("content-length") ?? "0");
-    if (!length || length > MAX_UPLOAD_BYTES) return json({ error: "Upload must include Content-Length and be no larger than 95 MiB" }, 413);
-    await env.SHARES.put(cap.key, request.body, {
-      httpMetadata: { contentType: cap.mime, contentDisposition: `attachment; filename*=UTF-8''${encodeURIComponent(cap.filename)}` },
-      customMetadata: { expiresAt: String(cap.exp), shareId: cap.id },
-    });
-    return json({ ok: true, bytes: length });
+    const stored = await env.SHARES.get(`uploads/${cap.id}.json`);
+    const descriptor = stored ? await unseal<UploadDescriptor>(env, await stored.text()) : null;
+    if (!descriptor || descriptor.exp < Date.now() || descriptor.key !== cap.key) {
+      return json({ error: "Upload session expired or unavailable" }, 410);
+    }
+    const multipart = env.SHARES.resumeMultipartUpload(descriptor.key, descriptor.uploadId);
+    if (request.method === "PUT" && action === "parts") {
+      const partNumber = Number(segments[2]);
+      const length = Number(request.headers.get("content-length") ?? "0");
+      if (!Number.isInteger(partNumber) || partNumber < 1 || partNumber > 10_000 ||
+          !request.body || !length || length > UPLOAD_PART_BYTES) {
+        return json({ error: "Invalid upload part" }, 400);
+      }
+      const part = await multipart.uploadPart(partNumber, request.body);
+      return json({ partNumber: part.partNumber, etag: part.etag });
+    }
+    if (request.method === "POST" && action === "complete") {
+      let body: { parts?: R2UploadedPart[] };
+      try {
+        body = await request.json() as { parts?: R2UploadedPart[] };
+      } catch {
+        return json({ error: "Invalid multipart completion payload" }, 400);
+      }
+      const parts = body.parts;
+      if (!Array.isArray(parts) || parts.length < 1 || parts.length > 10_000 ||
+          !parts.every((part) => Number.isInteger(part.partNumber) && part.partNumber > 0 &&
+            typeof part.etag === "string" && part.etag.length < 256)) {
+        return json({ error: "Invalid uploaded parts list" }, 400);
+      }
+      const orderedParts = [...parts].sort((a, b) => a.partNumber - b.partNumber);
+      const completed = await multipart.complete(orderedParts);
+      await env.SHARES.delete(`uploads/${cap.id}.json`);
+      return json({ ok: true, etag: completed.httpEtag });
+    }
+    return json({ error: "Unsupported upload operation" }, 405);
   }
 
   if (url.pathname.startsWith("/v1/f/") && request.method === "GET") {

@@ -11629,7 +11629,7 @@ enum EclipseShareError: LocalizedError {
         case .server(let message):
             return message
         case .fileTooLarge:
-            return "This file is larger than the current 95 MiB upload limit. The multipart uploader is not available yet."
+            return "This file exceeds the current R2 multipart limit (about 80 GiB)."
         }
     }
 }
@@ -11685,12 +11685,38 @@ extension DownloadManager {
             guard let uploadString = created["uploadUrl"] as? String,
                   let fileString = created["fileUrl"] as? String,
                   let uploadURL = URL(string: uploadString),
-                  let fileURL = URL(string: fileString) else { throw EclipseShareError.invalidResponse }
-            var upload = URLRequest(url: uploadURL)
-            upload.httpMethod = "PUT"
-            upload.setValue(mime, forHTTPHeaderField: "Content-Type")
-            let (uploadData, uploadResponse) = try await URLSession.shared.upload(for: upload, fromFile: localURL)
-            _ = try responseDictionary(uploadData, uploadResponse)
+                  let fileURL = URL(string: fileString),
+                  let partSize = created["partSizeBytes"] as? Int,
+                  partSize >= 5 * 1_024 * 1_024 else { throw EclipseShareError.invalidResponse }
+            let partCount = Int((fileSize + Int64(partSize) - 1) / Int64(partSize))
+            guard partCount > 0, partCount <= 10_000 else { throw EclipseShareError.fileTooLarge }
+            let handle = try FileHandle(forReadingFrom: localURL)
+            defer { try? handle.close() }
+            var uploadedParts: [[String: Any]] = []
+            uploadedParts.reserveCapacity(partCount)
+            for partNumber in 1...partCount {
+                let chunk = try handle.read(upToCount: partSize) ?? Data()
+                guard !chunk.isEmpty else { throw EclipseShareError.invalidResponse }
+                let partURL = uploadURL.appendingPathComponent("parts").appendingPathComponent(String(partNumber))
+                var partRequest = URLRequest(url: partURL)
+                partRequest.httpMethod = "PUT"
+                partRequest.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
+                let (partData, partResponse) = try await URLSession.shared.upload(for: partRequest, from: chunk)
+                let partResult = try responseDictionary(partData, partResponse)
+                guard let etag = partResult["etag"] as? String,
+                      let confirmedNumber = partResult["partNumber"] as? Int,
+                      confirmedNumber == partNumber else { throw EclipseShareError.invalidResponse }
+                uploadedParts.append(["partNumber": partNumber, "etag": etag])
+            }
+            guard let completeURL = URL(string: "complete", relativeTo: uploadURL)?.absoluteURL else {
+                throw EclipseShareError.invalidResponse
+            }
+            var completeRequest = URLRequest(url: completeURL)
+            completeRequest.httpMethod = "POST"
+            completeRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            completeRequest.httpBody = try JSONSerialization.data(withJSONObject: ["parts": uploadedParts])
+            let (completeData, completeResponse) = try await URLSession.shared.data(for: completeRequest)
+            _ = try responseDictionary(completeData, completeResponse)
             return fileURL
         }
 
