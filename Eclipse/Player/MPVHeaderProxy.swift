@@ -1009,6 +1009,13 @@ private final class MPVHeaderProxyCore {
         )
     }
 
+    /// Publish an already-downloaded local media file over the LAN so the
+    /// copied download URL serves the completed file, not its expired source
+    /// manifest or signed provider URL.
+    func makeLocalFileDownloadURL(for fileURL: URL) -> URL? {
+        LocalFileHTTPServer.shared.publish(fileURL, asDownload: true)
+    }
+
     func makeLocalManifestURL(body: Data, contentType: String, fileExtension: String, compositeVideoURL: URL? = nil, compositePreferredLanguage: String? = nil) -> URL? {
         guard body.count <= 128 * 1024,
               ["m3u8", "edl"].contains(fileExtension),
