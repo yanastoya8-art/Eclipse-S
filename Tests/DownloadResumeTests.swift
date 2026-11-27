@@ -893,36 +893,56 @@ final class DownloadResumeTests: XCTestCase {
         XCTAssertEqual(segments.map(\.lastPathComponent), ["first.ts", "second.ts"])
     }
 
-    @MainActor
-    func testHLSUnsupportedRangesPreservePartialAndNeverFetchWholeResource() async throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let output = directory.appendingPathComponent("movie.ts")
-        let partial = directory.appendingPathComponent(".movie.ts.partial")
-        let bytes = Data("saved partial".utf8)
-        try bytes.write(to: partial)
+    func testHLSParsesExplicitAndImplicitByteRangesForSharedResource() throws {
         let base = try XCTUnwrap(URL(string: "https://hls-resume.example/playlist.m3u8"))
-        for layout in ["#EXT-X-BYTERANGE:4@0", "#EXT-X-MAP:URI=\"init.mp4\",BYTERANGE=\"4@0\""] {
-            DownloadResumeURLProtocol.configure(playlist: "#EXTM3U\n\(layout)\n#EXTINF:1,\nfirst.ts\n#EXT-X-ENDLIST", holdsLastSegment: false)
-            let configuration = URLSessionConfiguration.ephemeral
-            configuration.protocolClasses = [DownloadResumeURLProtocol.self]
-            let stopped = expectation(description: "Unsupported range is refused before media transfer")
-            let downloader = HLSDownloader(streamURL: base, headers: [:], destinationURL: output, downloadId: UUID().uuidString, resumeFromSegment: 1, resumeByteCount: Int64(bytes.count), pinnedVariantURL: base, minimumRequestStartInterval: 0, sessionConfiguration: configuration)
-            downloader.onCompletion = { result in
-                guard case .failure(let error) = result, case .unsupportedLayout = error as? HLSError else {
-                    XCTFail("Expected a visible unsupported-layout error")
-                    stopped.fulfill()
-                    return
-                }
-                stopped.fulfill()
-            }
-            downloader.start()
-            await fulfillment(of: [stopped], timeout: 5)
-            XCTAssertFalse(FileManager.default.fileExists(atPath: output.path))
-            XCTAssertEqual(try Data(contentsOf: partial), bytes)
-            XCTAssertTrue(DownloadResumeURLProtocol.requestedPaths().allSatisfy { $0 == "/playlist.m3u8" })
+        let downloader = HLSDownloader(
+            streamURL: base,
+            headers: [:],
+            destinationURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString),
+            downloadId: UUID().uuidString
+        )
+        let playlist = """
+        #EXTM3U
+        #EXT-X-BYTERANGE:4@0
+        shared.ts
+        #EXT-X-BYTERANGE:3
+        shared.ts
+        #EXT-X-BYTERANGE:2@10
+        shared.ts
+        #EXT-X-ENDLIST
+        """
+        let resources = try downloader.parseMediaResources(playlist, baseURL: base)
+        XCTAssertEqual(resources.count, 3)
+        XCTAssertEqual(resources.map(\.url.lastPathComponent), ["shared.ts", "shared.ts", "shared.ts"])
+        XCTAssertEqual(resources.map { $0.byteRange?.headerValue }, [
+            "bytes=0-3", "bytes=4-6", "bytes=10-11"
+        ])
+    }
+
+    func testHLSParsesInitializationByteRangeAndRejectsMalformedRanges() throws {
+        let base = try XCTUnwrap(URL(string: "https://hls-resume.example/playlist.m3u8"))
+        let downloader = HLSDownloader(
+            streamURL: base,
+            headers: [:],
+            destinationURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString),
+            downloadId: UUID().uuidString
+        )
+        let playlist = """
+        #EXTM3U
+        #EXT-X-MAP:URI="init.mp4",BYTERANGE="8@16"
+        #EXTINF:1,
+        segment.m4s
+        """
+        let initialization = try XCTUnwrap(downloader.parseInitSegmentResource(from: playlist, baseURL: base))
+        XCTAssertEqual(initialization.url.lastPathComponent, "init.mp4")
+        XCTAssertEqual(initialization.byteRange?.headerValue, "bytes=16-23")
+        for invalid in ["0@0", "-1@0", "4@-1", "4@9223372036854775807", "4@0@1"] {
+            XCTAssertNil(HLSByteRange.parse(invalid), invalid)
         }
+        XCTAssertThrowsError(try downloader.parseMediaResources(
+            "#EXTM3U\\n#EXT-X-BYTERANGE:4\\nfirst.ts",
+            baseURL: base
+        ))
     }
 
     @MainActor
