@@ -380,6 +380,18 @@ final class HLSBackgroundURLSessionCoordinator: NSObject, URLSessionDownloadDele
                 self.session.getAllTasks { tasks in
                     self.queue.async {
                         guard self.pending[description] != nil else { return }
+                        // A queued segment can finish between the initial
+                        // cache lookup and getAllTasks. Recheck here so the
+                        // foreground worker consumes the completed file
+                        // instead of launching a duplicate network request.
+                        if let cached = try? self.readCompletedResult(
+                            for: description,
+                            maximumResponseBytes: maximumResponseBytes,
+                            fallbackURL: request.url
+                        ) {
+                            self.pending.removeValue(forKey: description)?.continuation.resume(returning: cached)
+                            return
+                        }
                         if let existing = tasks.first(where: { $0.taskDescription == description }) as? URLSessionDownloadTask {
                             self.activeTasks[description] = existing
                             if existing.state == .suspended { existing.resume() }
