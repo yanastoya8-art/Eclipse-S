@@ -1570,7 +1570,7 @@ class TMDBContentFilter: ObservableObject {
         guard shouldIncludeForConfiguredAgeAndAudio(
             result,
             allowUpcomingContent: allowUpcomingContent,
-            allowUnresolvedRuntime: allowUnresolvedOptionalMetadata
+            allowUnresolvedOptionalMetadata: allowUnresolvedOptionalMetadata
         ) else { return false }
         guard shouldIncludeCatalogTitle(result.displayTitle) else { return false }
         guard shouldIncludeForKids(
@@ -2148,7 +2148,7 @@ class TMDBContentFilter: ObservableObject {
     private func shouldIncludeForConfiguredAgeAndAudio(
         _ result: TMDBSearchResult,
         allowUpcomingContent: Bool = false,
-        allowUnresolvedRuntime: Bool = false
+        allowUnresolvedOptionalMetadata: Bool = false
     ) -> Bool {
         let defaults = UserDefaults.standard
         let isAnime = Self.isAnimeResult(result)
@@ -2162,7 +2162,7 @@ class TMDBContentFilter: ObservableObject {
                 guard CatalogRuntimeFilterPolicy.shouldInclude(runtimeMinutes: runtime) else {
                     return false
                 }
-            } else if !allowUnresolvedRuntime {
+            } else if !allowUnresolvedOptionalMetadata {
                 return false
             }
         }
@@ -2217,7 +2217,7 @@ class TMDBContentFilter: ObservableObject {
                     // Preserve Search discoverability while canonical language
                     // metadata is being fetched or is temporarily unavailable.
                     // A confirmed negative result remains excluded.
-                    guard allowUnresolvedRuntime && !hasResolvedCatalogAudio(for: result) else {
+                    guard allowUnresolvedOptionalMetadata && !hasResolvedCatalogAudio(for: result) else {
                         return false
                     }
                 }
