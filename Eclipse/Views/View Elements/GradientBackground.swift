@@ -899,6 +899,7 @@ struct EclipseAmbientMotionBackground: View {
     let accentColor: Color
     let motionEnabled: Bool
     var allowsAnimatedShape: Bool = true
+    @ObservedObject private var theme = EclipseTheme.shared
     @AppStorage(HomeAnimatedBackgroundQuality.storageKey) private var qualityRawValue = HomeAnimatedBackgroundQuality.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundFrameRate.storageKey) private var frameRateRawValue = HomeAnimatedBackgroundFrameRate.defaultValue.rawValue
     @AppStorage(HomeAnimatedBackgroundParticleColor.storageKey) private var particleColorRawValue = HomeAnimatedBackgroundParticleColor.defaultValue.rawValue
@@ -946,8 +947,12 @@ struct EclipseAmbientMotionBackground: View {
     }
 
     private var primaryColor: Color {
+        // The ambient creature is one persistent app-wide motif. Do not tint
+        // it from a page's dominant/accent colour: Browse cards and detail
+        // heroes can change that value during navigation, making the same
+        // selected creature appear to switch colour between sections.
         HomeAnimatedBackgroundParticleColor.resolved(particleColorRawValue)
-            .color(accent: accentColor, custom: customParticleColor)
+            .color(accent: theme.settingsGradientColor, custom: customParticleColor)
     }
 
     private var quality: HomeAnimatedBackgroundQuality {
