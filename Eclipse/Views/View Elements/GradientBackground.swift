@@ -897,6 +897,7 @@ private struct HomeAnimatedCreatureMotif: View {
         )
 
         var drawing = context
+        drawing.interpolation = .high
         drawing.translateBy(x: canvasSize.width / 2, y: canvasSize.height / 2)
         drawing.rotate(by: .degrees(sin(phase * 0.55) * 1.1))
         let breathing = CGFloat(1.0 + sin(phase * 1.1) * 0.008)
@@ -1206,7 +1207,7 @@ struct EclipseAmbientMotionBackground: View {
             let motifSize = min(max(min(width, height) * 0.34, 112), 270) * shapePulse * safeShapeScale
             let motif = HomeAnimatedCreatureMotif(
                 shape: selectedShape,
-                color: primaryColor,
+                color: HomeAnimatedCreatureColorMode(rawValue: creatureColorModeRawValue) == .custom ? customParticleColor : primaryColor,
                 opacity: shapeOpacity,
                 brightness: shapeBrightness,
                 size: CGSize(width: motifSize * 4 / 3, height: motifSize),
