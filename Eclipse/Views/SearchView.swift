@@ -3315,9 +3315,13 @@ private struct BrowseMediaView: View {
                             || result.originCountry?.contains(where: { animeCountries.contains($0) }) == true))
                 return hasAnimeSignals ? nil : result
             case .anime:
-                // The Anime Browse discover query is already constrained to
-                // animation genre 16. Do not discard entries just because TMDB
-                // omitted country/language metadata.
+                // AniList catalogue entries are authoritative anime even when
+                // TMDB has incomplete or incorrect genre metadata for their
+                // mapped TV record. Preserve those candidates; require TMDB's
+                // Animation genre only for results discovered solely by TMDB.
+                if result.isAnimeHint == true || result.animeIdentitySeed != nil {
+                    return result.withAnimeHint(true)
+                }
                 if let genres = result.genreIds, !genres.contains(16) { return nil }
                 return result.withAnimeHint(true)
             }
