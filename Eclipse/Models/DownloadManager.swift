@@ -11688,7 +11688,6 @@ extension DownloadManager {
                   let fileURL = URL(string: fileString) else { throw EclipseShareError.invalidResponse }
             var upload = URLRequest(url: uploadURL)
             upload.httpMethod = "PUT"
-            upload.setValue(String(fileSize), forHTTPHeaderField: "Content-Length")
             upload.setValue(mime, forHTTPHeaderField: "Content-Type")
             let (uploadData, uploadResponse) = try await URLSession.shared.upload(for: upload, fromFile: localURL)
             _ = try responseDictionary(uploadData, uploadResponse)
