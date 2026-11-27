@@ -1243,6 +1243,19 @@ final class HLSDownloader: @unchecked Sendable {
             maximumResponseBytes: Self.maximumMediaObjectBytes,
             requiresPublicNetworkValidation: requiresPublicNetworkValidationForBackgroundURLSession
         )
+        do {
+            try checkCancelled()
+        } catch {
+            // Cancellation can race URLSession's asynchronous getAllTasks
+            // callback. Remove anything the batch may have queued after the
+            // user's Cancel/Delete action reached the coordinator.
+            HLSBackgroundURLSessionCoordinator.shared.cancel(downloadID: downloadId)
+            throw error
+        }
+        Logger.shared.log(
+            "HLS background: queued \(requests.count) playlist resource(s) before segment processing",
+            type: "Download"
+        )
 #endif
     }
 
