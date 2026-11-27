@@ -5,6 +5,12 @@
     },
     "api/share/upload-token.ts": {
       "maxDuration": 30
+    },
+    "api/share/create.ts": {
+      "maxDuration": 30
+    },
+    "api/share/stream.ts": {
+      "maxDuration": 60
     }
   },
   "headers": [
