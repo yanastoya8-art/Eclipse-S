@@ -1172,9 +1172,10 @@ final class HLSDownloader: @unchecked Sendable {
 #if os(iOS) && !targetEnvironment(macCatalyst)
         if usesBackgroundURLSession {
             if requiresPublicNetworkValidationForBackgroundURLSession {
-                guard url.scheme?.lowercased() == "https" else {
-                    throw HLSError.unsupportedLayout(reason: "This protected HLS source requires HTTPS for background transfer.")
-                }
+                // Media-segment policy validates public DNS destinations for
+                // both HTTP and HTTPS. Requiring HTTPS here rejected otherwise
+                // safe HTTP HLS origins before the background session could
+                // start, leaving those downloads queued until the app reopened.
                 do {
                     _ = try await SkyStreamRemoteURLPolicy.shared.validateForNetworkDispatch(
                         url.absoluteString,
