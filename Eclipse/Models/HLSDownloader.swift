@@ -1026,50 +1026,16 @@ final class HLSDownloader: @unchecked Sendable {
 
                 try self.checkCancelled()
 
-                let mediaPlaylistURL: URL
-                let mediaPlaylistContent: String
-
-                if let pinned = self.pinnedVariantURL {
-                    if self.isMasterPlaylist(playlistContent) {
-                        let variants = self.parseMasterPlaylist(playlistContent, baseURL: self.streamURL)
-                        guard let pinnedIdentity = self.canonicalResumeURL(pinned),
-                              let selected = variants.first(where: { self.canonicalResumeURL($0.url) == pinnedIdentity }) else {
-                            throw HLSError.resumePlaylistChanged
-                        }
-                        guard !selected.requiresExternalAudio else {
-                            throw HLSError.unsupportedLayout(reason: HLSDownloadCompatibility.separateAudioMessage)
-                        }
-                    }
-                    if pinned == self.streamURL {
-                        mediaPlaylistContent = playlistContent
-                    } else {
-                        mediaPlaylistContent = try await self.fetchPlaylist(url: pinned)
-                    }
-                    mediaPlaylistURL = pinned
-                } else if self.isMasterPlaylist(playlistContent) {
-
-                    let variants = self.parseMasterPlaylist(playlistContent, baseURL: self.streamURL)
-                    guard let best = self.selectBestVariant(variants) else {
-                        if !variants.isEmpty {
-                            throw HLSError.unsupportedLayout(reason: HLSDownloadCompatibility.separateAudioMessage)
-                        }
-                        throw HLSError.noVariantsFound
-                    }
-                    Logger.shared.log("HLS: Selected variant \(best.resolution ?? "unknown") @ \(best.bandwidth)bps", type: "Download")
-
-                    mediaPlaylistContent = try await self.fetchPlaylist(url: best.url)
-                    mediaPlaylistURL = best.url
-                } else {
-
-                    mediaPlaylistContent = playlistContent
-                    mediaPlaylistURL = self.streamURL
-                }
+                let resolvedPlaylist = try await self.resolveMediaPlaylist(
+                    initialContent: playlistContent,
+                    initialURL: self.streamURL,
+                    pinnedVariantURL: self.pinnedVariantURL
+                )
+                let mediaPlaylistURL = resolvedPlaylist.url
+                let mediaPlaylistContent = resolvedPlaylist.content
 
                 try self.checkCancelled()
 
-                if self.isMasterPlaylist(mediaPlaylistContent) {
-                    throw HLSError.unsupportedLayout(reason: "This HLS stream uses nested variant playlists that cannot be packaged for offline playback. Choose another stream.")
-                }
                 if let reason = HLSDownloadCompatibility.unsupportedMediaLayout(in: mediaPlaylistContent) {
                     throw HLSError.unsupportedLayout(reason: reason)
                 }
@@ -1287,6 +1253,49 @@ final class HLSDownloader: @unchecked Sendable {
     private static let minimumRequestStartInterval: TimeInterval = 0.15
     private static let maximumRetryAfterSeconds: TimeInterval = 30
     private static let minimumFreeCapacityReserve: Int64 = 512 * 1024 * 1024
+
+    /// Follow nested HLS master playlists until a concrete media playlist is
+    /// reached. A number of providers publish master → rendition-master →
+    /// media-playlist chains; treating the second master as an unsupported
+    /// layout made otherwise valid HLS download URLs fail before segment work.
+    private func resolveMediaPlaylist(
+        initialContent: String,
+        initialURL: URL,
+        pinnedVariantURL: URL?
+    ) async throws -> (url: URL, content: String) {
+        var currentURL = initialURL
+        var currentContent = initialContent
+        if let pinnedVariantURL, pinnedVariantURL != initialURL {
+            currentURL = pinnedVariantURL
+            currentContent = try await fetchPlaylist(url: pinnedVariantURL)
+        }
+
+        let maximumMasterDepth = 5
+        var depth = 0
+        while isMasterPlaylist(currentContent) {
+            try checkCancelled()
+            guard depth < maximumMasterDepth else {
+                throw HLSError.unsupportedLayout(
+                    reason: "This HLS stream contains too many nested variant playlists to download safely."
+                )
+            }
+            let variants = parseMasterPlaylist(currentContent, baseURL: currentURL)
+            guard let best = selectBestVariant(variants) else {
+                if !variants.isEmpty {
+                    throw HLSError.unsupportedLayout(reason: HLSDownloadCompatibility.separateAudioMessage)
+                }
+                throw HLSError.noVariantsFound
+            }
+            Logger.shared.log(
+                "HLS: Selected variant \(best.resolution ?? "unknown") @ \(best.bandwidth)bps (master depth \(depth + 1))",
+                type: "Download"
+            )
+            currentURL = best.url
+            currentContent = try await fetchPlaylist(url: best.url)
+            depth += 1
+        }
+        return (currentURL, currentContent)
+    }
 
     private func fetchPlaylist(url: URL) async throws -> String {
         publishStage("Downloading playlist")
