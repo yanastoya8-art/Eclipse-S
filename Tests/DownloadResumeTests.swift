@@ -187,6 +187,11 @@ final class DownloadResumeTests: XCTestCase {
         }
         manager.applicationDidBecomeActive()
         XCTAssertEqual(started, ["concurrency-1", "concurrency-2"])
+        let waitingItems = manager.downloads.filter { $0.status == .queued }
+        XCTAssertEqual(waitingItems.count, 4)
+        XCTAssertTrue(waitingItems.allSatisfy {
+            $0.error?.contains("Waiting for an available download slot") == true
+        }, "Every queued item should explain that the concurrency limit is occupied")
         limit = 1
         manager.applyQueueSettingsChanged()
         XCTAssertEqual(manager.downloads.filter { $0.status == .downloading }.count, 2)
