@@ -1,6 +1,6 @@
 # Eclipse creature artwork — redesign v2
 
-A complete second visual direction for review. These are standalone vector concepts, not yet installed in the app. Existing app art and selector are unchanged pending approval.
+The approved second visual direction. These standalone SVG vectors are also installed as the six selectable creature assets in the app asset catalog.
 
 ## Design direction
 - Toothless: larger wing silhouette, clear head and muzzle, layered wing membranes, visible legs, articulated tail and tail fin.
@@ -15,4 +15,4 @@ Original preserves each vector's authored gradients. Custom applies the selected
 
 SVG vectors are resolution-independent. Render at device scale for performance and allow a 3840×2160 4K output target; do not decode huge 4K bitmaps for small on-screen motifs.
 
-Approve or request another revision before app integration.
+The six approved vectors are mirrored into the app asset catalog: Toothless → HomeCreatureDragon, Phoenix → HomeCreaturePhoenix, Wolf → HomeCreatureWolf, Kitsune → HomeCreatureFox, Paw → HomeCreaturePaw, and Siren → HomeCreatureMermaid.
