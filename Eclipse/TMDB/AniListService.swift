@@ -7035,9 +7035,8 @@ final class AniListService {
             .filter { !$0.isEmpty }
         )
         guard queryKey.count >= 2, !queryTokens.isEmpty else { return [] }
-        let nodes = await supplementalStructureNodeLookup(title: trimmed, token: nil)
-        let candidates = nodes.values
-            .filter { anime in
+        func matchingCandidates(in nodes: [Int: AniListAnime]) -> [AniListAnime] {
+            nodes.values.filter { anime in
                 guard anime.isAdult != true else { return false }
                 let titleCandidates = AniListTitlePicker.titleCandidates(from: anime.title)
                 return titleCandidates.contains { candidate in
@@ -7053,6 +7052,31 @@ final class AniListService {
                         || queryTokens.isSubset(of: titleTokens)
                 }
             }
+        }
+
+        var nodes = await supplementalStructureNodeLookup(title: trimmed, token: nil)
+        var matched = matchingCandidates(in: nodes)
+
+        // AniList's search matcher can return no rows for a perfectly valid
+        // multi-word query (for example, a shortened translated title). Retry
+        // a few meaningful tokens independently, then apply the complete
+        // original query's title-token check above. This broadens discovery
+        // without accepting unrelated results or weakening the dub filter.
+        if matched.isEmpty {
+            let fallbackTokens = trimmed
+                .components(separatedBy: CharacterSet.alphanumerics.inverted)
+                .filter { $0.count >= 3 }
+                .prefix(3)
+            for token in fallbackTokens {
+                if Task.isCancelled { break }
+                let tokenNodes = await supplementalStructureNodeLookup(title: token, token: nil)
+                nodes.merge(tokenNodes) { current, _ in current }
+                matched = matchingCandidates(in: nodes)
+                if !matched.isEmpty { break }
+            }
+        }
+
+        let candidates = matched
             .sorted { lhs, rhs in
                 let lhsExact = AniListTitlePicker.titleCandidates(from: lhs.title).contains {
                     normalized($0) == queryKey
