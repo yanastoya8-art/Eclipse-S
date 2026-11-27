@@ -313,7 +313,15 @@ private final class ProxyFlowFixtureServer {
         guard connections[id] != nil else { return }
         if let stallAfterBytes, offset >= stallAfterBytes { return }
         if let truncatedAfterBytes, offset >= truncatedAfterBytes {
-            sendTerminalResponse(connection, id: id, response: "")
+            // URLSession may discard a very small partial body when the peer
+            // closes immediately after the final write. Give its delegate queue
+            // time to receive and forward the accepted prefix before simulating
+            // the premature EOF. This keeps the test focused on draining bytes
+            // already admitted by the proxy, rather than transport coalescing.
+            queue.asyncAfter(deadline: .now() + .milliseconds(300)) { [weak self] in
+                guard let self, self.connections[id] != nil else { return }
+                self.sendTerminalResponse(connection, id: id, response: "")
+            }
             return
         }
         guard offset < end else {
