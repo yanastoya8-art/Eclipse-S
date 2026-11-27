@@ -587,13 +587,20 @@ final class HomeViewModel: ObservableObject {
                 requiredKinds: requiredAnimeCatalogs
             )
             guard !Task.isCancelled else { return }
-            // TMDB supplies the catalog rows, but selected dub-language filters
-            // require stable AniList identity. Resolve that identity before the
-            // first page is filtered; the old flow tried to enrich only poster
-            // artwork after publishing the already-filtered (often empty) shelf.
-            let rawAnimeCatalogs = await self.resolveAnimeCatalogIdentitySeeds(
-                tmdbAnimeCatalogs
-            )
+            // TMDB supplies the catalog rows, but selected dub-language and
+            // anime age filters require stable AniList identity. Resolve only
+            // when an active filter needs it; otherwise keep the first shelf fast.
+            let animeIdentityRequired =
+                !MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement.isEmpty
+                || UserDefaults.standard.bool(forKey: "catalogHideBelowPG13Anime")
+                || UserDefaults.standard.bool(forKey: "catalogHideAllAgesAnime")
+                || ProfileManager.shared.isKidsModeActive
+            let rawAnimeCatalogs: [AniListService.AniListCatalogKind: [TMDBSearchResult]]
+            if animeIdentityRequired {
+                rawAnimeCatalogs = await self.resolveAnimeCatalogIdentitySeeds(tmdbAnimeCatalogs)
+            } else {
+                rawAnimeCatalogs = tmdbAnimeCatalogs.mapValues { $0.map { $0.withAnimeHint(true) } }
+            }
             guard !Task.isCancelled else { return }
             await contentFilter.prepareMaturityRatings(for: Array(rawAnimeCatalogs.values.joined()))
             let animeCatalogs = rawAnimeCatalogs.mapValues { contentFilter.filterFastAnimeSearchResults($0) }
