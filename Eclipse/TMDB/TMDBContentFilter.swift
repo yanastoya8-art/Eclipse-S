@@ -1158,15 +1158,19 @@ class TMDBContentFilter: ObservableObject {
         }
 
         // Jikan exposes MyAnimeList's official age classification without
-        // requiring a user-supplied MAL client ID. Use it as the final fallback
-        // for titles where Taizen and the optional authenticated MAL route have
-        // no usable rating. The service serializes requests to respect Jikan's
-        // public rate limit and caches successful classifications.
-        for id in missingIDs where ratings[id] == nil || ratings[id] == .unknown {
-            guard let malID = malIDsByAnimeID[id], malID > 0 else { continue }
-            if let rating = try? await JikanAnimeAgeRatingService.shared.rating(malID: malID),
-               rating != .unknown {
-                ratings[id] = rating
+        // requiring a user-supplied MAL client ID. Resolve missing titles as a
+        // rate-limited concurrent batch instead of serial network round-trips.
+        let jikanIDs = missingIDs.compactMap { id -> (animeID: Int, malID: Int)? in
+            guard (ratings[id] == nil || ratings[id] == .unknown),
+                  let malID = malIDsByAnimeID[id], malID > 0 else { return nil }
+            return (id, malID)
+        }
+        let jikanRatings = await JikanAnimeAgeRatingService.shared.ratings(
+            malIDs: Array(Set(jikanIDs.map(\.malID)))
+        )
+        for entry in jikanIDs {
+            if let rating = jikanRatings[entry.malID], rating != .unknown {
+                ratings[entry.animeID] = rating
             }
         }
 
@@ -1178,7 +1182,7 @@ class TMDBContentFilter: ObservableObject {
             } else {
                 animeEligibilityLock.lock()
                 animeAgeLoadingIDs.remove(id)
-                animeAgeRetryAfterByID[id] = Date().addingTimeInterval(2 * 60 * 60)
+                animeAgeRetryAfterByID[id] = Date().addingTimeInterval(15 * 60)
                 animeEligibilityLock.unlock()
             }
         }
@@ -3293,7 +3297,34 @@ actor JikanAnimeAgeRatingService {
             .components(separatedBy: " - ")
             .first?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? rawRating
-        return MaturityRating.ratingForFiltering(certification: classification)
+        switch classification.uppercased() {
+        case "R", "R+": return .age17
+        case "RX": return .adult
+        default: return MaturityRating.ratingForFiltering(certification: classification)
+        }
+    }
+
+    func ratings(malIDs: [Int]) async -> [Int: MaturityRating] {
+        let identifiers = Array(Set(malIDs.filter { (1...1_000_000_000).contains($0) }))
+        guard !identifiers.isEmpty else { return [:] }
+        return await withTaskGroup(of: (Int, MaturityRating?).self) { group in
+            for malID in identifiers {
+                group.addTask {
+                    do {
+                        return (malID, try await self.rating(malID: malID))
+                    } catch {
+                        return (malID, nil)
+                    }
+                }
+            }
+            var resolved: [Int: MaturityRating] = [:]
+            for await (malID, rating) in group {
+                if let rating, rating != .unknown {
+                    resolved[malID] = rating
+                }
+            }
+            return resolved
+        }
     }
 
     func rating(malID: Int) async throws -> MaturityRating {
