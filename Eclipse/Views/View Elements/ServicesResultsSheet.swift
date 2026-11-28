@@ -18,13 +18,23 @@ typealias ServicesPresentationController = UIViewController
 #endif
 
 @MainActor
-private func copyProviderStreamURL(_ rawURL: String) {
+private func copyProviderStreamURL(
+    _ rawURL: String,
+    onFailure: (@MainActor (String) -> Void)? = nil
+) {
     guard let sourceURL = DownloadSourceLinkPolicy.copyableURL(rawURL) else { return }
     // Copy the original provider URL, not the iPhone's loopback playback proxy.
     let managedProxySession = MPVHeaderProxy.shared.upstreamProbeTarget(for: sourceURL)
     let targetURL = MPVHeaderProxy.shared.recoverableTargetURL(for: sourceURL)
         ?? managedProxySession?.url
         ?? sourceURL
+    guard let scheme = targetURL.scheme?.lowercased(),
+          scheme == "http" || scheme == "https",
+          let host = targetURL.host,
+          !DownloadSourceLinkPolicy.isLocalOrPrivateHost(host) else {
+        onFailure?("The original provider URL could not be recovered. Local or private network addresses cannot be copied.")
+        return
+    }
     ProviderExternalApplication.copy(targetURL.absoluteString)
 }
 
@@ -47,6 +57,14 @@ private func copyProviderDownloadURL(
     ]
     .compactMap { $0 }
     .first(where: { !$0.isEmpty }) ?? [:]
+
+    guard let scheme = targetURL.scheme?.lowercased(),
+          scheme == "http" || scheme == "https",
+          let host = targetURL.host,
+          !DownloadSourceLinkPolicy.isLocalOrPrivateHost(host) else {
+        onFailure?("The original provider URL could not be recovered. Local or private network addresses cannot be copied.")
+        return
+    }
 
     // Preserve the authoritative MKV URL exactly; the player/download path
     // must not wrap it in a local proxy or rewrite its signed query.
@@ -2412,7 +2430,10 @@ struct ModulesSearchResultsSheet: View {
 #if !os(tvOS)
         .contextMenu {
             Button {
-                copyProviderStreamURL(resolved.option.url)
+                copyProviderStreamURL(resolved.option.url, onFailure: { message in
+                    viewModel.streamError = message
+                    viewModel.showingStreamError = true
+                })
             } label: {
                 Label("Copy Stream URL", systemImage: "link")
             }
@@ -2549,7 +2570,10 @@ struct ModulesSearchResultsSheet: View {
         .contextMenu {
             if let url = stream.url, !url.isEmpty {
                 Button {
-                    copyProviderStreamURL(url)
+                    copyProviderStreamURL(url, onFailure: { message in
+                    viewModel.streamError = message
+                    viewModel.showingStreamError = true
+                })
                 } label: {
                     Label("Copy Stream URL", systemImage: "link")
                 }
