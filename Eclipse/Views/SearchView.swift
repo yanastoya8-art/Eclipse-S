@@ -2919,21 +2919,43 @@ private struct BrowseMediaView: View {
         }
 
         guard !requestedYears.isEmpty else {
-            let fetched = try await tmdbService.discoverMedia(
-                mediaType: mediaType,
-                genreIds: effectiveGenreIds,
-                requiredGenreIds: requiredGenreIds,
-                excludedGenreIds: excludedGenreIds,
-                keywordIds: selectedKeywordIDs,
-                excludedKeywordIds: excludedKeywordIDs,
-                dateGte: upcomingOnly ? Self.todayDateString() : nil,
-                originCountries: effectiveCountries,
-                originalLanguage: effectiveLanguage,
-                sortBy: tmdbSortValue,
-                minimumVoteCount: voteCountFloor,
-                voteAverageGte: ratingFloor,
-                page: page
-            )
+            let fetched: (results: [TMDBSearchResult], hasMore: Bool)
+            if isAnime {
+                // AniList is an independent primary source for Anime Browse.
+                // A transient TMDB discover failure must not prevent the
+                // subsequent AniList merge from populating the page.
+                fetched = (try? await tmdbService.discoverMedia(
+                    mediaType: mediaType,
+                    genreIds: effectiveGenreIds,
+                    requiredGenreIds: requiredGenreIds,
+                    excludedGenreIds: excludedGenreIds,
+                    keywordIds: selectedKeywordIDs,
+                    excludedKeywordIds: excludedKeywordIDs,
+                    dateGte: upcomingOnly ? Self.todayDateString() : nil,
+                    originCountries: effectiveCountries,
+                    originalLanguage: effectiveLanguage,
+                    sortBy: tmdbSortValue,
+                    minimumVoteCount: voteCountFloor,
+                    voteAverageGte: ratingFloor,
+                    page: page
+                )) ?? (results: [], hasMore: false)
+            } else {
+                fetched = try await tmdbService.discoverMedia(
+                    mediaType: mediaType,
+                    genreIds: effectiveGenreIds,
+                    requiredGenreIds: requiredGenreIds,
+                    excludedGenreIds: excludedGenreIds,
+                    keywordIds: selectedKeywordIDs,
+                    excludedKeywordIds: excludedKeywordIDs,
+                    dateGte: upcomingOnly ? Self.todayDateString() : nil,
+                    originCountries: effectiveCountries,
+                    originalLanguage: effectiveLanguage,
+                    sortBy: tmdbSortValue,
+                    minimumVoteCount: voteCountFloor,
+                    voteAverageGte: ratingFloor,
+                    page: page
+                )
+            }
             var results = upcomingOnly
                 ? fetched.results.filter { Self.hasOfficialUpcomingDate($0) }
                 : fetched.results
