@@ -159,7 +159,7 @@ final class DownloadResumeTests: XCTestCase {
         for host in [
             "localhost", "player.localhost", "127.0.0.1", "10.0.0.4",
             "172.16.0.5", "192.168.1.10", "169.254.10.2", "::1",
-            "fc00::1", "fe80::1", "::ffff:127.0.0.1", "0x7f000001"
+            "fc00::1", "fe80::1", "::ffff:127.0.0.1", "0x7f000001", "0177.0.0.1"
         ] {
             XCTAssertTrue(
                 DownloadSourceLinkPolicy.isLocalOrPrivateHost(host),
