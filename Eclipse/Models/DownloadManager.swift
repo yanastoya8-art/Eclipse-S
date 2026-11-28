@@ -4712,16 +4712,12 @@ final class DownloadManager: NSObject, ObservableObject {
 
         let headers = managedProxySession?.headers ?? protectedAttempt?.authorityHeaders ?? item.headers
         if item.isHLS || sourceURL.pathExtension.caseInsensitiveCompare("m3u8") == .orderedSame {
-            // An HLS manifest is not a single video file. Do not force Safari
-            // to save only the .m3u8 text as an attachment; expose a rewritten
-            // LAN playlist so HLS-capable clients can fetch its authenticated
-            // segments through the same proxy route.
-            return MPVHeaderProxy.shared.makeLANProxyURL(
-                for: sourceURL,
-                headers: headers,
-                logType: "LANCast",
-                asDownload: false
-            )
+            // A copied source URL must remain usable off-device. A loopback/LAN
+            // playlist proxy embeds this iPhone's listener address and therefore
+            // fails on other devices or networks. Keep the provider's signed
+            // manifest URL intact; the native Eclipse downloader continues to
+            // use its authenticated transport for the actual download.
+            return sourceURL
         }
 
         return MPVHeaderProxy.shared.makeLANProxyURL(
