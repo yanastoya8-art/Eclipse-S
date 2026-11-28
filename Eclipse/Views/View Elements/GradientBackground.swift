@@ -952,7 +952,7 @@ struct EclipseAmbientMotionBackground: View {
         // heroes can change that value during navigation, making the same
         // selected creature appear to switch colour between sections.
         HomeAnimatedBackgroundParticleColor.resolved(particleColorRawValue)
-            .color(accent: theme.settingsGradientColor, custom: customParticleColor)
+            .color(accent: theme.scopedPalette().topWash, custom: customParticleColor)
     }
 
     private var quality: HomeAnimatedBackgroundQuality {
