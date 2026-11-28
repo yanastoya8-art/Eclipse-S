@@ -29,7 +29,11 @@ private func copyProviderStreamURL(_ rawURL: String) {
 }
 
 @MainActor
-private func copyProviderDownloadURL(_ rawURL: String, headers: [String: String]? = nil) {
+private func copyProviderDownloadURL(
+    _ rawURL: String,
+    headers: [String: String]? = nil,
+    onFailure: ((String) -> Void)? = nil
+) {
     guard let sourceURL = DownloadSourceLinkPolicy.copyableURL(rawURL) else { return }
 
     let sanitizedHeaders = AVPlayerResourceLoader.sanitizedHTTPHeaders(headers ?? [:])
@@ -71,6 +75,8 @@ private func copyProviderDownloadURL(_ rawURL: String, headers: [String: String]
             // optional Internet Share backend has not been configured.
             if effectiveHeaders.isEmpty {
                 ProviderExternalApplication.copy(targetURL.absoluteString)
+            } else {
+                onFailure?("Could not create a portable download link. \(error.localizedDescription)")
             }
             Logger.shared.log(
                 "Could not create a portable download URL for host \(targetURL.host ?? "unknown"): \(error.localizedDescription)",
@@ -2411,7 +2417,10 @@ struct ModulesSearchResultsSheet: View {
                 Label("Copy Stream URL", systemImage: "link")
             }
             Button {
-                copyProviderDownloadURL(resolved.option.url, headers: resolved.option.headers)
+                copyProviderDownloadURL(resolved.option.url, headers: resolved.option.headers, onFailure: { message in
+                    viewModel.streamError = message
+                    viewModel.showingStreamError = true
+                })
             } label: {
                 Label("Copy Download URL", systemImage: "arrow.down.doc")
             }
@@ -2545,7 +2554,10 @@ struct ModulesSearchResultsSheet: View {
                     Label("Copy Stream URL", systemImage: "link")
                 }
                 Button {
-                    copyProviderDownloadURL(url)
+                    copyProviderDownloadURL(url, onFailure: { message in
+                    viewModel.streamError = message
+                    viewModel.showingStreamError = true
+                })
                 } label: {
                     Label("Copy Download URL", systemImage: "arrow.down.doc")
                 }
@@ -8092,7 +8104,10 @@ struct ModulesSearchResultsSheet: View {
                 Label("Copy Stream URL", systemImage: "link")
             }
             Button {
-                copyProviderDownloadURL(stream.option.url, headers: stream.option.headers)
+                copyProviderDownloadURL(stream.option.url, headers: stream.option.headers, onFailure: { message in
+                    viewModel.streamError = message
+                    viewModel.showingStreamError = true
+                })
             } label: {
                 Label("Copy Download URL", systemImage: "arrow.down.doc")
             }
