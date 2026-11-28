@@ -757,6 +757,13 @@ enum DownloadSourceLinkPolicy {
     static func isMKVURL(_ url: URL) -> Bool {
         url.pathExtension.caseInsensitiveCompare("mkv") == .orderedSame
     }
+
+    /// HLS playlists and header-protected streams need a server-side capability
+    /// URL to work away from this device. MKV links remain verbatim by design.
+    static func requiresInternetShare(for url: URL, headers: [String: String]) -> Bool {
+        guard !isMKVURL(url) else { return false }
+        return !headers.isEmpty || url.pathExtension.caseInsensitiveCompare("m3u8") == .orderedSame
+    }
 }
 
 enum HLSManagedProxyTransportPolicy {
@@ -11689,14 +11696,38 @@ extension DownloadManager {
         }
 
         let providerHeaders = managedSession?.headers ?? protectedAttempt?.authorityHeaders ?? item.headers
+        return try await createInternetShareURL(for: source, headers: providerHeaders)
+    }
+
+    /// Creates a portable capability URL for a provider stream before it has
+    /// become a DownloadItem. The server stores the upstream headers encrypted
+    /// and rewrites HLS playlists so relative segments also work off-device.
+    func createInternetShareURL(for sourceURL: URL, headers: [String: String]) async throws -> URL {
+        guard sourceURL.scheme?.lowercased() == "https",
+              sourceURL.host?.isEmpty == false,
+              sourceURL.user == nil,
+              sourceURL.password == nil else {
+            throw EclipseShareError.server("Only public HTTPS provider URLs can be shared.")
+        }
+
+        let base = (UserDefaults.standard.string(forKey: "eclipseShareAPIBaseURL") ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard let baseURL = URL(string: base),
+              baseURL.scheme?.lowercased() == "https",
+              baseURL.host?.isEmpty == false else {
+            throw EclipseShareError.notConfigured
+        }
+
+        let safeHeaders = AVPlayerResourceLoader.sanitizedHTTPHeaders(headers)
         let endpoint = baseURL.appendingPathComponent("api/share/create")
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.timeoutInterval = 30
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: [
-            "url": source.absoluteString,
-            "headers": providerHeaders,
+            "url": sourceURL.absoluteString,
+            "headers": safeHeaders,
             "expiresInSeconds": 86_400
         ])
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -11705,11 +11736,14 @@ extension DownloadManager {
         }
         let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
         guard (200..<300).contains(http.statusCode) else {
-            throw EclipseShareError.server(object?["error"] as? String ?? "Could not create an internet stream link (HTTP \(http.statusCode)).")
+            throw EclipseShareError.server(
+                object?["error"] as? String ?? "Could not create an internet stream link (HTTP \(http.statusCode))."
+            )
         }
         guard let sharedURL = object?["url"] as? String,
               let url = URL(string: sharedURL),
-              url.scheme?.lowercased() == "https" else {
+              url.scheme?.lowercased() == "https",
+              url.host?.isEmpty == false else {
             throw EclipseShareError.invalidResponse
         }
         return url
