@@ -155,6 +155,23 @@ final class DownloadResumeTests: XCTestCase {
         ))
     }
 
+    func testPortableURLCopyRejectsLoopbackAndPrivateNetworkHosts() {
+        for host in [
+            "localhost", "player.localhost", "127.0.0.1", "10.0.0.4",
+            "172.16.0.5", "192.168.1.10", "169.254.10.2", "::1",
+            "fc00::1", "fe80::1", "::ffff:127.0.0.1", "0x7f000001"
+        ] {
+            XCTAssertTrue(
+                DownloadSourceLinkPolicy.isLocalOrPrivateHost(host),
+                "Expected local/private host to be rejected: \(host)"
+            )
+        }
+
+        XCTAssertFalse(DownloadSourceLinkPolicy.isLocalOrPrivateHost("cdn.example"))
+        XCTAssertFalse(DownloadSourceLinkPolicy.isLocalOrPrivateHost("8.8.8.8"))
+        XCTAssertFalse(DownloadSourceLinkPolicy.isLocalOrPrivateHost("2001:4860:4860::8888"))
+    }
+
     func testManagedProxyHLSBackgroundTransportSupportsHTTPAndHTTPS() {
         XCTAssertTrue(HLSManagedProxyTransportPolicy.canUnwrapForBackground(
             URL(string: "http://cdn.example/playlist.m3u8")!
