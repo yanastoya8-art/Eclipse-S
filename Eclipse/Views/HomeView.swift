@@ -2267,20 +2267,71 @@ struct HomeView: View {
         let pageSize = 20
         let boundedPage = max(page, 1)
 
+        func tmdbFallbackPage() async throws -> [TMDBSearchResult] {
+            // AniList is authoritative for anime identity, but its results can
+            // be lost when a title has no TMDB match. Keep the Browse section
+            // usable with TMDB's cached anime catalog as a last-resort source;
+            // the normal content filter still verifies language/age metadata.
+            let requestedLimit = min(boundedPage * pageSize, 100)
+            let fallback = try await tmdbService.getFastAnimeCatalog(
+                kind: fastAnimeCatalogKind(for: kind),
+                limit: requestedLimit
+            )
+            let offset = min((boundedPage - 1) * pageSize, fallback.count)
+            let pageResults = Array(fallback.dropFirst(offset)).prefix(pageSize)
+            // TMDB-only fallback rows need a verified AniList identity before
+            // the selected-dub filter can evaluate them. Resolve a small,
+            // bounded batch and preserve the original order.
+            return await withTaskGroup(
+                of: (Int, TMDBSearchResult).self,
+                returning: [TMDBSearchResult].self
+            ) { group in
+                var iterator = Array(pageResults).enumerated().makeIterator()
+                var resolved = Array<TMDBSearchResult?>(repeating: nil, count: pageResults.count)
+
+                func addNext() {
+                    guard let (index, result) = iterator.next() else { return }
+                    group.addTask {
+                        let identity = await AniListService.shared.searchAnimeIdentity(
+                            title: result.displayTitle
+                        )
+                        let identified = identity.map { result.withAnimeIdentitySeed($0) } ?? result
+                        return (index, identified.withAnimeHint(true))
+                    }
+                }
+
+                for _ in 0..<min(6, pageResults.count) { addNext() }
+                while let (index, result) = await group.next() {
+                    resolved[index] = result
+                    addNext()
+                }
+                return resolved.compactMap { $0 }
+            }
+        }
+
         do {
-            // Use the AniList catalog mapper instead of the TMDB-only discover
-            // feed. The mapped rows carry stable AniList/MAL identity seeds,
-            // which the selected-language dub filter requires. TMDB-only rows
-            // had only an anime hint and were rejected before dub verification.
-            return try await AniListService.shared.fetchAnimeCatalog(
+            let mapped = try await AniListService.shared.fetchAnimeCatalog(
                 kind,
                 page: boundedPage,
                 limit: pageSize,
                 tmdbService: tmdbService
             ).map { $0.withAnimeHint(true) }
+            guard !mapped.isEmpty else {
+                Logger.shared.log(
+                    "HomeView: AniList page \(boundedPage) for \(catalogId) had no TMDB matches; using cached TMDB anime catalog",
+                    type: "AniList"
+                )
+                return try await tmdbFallbackPage()
+            }
+            return mapped
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
-            Logger.shared.log("HomeView: anime section \(catalogId) page \(page) failed: \(error.localizedDescription)", type: "AniList")
-            throw error
+            Logger.shared.log(
+                "HomeView: AniList page \(boundedPage) for \(catalogId) failed; trying TMDB anime fallback: \(error.localizedDescription)",
+                type: "AniList"
+            )
+            return try await tmdbFallbackPage()
         }
     }
 

@@ -811,8 +811,13 @@ struct SearchView: View {
     }
 
     private func resolveSearchAnimeIdentities(_ results: [TMDBSearchResult]) async -> [TMDBSearchResult] {
+        let requiresAnimeAgeRating = ProfileSettingsStore.active.bool(forKey: "catalogHideBelowPG13Anime")
+            || ProfileSettingsStore.active.bool(forKey: "catalogHideAllAgesAnime")
         let candidates = results.enumerated().filter { _, result in
             guard result.animeIdentitySeed == nil else { return false }
+            if result.bypassesUnofficialProducerFilter && !requiresAnimeAgeRating {
+                return false
+            }
             // TMDB's country/original-language fields are incomplete on some
             // localized TV search payloads. Animation genre is therefore the
             // candidate signal; AniList's exact-title matcher below is the
@@ -879,7 +884,8 @@ struct SearchView: View {
                         animeArtworkURL: result.animeArtworkURL,
                         animeLogoURL: result.animeLogoURL,
                         tvMazePosterURL: result.tvMazePosterURL,
-                        fanartTVPosterURL: result.fanartTVPosterURL
+                        fanartTVPosterURL: result.fanartTVPosterURL,
+                        catalogSource: result.catalogSource
                     )
                     return (index, enriched)
                 }
@@ -915,17 +921,23 @@ struct SearchView: View {
         activeSearchTask?.cancel()
         activeSearchTask = Task {
             do {
+                let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
+                let spanishDubSelected = selectedDubLanguages.contains(MyDubListLanguage.spanish.rawValue)
+                let englishDubSelected = selectedDubLanguages.contains(MyDubListLanguage.english.rawValue)
+                let spanishOnlySelection = spanishDubSelected && !englishDubSelected
+                // Spanish-only Search is sourced from SoloLatino rather than
+                // TMDB. English-only movie/TV Search remains TMDB-backed.
+                let shouldSearchTMDB = !spanishOnlySelection
                 // Search localized and English TMDB indexes concurrently.
                 // Structured child tasks are cancelled with this query when the
                 // user changes text, and five pages keep the result window broad
                 // without the old four ten-page serial wait.
-                let shouldSearchTVEndpoint = searchFilter != .movies
+                let shouldSearchTVEndpoint = shouldSearchTMDB && searchFilter != .movies
                 let shouldSearchEnglish = selectedLanguage.caseInsensitiveCompare("en-US") != .orderedSame
-                async let localizedMultiResult: [TMDBSearchResult]? = try? await tmdbService.searchMulti(
-                    query: query,
-                    maxPages: 3
-                )
-                async let englishMultiResult: [TMDBSearchResult]? = shouldSearchEnglish
+                async let localizedMultiResult: [TMDBSearchResult]? = shouldSearchTMDB
+                    ? (try? await tmdbService.searchMulti(query: query, maxPages: 3))
+                    : []
+                async let englishMultiResult: [TMDBSearchResult]? = shouldSearchTMDB && shouldSearchEnglish
                     ? (try? await tmdbService.searchMulti(
                         query: query,
                         languageOverride: "en-US",
@@ -957,7 +969,6 @@ struct SearchView: View {
                         seen.insert($0.stableIdentity).inserted
                     })
                 }
-                let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
                 let requiresGlobalAnimeAgeRating = ProfileSettingsStore.active.bool(forKey: "catalogHideBelowPG13Anime")
                     || ProfileSettingsStore.active.bool(forKey: "catalogHideAllAgesAnime")
                 if shouldSearchTVEndpoint {
@@ -1031,6 +1042,41 @@ struct SearchView: View {
                     }
                 }
 
+                if spanishDubSelected {
+                    let wantsMovies = searchFilter == .all || searchFilter == .movies
+                    let wantsSeries = searchFilter == .all || searchFilter == .tvShows
+                    let wantsAnime = searchFilter == .all || searchFilter == .anime
+                    async let soloMovies = wantsMovies
+                        ? VerifiedDubCatalogueService.shared.fetchSoloLatino(
+                            mediaType: "movie", page: 1, query: query, tmdbService: tmdbService
+                        ) : []
+                    async let soloSeries = wantsSeries
+                        ? VerifiedDubCatalogueService.shared.fetchSoloLatino(
+                            mediaType: "tv", page: 1, query: query, tmdbService: tmdbService
+                        ) : []
+                    async let soloAnime = wantsAnime
+                        ? VerifiedDubCatalogueService.shared.fetchSoloLatino(
+                            mediaType: "tv", isAnime: true, page: 1, query: query, tmdbService: tmdbService
+                        ) : []
+                    let (spanishMovies, spanishSeries, spanishAnime) = await (soloMovies, soloSeries, soloAnime)
+                    results.append(contentsOf: spanishMovies + spanishSeries + spanishAnime)
+                }
+
+                if englishDubSelected && (searchFilter == .all || searchFilter == .anime) {
+                    let anikotoResults = await VerifiedDubCatalogueService.shared.fetchAnikotoEnglishAnime(
+                        page: 1,
+                        query: query,
+                        tmdbService: tmdbService
+                    )
+                    results.append(contentsOf: anikotoResults)
+                }
+                var deduplicatedSearchResults: [TMDBSearchResult] = []
+                var seenCatalogueResults = Set<String>()
+                for result in results where seenCatalogueResults.insert(result.stableIdentity).inserted {
+                    deduplicatedSearchResults.append(result)
+                }
+                results = deduplicatedSearchResults
+
                 // TMDB's multi-search index can omit anime or index it under
                 // a translated title. Query AniList directly for the Anime
                 // filter (and as a last resort when TMDB returns nothing).
@@ -1039,19 +1085,7 @@ struct SearchView: View {
                 // those filters are applied to anime candidates already found
                 // in TMDB results, while the dedicated Anime filter performs
                 // the broader AniList lookup.
-                let foldedAnimeQuery = query.folding(
-                    options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
-                    locale: Locale(identifier: "en_US_POSIX")
-                ).lowercased()
-                let hasStrongAnimeTitleMatch = results.contains { result in
-                    [result.displayTitle, result.originalName ?? ""].contains { title in
-                        title.folding(
-                            options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
-                            locale: Locale(identifier: "en_US_POSIX")
-                        ).lowercased().contains(foldedAnimeQuery)
-                    }
-                }
-                if searchFilter == .anime || !hasStrongAnimeTitleMatch {
+                if searchFilter == .anime || results.isEmpty || (spanishDubSelected && searchFilter == .all) {
                     // TMDB multi-search can return unrelated movie/TV matches
                     // for an anime title. Search AniList when no title-level
                     // match exists, but do not make every ordinary Search query
@@ -2881,6 +2915,16 @@ private struct BrowseMediaView: View {
     ) async throws -> BrowsePageResult {
         let selectedKeywordNames = genres.compactMap(\.keyword)
         let excludedKeywordNames = excludedGenres.compactMap(\.keyword)
+        let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
+        let spanishDubSelected = selectedDubLanguages.contains(MyDubListLanguage.spanish.rawValue)
+        let englishDubSelected = selectedDubLanguages.contains(MyDubListLanguage.english.rawValue)
+        let spanishOnlyNonAnime = spanishDubSelected && !englishDubSelected && !isAnime
+        let catalogueSort: String = {
+            if sort == .rank { return "rank" }
+            if sort == .title { return "title" }
+            if sort == .popularity { return "popularity" }
+            return "newest"
+        }()
         // TMDB exposes fan-made and unofficial productions as keywords more
         // reliably than it does in title/overview text. Exclude those at the
         // discovery query as well as in TMDBContentFilter so Upcoming-only
@@ -2920,7 +2964,37 @@ private struct BrowseMediaView: View {
 
         guard !requestedYears.isEmpty else {
             let fetched: (results: [TMDBSearchResult], hasMore: Bool)
-            if isAnime {
+            if spanishDubSelected {
+                let soloLatinoResults = await VerifiedDubCatalogueService.shared.fetchSoloLatino(
+                    mediaType: mediaType,
+                    isAnime: isAnime,
+                    page: page,
+                    years: requestedYears,
+                    genreNames: selectedKeywordNames,
+                    minimumRating: minimumRating,
+                    sort: catalogueSort,
+                    tmdbService: tmdbService
+                )
+                results = sortedDeduplicatedResults(results + soloLatinoResults, by: sort)
+                hasMore = hasMore || soloLatinoResults.count >= 20
+            }
+            if isAnime && englishDubSelected {
+                let anikotoResults = await VerifiedDubCatalogueService.shared.fetchAnikotoEnglishAnime(
+                    page: page,
+                    years: requestedYears,
+                    genreNames: selectedKeywordNames,
+                    sort: catalogueSort,
+                    tmdbService: tmdbService
+                )
+                results = sortedDeduplicatedResults(results + anikotoResults, by: sort)
+                hasMore = hasMore || anikotoResults.count >= 20
+            }
+
+            if spanishOnlyNonAnime {
+                // With Spanish-only selected, SoloLatino is the catalogue
+                // source for movies and series; do not silently fall back to TMDB.
+                fetched = (results: [], hasMore: false)
+            } else if isAnime {
                 // AniList is an independent primary source for Anime Browse.
                 // A transient TMDB discover failure must not prevent the
                 // subsequent AniList merge from populating the page.
@@ -3007,6 +3081,23 @@ private struct BrowseMediaView: View {
             return BrowsePageResult(results: results, hasMore: hasMore)
         }
 
+        if spanishOnlyNonAnime {
+            let soloLatinoResults = await VerifiedDubCatalogueService.shared.fetchSoloLatino(
+                mediaType: mediaType,
+                page: page,
+                years: requestedYears,
+                genreNames: selectedKeywordNames,
+                minimumRating: minimumRating,
+                sort: catalogueSort,
+                tmdbService: tmdbService
+            )
+            let yearFiltered = soloLatinoResults.filter {
+                guard let year = Int($0.displayDate.prefix(4)) else { return false }
+                return requestedYears.contains(year)
+            }
+            return BrowsePageResult(results: yearFiltered, hasMore: yearFiltered.count >= 20)
+        }
+
         return try await withThrowingTaskGroup(of: BrowsePageResult.self) { group in
             for year in requestedYears {
                 group.addTask {
@@ -3039,6 +3130,32 @@ private struct BrowseMediaView: View {
             for try await result in group {
                 combined.append(contentsOf: result.results)
                 hasMore = hasMore || result.hasMore
+            }
+
+            if spanishDubSelected {
+                let soloLatinoResults = await VerifiedDubCatalogueService.shared.fetchSoloLatino(
+                    mediaType: mediaType,
+                    isAnime: isAnime,
+                    page: page,
+                    years: requestedYears,
+                    genreNames: selectedKeywordNames,
+                    minimumRating: minimumRating,
+                    sort: catalogueSort,
+                    tmdbService: tmdbService
+                )
+                combined.append(contentsOf: soloLatinoResults)
+                hasMore = hasMore || soloLatinoResults.count >= 20
+            }
+            if isAnime && englishDubSelected {
+                let anikotoResults = await VerifiedDubCatalogueService.shared.fetchAnikotoEnglishAnime(
+                    page: page,
+                    years: requestedYears,
+                    genreNames: selectedKeywordNames,
+                    sort: catalogueSort,
+                    tmdbService: tmdbService
+                )
+                combined.append(contentsOf: anikotoResults)
+                hasMore = hasMore || anikotoResults.count >= 20
             }
 
             if isAnime {
@@ -3150,8 +3267,14 @@ private struct BrowseMediaView: View {
             let nativeAudioMatchesDubFilter = selectedDubLanguageCodes.contains {
                 originalLanguage == $0 || originalLanguage.hasPrefix($0 + "-")
             }
-            let needsDubIdentity = !selectedDubLanguageCodes.isEmpty && !nativeAudioMatchesDubFilter
-            let needsAudioIdentity = originalAudioFilterEnabled && !["en", "es"].contains(baseLanguage)
+            let verifiedCatalogueAudio = (result.catalogSource == .aniKoto
+                && selectedDubLanguageCodes.contains(MyDubListLanguage.english.taizenLanguageCode))
+                || (result.catalogSource == .soloLatino
+                    && selectedDubLanguageCodes.contains(MyDubListLanguage.spanish.taizenLanguageCode))
+            let needsDubIdentity = !selectedDubLanguageCodes.isEmpty
+                && !nativeAudioMatchesDubFilter && !verifiedCatalogueAudio
+            let needsAudioIdentity = originalAudioFilterEnabled
+                && !["en", "es"].contains(baseLanguage) && !verifiedCatalogueAudio
             // Existing clean artwork must not short-circuit identity resolution
             // when a selected dub/audio filter still needs AniList metadata.
             // Otherwise an anime with a Taizen poster and logo is incorrectly
@@ -3267,7 +3390,8 @@ private struct BrowseMediaView: View {
                         animeArtworkURL: artworkURL,
                         animeLogoURL: result.animeLogoURL,
                         tvMazePosterURL: result.tvMazePosterURL,
-                        fanartTVPosterURL: result.fanartTVPosterURL
+                        fanartTVPosterURL: result.fanartTVPosterURL,
+                        catalogSource: result.catalogSource
                     )
                     return (index, enriched)
                 }

@@ -56,7 +56,8 @@ struct DiscoverDetailView: View {
         _ = filterRefreshRevision
         return contentFilter.filterSearchResults(
             items,
-            allowUpcomingContent: allowsUpcomingContent
+            allowUpcomingContent: allowsUpcomingContent,
+            resolveMetadataInBackground: false
         )
     }
 
@@ -527,7 +528,8 @@ struct DiscoverDetailView: View {
                         let visibleIDs = Set(
                             contentFilter.filterSearchResults(
                                 unique,
-                                allowUpcomingContent: allowsUpcomingContent
+                                allowUpcomingContent: allowsUpcomingContent,
+                                resolveMetadataInBackground: false
                             ).map { $0.stableIdentity }
                         )
                         let addedVisibleItems = unique.contains { visibleIDs.contains($0.stableIdentity) }

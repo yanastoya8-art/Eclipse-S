@@ -253,6 +253,11 @@ enum AnimeSpecialFormatPolicy {
     }
 }
 
+enum VerifiedCatalogSource: String, Codable, Sendable {
+    case soloLatino
+    case aniKoto
+}
+
 struct TMDBSearchResult: Codable, Identifiable, Sendable {
     let id: Int
     let mediaType: String
@@ -280,6 +285,12 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
     let animeTags: [String]?
     let tvMazePosterURL: String?
     let fanartTVPosterURL: String?
+    /// Set only when a result was actually supplied by a verified dub catalogue.
+    let catalogSource: VerifiedCatalogSource?
+
+    var bypassesUnofficialProducerFilter: Bool {
+        catalogSource == .soloLatino || catalogSource == .aniKoto
+    }
 
     enum CodingKeys: String, CodingKey {
         case id, overview, popularity, adult
@@ -302,6 +313,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
         case animeTags = "anime_tags"
         case tvMazePosterURL = "tvmaze_poster_url"
         case fanartTVPosterURL = "fanart_tv_poster_url"
+        case catalogSource = "catalog_source"
     }
 
     init(
@@ -328,7 +340,8 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
         animeLogoURL: String? = nil,
         animeTags: [String]? = nil,
         tvMazePosterURL: String? = nil,
-        fanartTVPosterURL: String? = nil
+        fanartTVPosterURL: String? = nil,
+        catalogSource: VerifiedCatalogSource? = nil
     ) {
         self.id = id
         self.mediaType = mediaType
@@ -354,6 +367,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
         self.animeTags = Self.sanitizedAnimeTags(animeTags)
         self.tvMazePosterURL = Self.sanitizedTVMazePosterURL(tvMazePosterURL)
         self.fanartTVPosterURL = Self.sanitizedFanartTVPosterURL(fanartTVPosterURL)
+        self.catalogSource = catalogSource
     }
 
     init(from decoder: Decoder) throws {
@@ -429,6 +443,7 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
         animeTags = Self.sanitizedAnimeTags(try container.decodeIfPresent([String].self, forKey: .animeTags))
         tvMazePosterURL = Self.sanitizedTVMazePosterURL(try container.decodeIfPresent(String.self, forKey: .tvMazePosterURL))
         fanartTVPosterURL = Self.sanitizedFanartTVPosterURL(try container.decodeIfPresent(String.self, forKey: .fanartTVPosterURL))
+        catalogSource = try container.decodeIfPresent(VerifiedCatalogSource.self, forKey: .catalogSource)
     }
 
     var displayTitle: String {
@@ -531,7 +546,8 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             animeLogoURL: animeLogoURL,
             animeTags: animeTags,
             tvMazePosterURL: tvMazePosterURL,
-            fanartTVPosterURL: fanartTVPosterURL
+            fanartTVPosterURL: fanartTVPosterURL,
+            catalogSource: catalogSource
         )
     }
 
@@ -582,6 +598,36 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
         return components.url?.absoluteString
     }
 
+    func withCatalogSource(_ source: VerifiedCatalogSource) -> TMDBSearchResult {
+        TMDBSearchResult(
+            id: id,
+            mediaType: mediaType,
+            title: title,
+            name: name,
+            originalName: originalName,
+            overview: overview,
+            posterPath: posterPath,
+            backdropPath: backdropPath,
+            releaseDate: releaseDate,
+            firstAirDate: firstAirDate,
+            voteAverage: voteAverage,
+            popularity: popularity,
+            adult: adult,
+            genreIds: genreIds,
+            originalLanguage: originalLanguage,
+            originCountry: originCountry,
+            voteCount: voteCount,
+            isAnimeHint: isAnimeHint,
+            animeIdentitySeed: animeIdentitySeed,
+            animeArtworkURL: animeArtworkURL,
+            animeLogoURL: animeLogoURL,
+            animeTags: animeTags,
+            tvMazePosterURL: tvMazePosterURL,
+            fanartTVPosterURL: fanartTVPosterURL,
+            catalogSource: source
+        )
+    }
+
     func withFanartTVPosterURL(_ url: String?) -> TMDBSearchResult {
         TMDBSearchResult(
             id: id,
@@ -607,7 +653,8 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             animeLogoURL: animeLogoURL,
             animeTags: animeTags,
             tvMazePosterURL: tvMazePosterURL,
-            fanartTVPosterURL: url
+            fanartTVPosterURL: url,
+            catalogSource: catalogSource
         )
     }
 
@@ -636,7 +683,8 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             animeLogoURL: animeLogoURL,
             animeTags: animeTags,
             tvMazePosterURL: tvMazePosterURL,
-            fanartTVPosterURL: fanartTVPosterURL
+            fanartTVPosterURL: fanartTVPosterURL,
+            catalogSource: catalogSource
         )
     }
 
@@ -665,7 +713,8 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             animeLogoURL: animeLogoURL,
             animeTags: tags,
             tvMazePosterURL: tvMazePosterURL,
-            fanartTVPosterURL: fanartTVPosterURL
+            fanartTVPosterURL: fanartTVPosterURL,
+            catalogSource: catalogSource
         )
     }
 
@@ -694,7 +743,8 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             animeLogoURL: animeLogoURL,
             animeTags: animeTags ?? seed?.animeTags,
             tvMazePosterURL: tvMazePosterURL,
-            fanartTVPosterURL: fanartTVPosterURL
+            fanartTVPosterURL: fanartTVPosterURL,
+            catalogSource: catalogSource
         )
     }
 
@@ -723,7 +773,8 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             animeLogoURL: url,
             animeTags: animeTags,
             tvMazePosterURL: tvMazePosterURL,
-            fanartTVPosterURL: fanartTVPosterURL
+            fanartTVPosterURL: fanartTVPosterURL,
+            catalogSource: catalogSource
         )
     }
 
@@ -752,7 +803,8 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             animeLogoURL: animeLogoURL,
             animeTags: animeTags,
             tvMazePosterURL: url,
-            fanartTVPosterURL: fanartTVPosterURL
+            fanartTVPosterURL: fanartTVPosterURL,
+            catalogSource: catalogSource
         )
     }
 
@@ -781,7 +833,8 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             animeLogoURL: animeLogoURL,
             animeTags: animeTags,
             tvMazePosterURL: tvMazePosterURL,
-            fanartTVPosterURL: fanartTVPosterURL
+            fanartTVPosterURL: fanartTVPosterURL,
+            catalogSource: catalogSource
         )
     }
 }

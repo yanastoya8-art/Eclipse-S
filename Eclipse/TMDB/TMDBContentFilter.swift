@@ -420,6 +420,20 @@ final class MyDubListDubFilter: @unchecked Sendable {
     func shouldInclude(_ result: TMDBSearchResult) -> Bool {
         let languages = selectedLanguagesIncludingCatalogAudioRequirement
         guard !languages.isEmpty else { return true }
+
+        // A verified catalogue result is evidence of its own dub language.
+        // Anikoto's native "Dub" filter means English; SoloLatino's catalogue
+        // is Spanish audio. Either source is sufficient when both languages
+        // are selected, while every fallback title still needs AniList/MAL
+        // verification below.
+        if result.catalogSource == .aniKoto,
+           languages.contains(MyDubListLanguage.english.rawValue) {
+            return true
+        }
+        if result.catalogSource == .soloLatino,
+           languages.contains(MyDubListLanguage.spanish.rawValue) {
+            return true
+        }
         let animeCountries: Set<String> = ["JP", "CN", "KR", "TW"]
         let animeLanguages: Set<String> = ["ja", "zh", "ko"]
         let isLikelyAnime = result.animeIdentitySeed != nil
@@ -1584,12 +1598,17 @@ class TMDBContentFilter: ObservableObject {
         allowUnresolvedOptionalMetadata: Bool = false
     ) -> Bool {
         guard !shouldExcludeAnimeSpecialOrOVA(result) else { return false }
-        guard shouldIncludeUnofficialProduction(
-            title: result.displayTitle,
-            overview: result.overview,
-            result: result,
-            allowUnresolvedMetadata: allowUnresolvedOptionalMetadata
-        ) else { return false }
+        // SoloLatino and Anikoto are curated to official-producer titles.
+        // Exempt only rows explicitly tagged by those catalogue adapters;
+        // ordinary TMDB/AniList/MAL results retain the normal producer filter.
+        if !result.bypassesUnofficialProducerFilter {
+            guard shouldIncludeUnofficialProduction(
+                title: result.displayTitle,
+                overview: result.overview,
+                result: result,
+                allowUnresolvedMetadata: allowUnresolvedOptionalMetadata
+            ) else { return false }
+        }
         guard shouldIncludeSelectedAnimeDub(
             result,
             allowUnresolvedOptionalMetadata: allowUnresolvedOptionalMetadata
@@ -1959,16 +1978,13 @@ class TMDBContentFilter: ObservableObject {
             forKey: isMovie ? "catalogHideAllAgesMovies" : "catalogHideAllAgesSeries"
         )
         guard enabled || hideAllAges else { return true }
-        guard let rating = TMDBMaturityRatingStore.shared.rating(isMovie: isMovie, id: id) else {
-            // The setting hides titles with a known rating below the threshold;
-            // an unavailable certificate must not collapse an entire Browse
-            // category to the few titles whose regional rating happened to load.
-            return true
-        }
-        if hideAllAges && rating == .general { return false }
-        guard enabled, rating != .unknown else { return true }
-        let minimum = isMovie ? MaturityRating.teen : .age14
-        return rating >= minimum
+        let rating = TMDBMaturityRatingStore.shared.rating(isMovie: isMovie, id: id)
+        let minimum = enabled ? (isMovie ? MaturityRating.teen : .age14) : nil
+        return CatalogAgeRatingFilterPolicy.shouldInclude(
+            rating: rating,
+            minimum: minimum,
+            hideAllAges: hideAllAges
+        )
     }
 
     private static func runtimeCacheKey(for result: TMDBSearchResult) -> String {
