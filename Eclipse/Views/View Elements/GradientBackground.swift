@@ -1036,12 +1036,14 @@ struct EclipseAmbientMotionBackground: View {
                             quality: quality
                         )
                     }
+                    .blendMode(.screen)
+                    // Keep the approved creature artwork outside the particle
+                    // compositing pass so its transparent SVG canvas stays clear.
                     creatureOverlay(size: canvasSize, date: date, motionEnabled: motionEnabled)
                 }
                 .frame(width: canvasSize.width, height: canvasSize.height)
             }
         }
-        .blendMode(.screen)
         .opacity(quality.layerOpacity)
         .compositingGroup()
     }
