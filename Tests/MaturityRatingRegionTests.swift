@@ -158,6 +158,27 @@ final class MaturityRatingRegionTests: XCTestCase {
         ))
     }
 
+    func testCatalogMinimumAgePolicyRejectsMissingAndUnknownRatings() {
+        XCTAssertFalse(CatalogAgeRatingFilterPolicy.shouldInclude(
+            rating: nil, minimum: .age14, hideAllAges: false
+        ))
+        XCTAssertFalse(CatalogAgeRatingFilterPolicy.shouldInclude(
+            rating: .unknown, minimum: .age14, hideAllAges: false
+        ))
+        XCTAssertFalse(CatalogAgeRatingFilterPolicy.shouldInclude(
+            rating: .teen, minimum: .age14, hideAllAges: false
+        ))
+        XCTAssertTrue(CatalogAgeRatingFilterPolicy.shouldInclude(
+            rating: .age14, minimum: .age14, hideAllAges: false
+        ))
+        XCTAssertFalse(CatalogAgeRatingFilterPolicy.shouldInclude(
+            rating: .general, minimum: nil, hideAllAges: true
+        ))
+        XCTAssertTrue(CatalogAgeRatingFilterPolicy.shouldInclude(
+            rating: .unknown, minimum: nil, hideAllAges: true
+        ))
+    }
+
     func testScheduleUnknownRatingsRemainVisibleForMinimumAgeRules() {
         XCTAssertFalse(ScheduleAllAgesPolicy.shouldExclude(
             rating: nil, minimum: .teen, hideAllAges: false
