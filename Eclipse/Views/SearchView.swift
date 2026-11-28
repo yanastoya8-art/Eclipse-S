@@ -1039,18 +1039,6 @@ struct SearchView: View {
                 // those filters are applied to anime candidates already found
                 // in TMDB results, while the dedicated Anime filter performs
                 // the broader AniList lookup.
-                let foldedAnimeQuery = query.folding(
-                    options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
-                    locale: Locale(identifier: "en_US_POSIX")
-                ).lowercased()
-                let hasStrongAnimeTitleMatch = results.contains { result in
-                    [result.displayTitle, result.originalName ?? ""].contains { title in
-                        title.folding(
-                            options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
-                            locale: Locale(identifier: "en_US_POSIX")
-                        ).lowercased().contains(foldedAnimeQuery)
-                    }
-                }
                 if searchFilter == .anime || results.isEmpty {
                     // TMDB multi-search can return unrelated movie/TV matches
                     // for an anime title. Search AniList when no title-level
