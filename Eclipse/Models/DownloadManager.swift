@@ -757,6 +757,62 @@ enum DownloadSourceLinkPolicy {
     static func isMKVURL(_ url: URL) -> Bool {
         url.pathExtension.caseInsensitiveCompare("mkv") == .orderedSame
     }
+
+    /// HLS playlists and header-protected streams need a server-side capability
+    /// URL to work away from this device. MKV links remain verbatim by design.
+    static func requiresInternetShare(for url: URL, headers: [String: String]) -> Bool {
+        guard !isMKVURL(url) else { return false }
+        return !headers.isEmpty || url.pathExtension.caseInsensitiveCompare("m3u8") == .orderedSame
+    }
+
+    /// A copied link must never fall back to this device or a private LAN address
+    /// when an Eclipse-managed playback proxy cannot be unwrapped.
+    static func isLocalOrPrivateHost(_ rawHost: String) -> Bool {
+        let host = rawHost.lowercased()
+            .trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        guard !host.isEmpty else { return true }
+
+        if host == "localhost" || host.hasSuffix(".localhost")
+            || host.hasSuffix(".local") || host.hasSuffix(".internal")
+            || host.hasSuffix(".test") || host.hasSuffix(".invalid") {
+            return true
+        }
+
+        if host.range(of: "^[0-9.]+$", options: .regularExpression) != nil {
+            let octets = host.split(separator: ".", omittingEmptySubsequences: false)
+            guard octets.count == 4,
+                  octets.allSatisfy({ $0 == "0" || !$0.hasPrefix("0") }) else {
+                // Reject legacy octal and abbreviated IPv4 spellings rather
+                // than risk treating a loopback alias as a public host.
+                return true
+            }
+            let values = octets.compactMap { Int($0) }
+            guard values.count == 4, values.allSatisfy({ (0...255).contains($0) }) else {
+                return true
+            }
+            let first = values[0]
+            let second = values[1]
+            return first == 0 || first == 10 || first == 127 || first >= 224
+                || (first == 100 && second >= 64 && second <= 127)
+                || (first == 169 && second == 254)
+                || (first == 172 && second >= 16 && second <= 31)
+                || (first == 192 && (second == 168 || second == 0))
+                || (first == 198 && (second == 18 || second == 19))
+        }
+
+        if host.hasPrefix("0x") { return true }
+        if host.contains(":") {
+            if host.hasPrefix("::ffff:") { return true }
+            return host == "::" || host == "::1"
+                || host.hasPrefix("fc") || host.hasPrefix("fd")
+                || host.hasPrefix("fe8") || host.hasPrefix("fe9")
+                || host.hasPrefix("fea") || host.hasPrefix("feb")
+                || host.hasPrefix("ff")
+        }
+        return false
+    }
 }
 
 enum HLSManagedProxyTransportPolicy {
@@ -6524,6 +6580,18 @@ final class DownloadManager: NSObject, ObservableObject {
             startDownload(item)
             slotsAvailable -= 1
         }
+
+        // The last admitted item can consume the final slot inside the loop.
+        // In that case the early guard above never runs, so annotate the
+        // remaining queued rows instead of leaving them looking stalled.
+        if slotsAvailable <= 0 {
+            let activeNow = downloads.filter { $0.status == .downloading }.count
+            let reason = "Waiting for an available download slot (\(activeNow) active, \(reservedValidations) validating)"
+            for item in downloads where item.status == .queued
+                && (item.retryNotBefore.map { $0 <= now } ?? true) {
+                setQueuedMessage(id: item.id, message: reason)
+            }
+        }
     }
 
     private func scheduleQueueWake(at date: Date) {
@@ -7336,7 +7404,7 @@ final class DownloadManager: NSObject, ObservableObject {
                                 id: item.id,
                                 partialURL: destURL
                                     .deletingLastPathComponent()
-                                    .appendingPathComponent(".\\(destURL.lastPathComponent).partial"),
+                                    .appendingPathComponent(".\(destURL.lastPathComponent).partial"),
                                 reason: hlsError.localizedDescription
                             )
                         case .unsupportedLayout:
@@ -8761,7 +8829,7 @@ final class DownloadManager: NSObject, ObservableObject {
         lastHLSCheckpointSave.removeValue(forKey: id)
         saveDownloads()
         Logger.shared.log(
-            "HLS resume checkpoint rejected; restarting from segment zero id=\\(id) reason=\\(reason)",
+            "HLS resume checkpoint rejected; restarting from segment zero id=\(id) reason=\(reason)",
             type: "Download"
         )
         DispatchQueue.main.async { [weak self] in
@@ -11688,15 +11756,45 @@ extension DownloadManager {
             throw EclipseShareError.server("The original stream URL is no longer available. Re-select the stream and try again.")
         }
 
-        let providerHeaders = managedSession?.headers ?? protectedAttempt?.authorityHeaders ?? item.headers
+        let providerHeaders = [
+            managedSession?.headers,
+            protectedAttempt?.authorityHeaders,
+            item.headers
+        ]
+        .compactMap { $0 }
+        .first(where: { !$0.isEmpty }) ?? [:]
+        return try await createInternetShareURL(for: source, headers: providerHeaders)
+    }
+
+    /// Creates a portable capability URL for a provider stream before it has
+    /// become a DownloadItem. The server stores the upstream headers encrypted
+    /// and rewrites HLS playlists so relative segments also work off-device.
+    func createInternetShareURL(for sourceURL: URL, headers: [String: String]) async throws -> URL {
+        guard sourceURL.scheme?.lowercased() == "https",
+              sourceURL.host?.isEmpty == false,
+              sourceURL.user == nil,
+              sourceURL.password == nil else {
+            throw EclipseShareError.server("Only public HTTPS provider URLs can be shared.")
+        }
+
+        let base = (UserDefaults.standard.string(forKey: "eclipseShareAPIBaseURL") ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard let baseURL = URL(string: base),
+              baseURL.scheme?.lowercased() == "https",
+              baseURL.host?.isEmpty == false else {
+            throw EclipseShareError.notConfigured
+        }
+
+        let safeHeaders = AVPlayerResourceLoader.sanitizedHTTPHeaders(headers)
         let endpoint = baseURL.appendingPathComponent("api/share/create")
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.timeoutInterval = 30
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: [
-            "url": source.absoluteString,
-            "headers": providerHeaders,
+            "url": sourceURL.absoluteString,
+            "headers": safeHeaders,
             "expiresInSeconds": 86_400
         ])
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -11705,11 +11803,14 @@ extension DownloadManager {
         }
         let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
         guard (200..<300).contains(http.statusCode) else {
-            throw EclipseShareError.server(object?["error"] as? String ?? "Could not create an internet stream link (HTTP \(http.statusCode)).")
+            throw EclipseShareError.server(
+                object?["error"] as? String ?? "Could not create an internet stream link (HTTP \(http.statusCode))."
+            )
         }
         guard let sharedURL = object?["url"] as? String,
               let url = URL(string: sharedURL),
-              url.scheme?.lowercased() == "https" else {
+              url.scheme?.lowercased() == "https",
+              url.host?.isEmpty == false else {
             throw EclipseShareError.invalidResponse
         }
         return url

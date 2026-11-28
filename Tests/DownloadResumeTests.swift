@@ -137,6 +137,41 @@ final class DownloadResumeTests: XCTestCase {
         XCTAssertFalse(DownloadSourceLinkPolicy.isMKVURL(URL(string: "https://cdn.example/master.m3u8?token=abc")!))
     }
 
+    func testProviderDownloadURLUsesPortableShareForHLSAndProtectedStreams() {
+        let hls = URL(string: "https://cdn.example/master.m3u8?token=abc")!
+        let protectedMP4 = URL(string: "https://cdn.example/video.mp4?token=abc")!
+        let publicMP4 = URL(string: "https://cdn.example/video.mp4")!
+        let mkv = URL(string: "https://cdn.example/video.mkv?token=abc")!
+
+        XCTAssertTrue(DownloadSourceLinkPolicy.requiresInternetShare(for: hls, headers: [:]))
+        XCTAssertTrue(DownloadSourceLinkPolicy.requiresInternetShare(
+            for: protectedMP4,
+            headers: ["Authorization": "Bearer test-token"]
+        ))
+        XCTAssertFalse(DownloadSourceLinkPolicy.requiresInternetShare(for: publicMP4, headers: [:]))
+        XCTAssertFalse(DownloadSourceLinkPolicy.requiresInternetShare(
+            for: mkv,
+            headers: ["Referer": "https://provider.example"]
+        ))
+    }
+
+    func testPortableURLCopyRejectsLoopbackAndPrivateNetworkHosts() {
+        for host in [
+            "localhost", "player.localhost", "127.0.0.1", "10.0.0.4",
+            "172.16.0.5", "192.168.1.10", "169.254.10.2", "::1",
+            "fc00::1", "fe80::1", "::ffff:127.0.0.1", "0x7f000001", "0177.0.0.1"
+        ] {
+            XCTAssertTrue(
+                DownloadSourceLinkPolicy.isLocalOrPrivateHost(host),
+                "Expected local/private host to be rejected: \(host)"
+            )
+        }
+
+        XCTAssertFalse(DownloadSourceLinkPolicy.isLocalOrPrivateHost("cdn.example"))
+        XCTAssertFalse(DownloadSourceLinkPolicy.isLocalOrPrivateHost("8.8.8.8"))
+        XCTAssertFalse(DownloadSourceLinkPolicy.isLocalOrPrivateHost("2001:4860:4860::8888"))
+    }
+
     func testManagedProxyHLSBackgroundTransportSupportsHTTPAndHTTPS() {
         XCTAssertTrue(HLSManagedProxyTransportPolicy.canUnwrapForBackground(
             URL(string: "http://cdn.example/playlist.m3u8")!

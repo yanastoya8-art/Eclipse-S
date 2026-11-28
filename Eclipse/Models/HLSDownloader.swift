@@ -1333,6 +1333,25 @@ final class HLSDownloader: @unchecked Sendable {
         var currentURL = initialURL
         var currentContent = initialContent
         if let pinnedVariantURL, pinnedVariantURL != initialURL {
+            // A saved variant URL does not carry the master playlist's audio
+            // rendition metadata. Validate the master before following it so
+            // a resumed download cannot silently drop a required external
+            // audio playlist or fetch media from an unsupported layout.
+            if isMasterPlaylist(initialContent) {
+                let advertisedVariants = parseMasterPlaylist(initialContent, baseURL: initialURL)
+                if let pinned = advertisedVariants.first(where: { $0.url == pinnedVariantURL }),
+                   pinned.requiresExternalAudio {
+                    throw HLSError.unsupportedLayout(
+                        reason: HLSDownloadCompatibility.separateAudioMessage
+                    )
+                }
+                if !advertisedVariants.isEmpty,
+                   !advertisedVariants.contains(where: { !$0.requiresExternalAudio }) {
+                    throw HLSError.unsupportedLayout(
+                        reason: HLSDownloadCompatibility.separateAudioMessage
+                    )
+                }
+            }
             currentURL = pinnedVariantURL
             currentContent = try await fetchPlaylist(url: pinnedVariantURL)
         }

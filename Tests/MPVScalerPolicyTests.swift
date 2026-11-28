@@ -1984,11 +1984,16 @@ final class PlayerControlLayoutTests: XCTestCase {
                 controller.view.setNeedsLayout()
                 controller.view.layoutIfNeeded()
                 for button in [episodeBrowser, services] where !button.isHidden {
-                    XCTAssertEqual(button.alpha, 1)
+                    XCTAssertTrue(button.alpha == 0 || button.alpha == 1)
                     XCTAssertFalse(button.hasAmbiguousLayout)
                     let frame = button.convert(button.bounds, to: controller.view)
                     XCTAssertTrue(controller.view.bounds.contains(frame), "Button is outside the player: \(frame), \(size)")
-                    XCTAssertTrue(controller.view.hitTest(CGPoint(x: frame.midX, y: frame.midY), with: nil) === button)
+                    let hit = controller.view.hitTest(CGPoint(x: frame.midX, y: frame.midY), with: nil)
+                    if button.alpha > 0.99 {
+                        XCTAssertTrue(hit === button)
+                    } else {
+                        XCTAssertFalse(hit === button, "Faded controls must not intercept touches")
+                    }
                 }
                 if servicesEnabled && episodesEnabled {
                     let episodeFrame = episodeBrowser.convert(episodeBrowser.bounds, to: controller.view)

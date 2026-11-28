@@ -8,6 +8,76 @@ final class HomeCatalogLoadPolicyTests: XCTestCase {
         XCTAssertTrue(HomeCatalogLoadPolicy.requiresTrendingSeed(enabledCatalogIDs: ["trending", "forYou"]))
     }
 
+    func testSelectedDubLanguageRequiresAniListIdentityBeforeHomeFiltering() {
+        XCTAssertTrue(HomeCatalogLoadPolicy.requiresAnimeIdentity(
+            selectedDubLanguages: ["english"],
+            hideBelowPG13Anime: false,
+            hideAllAgesAnime: false,
+            isKidsModeActive: false
+        ))
+    }
+
+    func testAnimeAgeFiltersFromTheActiveProfileRequireAniListIdentity() {
+        XCTAssertTrue(HomeCatalogLoadPolicy.requiresAnimeIdentity(
+            selectedDubLanguages: [],
+            hideBelowPG13Anime: true,
+            hideAllAgesAnime: false,
+            isKidsModeActive: false
+        ))
+        XCTAssertTrue(HomeCatalogLoadPolicy.requiresAnimeIdentity(
+            selectedDubLanguages: [],
+            hideBelowPG13Anime: false,
+            hideAllAgesAnime: true,
+            isKidsModeActive: false
+        ))
+    }
+
+    func testKidsModeRequiresAniListIdentityForHomeAnimeShelves() {
+        XCTAssertTrue(HomeCatalogLoadPolicy.requiresAnimeIdentity(
+            selectedDubLanguages: [],
+            hideBelowPG13Anime: false,
+            hideAllAgesAnime: false,
+            isKidsModeActive: true
+        ))
+    }
+
+    func testHomeAnimeIdentityReadsBothAgeFiltersFromTheProvidedProfileStore() {
+        let suiteName = "HomeCatalogLoadPolicyTests.\(UUID().uuidString)"
+        let settings = UserDefaults(suiteName: suiteName)!
+        defer { settings.removePersistentDomain(forName: suiteName) }
+
+        settings.set(true, forKey: "catalogHideBelowPG13Anime")
+        XCTAssertTrue(HomeCatalogLoadPolicy.requiresAnimeIdentity(
+            selectedDubLanguages: [],
+            settings: settings,
+            isKidsModeActive: false
+        ))
+
+        settings.set(false, forKey: "catalogHideBelowPG13Anime")
+        settings.set(true, forKey: "catalogHideAllAgesAnime")
+        XCTAssertTrue(HomeCatalogLoadPolicy.requiresAnimeIdentity(
+            selectedDubLanguages: [],
+            settings: settings,
+            isKidsModeActive: false
+        ))
+
+        settings.set(false, forKey: "catalogHideAllAgesAnime")
+        XCTAssertFalse(HomeCatalogLoadPolicy.requiresAnimeIdentity(
+            selectedDubLanguages: [],
+            settings: settings,
+            isKidsModeActive: false
+        ))
+    }
+
+    func testHomeAnimeIdentityCanSkipResolutionWhenNoAnimeSpecificFilterIsActive() {
+        XCTAssertFalse(HomeCatalogLoadPolicy.requiresAnimeIdentity(
+            selectedDubLanguages: [],
+            hideBelowPG13Anime: false,
+            hideAllAgesAnime: false,
+            isKidsModeActive: false
+        ))
+    }
+
     func testHiddenTrendingSeedDoesNotCountAsAVisibleForYouShelf() {
         let trending = TMDBSearchResult(
             id: 550,

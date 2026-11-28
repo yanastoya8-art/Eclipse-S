@@ -211,10 +211,59 @@ jobs:
       - name: Parse all iOS app and test Swift sources
         run: |
           set -euo pipefail
-          # Parse independent files concurrently; the previous serial loop made
-          # this preflight dominate the test job on the large app/test source set.
-          find Eclipse Kanzen Tests EclipseUITests -type f -name '*.swift' -print0 \
-            | xargs -0 -P 4 -n 1 swiftc -frontend -parse
+          # Parse independent files concurrently, but log each completed path and
+          # bound an individual compiler process. This makes a stalled parser
+          # attributable to one source file instead of leaving CI silent for hours.
+          python3 - <<'PY'
+          from concurrent.futures import ThreadPoolExecutor, as_completed
+          from pathlib import Path
+          import subprocess
+          import sys
+
+          roots = ("Eclipse", "Kanzen", "Tests", "EclipseUITests")
+          files = sorted(
+              str(path)
+              for root in roots
+              for path in Path(root).rglob("*.swift")
+              if path.is_file()
+          )
+          if not files:
+              raise SystemExit("::error::No Swift sources were found for the iOS parse check.")
+
+          def parse_source(path):
+              try:
+                  result = subprocess.run(
+                      ["swiftc", "-frontend", "-parse", path],
+                      capture_output=True,
+                      text=True,
+                      timeout=180,
+                      check=False,
+                  )
+              except subprocess.TimeoutExpired as error:
+                  detail = error.stderr or ""
+                  return path, "timed out after 180 seconds", detail
+              if result.returncode != 0:
+                  return path, f"failed with exit code {result.returncode}", result.stderr
+              return path, "passed", ""
+
+          failures = []
+          with ThreadPoolExecutor(max_workers=4) as executor:
+              futures = [executor.submit(parse_source, path) for path in files]
+              for future in as_completed(futures):
+                  path, status, detail = future.result()
+                  print(f"Swift parse {status}: {path}", flush=True)
+                  if status != "passed":
+                      failures.append((path, status, detail))
+
+          for path, status, detail in failures:
+              print(f"::error file={path}::Swift source parse {status}.", flush=True)
+              if detail:
+                  print(detail, flush=True)
+
+          if failures:
+              raise SystemExit(f"{len(failures)} Swift source file(s) failed parsing.")
+          print(f"Successfully parsed {len(files)} Swift source files.", flush=True)
+          PY
 
       - name: Checkout pinned MPVKit
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
