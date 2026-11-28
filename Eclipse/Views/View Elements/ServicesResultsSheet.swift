@@ -18,48 +18,60 @@ typealias ServicesPresentationController = UIViewController
 #endif
 
 @MainActor
-private func copyProviderDownloadURL(_ rawURL: String, headers: [String: String]? = nil) {
-    guard let sourceURL = URL(string: rawURL),
-          let scheme = sourceURL.scheme?.lowercased(),
-          scheme == "http" || scheme == "https",
-          sourceURL.host != nil,
-          sourceURL.user == nil,
-          sourceURL.password == nil else { return }
+private func copyProviderStreamURL(_ rawURL: String) {
+    guard let sourceURL = DownloadSourceLinkPolicy.copyableURL(rawURL) else { return }
+    // Copy the original provider URL, not the iPhone's loopback playback proxy.
+    let managedProxySession = MPVHeaderProxy.shared.upstreamProbeTarget(for: sourceURL)
+    let targetURL = MPVHeaderProxy.shared.recoverableTargetURL(for: sourceURL)
+        ?? managedProxySession?.url
+        ?? sourceURL
+    ProviderExternalApplication.copy(targetURL.absoluteString)
+}
 
-    // MKV files are already directly downloadable media resources. Preserve
-    // the provider URL exactly as requested instead of wrapping it in a proxy.
-    if sourceURL.pathExtension.lowercased() == "mkv" {
-        ProviderExternalApplication.copy(sourceURL.absoluteString)
-        return
-    }
+@MainActor
+private func copyProviderDownloadURL(_ rawURL: String, headers: [String: String]? = nil) {
+    guard let sourceURL = DownloadSourceLinkPolicy.copyableURL(rawURL) else { return }
 
     let sanitizedHeaders = AVPlayerResourceLoader.sanitizedHTTPHeaders(headers ?? [:])
-    // A stream option may itself be an Eclipse-managed playback URL. Unwrap it
-    // before creating the copied link so the new proxy never targets 127.0.0.1
-    // on the user's device, and carry the original proxy's scoped credentials.
     let managedProxySession = MPVHeaderProxy.shared.upstreamProbeTarget(for: sourceURL)
     let targetURL = MPVHeaderProxy.shared.recoverableTargetURL(for: sourceURL)
         ?? managedProxySession?.url
         ?? sourceURL
     let effectiveHeaders = managedProxySession?.headers ?? sanitizedHeaders
 
-    // A playlist is not a single downloadable video file. Keep HLS manifests
-    // as playable, rewritten playlists so Safari or another HLS client can fetch
-    // the authenticated segments; forcing attachment here only saves the .m3u8
-    // text file. Direct media files still receive Content-Disposition: attachment.
-    let isHLSManifest = targetURL.pathExtension.caseInsensitiveCompare("m3u8") == .orderedSame
-    guard let downloadURL = MPVHeaderProxy.shared.makeProxyURL(
-        for: targetURL,
-        headers: effectiveHeaders,
-        logType: isHLSManifest ? "Stream" : "Download"
-    ) else {
-        Logger.shared.log(
-            "Could not create an authenticated download URL for host \(sourceURL.host ?? "unknown")",
-            type: "Download"
-        )
+    // Preserve the authoritative MKV URL exactly; the player/download path
+    // must not wrap it in a local proxy or rewrite its signed query.
+    if DownloadSourceLinkPolicy.isMKVURL(targetURL) {
+        ProviderExternalApplication.copy(targetURL.absoluteString)
         return
     }
-    ProviderExternalApplication.copy(downloadURL.absoluteString)
+
+    guard DownloadSourceLinkPolicy.requiresInternetShare(for: targetURL, headers: effectiveHeaders) else {
+        ProviderExternalApplication.copy(targetURL.absoluteString)
+        return
+    }
+
+    // HLS playlists and header-protected streams need a public capability URL.
+    // A local MPV proxy URL only works on this device and must never be copied.
+    Task { @MainActor in
+        do {
+            let shareURL = try await DownloadManager.shared.createInternetShareURL(
+                for: targetURL,
+                headers: effectiveHeaders
+            )
+            ProviderExternalApplication.copy(shareURL.absoluteString)
+        } catch {
+            // A header-free HLS source can still be shared directly when the
+            // optional Internet Share backend has not been configured.
+            if effectiveHeaders.isEmpty {
+                ProviderExternalApplication.copy(targetURL.absoluteString)
+            }
+            Logger.shared.log(
+                "Could not create a portable download URL for host \(targetURL.host ?? "unknown"): \(error.localizedDescription)",
+                type: "Download"
+            )
+        }
+    }
 }
 
 extension Notification.Name {
@@ -2385,6 +2397,11 @@ struct ModulesSearchResultsSheet: View {
 #if !os(tvOS)
         .contextMenu {
             Button {
+                copyProviderStreamURL(resolved.option.url)
+            } label: {
+                Label("Copy Stream URL", systemImage: "link")
+            }
+            Button {
                 copyProviderDownloadURL(resolved.option.url, headers: resolved.option.headers)
             } label: {
                 Label("Copy Download URL", systemImage: "arrow.down.doc")
@@ -2513,6 +2530,11 @@ struct ModulesSearchResultsSheet: View {
 #if !os(tvOS)
         .contextMenu {
             if let url = stream.url, !url.isEmpty {
+                Button {
+                    copyProviderStreamURL(url)
+                } label: {
+                    Label("Copy Stream URL", systemImage: "link")
+                }
                 Button {
                     copyProviderDownloadURL(url)
                 } label: {
@@ -8055,6 +8077,16 @@ struct ModulesSearchResultsSheet: View {
         .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 5, trailing: 14))
 #if !os(tvOS)
         .contextMenu {
+            Button {
+                copyProviderStreamURL(stream.option.url)
+            } label: {
+                Label("Copy Stream URL", systemImage: "link")
+            }
+            Button {
+                copyProviderStreamURL(stream.option.url)
+            } label: {
+                Label("Copy Stream URL", systemImage: "link")
+            }
             Button {
                 copyProviderDownloadURL(stream.option.url, headers: stream.option.headers)
             } label: {
