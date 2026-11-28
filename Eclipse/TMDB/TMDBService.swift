@@ -3623,7 +3623,8 @@ actor VerifiedDubCatalogueService {
         tmdbService: TMDBService
     ) async -> [TMDBSearchResult] {
         let kind = isAnime ? "animes" : (mediaType == "movie" ? "peliculas" : "series")
-        var components = URLComponents(string: "https://sololatino.net/\(kind)")
+        let path = (query?.isEmpty == false) ? "buscar" : kind
+        var components = URLComponents(string: "https://sololatino.net/\(path)")
         var items: [URLQueryItem] = []
         if let query, !query.isEmpty {
             // SoloLatino's Explore page uses the same GET filter form as its
