@@ -3589,3 +3589,318 @@ actor FanartTVLogoService {
         }
     }
 }
+
+
+/// Read-only catalogue adapters for the two verified dub catalogues.
+/// These adapters only return TMDB-backed metadata rows; they never expose
+/// episode, player, iframe, or stream URLs to Eclipse.
+actor VerifiedDubCatalogueService {
+    static let shared = VerifiedDubCatalogueService()
+
+    private struct Entry: Sendable {
+        let title: String
+        let year: Int?
+    }
+
+    private struct CachedPage {
+        let storedAt: Date
+        let entries: [Entry]
+    }
+
+    private var pageCache: [String: CachedPage] = [:]
+    private var resolvedCache: [String: TMDBSearchResult] = [:]
+    private let cacheLifetime: TimeInterval = 10 * 60
+
+    func fetchSoloLatino(
+        mediaType: String,
+        page: Int,
+        query: String? = nil,
+        years: [Int] = [],
+        genreNames: [String] = [],
+        minimumRating: Double = 0,
+        sort: String = "newest",
+        tmdbService: TMDBService
+    ) async -> [TMDBSearchResult] {
+        let kind = mediaType == "movie" ? "peliculas" : (mediaType == "tv" ? "series" : "animes")
+        var components = URLComponents(string: "https://sololatino.net/\(kind)")
+        var items: [URLQueryItem] = []
+        if let query, !query.isEmpty {
+            // SoloLatino's Explore page uses the same GET filter form as its
+            // category pages; query is supplied only when a site search term
+            // is requested.
+            items.append(URLQueryItem(name: "q", value: query))
+        }
+        if let year = years.first {
+            items.append(URLQueryItem(name: "año", value: String(year)))
+        }
+        if let genre = Self.soloLatinoGenreSlug(for: genreNames.first), !genre.isEmpty {
+            items.append(URLQueryItem(name: "genero", value: genre))
+        }
+        if minimumRating > 0 {
+            items.append(URLQueryItem(name: "nota", value: String(Int(minimumRating.rounded(.up)))))
+        }
+        let soloSort: String
+        switch sort {
+        case "rank": soloSort = "rating"
+        case "title": soloSort = "az"
+        case "popularity": soloSort = "popular"
+        default: soloSort = "updated"
+        }
+        items.append(URLQueryItem(name: "sort", value: soloSort))
+        items.append(URLQueryItem(name: "page", value: String(max(1, page))))
+        components?.queryItems = items
+        guard let url = components?.url,
+              let entries = await fetchEntries(url: url, source: .soloLatino) else { return [] }
+        return await resolve(entries, mediaType: mediaType, source: .soloLatino, tmdbService: tmdbService)
+    }
+
+    func fetchAnikotoEnglishAnime(
+        page: Int,
+        query: String? = nil,
+        years: [Int] = [],
+        genreNames: [String] = [],
+        sort: String = "newest",
+        tmdbService: TMDBService
+    ) async -> [TMDBSearchResult] {
+        var items: [URLQueryItem] = [
+            URLQueryItem(name: "keyword", value: query ?? ""),
+            URLQueryItem(name: "type", value: "Latest Updated"),
+            URLQueryItem(name: "language[]", value: "dub"),
+            URLQueryItem(name: "ep_min", value: ""),
+            URLQueryItem(name: "ep_max", value: ""),
+            URLQueryItem(name: "sort", value: Self.anikotoSortValue(sort))
+        ]
+        for year in years.prefix(3) {
+            items.append(URLQueryItem(name: "year[]", value: String(year)))
+        }
+        for genre in genreNames.prefix(3) {
+            if let value = Self.anikotoGenreID(for: genre) {
+                items.append(URLQueryItem(name: "genre[]", value: value))
+            }
+        }
+        let defaults = ProfileSettingsStore.active
+        if defaults.bool(forKey: "catalogHideBelowPG13Anime") {
+            for rating in ["PG-13", "R", "R+", "Rx"] {
+                items.append(URLQueryItem(name: "rating[]", value: rating))
+            }
+        } else if defaults.bool(forKey: "catalogHideAllAgesAnime") {
+            for rating in ["PG", "PG-13", "R", "R+", "Rx"] {
+                items.append(URLQueryItem(name: "rating[]", value: rating))
+            }
+        }
+        items.append(URLQueryItem(name: "page", value: String(max(1, page))))
+        var components = URLComponents(string: "https://anikoto.cz/filter")
+        components?.queryItems = items
+        guard let url = components?.url,
+              let entries = await fetchEntries(url: url, source: .aniKoto) else { return [] }
+        return await resolve(entries, mediaType: "tv", source: .aniKoto, tmdbService: tmdbService)
+            .map { $0.withAnimeHint(true) }
+    }
+
+    private func fetchEntries(url: URL, source: VerifiedCatalogSource) async -> [Entry]? {
+        let key = url.absoluteString
+        if let cached = pageCache[key], Date().timeIntervalSince(cached.storedAt) < cacheLifetime {
+            return cached.entries
+        }
+        do {
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 14
+            request.setValue("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", forHTTPHeaderField: "Accept")
+            request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1", forHTTPHeaderField: "User-Agent")
+            request.setValue(source == .soloLatino ? "https://sololatino.net/" : "https://anikoto.cz/", forHTTPHeaderField: "Referer")
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let response = response as? HTTPURLResponse,
+                  (200..<300).contains(response.statusCode),
+                  data.count <= 3_000_000,
+                  let html = String(data: data, encoding: .utf8),
+                  !html.localizedCaseInsensitiveContains("cf-chl-"),
+                  !html.localizedCaseInsensitiveContains("Just a moment...") else {
+                return nil
+            }
+            let entries = source == .soloLatino
+                ? Self.parseSoloLatino(html)
+                : Self.parseAnikoto(html)
+            guard !entries.isEmpty else { return nil }
+            pageCache[key] = CachedPage(storedAt: Date(), entries: entries)
+            if pageCache.count > 80 {
+                pageCache = pageCache.filter { Date().timeIntervalSince($0.value.storedAt) < cacheLifetime }
+            }
+            return entries
+        } catch {
+            Logger.shared.log("VerifiedDubCatalogueService: catalogue request failed: \(error.localizedDescription)", type: "Browse")
+            return nil
+        }
+    }
+
+    private func resolve(
+        _ entries: [Entry],
+        mediaType: String,
+        source: VerifiedCatalogSource,
+        tmdbService: TMDBService
+    ) async -> [TMDBSearchResult] {
+        let candidates = Array(entries.prefix(30))
+        return await withTaskGroup(of: (Int, TMDBSearchResult?).self) { group in
+            var iterator = candidates.enumerated().makeIterator()
+            for _ in 0..<min(5, candidates.count) {
+                guard let (index, entry) = iterator.next() else { continue }
+                group.addTask {
+                    let cacheKey = "\(source.rawValue)|\(mediaType)|\(Self.normalizedTitle(entry.title))|\(entry.year ?? 0)"
+                    let matches: [TMDBSearchResult]
+                    do {
+                        matches = try await tmdbService.searchMulti(query: entry.title, maxPages: 1)
+                    } catch {
+                        return (index, nil)
+                    }
+                    let typed = matches.filter { $0.mediaType == mediaType }
+                    let exact = typed.first { candidate in
+                        Self.normalizedTitle(candidate.displayTitle) == Self.normalizedTitle(entry.title)
+                            && (entry.year == nil || Int(candidate.displayDate.prefix(4)) == entry.year)
+                    }
+                    let relaxed = exact ?? typed.first { candidate in
+                        Self.normalizedTitle(candidate.displayTitle) == Self.normalizedTitle(entry.title)
+                    }
+                    guard let match = relaxed else { return (index, nil) }
+                    return (index, match.withCatalogSource(source))
+                }
+            }
+            var output: [Int: TMDBSearchResult] = [:]
+            while let (index, result) = await group.next() {
+                if let result { output[index] = result }
+                if let (nextIndex, nextEntry) = iterator.next() {
+                    group.addTask {
+                        let matches = (try? await tmdbService.searchMulti(query: nextEntry.title, maxPages: 1)) ?? []
+                        let typed = matches.filter { $0.mediaType == mediaType }
+                        let exact = typed.first { candidate in
+                            Self.normalizedTitle(candidate.displayTitle) == Self.normalizedTitle(nextEntry.title)
+                                && (nextEntry.year == nil || Int(candidate.displayDate.prefix(4)) == nextEntry.year)
+                        }
+                        let relaxed = exact ?? typed.first {
+                            Self.normalizedTitle($0.displayTitle) == Self.normalizedTitle(nextEntry.title)
+                        }
+                        return (nextIndex, relaxed?.withCatalogSource(source))
+                    }
+                }
+            }
+            return output.keys.sorted().compactMap { output[$0] }
+        }
+    }
+
+    private static func parseSoloLatino(_ html: String) -> [Entry] {
+        let pattern = #"(?is)<a\\s+href=["'](?:https?://sololatino\\.net)?/[^"']+["'][^>]*>([\\s\\S]{0,6000}?)</a>"#
+        let blocks = captureGroups(pattern, in: html, group: 1)
+        var seen = Set<String>()
+        return blocks.compactMap { block in
+            let title = firstCapture(#"(?is)<span[^>]*class=["'][^"']*card__title[^"']*["'][^>]*>(.*?)</span>"#, in: block)
+                ?? firstCapture(#"(?is)<img[^>]*alt=["']([^"']+)["']"#, in: block)
+            guard let title = title.map(decodeHTML).map(cleanText), !title.isEmpty else { return nil }
+            let key = normalizedTitle(title)
+            guard seen.insert(key).inserted else { return nil }
+            let yearText = firstCapture(#"(?is)<span[^>]*class=["'][^"']*card__year[^"']*["'][^>]*>(.*?)</span>"#, in: block)
+            return Entry(title: title, year: yearText.flatMap { Int(cleanText(decodeHTML($0))) })
+        }
+    }
+
+    private static func parseAnikoto(_ html: String) -> [Entry] {
+        let pattern = #"(?is)<a\\b([^>]*href=["'][^"']*/watch/[^"']+["'][^>]*)>([\\s\\S]{0,4000}?)</a>"#
+        let matches = captureGroups(pattern, in: html, group: 0)
+        var seen = Set<String>()
+        return matches.compactMap { block in
+            let titleAttribute = firstCapture(#"(?is)title=["']([^"']+)["']"#, in: block)
+            let heading = firstCapture(#"(?is)<(?:h[1-6]|span|div)[^>]*class=["'][^"']*(?:film-name|film-title|item-title|title)[^"']*["'][^>]*>([\\s\\S]*?)</(?:h[1-6]|span|div)>"#, in: block)
+            let imageAlt = firstCapture(#"(?is)<img[^>]*alt=["']([^"']+)["']"#, in: block)
+            let plainText = cleanText(stripTags(heading ?? block))
+            let title = [titleAttribute, imageAlt, plainText].compactMap { $0 }
+                .map { cleanText(decodeHTML($0)) }
+                .first { !$0.isEmpty && $0.count < 180 && !$0.localizedCaseInsensitiveContains("episode") }
+            guard let title else { return nil }
+            let key = normalizedTitle(title)
+            guard seen.insert(key).inserted else { return nil }
+            let year = firstCapture(#"(?is)(?:year|release)[^0-9]{0,12}((?:19|20)\\d{2})"#, in: block)
+                .flatMap(Int.init)
+            return Entry(title: title, year: year)
+        }
+    }
+
+    private static func captureGroups(_ pattern: String, in text: String, group: Int) -> [String] {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+        let nsText = text as NSString
+        return regex.matches(in: text, range: NSRange(location: 0, length: nsText.length)).compactMap { match in
+            guard group < match.numberOfRanges else { return nil }
+            let range = match.range(at: group)
+            guard range.location != NSNotFound else { return nil }
+            return nsText.substring(with: range)
+        }
+    }
+
+    private static func firstCapture(_ pattern: String, in text: String) -> String? {
+        captureGroups(pattern, in: text, group: 1).first
+    }
+
+    private static func stripTags(_ value: String) -> String {
+        (try? NSRegularExpression(pattern: #"(?is)<[^>]+>"#))
+            .map { $0.stringByReplacingMatches(in: value, range: NSRange(value.startIndex..., in: value), withTemplate: " ") }
+            ?? value
+    }
+
+    private static func cleanText(_ value: String) -> String {
+        value.replacingOccurrences(of: "\\u{00a0}", with: " ")
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func decodeHTML(_ value: String) -> String {
+        value.replacingOccurrences(of: "&amp;", with: "&")
+            .replacingOccurrences(of: "&quot;", with: "\"")
+            .replacingOccurrences(of: "&#39;", with: "'")
+            .replacingOccurrences(of: "&apos;", with: "'")
+            .replacingOccurrences(of: "&lt;", with: "<")
+            .replacingOccurrences(of: "&gt;", with: ">")
+            .replacingOccurrences(of: "&nbsp;", with: " ")
+    }
+
+    private static func normalizedTitle(_ value: String) -> String {
+        value.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+            .lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+    }
+
+    private static func soloLatinoGenreSlug(for values: [String]) -> String? {
+        guard let value = values.first else { return nil }
+        let key = normalizedTitle(value)
+        let map = [
+            "action": "accion", "action adventure": "aventura", "adventure": "aventura",
+            "animation": "animacion", "anime": "anime", "comedy": "comedia",
+            "crime": "crimen", "documentary": "documental", "drama": "drama",
+            "family": "familia", "fantasy": "fantasia", "history": "historia",
+            "mystery": "misterio", "music": "musica", "romance": "romance",
+            "suspense": "suspense", "thriller": "suspense", "war": "belica",
+            "horror": "terror", "western": "western"
+        ]
+        return map[key] ?? value.lowercased()
+            .folding(options: .diacriticInsensitive, locale: .current)
+            .replacingOccurrences(of: " ", with: "-")
+    }
+
+    private static func anikotoGenreID(for value: String) -> String? {
+        let key = normalizedTitle(value)
+        let map = [
+            "action": "1", "adventure": "2", "comedy": "8", "drama": "62",
+            "fantasy": "3", "horror": "222", "mystery": "57", "romance": "28",
+            "sci fi": "12", "sports": "29", "supernatural": "9", "thriller": "54",
+            "harem": "215", "isekai": "74", "school": "14", "slice of life": "35",
+            "psychological": "73", "mecha": "123", "music": "242", "historical": "70"
+        ]
+        return map[key]
+    }
+
+    private static func anikotoSortValue(_ sort: String) -> String {
+        switch sort {
+        case "rank": return "score"
+        case "title": return "name-az"
+        case "popularity": return "most-viewed"
+        default: return "latest-updated"
+        }
+    }
+}
