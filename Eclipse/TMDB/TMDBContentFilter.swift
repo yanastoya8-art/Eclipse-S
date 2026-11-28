@@ -1959,16 +1959,13 @@ class TMDBContentFilter: ObservableObject {
             forKey: isMovie ? "catalogHideAllAgesMovies" : "catalogHideAllAgesSeries"
         )
         guard enabled || hideAllAges else { return true }
-        guard let rating = TMDBMaturityRatingStore.shared.rating(isMovie: isMovie, id: id) else {
-            // The setting hides titles with a known rating below the threshold;
-            // an unavailable certificate must not collapse an entire Browse
-            // category to the few titles whose regional rating happened to load.
-            return true
-        }
-        if hideAllAges && rating == .general { return false }
-        guard enabled, rating != .unknown else { return true }
-        let minimum = isMovie ? MaturityRating.teen : .age14
-        return rating >= minimum
+        let rating = TMDBMaturityRatingStore.shared.rating(isMovie: isMovie, id: id)
+        let minimum = enabled ? (isMovie ? MaturityRating.teen : .age14) : nil
+        return CatalogAgeRatingFilterPolicy.shouldInclude(
+            rating: rating,
+            minimum: minimum,
+            hideAllAges: hideAllAges
+        )
     }
 
     private static func runtimeCacheKey(for result: TMDBSearchResult) -> String {
