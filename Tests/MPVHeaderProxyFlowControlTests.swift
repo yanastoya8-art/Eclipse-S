@@ -741,10 +741,20 @@ final class MPVHeaderProxyFlowControlTests: XCTestCase {
             let flow = try XCTUnwrap(capture.all.first)
             waitForPausedSendsToRemainPending(flow)
             flow.forceOverflowForTesting()
-            let upstreamClosed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-                flow.snapshot.closed && server.activeConnections == 0
+            let flowClosed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                flow.snapshot.closed
             }, object: nil)
-            wait(for: [upstreamClosed], timeout: 10)
+            wait(for: [flowClosed], timeout: 5)
+            XCTAssertTrue(flow.snapshot.closed)
+
+            // URLSession cancellation and the loopback NWConnection close are
+            // asynchronous on hosted simulators. Verify the socket is released,
+            // but do not conflate that transport cleanup latency with the
+            // synchronous flow-control overflow decision.
+            let upstreamClosed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                server.activeConnections == 0
+            }, object: nil)
+            wait(for: [upstreamClosed], timeout: 30)
             XCTAssertFalse(flow.requestFinishedForTesting)
 
             if invalidating {
