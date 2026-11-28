@@ -410,7 +410,6 @@ struct StorageView: View {
             }
         }
 #if os(iOS) && !targetEnvironment(macCatalyst)
-        .onAppear { cloudShareAdminToken = EclipseShareCredentialStore.loadAdminToken() }
 #endif
         .alert("Clear Cache?", isPresented: $showConfirmClear) {
             Button("Cancel", role: .cancel) {}
