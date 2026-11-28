@@ -56,7 +56,8 @@ struct DiscoverDetailView: View {
         _ = filterRefreshRevision
         return contentFilter.filterSearchResults(
             items,
-            allowUpcomingContent: allowsUpcomingContent
+            allowUpcomingContent: allowsUpcomingContent,
+            resolveMetadataInBackground: false
         )
     }
 
