@@ -133,6 +133,8 @@ final class DownloadResumeTests: XCTestCase {
         for value in urls {
             XCTAssertEqual(DownloadSourceLinkPolicy.copyableURL(value)?.absoluteString, value)
         }
+        XCTAssertTrue(DownloadSourceLinkPolicy.isMKVURL(URL(string: "https://cdn.example/video.mkv?token=abc")!))
+        XCTAssertFalse(DownloadSourceLinkPolicy.isMKVURL(URL(string: "https://cdn.example/master.m3u8?token=abc")!))
     }
 
     func testManagedProxyHLSBackgroundTransportSupportsHTTPAndHTTPS() {
