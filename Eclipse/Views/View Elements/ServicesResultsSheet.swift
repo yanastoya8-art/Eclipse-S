@@ -53,6 +53,7 @@ private func copyProviderDownloadURL(_ rawURL: String, headers: [String: String]
 
     // HLS playlists and header-protected streams need a public capability URL.
     // A local MPV proxy URL only works on this device and must never be copied.
+#if os(iOS) && !targetEnvironment(macCatalyst)
     Task { @MainActor in
         do {
             let shareURL = try await DownloadManager.shared.createInternetShareURL(
@@ -72,6 +73,9 @@ private func copyProviderDownloadURL(_ rawURL: String, headers: [String: String]
             )
         }
     }
+#else
+    ProviderExternalApplication.copy(targetURL.absoluteString)
+#endif
 }
 
 extension Notification.Name {
