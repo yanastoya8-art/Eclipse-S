@@ -37,7 +37,12 @@ private func copyProviderDownloadURL(_ rawURL: String, headers: [String: String]
     let targetURL = MPVHeaderProxy.shared.recoverableTargetURL(for: sourceURL)
         ?? managedProxySession?.url
         ?? sourceURL
-    let effectiveHeaders = managedProxySession?.headers ?? sanitizedHeaders
+    let effectiveHeaders = [
+        managedProxySession?.headers,
+        Optional(sanitizedHeaders)
+    ]
+    .compactMap { $0 }
+    .first(where: { !$0.isEmpty }) ?? [:]
 
     // Preserve the authoritative MKV URL exactly; the player/download path
     // must not wrap it in a local proxy or rewrite its signed query.
