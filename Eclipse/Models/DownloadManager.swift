@@ -11695,7 +11695,13 @@ extension DownloadManager {
             throw EclipseShareError.server("The original stream URL is no longer available. Re-select the stream and try again.")
         }
 
-        let providerHeaders = managedSession?.headers ?? protectedAttempt?.authorityHeaders ?? item.headers
+        let providerHeaders = [
+            managedSession?.headers,
+            protectedAttempt?.authorityHeaders,
+            item.headers
+        ]
+        .compactMap { $0 }
+        .first(where: { !$0.isEmpty }) ?? [:]
         return try await createInternetShareURL(for: source, headers: providerHeaders)
     }
 
