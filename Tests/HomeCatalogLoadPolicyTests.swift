@@ -8,6 +8,48 @@ final class HomeCatalogLoadPolicyTests: XCTestCase {
         XCTAssertTrue(HomeCatalogLoadPolicy.requiresTrendingSeed(enabledCatalogIDs: ["trending", "forYou"]))
     }
 
+    func testSelectedDubLanguageRequiresAniListIdentityBeforeHomeFiltering() {
+        XCTAssertTrue(HomeCatalogLoadPolicy.requiresAnimeIdentity(
+            selectedDubLanguages: ["english"],
+            hideBelowPG13Anime: false,
+            hideAllAgesAnime: false,
+            isKidsModeActive: false
+        ))
+    }
+
+    func testAnimeAgeFiltersFromTheActiveProfileRequireAniListIdentity() {
+        XCTAssertTrue(HomeCatalogLoadPolicy.requiresAnimeIdentity(
+            selectedDubLanguages: [],
+            hideBelowPG13Anime: true,
+            hideAllAgesAnime: false,
+            isKidsModeActive: false
+        ))
+        XCTAssertTrue(HomeCatalogLoadPolicy.requiresAnimeIdentity(
+            selectedDubLanguages: [],
+            hideBelowPG13Anime: false,
+            hideAllAgesAnime: true,
+            isKidsModeActive: false
+        ))
+    }
+
+    func testKidsModeRequiresAniListIdentityForHomeAnimeShelves() {
+        XCTAssertTrue(HomeCatalogLoadPolicy.requiresAnimeIdentity(
+            selectedDubLanguages: [],
+            hideBelowPG13Anime: false,
+            hideAllAgesAnime: false,
+            isKidsModeActive: true
+        ))
+    }
+
+    func testHomeAnimeIdentityCanSkipResolutionWhenNoAnimeSpecificFilterIsActive() {
+        XCTAssertFalse(HomeCatalogLoadPolicy.requiresAnimeIdentity(
+            selectedDubLanguages: [],
+            hideBelowPG13Anime: false,
+            hideAllAgesAnime: false,
+            isKidsModeActive: false
+        ))
+    }
+
     func testHiddenTrendingSeedDoesNotCountAsAVisibleForYouShelf() {
         let trending = TMDBSearchResult(
             id: 550,
