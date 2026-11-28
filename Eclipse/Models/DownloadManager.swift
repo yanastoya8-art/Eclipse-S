@@ -764,6 +764,49 @@ enum DownloadSourceLinkPolicy {
         guard !isMKVURL(url) else { return false }
         return !headers.isEmpty || url.pathExtension.caseInsensitiveCompare("m3u8") == .orderedSame
     }
+
+    /// A copied link must never fall back to this device or a private LAN address
+    /// when an Eclipse-managed playback proxy cannot be unwrapped.
+    static func isLocalOrPrivateHost(_ rawHost: String) -> Bool {
+        let host = rawHost.lowercased()
+            .trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        guard !host.isEmpty else { return true }
+
+        if host == "localhost" || host.hasSuffix(".localhost")
+            || host.hasSuffix(".local") || host.hasSuffix(".internal")
+            || host.hasSuffix(".test") || host.hasSuffix(".invalid") {
+            return true
+        }
+
+        if host.range(of: "^[0-9.]+$", options: .regularExpression) != nil {
+            let octets = host.split(separator: ".", omittingEmptySubsequences: false)
+            guard octets.count == 4 else { return true }
+            let values = octets.compactMap { Int($0) }
+            guard values.count == 4, values.allSatisfy({ (0...255).contains($0) }) else {
+                return true
+            }
+            let first = values[0]
+            let second = values[1]
+            return first == 0 || first == 10 || first == 127 || first >= 224
+                || (first == 100 && second >= 64 && second <= 127)
+                || (first == 169 && second == 254)
+                || (first == 172 && second >= 16 && second <= 31)
+                || (first == 192 && (second == 168 || second == 0))
+                || (first == 198 && (second == 18 || second == 19))
+        }
+
+        if host.hasPrefix("0x") || host.contains(":") {
+            if host.hasPrefix("::ffff:") { return true }
+            return host == "::" || host == "::1"
+                || host.hasPrefix("fc") || host.hasPrefix("fd")
+                || host.hasPrefix("fe8") || host.hasPrefix("fe9")
+                || host.hasPrefix("fea") || host.hasPrefix("feb")
+                || host.hasPrefix("ff")
+        }
+        return false
+    }
 }
 
 enum HLSManagedProxyTransportPolicy {
