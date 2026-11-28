@@ -6586,7 +6586,7 @@ final class DownloadManager: NSObject, ObservableObject {
         // remaining queued rows instead of leaving them looking stalled.
         if slotsAvailable <= 0 {
             let activeNow = downloads.filter { $0.status == .downloading }.count
-            let reason = "Waiting for an available download slot (\\(activeNow) active, \\(reservedValidations) validating)"
+            let reason = "Waiting for an available download slot (\(activeNow) active, \(reservedValidations) validating)"
             for item in downloads where item.status == .queued
                 && (item.retryNotBefore.map { $0 <= now } ?? true) {
                 setQueuedMessage(id: item.id, message: reason)
@@ -7404,7 +7404,7 @@ final class DownloadManager: NSObject, ObservableObject {
                                 id: item.id,
                                 partialURL: destURL
                                     .deletingLastPathComponent()
-                                    .appendingPathComponent(".\\(destURL.lastPathComponent).partial"),
+                                    .appendingPathComponent(".\(destURL.lastPathComponent).partial"),
                                 reason: hlsError.localizedDescription
                             )
                         case .unsupportedLayout:
@@ -8829,7 +8829,7 @@ final class DownloadManager: NSObject, ObservableObject {
         lastHLSCheckpointSave.removeValue(forKey: id)
         saveDownloads()
         Logger.shared.log(
-            "HLS resume checkpoint rejected; restarting from segment zero id=\\(id) reason=\\(reason)",
+            "HLS resume checkpoint rejected; restarting from segment zero id=\(id) reason=\(reason)",
             type: "Download"
         )
         DispatchQueue.main.async { [weak self] in
