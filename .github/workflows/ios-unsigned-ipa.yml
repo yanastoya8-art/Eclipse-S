@@ -306,13 +306,35 @@ jobs:
             swiftpm-${{ runner.os }}-
 
       - name: Resolve Swift packages
+        timeout-minutes: 65
         env:
           MPVKIT_SOURCE_REVISION: b951a22fc5ddbf708057ace059e3742dae685e4d
+          GIT_TERMINAL_PROMPT: "0"
         run: |
           set -euo pipefail
 
+          # Avoid one transient GitHub/network interruption consuming the runner.
+          git config --global http.lowSpeedLimit 1000
+          git config --global http.lowSpeedTime 60
+          resolve_swift_packages() {
+            local attempt=1
+            while [[ "$attempt" -le 3 ]]; do
+              echo "::group::Swift package resolution attempt $attempt/3"
+              if xcodebuild "$@" 2>&1 | tee "$RUNNER_TEMP/swiftpm-resolve-$attempt.log"; then
+                echo "::endgroup::"
+                return 0
+              fi
+              echo "::endgroup::"
+              echo "::warning::Swift package resolution attempt $attempt failed; retrying."
+              if [[ "$attempt" -lt 3 ]]; then sleep "$((attempt * 15))"; fi
+              attempt=$((attempt + 1))
+            done
+            echo "::error::Swift package resolution failed after three attempts. See the per-attempt logs above."
+            return 1
+          }
+
           SOURCE_PACKAGES_DIR="$RUNNER_TEMP/SourcePackages"
-          xcodebuild -resolvePackageDependencies \
+          resolve_swift_packages -resolvePackageDependencies \
             -project Eclipse.xcodeproj \
             -scheme Eclipse \
             -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" \
@@ -345,7 +367,7 @@ jobs:
           PY
           MPVKIT_LOCAL_ARTIFACTS_DIR="$MPVKIT_PACKAGE_CHECKOUT/dist/release"
           export MPVKIT_LOCAL_ARTIFACTS_DIR
-          xcodebuild -resolvePackageDependencies \
+          resolve_swift_packages -resolvePackageDependencies \
             -project Eclipse.xcodeproj \
             -scheme Eclipse \
             -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" \
