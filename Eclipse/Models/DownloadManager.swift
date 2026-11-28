@@ -4653,6 +4653,8 @@ final class DownloadManager: NSObject, ObservableObject {
     /// while SwiftUI builds the context menu; URL publication must happen only
     /// after the user taps Copy, otherwise each view refresh leaks a new session.
     func hasCopyableDownloadURL(for item: DownloadItem) -> Bool {
+        // Completed files are shared through the public Internet Share flow.
+        guard item.status != .completed else { return false }
         if let attempt = protectedProviderAttempts[item.id],
            DownloadSourceLinkPolicy.copyableURL(attempt.authorityURL) != nil {
             return true
