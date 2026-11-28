@@ -2278,8 +2278,34 @@ struct HomeView: View {
                 limit: requestedLimit
             )
             let offset = min((boundedPage - 1) * pageSize, fallback.count)
-            return Array(fallback.dropFirst(offset)).prefix(pageSize).map {
-                $0.withAnimeHint(true)
+            let pageResults = Array(fallback.dropFirst(offset)).prefix(pageSize)
+            // TMDB-only fallback rows need a verified AniList identity before
+            // the selected-dub filter can evaluate them. Resolve a small,
+            // bounded batch and preserve the original order.
+            return await withTaskGroup(
+                of: (Int, TMDBSearchResult).self,
+                returning: [TMDBSearchResult].self
+            ) { group in
+                var iterator = Array(pageResults).enumerated().makeIterator()
+                var resolved = Array<TMDBSearchResult?>(repeating: nil, count: pageResults.count)
+
+                func addNext() {
+                    guard let (index, result) = iterator.next() else { return }
+                    group.addTask {
+                        let identity = await AniListService.shared.searchAnimeIdentity(
+                            title: result.displayTitle
+                        )
+                        let identified = identity.map { result.withAnimeIdentitySeed($0) } ?? result
+                        return (index, identified.withAnimeHint(true))
+                    }
+                }
+
+                for _ in 0..<min(6, pageResults.count) { addNext() }
+                while let (index, result) = await group.next() {
+                    resolved[index] = result
+                    addNext()
+                }
+                return resolved.compactMap { $0 }
             }
         }
 
