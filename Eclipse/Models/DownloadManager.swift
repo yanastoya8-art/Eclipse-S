@@ -753,6 +753,10 @@ enum DownloadSourceLinkPolicy {
         }
         return url
     }
+
+    static func isMKVURL(_ url: URL) -> Bool {
+        url.pathExtension.caseInsensitiveCompare("mkv") == .orderedSame
+    }
 }
 
 enum HLSManagedProxyTransportPolicy {
@@ -4706,7 +4710,10 @@ final class DownloadManager: NSObject, ObservableObject {
         // MKV is a stream container in Eclipse, not a browser download target.
         // Copy its authoritative URL verbatim: do not proxy it, add attachment
         // headers, rewrite its query, or otherwise alter the provider URL.
-        if sourceURL.pathExtension.caseInsensitiveCompare("mkv") == .orderedSame {
+        // Some player proxy routes use an extensionless local path. Check
+        // both the original authoritative URL and its unwrapped upstream target
+        // so an MKV is never accidentally wrapped in a second proxy/download URL.
+        if [candidateSourceURL, sourceURL].compactMap({ $0 }).contains(where: DownloadSourceLinkPolicy.isMKVURL) {
             return sourceURL
         }
 
