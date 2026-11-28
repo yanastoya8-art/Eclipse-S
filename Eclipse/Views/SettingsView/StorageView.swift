@@ -384,6 +384,12 @@ struct StorageView: View {
             .padding(.bottom, 32)
             .background(EclipseScrollTracker())
         }
+        .alert("Clear Cache?", isPresented: $showConfirmClear) {
+            Button("Cancel", role: .cancel) {}
+            Button("Clear", role: .destructive) { clearCache() }
+        } message: {
+            Text("This will remove cached files. You may need to re-download some content later.")
+        }
         .navigationTitle("Storage")
         .background(SettingsGradientBackground().ignoresSafeArea())
         .eclipseDarkToolbar()
