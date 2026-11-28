@@ -613,7 +613,9 @@ struct DownloadsView: View {
                 }
             }
 #if os(iOS) && !targetEnvironment(macCatalyst)
-            if EclipseShareCredentialStore.isConfigured(baseURL: UserDefaults.standard.string(forKey: "eclipseCloudShareBaseURL")) {
+            if let shareBaseURL = URL(string: UserDefaults.standard.string(forKey: "eclipseShareAPIBaseURL") ?? ""),
+               shareBaseURL.scheme?.lowercased() == "https",
+               shareBaseURL.host?.isEmpty == false {
                 Button {
                     guard !isCreatingInternetShareLink else { return }
                     isCreatingInternetShareLink = true
