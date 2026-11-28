@@ -1051,7 +1051,7 @@ struct SearchView: View {
                         ).lowercased().contains(foldedAnimeQuery)
                     }
                 }
-                if searchFilter == .anime || !hasStrongAnimeTitleMatch {
+                if searchFilter == .anime || results.isEmpty {
                     // TMDB multi-search can return unrelated movie/TV matches
                     // for an anime title. Search AniList when no title-level
                     // match exists, but do not make every ordinary Search query
