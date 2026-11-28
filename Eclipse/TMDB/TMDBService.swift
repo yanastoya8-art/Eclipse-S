@@ -3613,6 +3613,7 @@ actor VerifiedDubCatalogueService {
 
     func fetchSoloLatino(
         mediaType: String,
+        isAnime: Bool = false,
         page: Int,
         query: String? = nil,
         years: [Int] = [],
@@ -3621,7 +3622,7 @@ actor VerifiedDubCatalogueService {
         sort: String = "newest",
         tmdbService: TMDBService
     ) async -> [TMDBSearchResult] {
-        let kind = mediaType == "movie" ? "peliculas" : (mediaType == "tv" ? "series" : "animes")
+        let kind = isAnime ? "animes" : (mediaType == "movie" ? "peliculas" : "series")
         var components = URLComponents(string: "https://sololatino.net/\(kind)")
         var items: [URLQueryItem] = []
         if let query, !query.isEmpty {
@@ -3651,7 +3652,8 @@ actor VerifiedDubCatalogueService {
         components?.queryItems = items
         guard let url = components?.url,
               let entries = await fetchEntries(url: url, source: .soloLatino) else { return [] }
-        return await resolve(entries, mediaType: mediaType, source: .soloLatino, tmdbService: tmdbService)
+        let resolved = await resolve(entries, mediaType: mediaType, source: .soloLatino, tmdbService: tmdbService)
+        return isAnime ? resolved.map { $0.withAnimeHint(true) } : resolved
     }
 
     func fetchAnikotoEnglishAnime(
