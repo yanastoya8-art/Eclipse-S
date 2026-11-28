@@ -409,9 +409,7 @@ struct StorageView: View {
                 Logger.shared.log("Auto-clear cache enabled with threshold: \(formatThreshold(sanitizedAutoClearCacheThresholdMB))", type: "Storage")
             }
         }
-#if os(iOS) && !targetEnvironment(macCatalyst)
-#endif
-        .alert("Clear Cache?", isPresented: $showConfirmClear) {
+.alert("Clear Cache?", isPresented: $showConfirmClear) {
             Button("Cancel", role: .cancel) {}
             Button("Clear", role: .destructive) { clearCache() }
         } message: {
