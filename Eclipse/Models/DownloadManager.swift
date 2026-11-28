@@ -4653,9 +4653,6 @@ final class DownloadManager: NSObject, ObservableObject {
     /// while SwiftUI builds the context menu; URL publication must happen only
     /// after the user taps Copy, otherwise each view refresh leaks a new session.
     func hasCopyableDownloadURL(for item: DownloadItem) -> Bool {
-        if item.status == .completed, localFileURL(for: item) != nil {
-            return true
-        }
         if let attempt = protectedProviderAttempts[item.id],
            DownloadSourceLinkPolicy.copyableURL(attempt.authorityURL) != nil {
             return true
@@ -4676,14 +4673,9 @@ final class DownloadManager: NSObject, ObservableObject {
     /// Preserve required headers through the same authenticated proxy used by
     /// the player instead of copying a URL that cannot be opened.
     func copyableDownloadURL(for item: DownloadItem) -> URL? {
-        // A completed download must share the file Eclipse actually saved.
-        // Returning its original provider URL made HLS links expire and caused
-        // copied links to redownload a source rather than serve the local file.
-        if item.status == .completed,
-           let localURL = localFileURL(for: item),
-           let publishedURL = MPVHeaderProxy.shared.makeLocalFileDownloadURL(for: localURL) {
-            return publishedURL
-        }
+        // Completed files use the public Internet Share flow instead of a
+        // device-local URL. This keeps copied links usable away from the LAN.
+        if item.status == .completed { return nil }
 
         let protectedAttempt = protectedProviderAttempts[item.id]
         let activeRequestURL = activeTasks[item.id]?.currentRequest?.url
