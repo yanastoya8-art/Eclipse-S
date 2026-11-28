@@ -782,7 +782,12 @@ enum DownloadSourceLinkPolicy {
 
         if host.range(of: "^[0-9.]+$", options: .regularExpression) != nil {
             let octets = host.split(separator: ".", omittingEmptySubsequences: false)
-            guard octets.count == 4 else { return true }
+            guard octets.count == 4,
+                  octets.allSatisfy({ $0 == "0" || !$0.hasPrefix("0") }) else {
+                // Reject legacy octal and abbreviated IPv4 spellings rather
+                // than risk treating a loopback alias as a public host.
+                return true
+            }
             let values = octets.compactMap { Int($0) }
             guard values.count == 4, values.allSatisfy({ (0...255).contains($0) }) else {
                 return true
