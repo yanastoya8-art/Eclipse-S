@@ -415,12 +415,7 @@ struct StorageView: View {
                 Logger.shared.log("Auto-clear cache enabled with threshold: \(formatThreshold(sanitizedAutoClearCacheThresholdMB))", type: "Storage")
             }
         }
-.alert("Clear Cache?", isPresented: $showConfirmClear) {
-            Button("Cancel", role: .cancel) {}
-            Button("Clear", role: .destructive) { clearCache() }
-        } message: {
-            Text("This will remove cached files. You may need to re-download some content later.")
-        }
+
     }
 
     private var formattedCacheSize: String {
