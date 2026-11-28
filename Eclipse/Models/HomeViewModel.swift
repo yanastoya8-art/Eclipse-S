@@ -31,6 +31,21 @@ enum HomeCatalogLoadPolicy {
         enabledCatalogIDs.contains("trending") || enabledCatalogIDs.contains("forYou")
     }
 
+    /// Anime shelves need stable AniList identity before applying profile-specific
+    /// dub and age filters. Keep this decision independent of UserDefaults.standard:
+    /// catalog preferences are stored per active profile.
+    static func requiresAnimeIdentity(
+        selectedDubLanguages: Set<String>,
+        hideBelowPG13Anime: Bool,
+        hideAllAgesAnime: Bool,
+        isKidsModeActive: Bool
+    ) -> Bool {
+        !selectedDubLanguages.isEmpty
+            || hideBelowPG13Anime
+            || hideAllAgesAnime
+            || isKidsModeActive
+    }
+
     static func forYouResults(
         recommendations: [TMDBSearchResult],
         trending: [TMDBSearchResult]
@@ -590,11 +605,12 @@ final class HomeViewModel: ObservableObject {
             // TMDB supplies the catalog rows, but selected dub-language and
             // anime age filters require stable AniList identity. Resolve only
             // when an active filter needs it; otherwise keep the first shelf fast.
-            let animeIdentityRequired =
-                !MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement.isEmpty
-                || UserDefaults.standard.bool(forKey: "catalogHideBelowPG13Anime")
-                || UserDefaults.standard.bool(forKey: "catalogHideAllAgesAnime")
-                || ProfileManager.shared.isKidsModeActive
+            let animeIdentityRequired = HomeCatalogLoadPolicy.requiresAnimeIdentity(
+                selectedDubLanguages: MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement,
+                hideBelowPG13Anime: ProfileSettingsStore.active.bool(forKey: "catalogHideBelowPG13Anime"),
+                hideAllAgesAnime: ProfileSettingsStore.active.bool(forKey: "catalogHideAllAgesAnime"),
+                isKidsModeActive: ProfileManager.shared.isKidsModeActive
+            )
             let rawAnimeCatalogs: [AniListService.AniListCatalogKind: [TMDBSearchResult]]
             if animeIdentityRequired {
                 rawAnimeCatalogs = await self.resolveAnimeCatalogIdentitySeeds(tmdbAnimeCatalogs)
