@@ -923,23 +923,23 @@ struct SearchView: View {
                 let shouldSearchEnglish = selectedLanguage.caseInsensitiveCompare("en-US") != .orderedSame
                 async let localizedMultiResult: [TMDBSearchResult]? = try? await tmdbService.searchMulti(
                     query: query,
-                    maxPages: 5
+                    maxPages: 3
                 )
                 async let englishMultiResult: [TMDBSearchResult]? = shouldSearchEnglish
                     ? (try? await tmdbService.searchMulti(
                         query: query,
                         languageOverride: "en-US",
-                        maxPages: 5
+                        maxPages: 3
                     ))
                     : nil
                 async let localizedTVResult: [TMDBTVShow]? = shouldSearchTVEndpoint
-                    ? (try? await tmdbService.searchTVShows(query: query, maxPages: 5))
+                    ? (try? await tmdbService.searchTVShows(query: query, maxPages: 3))
                     : nil
                 async let englishTVResult: [TMDBTVShow]? = shouldSearchTVEndpoint && shouldSearchEnglish
                     ? (try? await tmdbService.searchTVShows(
                         query: query,
                         languageOverride: "en-US",
-                        maxPages: 5
+                        maxPages: 3
                     ))
                     : nil
 
@@ -1008,7 +1008,7 @@ struct SearchView: View {
                             try Task.checkCancellation()
                             guard let tokenResults = try? await tmdbService.searchTVShows(
                                 query: token,
-                                maxPages: 5
+                                maxPages: 1
                             ) else { continue }
                             for show in tokenResults {
                                 let candidate = show.asSearchResult
