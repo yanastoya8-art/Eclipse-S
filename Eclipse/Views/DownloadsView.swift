@@ -635,8 +635,8 @@ struct DownloadsView: View {
             }
             if downloadManager.hasCopyableDownloadURL(for: item) {
                 Button {
-                    // Publishing a LAN URL starts a listener session, so do it
-                    // once on explicit user action rather than during menu layout.
+                    // Resolve the authoritative source URL only after the user
+                    // explicitly chooses the copy action.
                     guard let sourceURL = downloadManager.copyableDownloadURL(for: item) else { return }
                     UIPasteboard.general.url = sourceURL
                 } label: {
