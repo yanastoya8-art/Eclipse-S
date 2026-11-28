@@ -3786,7 +3786,7 @@ actor VerifiedDubCatalogueService {
     }
 
     private static func parseSoloLatino(_ html: String) -> [Entry] {
-        let pattern = #"(?is)<a\\s+href=["'](?:https?://sololatino\\.net)?/[^"']+["'][^>]*>([\\s\\S]{0,6000}?)</a>"#
+        let pattern = #"(?is)<a\s+href=["'](?:https?://sololatino\.net)?/[^"']+["'][^>]*>([\s\S]{0,6000}?)</a>"#
         let blocks = captureGroups(pattern, in: html, group: 1)
         var seen = Set<String>()
         return blocks.compactMap { block in
@@ -3801,12 +3801,12 @@ actor VerifiedDubCatalogueService {
     }
 
     private static func parseAnikoto(_ html: String) -> [Entry] {
-        let pattern = #"(?is)<a\\b([^>]*href=["'][^"']*/watch/[^"']+["'][^>]*)>([\\s\\S]{0,4000}?)</a>"#
+        let pattern = #"(?is)<a\b([^>]*href=["'][^"']*/watch/[^"']+["'][^>]*)>([\s\S]{0,4000}?)</a>"#
         let matches = captureGroups(pattern, in: html, group: 0)
         var seen = Set<String>()
         return matches.compactMap { block in
             let titleAttribute = firstCapture(#"(?is)title=["']([^"']+)["']"#, in: block)
-            let heading = firstCapture(#"(?is)<(?:h[1-6]|span|div)[^>]*class=["'][^"']*(?:film-name|film-title|item-title|title)[^"']*["'][^>]*>([\\s\\S]*?)</(?:h[1-6]|span|div)>"#, in: block)
+            let heading = firstCapture(#"(?is)<(?:h[1-6]|span|div)[^>]*class=["'][^"']*(?:film-name|film-title|item-title|title)[^"']*["'][^>]*>([\s\S]*?)</(?:h[1-6]|span|div)>"#, in: block)
             let imageAlt = firstCapture(#"(?is)<img[^>]*alt=["']([^"']+)["']"#, in: block)
             let plainText = cleanText(stripTags(heading ?? block))
             let title = [titleAttribute, imageAlt, plainText].compactMap { $0 }
@@ -3815,7 +3815,7 @@ actor VerifiedDubCatalogueService {
             guard let title else { return nil }
             let key = normalizedTitle(title)
             guard seen.insert(key).inserted else { return nil }
-            let year = firstCapture(#"(?is)(?:year|release)[^0-9]{0,12}((?:19|20)\\d{2})"#, in: block)
+            let year = firstCapture(#"(?is)(?:year|release)[^0-9]{0,12}((?:19|20)\d{2})"#, in: block)
                 .flatMap(Int.init)
             return Entry(title: title, year: year)
         }
@@ -3843,8 +3843,8 @@ actor VerifiedDubCatalogueService {
     }
 
     private static func cleanText(_ value: String) -> String {
-        value.replacingOccurrences(of: "\\u{00a0}", with: " ")
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        value.replacingOccurrences(of: "\u{00a0}", with: " ")
+            .replacingOccurrences(of: "\s+", with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
