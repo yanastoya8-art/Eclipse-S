@@ -32,7 +32,7 @@ private func copyProviderStreamURL(_ rawURL: String) {
 private func copyProviderDownloadURL(
     _ rawURL: String,
     headers: [String: String]? = nil,
-    onFailure: ((String) -> Void)? = nil
+    onFailure: (@MainActor (String) -> Void)? = nil
 ) {
     guard let sourceURL = DownloadSourceLinkPolicy.copyableURL(rawURL) else { return }
 
