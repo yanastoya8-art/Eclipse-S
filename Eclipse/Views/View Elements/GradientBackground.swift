@@ -458,7 +458,7 @@ struct SettingsGradientBackground: View {
                     EclipseIsolatedAmbientMotionBackground(
                         topClearance: 0,
                         ambientColor: nil,
-                        accentColor: theme.scopedGradientColor(),
+                        accentColor: theme.atmosphereBackdropColor(),
                         motionEnabled: !reduceMotion && scenePhase == .active,
                         allowsAnimatedShape: allowsAnimatedShape
                     )
