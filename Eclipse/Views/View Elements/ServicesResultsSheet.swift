@@ -8087,11 +8087,6 @@ struct ModulesSearchResultsSheet: View {
                 Label("Copy Stream URL", systemImage: "link")
             }
             Button {
-                copyProviderStreamURL(stream.option.url)
-            } label: {
-                Label("Copy Stream URL", systemImage: "link")
-            }
-            Button {
                 copyProviderDownloadURL(stream.option.url, headers: stream.option.headers)
             } label: {
                 Label("Copy Download URL", systemImage: "arrow.down.doc")
@@ -8453,6 +8448,11 @@ struct ModulesSearchResultsSheet: View {
         .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 5, trailing: 14))
 #if !os(tvOS)
         .contextMenu {
+            Button {
+                copyProviderStreamURL(stream.option.url)
+            } label: {
+                Label("Copy Stream URL", systemImage: "link")
+            }
             Button {
                 copyProviderDownloadURL(stream.option.url, headers: stream.option.headers)
             } label: {
