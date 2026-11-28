@@ -683,7 +683,8 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             animeLogoURL: animeLogoURL,
             animeTags: animeTags,
             tvMazePosterURL: tvMazePosterURL,
-            fanartTVPosterURL: fanartTVPosterURL
+            fanartTVPosterURL: fanartTVPosterURL,
+            catalogSource: catalogSource
         )
     }
 
@@ -712,7 +713,8 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             animeLogoURL: animeLogoURL,
             animeTags: tags,
             tvMazePosterURL: tvMazePosterURL,
-            fanartTVPosterURL: fanartTVPosterURL
+            fanartTVPosterURL: fanartTVPosterURL,
+            catalogSource: catalogSource
         )
     }
 
@@ -741,7 +743,8 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             animeLogoURL: animeLogoURL,
             animeTags: animeTags ?? seed?.animeTags,
             tvMazePosterURL: tvMazePosterURL,
-            fanartTVPosterURL: fanartTVPosterURL
+            fanartTVPosterURL: fanartTVPosterURL,
+            catalogSource: catalogSource
         )
     }
 
@@ -770,7 +773,8 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             animeLogoURL: url,
             animeTags: animeTags,
             tvMazePosterURL: tvMazePosterURL,
-            fanartTVPosterURL: fanartTVPosterURL
+            fanartTVPosterURL: fanartTVPosterURL,
+            catalogSource: catalogSource
         )
     }
 
@@ -799,7 +803,8 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             animeLogoURL: animeLogoURL,
             animeTags: animeTags,
             tvMazePosterURL: url,
-            fanartTVPosterURL: fanartTVPosterURL
+            fanartTVPosterURL: fanartTVPosterURL,
+            catalogSource: catalogSource
         )
     }
 
@@ -828,7 +833,8 @@ struct TMDBSearchResult: Codable, Identifiable, Sendable {
             animeLogoURL: animeLogoURL,
             animeTags: animeTags,
             tvMazePosterURL: tvMazePosterURL,
-            fanartTVPosterURL: fanartTVPosterURL
+            fanartTVPosterURL: fanartTVPosterURL,
+            catalogSource: catalogSource
         )
     }
 }
