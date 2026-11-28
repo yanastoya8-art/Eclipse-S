@@ -2571,9 +2571,9 @@ struct ModulesSearchResultsSheet: View {
             if let url = stream.url, !url.isEmpty {
                 Button {
                     copyProviderStreamURL(url, onFailure: { message in
-                    viewModel.streamError = message
-                    viewModel.showingStreamError = true
-                })
+                        viewModel.streamError = message
+                        viewModel.showingStreamError = true
+                    })
                 } label: {
                     Label("Copy Stream URL", systemImage: "link")
                 }
@@ -8123,7 +8123,10 @@ struct ModulesSearchResultsSheet: View {
 #if !os(tvOS)
         .contextMenu {
             Button {
-                copyProviderStreamURL(stream.option.url)
+                copyProviderStreamURL(stream.option.url, onFailure: { message in
+                    viewModel.streamError = message
+                    viewModel.showingStreamError = true
+                })
             } label: {
                 Label("Copy Stream URL", systemImage: "link")
             }
@@ -8493,7 +8496,10 @@ struct ModulesSearchResultsSheet: View {
 #if !os(tvOS)
         .contextMenu {
             Button {
-                copyProviderStreamURL(stream.option.url)
+                copyProviderStreamURL(stream.option.url, onFailure: { message in
+                    viewModel.streamError = message
+                    viewModel.showingStreamError = true
+                })
             } label: {
                 Label("Copy Stream URL", systemImage: "link")
             }
