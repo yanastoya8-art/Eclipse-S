@@ -137,6 +137,24 @@ final class DownloadResumeTests: XCTestCase {
         XCTAssertFalse(DownloadSourceLinkPolicy.isMKVURL(URL(string: "https://cdn.example/master.m3u8?token=abc")!))
     }
 
+    func testProviderDownloadURLUsesPortableShareForHLSAndProtectedStreams() {
+        let hls = URL(string: "https://cdn.example/master.m3u8?token=abc")!
+        let protectedMP4 = URL(string: "https://cdn.example/video.mp4?token=abc")!
+        let publicMP4 = URL(string: "https://cdn.example/video.mp4")!
+        let mkv = URL(string: "https://cdn.example/video.mkv?token=abc")!
+
+        XCTAssertTrue(DownloadSourceLinkPolicy.requiresInternetShare(for: hls, headers: [:]))
+        XCTAssertTrue(DownloadSourceLinkPolicy.requiresInternetShare(
+            for: protectedMP4,
+            headers: ["Authorization": "Bearer test-token"]
+        ))
+        XCTAssertFalse(DownloadSourceLinkPolicy.requiresInternetShare(for: publicMP4, headers: [:]))
+        XCTAssertFalse(DownloadSourceLinkPolicy.requiresInternetShare(
+            for: mkv,
+            headers: ["Referer": "https://provider.example"]
+        ))
+    }
+
     func testManagedProxyHLSBackgroundTransportSupportsHTTPAndHTTPS() {
         XCTAssertTrue(HLSManagedProxyTransportPolicy.canUnwrapForBackground(
             URL(string: "http://cdn.example/playlist.m3u8")!
