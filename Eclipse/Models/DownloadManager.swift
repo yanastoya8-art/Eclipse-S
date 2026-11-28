@@ -6580,6 +6580,18 @@ final class DownloadManager: NSObject, ObservableObject {
             startDownload(item)
             slotsAvailable -= 1
         }
+
+        // The last admitted item can consume the final slot inside the loop.
+        // In that case the early guard above never runs, so annotate the
+        // remaining queued rows instead of leaving them looking stalled.
+        if slotsAvailable <= 0 {
+            let activeNow = downloads.filter { $0.status == .downloading }.count
+            let reason = "Waiting for an available download slot (\\(activeNow) active, \\(reservedValidations) validating)"
+            for item in downloads where item.status == .queued
+                && (item.retryNotBefore.map { $0 <= now } ?? true) {
+                setQueuedMessage(id: item.id, message: reason)
+            }
+        }
     }
 
     private func scheduleQueueWake(at date: Date) {
