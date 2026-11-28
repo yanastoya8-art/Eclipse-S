@@ -2869,6 +2869,16 @@ private struct BrowseMediaView: View {
     ) async throws -> BrowsePageResult {
         let selectedKeywordNames = genres.compactMap(\.keyword)
         let excludedKeywordNames = excludedGenres.compactMap(\.keyword)
+        let selectedDubLanguages = MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement
+        let spanishDubSelected = selectedDubLanguages.contains(MyDubListLanguage.spanish.rawValue)
+        let englishDubSelected = selectedDubLanguages.contains(MyDubListLanguage.english.rawValue)
+        let spanishOnlyNonAnime = spanishDubSelected && !englishDubSelected && !isAnime
+        let catalogueSort: String = {
+            if sort == .rank { return "rank" }
+            if sort == .title { return "title" }
+            if sort == .popularity { return "popularity" }
+            return "newest"
+        }()
         // TMDB exposes fan-made and unofficial productions as keywords more
         // reliably than it does in title/overview text. Exclude those at the
         // discovery query as well as in TMDBContentFilter so Upcoming-only
@@ -2908,7 +2918,37 @@ private struct BrowseMediaView: View {
 
         guard !requestedYears.isEmpty else {
             let fetched: (results: [TMDBSearchResult], hasMore: Bool)
-            if isAnime {
+            if spanishDubSelected {
+                let soloLatinoResults = await VerifiedDubCatalogueService.shared.fetchSoloLatino(
+                    mediaType: mediaType,
+                    isAnime: isAnime,
+                    page: page,
+                    years: requestedYears,
+                    genreNames: selectedKeywordNames,
+                    minimumRating: minimumRating,
+                    sort: catalogueSort,
+                    tmdbService: tmdbService
+                )
+                results = sortedDeduplicatedResults(results + soloLatinoResults, by: sort)
+                hasMore = hasMore || soloLatinoResults.count >= 20
+            }
+            if isAnime && englishDubSelected {
+                let anikotoResults = await VerifiedDubCatalogueService.shared.fetchAnikotoEnglishAnime(
+                    page: page,
+                    years: requestedYears,
+                    genreNames: selectedKeywordNames,
+                    sort: catalogueSort,
+                    tmdbService: tmdbService
+                )
+                results = sortedDeduplicatedResults(results + anikotoResults, by: sort)
+                hasMore = hasMore || anikotoResults.count >= 20
+            }
+
+            if spanishOnlyNonAnime {
+                // With Spanish-only selected, SoloLatino is the catalogue
+                // source for movies and series; do not silently fall back to TMDB.
+                fetched = (results: [], hasMore: false)
+            } else if isAnime {
                 // AniList is an independent primary source for Anime Browse.
                 // A transient TMDB discover failure must not prevent the
                 // subsequent AniList merge from populating the page.
@@ -2995,6 +3035,23 @@ private struct BrowseMediaView: View {
             return BrowsePageResult(results: results, hasMore: hasMore)
         }
 
+        if spanishOnlyNonAnime {
+            let soloLatinoResults = await VerifiedDubCatalogueService.shared.fetchSoloLatino(
+                mediaType: mediaType,
+                page: page,
+                years: requestedYears,
+                genreNames: selectedKeywordNames,
+                minimumRating: minimumRating,
+                sort: catalogueSort,
+                tmdbService: tmdbService
+            )
+            let yearFiltered = soloLatinoResults.filter {
+                guard let year = Int($0.displayDate.prefix(4)) else { return false }
+                return requestedYears.contains(year)
+            }
+            return BrowsePageResult(results: yearFiltered, hasMore: yearFiltered.count >= 20)
+        }
+
         return try await withThrowingTaskGroup(of: BrowsePageResult.self) { group in
             for year in requestedYears {
                 group.addTask {
@@ -3027,6 +3084,32 @@ private struct BrowseMediaView: View {
             for try await result in group {
                 combined.append(contentsOf: result.results)
                 hasMore = hasMore || result.hasMore
+            }
+
+            if spanishDubSelected {
+                let soloLatinoResults = await VerifiedDubCatalogueService.shared.fetchSoloLatino(
+                    mediaType: mediaType,
+                    isAnime: isAnime,
+                    page: page,
+                    years: requestedYears,
+                    genreNames: selectedKeywordNames,
+                    minimumRating: minimumRating,
+                    sort: catalogueSort,
+                    tmdbService: tmdbService
+                )
+                combined.append(contentsOf: soloLatinoResults)
+                hasMore = hasMore || soloLatinoResults.count >= 20
+            }
+            if isAnime && englishDubSelected {
+                let anikotoResults = await VerifiedDubCatalogueService.shared.fetchAnikotoEnglishAnime(
+                    page: page,
+                    years: requestedYears,
+                    genreNames: selectedKeywordNames,
+                    sort: catalogueSort,
+                    tmdbService: tmdbService
+                )
+                combined.append(contentsOf: anikotoResults)
+                hasMore = hasMore || anikotoResults.count >= 20
             }
 
             if isAnime {
