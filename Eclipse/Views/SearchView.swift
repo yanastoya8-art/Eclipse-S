@@ -811,8 +811,13 @@ struct SearchView: View {
     }
 
     private func resolveSearchAnimeIdentities(_ results: [TMDBSearchResult]) async -> [TMDBSearchResult] {
+        let requiresAnimeAgeRating = ProfileSettingsStore.active.bool(forKey: "catalogHideBelowPG13Anime")
+            || ProfileSettingsStore.active.bool(forKey: "catalogHideAllAgesAnime")
         let candidates = results.enumerated().filter { _, result in
             guard result.animeIdentitySeed == nil else { return false }
+            if result.bypassesUnofficialProducerFilter && !requiresAnimeAgeRating {
+                return false
+            }
             // TMDB's country/original-language fields are incomplete on some
             // localized TV search payloads. Animation genre is therefore the
             // candidate signal; AniList's exact-title matcher below is the
@@ -879,7 +884,8 @@ struct SearchView: View {
                         animeArtworkURL: result.animeArtworkURL,
                         animeLogoURL: result.animeLogoURL,
                         tvMazePosterURL: result.tvMazePosterURL,
-                        fanartTVPosterURL: result.fanartTVPosterURL
+                        fanartTVPosterURL: result.fanartTVPosterURL,
+                        catalogSource: result.catalogSource
                     )
                     return (index, enriched)
                 }
@@ -3221,8 +3227,14 @@ private struct BrowseMediaView: View {
             let nativeAudioMatchesDubFilter = selectedDubLanguageCodes.contains {
                 originalLanguage == $0 || originalLanguage.hasPrefix($0 + "-")
             }
-            let needsDubIdentity = !selectedDubLanguageCodes.isEmpty && !nativeAudioMatchesDubFilter
-            let needsAudioIdentity = originalAudioFilterEnabled && !["en", "es"].contains(baseLanguage)
+            let verifiedCatalogueAudio = (result.catalogSource == .aniKoto
+                && selectedDubLanguageCodes.contains(MyDubListLanguage.english.taizenLanguageCode))
+                || (result.catalogSource == .soloLatino
+                    && selectedDubLanguageCodes.contains(MyDubListLanguage.spanish.taizenLanguageCode))
+            let needsDubIdentity = !selectedDubLanguageCodes.isEmpty
+                && !nativeAudioMatchesDubFilter && !verifiedCatalogueAudio
+            let needsAudioIdentity = originalAudioFilterEnabled
+                && !["en", "es"].contains(baseLanguage) && !verifiedCatalogueAudio
             // Existing clean artwork must not short-circuit identity resolution
             // when a selected dub/audio filter still needs AniList metadata.
             // Otherwise an anime with a Taizen poster and logo is incorrectly
@@ -3338,7 +3350,8 @@ private struct BrowseMediaView: View {
                         animeArtworkURL: artworkURL,
                         animeLogoURL: result.animeLogoURL,
                         tvMazePosterURL: result.tvMazePosterURL,
-                        fanartTVPosterURL: result.fanartTVPosterURL
+                        fanartTVPosterURL: result.fanartTVPosterURL,
+                        catalogSource: result.catalogSource
                     )
                     return (index, enriched)
                 }
