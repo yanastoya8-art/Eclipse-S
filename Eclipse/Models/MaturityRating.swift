@@ -445,3 +445,22 @@ enum MaturityRating: Int, Comparable, Codable, Sendable {
         return matureTextMarkers.contains { normalized.contains(" \($0) ") }
     }
 }
+
+
+
+enum CatalogAgeRatingFilterPolicy {
+    /// A configured minimum age is a strict eligibility rule: a missing or
+    /// unknown certificate cannot prove that a title meets the minimum.
+    /// The All Ages-only toggle remains narrower and excludes only explicit
+    /// general-audience classifications.
+    static func shouldInclude(
+        rating: MaturityRating?,
+        minimum: MaturityRating?,
+        hideAllAges: Bool
+    ) -> Bool {
+        if hideAllAges, rating == .general { return false }
+        guard let minimum else { return true }
+        guard let rating, rating != .unknown else { return false }
+        return rating >= minimum
+    }
+}
