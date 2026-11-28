@@ -1039,10 +1039,23 @@ struct SearchView: View {
                 // those filters are applied to anime candidates already found
                 // in TMDB results, while the dedicated Anime filter performs
                 // the broader AniList lookup.
-                if searchFilter == .anime || searchFilter == .all || results.isEmpty {
-                    // TMDB multi-search can return unrelated movie matches for
-                    // an anime title, so a non-empty TMDB response must not
-                    // suppress AniList lookup in the default All search.
+                let foldedAnimeQuery = query.folding(
+                    options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+                    locale: Locale(identifier: "en_US_POSIX")
+                ).lowercased()
+                let hasStrongAnimeTitleMatch = results.contains { result in
+                    [result.displayTitle, result.originalName ?? ""].contains { title in
+                        title.folding(
+                            options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+                            locale: Locale(identifier: "en_US_POSIX")
+                        ).lowercased().contains(foldedAnimeQuery)
+                    }
+                }
+                if searchFilter == .anime || !hasStrongAnimeTitleMatch {
+                    // TMDB multi-search can return unrelated movie/TV matches
+                    // for an anime title. Search AniList when no title-level
+                    // match exists, but do not make every ordinary Search query
+                    // wait for a second catalogue provider.
                     let animeResults = await AniListService.shared.searchAnimeResults(
                         query: query,
                         tmdbService: tmdbService
@@ -3004,6 +3017,50 @@ private struct BrowseMediaView: View {
             for try await result in group {
                 combined.append(contentsOf: result.results)
                 hasMore = hasMore || result.hasMore
+            }
+
+            if isAnime {
+                // Keep AniList in the year-filtered path too. Previously the
+                // AniList merge existed only when no year was selected, so
+                // choosing a year silently removed the primary anime catalogue
+                // and left Browse with only TMDB's incomplete animation index.
+                let catalogKind: AniListService.AniListCatalogKind =
+                    sort == .rank ? .topRated : (sort == .newest ? .trending : .popular)
+                if let aniListResults = try? await AniListService.shared.fetchAnimeCatalog(
+                    catalogKind,
+                    page: page,
+                    limit: 20,
+                    tmdbService: tmdbService
+                ) {
+                    let selectedGenreIDs = Set(effectiveGenreIds)
+                    let selectedCountrySet = Set(effectiveCountries)
+                    let aniListCandidates = aniListResults.compactMap { candidate -> TMDBSearchResult? in
+                        let anime = candidate.withAnimeHint(true)
+                        if let ids = anime.genreIds, !selectedGenreIDs.isEmpty,
+                           !ids.contains(where: selectedGenreIDs.contains) {
+                            return nil
+                        }
+                        if upcomingOnly && !Self.hasOfficialUpcomingDate(anime) { return nil }
+                        if let year = Int(anime.displayDate.prefix(4)),
+                           !requestedYears.contains(year) {
+                            return nil
+                        }
+                        if !selectedCountrySet.isEmpty,
+                           let countries = anime.originCountry,
+                           !countries.contains(where: selectedCountrySet.contains) {
+                            return nil
+                        }
+                        if let effectiveLanguage,
+                           let language = anime.originalLanguage?.lowercased(),
+                           language != effectiveLanguage.lowercased() {
+                            return nil
+                        }
+                        if let ratingFloor, (anime.voteAverage ?? 0) < ratingFloor { return nil }
+                        return anime
+                    }
+                    combined.append(contentsOf: aniListCandidates)
+                    hasMore = hasMore || !aniListResults.isEmpty
+                }
             }
 
             return BrowsePageResult(
