@@ -420,6 +420,20 @@ final class MyDubListDubFilter: @unchecked Sendable {
     func shouldInclude(_ result: TMDBSearchResult) -> Bool {
         let languages = selectedLanguagesIncludingCatalogAudioRequirement
         guard !languages.isEmpty else { return true }
+
+        // A verified catalogue result is evidence of its own dub language.
+        // Anikoto's native "Dub" filter means English; SoloLatino's catalogue
+        // is Spanish audio. Either source is sufficient when both languages
+        // are selected, while every fallback title still needs AniList/MAL
+        // verification below.
+        if result.catalogSource == .aniKoto,
+           languages.contains(MyDubListLanguage.english.rawValue) {
+            return true
+        }
+        if result.catalogSource == .soloLatino,
+           languages.contains(MyDubListLanguage.spanish.rawValue) {
+            return true
+        }
         let animeCountries: Set<String> = ["JP", "CN", "KR", "TW"]
         let animeLanguages: Set<String> = ["ja", "zh", "ko"]
         let isLikelyAnime = result.animeIdentitySeed != nil
