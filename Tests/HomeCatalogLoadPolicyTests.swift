@@ -41,6 +41,34 @@ final class HomeCatalogLoadPolicyTests: XCTestCase {
         ))
     }
 
+    func testHomeAnimeIdentityReadsBothAgeFiltersFromTheProvidedProfileStore() {
+        let suiteName = "HomeCatalogLoadPolicyTests.\(UUID().uuidString)"
+        let settings = UserDefaults(suiteName: suiteName)!
+        defer { settings.removePersistentDomain(forName: suiteName) }
+
+        settings.set(true, forKey: "catalogHideBelowPG13Anime")
+        XCTAssertTrue(HomeCatalogLoadPolicy.requiresAnimeIdentity(
+            selectedDubLanguages: [],
+            settings: settings,
+            isKidsModeActive: false
+        ))
+
+        settings.set(false, forKey: "catalogHideBelowPG13Anime")
+        settings.set(true, forKey: "catalogHideAllAgesAnime")
+        XCTAssertTrue(HomeCatalogLoadPolicy.requiresAnimeIdentity(
+            selectedDubLanguages: [],
+            settings: settings,
+            isKidsModeActive: false
+        ))
+
+        settings.set(false, forKey: "catalogHideAllAgesAnime")
+        XCTAssertFalse(HomeCatalogLoadPolicy.requiresAnimeIdentity(
+            selectedDubLanguages: [],
+            settings: settings,
+            isKidsModeActive: false
+        ))
+    }
+
     func testHomeAnimeIdentityCanSkipResolutionWhenNoAnimeSpecificFilterIsActive() {
         XCTAssertFalse(HomeCatalogLoadPolicy.requiresAnimeIdentity(
             selectedDubLanguages: [],
