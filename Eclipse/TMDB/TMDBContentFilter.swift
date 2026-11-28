@@ -1584,12 +1584,17 @@ class TMDBContentFilter: ObservableObject {
         allowUnresolvedOptionalMetadata: Bool = false
     ) -> Bool {
         guard !shouldExcludeAnimeSpecialOrOVA(result) else { return false }
-        guard shouldIncludeUnofficialProduction(
-            title: result.displayTitle,
-            overview: result.overview,
-            result: result,
-            allowUnresolvedMetadata: allowUnresolvedOptionalMetadata
-        ) else { return false }
+        // SoloLatino and Anikoto are curated to official-producer titles.
+        // Exempt only rows explicitly tagged by those catalogue adapters;
+        // ordinary TMDB/AniList/MAL results retain the normal producer filter.
+        if !result.bypassesUnofficialProducerFilter {
+            guard shouldIncludeUnofficialProduction(
+                title: result.displayTitle,
+                overview: result.overview,
+                result: result,
+                allowUnresolvedMetadata: allowUnresolvedOptionalMetadata
+            ) else { return false }
+        }
         guard shouldIncludeSelectedAnimeDub(
             result,
             allowUnresolvedOptionalMetadata: allowUnresolvedOptionalMetadata
