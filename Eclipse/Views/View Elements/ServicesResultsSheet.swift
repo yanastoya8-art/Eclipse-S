@@ -8474,7 +8474,10 @@ struct ModulesSearchResultsSheet: View {
                 Label("Copy Stream URL", systemImage: "link")
             }
             Button {
-                copyProviderDownloadURL(stream.option.url, headers: stream.option.headers)
+                copyProviderDownloadURL(stream.option.url, headers: stream.option.headers, onFailure: { message in
+                    viewModel.streamError = message
+                    viewModel.showingStreamError = true
+                })
             } label: {
                 Label("Copy Download URL", systemImage: "arrow.down.doc")
             }
