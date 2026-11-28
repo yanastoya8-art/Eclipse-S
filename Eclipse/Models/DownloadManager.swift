@@ -802,7 +802,8 @@ enum DownloadSourceLinkPolicy {
                 || (first == 198 && (second == 18 || second == 19))
         }
 
-        if host.hasPrefix("0x") || host.contains(":") {
+        if host.hasPrefix("0x") { return true }
+        if host.contains(":") {
             if host.hasPrefix("::ffff:") { return true }
             return host == "::" || host == "::1"
                 || host.hasPrefix("fc") || host.hasPrefix("fd")
