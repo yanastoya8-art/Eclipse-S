@@ -46,6 +46,21 @@ enum HomeCatalogLoadPolicy {
             || isKidsModeActive
     }
 
+    /// Read age-filter values from the same profile store used by Browse and Search.
+    /// Keeping the store as an explicit input makes profile isolation testable.
+    static func requiresAnimeIdentity(
+        selectedDubLanguages: Set<String>,
+        settings: UserDefaults,
+        isKidsModeActive: Bool
+    ) -> Bool {
+        requiresAnimeIdentity(
+            selectedDubLanguages: selectedDubLanguages,
+            hideBelowPG13Anime: settings.bool(forKey: "catalogHideBelowPG13Anime"),
+            hideAllAgesAnime: settings.bool(forKey: "catalogHideAllAgesAnime"),
+            isKidsModeActive: isKidsModeActive
+        )
+    }
+
     static func forYouResults(
         recommendations: [TMDBSearchResult],
         trending: [TMDBSearchResult]
@@ -607,8 +622,7 @@ final class HomeViewModel: ObservableObject {
             // when an active filter needs it; otherwise keep the first shelf fast.
             let animeIdentityRequired = HomeCatalogLoadPolicy.requiresAnimeIdentity(
                 selectedDubLanguages: MyDubListDubFilter.shared.selectedLanguagesIncludingCatalogAudioRequirement,
-                hideBelowPG13Anime: ProfileSettingsStore.active.bool(forKey: "catalogHideBelowPG13Anime"),
-                hideAllAgesAnime: ProfileSettingsStore.active.bool(forKey: "catalogHideAllAgesAnime"),
+                settings: ProfileSettingsStore.active,
                 isKidsModeActive: ProfileManager.shared.isKidsModeActive
             )
             let rawAnimeCatalogs: [AniListService.AniListCatalogKind: [TMDBSearchResult]]
