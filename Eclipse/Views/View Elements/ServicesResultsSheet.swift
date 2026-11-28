@@ -17,96 +17,6 @@ typealias ServicesPresentationController = NSViewController
 typealias ServicesPresentationController = UIViewController
 #endif
 
-@MainActor
-private func copyProviderStreamURL(
-    _ rawURL: String,
-    onFailure: (@MainActor (String) -> Void)? = nil
-) {
-    guard let sourceURL = DownloadSourceLinkPolicy.copyableURL(rawURL) else { return }
-    // Copy the original provider URL, not the iPhone's loopback playback proxy.
-    let managedProxySession = MPVHeaderProxy.shared.upstreamProbeTarget(for: sourceURL)
-    let targetURL = MPVHeaderProxy.shared.recoverableTargetURL(for: sourceURL)
-        ?? managedProxySession?.url
-        ?? sourceURL
-    guard let scheme = targetURL.scheme?.lowercased(),
-          scheme == "http" || scheme == "https",
-          let host = targetURL.host,
-          !DownloadSourceLinkPolicy.isLocalOrPrivateHost(host) else {
-        onFailure?("The original provider URL could not be recovered. Local or private network addresses cannot be copied.")
-        return
-    }
-    ProviderExternalApplication.copy(targetURL.absoluteString)
-}
-
-@MainActor
-private func copyProviderDownloadURL(
-    _ rawURL: String,
-    headers: [String: String]? = nil,
-    onFailure: (@MainActor (String) -> Void)? = nil
-) {
-    guard let sourceURL = DownloadSourceLinkPolicy.copyableURL(rawURL) else { return }
-
-    let sanitizedHeaders = AVPlayerResourceLoader.sanitizedHTTPHeaders(headers ?? [:])
-    let managedProxySession = MPVHeaderProxy.shared.upstreamProbeTarget(for: sourceURL)
-    let targetURL = MPVHeaderProxy.shared.recoverableTargetURL(for: sourceURL)
-        ?? managedProxySession?.url
-        ?? sourceURL
-    let effectiveHeaders = [
-        managedProxySession?.headers,
-        Optional(sanitizedHeaders)
-    ]
-    .compactMap { $0 }
-    .first(where: { !$0.isEmpty }) ?? [:]
-
-    guard let scheme = targetURL.scheme?.lowercased(),
-          scheme == "http" || scheme == "https",
-          let host = targetURL.host,
-          !DownloadSourceLinkPolicy.isLocalOrPrivateHost(host) else {
-        onFailure?("The original provider URL could not be recovered. Local or private network addresses cannot be copied.")
-        return
-    }
-
-    // Preserve the authoritative MKV URL exactly; the player/download path
-    // must not wrap it in a local proxy or rewrite its signed query.
-    if DownloadSourceLinkPolicy.isMKVURL(targetURL) {
-        ProviderExternalApplication.copy(targetURL.absoluteString)
-        return
-    }
-
-    guard DownloadSourceLinkPolicy.requiresInternetShare(for: targetURL, headers: effectiveHeaders) else {
-        ProviderExternalApplication.copy(targetURL.absoluteString)
-        return
-    }
-
-    // HLS playlists and header-protected streams need a public capability URL.
-    // A local MPV proxy URL only works on this device and must never be copied.
-#if os(iOS) && !targetEnvironment(macCatalyst)
-    Task { @MainActor in
-        do {
-            let shareURL = try await DownloadManager.shared.createInternetShareURL(
-                for: targetURL,
-                headers: effectiveHeaders
-            )
-            ProviderExternalApplication.copy(shareURL.absoluteString)
-        } catch {
-            // A header-free HLS source can still be shared directly when the
-            // optional Internet Share backend has not been configured.
-            if effectiveHeaders.isEmpty {
-                ProviderExternalApplication.copy(targetURL.absoluteString)
-            } else {
-                onFailure?("Could not create a portable download link. \(error.localizedDescription)")
-            }
-            Logger.shared.log(
-                "Could not create a portable download URL for host \(targetURL.host ?? "unknown"): \(error.localizedDescription)",
-                type: "Download"
-            )
-        }
-    }
-#else
-    ProviderExternalApplication.copy(targetURL.absoluteString)
-#endif
-}
-
 extension Notification.Name {
     static let requestNextEpisode = Notification.Name("requestNextEpisode")
 }
@@ -2427,26 +2337,6 @@ struct ModulesSearchResultsSheet: View {
         .listRowBackground(Color.clear)
         .eclipseHideListRowSeparator()
         .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 5, trailing: 14))
-#if !os(tvOS)
-        .contextMenu {
-            Button {
-                copyProviderStreamURL(resolved.option.url, onFailure: { message in
-                    viewModel.streamError = message
-                    viewModel.showingStreamError = true
-                })
-            } label: {
-                Label("Copy Stream URL", systemImage: "link")
-            }
-            Button {
-                copyProviderDownloadURL(resolved.option.url, headers: resolved.option.headers, onFailure: { message in
-                    viewModel.streamError = message
-                    viewModel.showingStreamError = true
-                })
-            } label: {
-                Label("Copy Download URL", systemImage: "arrow.down.doc")
-            }
-        }
-#endif
     }
 
     private func stremioStyleServiceResolutionRow(service: Service) -> some View {
@@ -2566,28 +2456,6 @@ struct ModulesSearchResultsSheet: View {
         .listRowBackground(Color.clear)
         .eclipseHideListRowSeparator()
         .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 5, trailing: 14))
-#if !os(tvOS)
-        .contextMenu {
-            if let url = stream.url, !url.isEmpty {
-                Button {
-                    copyProviderStreamURL(url, onFailure: { message in
-                        viewModel.streamError = message
-                        viewModel.showingStreamError = true
-                    })
-                } label: {
-                    Label("Copy Stream URL", systemImage: "link")
-                }
-                Button {
-                    copyProviderDownloadURL(url, onFailure: { message in
-                    viewModel.streamError = message
-                    viewModel.showingStreamError = true
-                })
-                } label: {
-                    Label("Copy Download URL", systemImage: "arrow.down.doc")
-                }
-            }
-        }
-#endif
     }
 
     private var stremioStyleActionIcon: some View {
@@ -8120,26 +7988,6 @@ struct ModulesSearchResultsSheet: View {
         .listRowBackground(Color.clear)
         .eclipseHideListRowSeparator()
         .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 5, trailing: 14))
-#if !os(tvOS)
-        .contextMenu {
-            Button {
-                copyProviderStreamURL(stream.option.url, onFailure: { message in
-                    viewModel.streamError = message
-                    viewModel.showingStreamError = true
-                })
-            } label: {
-                Label("Copy Stream URL", systemImage: "link")
-            }
-            Button {
-                copyProviderDownloadURL(stream.option.url, headers: stream.option.headers, onFailure: { message in
-                    viewModel.streamError = message
-                    viewModel.showingStreamError = true
-                })
-            } label: {
-                Label("Copy Download URL", systemImage: "arrow.down.doc")
-            }
-        }
-#endif
     }
 
     @MainActor
@@ -8493,26 +8341,6 @@ struct ModulesSearchResultsSheet: View {
         .listRowBackground(Color.clear)
         .eclipseHideListRowSeparator()
         .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 5, trailing: 14))
-#if !os(tvOS)
-        .contextMenu {
-            Button {
-                copyProviderStreamURL(stream.option.url, onFailure: { message in
-                    viewModel.streamError = message
-                    viewModel.showingStreamError = true
-                })
-            } label: {
-                Label("Copy Stream URL", systemImage: "link")
-            }
-            Button {
-                copyProviderDownloadURL(stream.option.url, headers: stream.option.headers, onFailure: { message in
-                    viewModel.streamError = message
-                    viewModel.showingStreamError = true
-                })
-            } label: {
-                Label("Copy Download URL", systemImage: "arrow.down.doc")
-            }
-        }
-#endif
     }
 
     private func stremioStyleNuvioOutcomeRow(
